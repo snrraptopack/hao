@@ -2,19 +2,62 @@ import { el,type EventHandlers, type EventMap } from "./createElement";
 import type { Ref } from "./state";
 import { setCurrentComponent } from "./lifecycle";
 
-interface DIVConfig{
-  text?:string,
-  on?:EventHandlers
-  id?:string
+const HTML_TAGS = [
+  'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'a', 'img', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th',
+  'form', 'label', 'select', 'option', 'textarea',
+  'header', 'footer', 'nav', 'main', 'section', 'article', 'aside',
+  'button', 'input'
+] as const;
+
+type HTMLTag = typeof HTML_TAGS[number];
+
+interface ElementConfig {
+  text?: string | Ref<string>;
+  on?: EventHandlers;
+  id?: string;
   className?: string | Ref<string>;
+  href?: string; // for <a>
+  src?: string;  // for <img>
+  alt?: string;  // for <img>
+  type?: string; // for <input>, <button>
+  placeholder?: string; // for <input>, <textarea>
+  value?: string | Ref<string>;
+  checked?: boolean | Ref<boolean>;
+  disabled?: boolean | Ref<boolean>;
+  [key: string]: any; // Allow any other HTML attributes
 }
 
-interface ButtonConfig {
-  text: string | Ref<string>;
-  on?: EventHandlers;
-  disabled?: boolean | Ref<boolean>;
-  className?: string | Ref<string>;
-}
+// interface DIVConfig{
+//   text?:string,
+//   on?:EventHandlers
+//   id?:string
+//   className?: string | Ref<string>;
+// }
+
+// interface ButtonConfig {
+//   text: string | Ref<string>;
+//   on?: EventHandlers;
+//   disabled?: boolean | Ref<boolean>;
+//   className?: string | Ref<string>;
+// }
+
+// interface TextConfig {
+//   value: string | Ref<any>;
+//   formatter?: (v: any) => string;
+//   on?: EventHandlers;
+//   className?: string | Ref<string>;
+// }
+
+// type InputConfig = {
+//   id?: string;
+//   placeholder?: string;
+//   type?: string;
+//   on?: EventHandlers;
+//   value?: string | Ref<string>;
+//   className?: string | Ref<string>;
+//   checked?: boolean | Ref<boolean>;
+// }
 
 interface TextConfig {
   value: string | Ref<any>;
@@ -23,24 +66,12 @@ interface TextConfig {
   className?: string | Ref<string>;
 }
 
-type InputConfig = {
-  id?: string;
-  placeholder?: string;
-  type?: string;
-  on?: EventHandlers;
-  value?: string | Ref<string>;
-  className?: string | Ref<string>;
-  checked?: boolean | Ref<boolean>;
-}
-
 interface ListConfig<T> {
   items: Ref<T[]>;
   className?: string | Ref<string>;
   render: (item: T, index: number, ui: LayoutBuilder) => void;
   key?: (item: T) => string | number;
 }
-
-
 
 export class LayoutBuilder {
   private children: HTMLElement[] = [];
@@ -68,10 +99,118 @@ export class LayoutBuilder {
     }
   }
 
+  private applyAttribute(element: HTMLElement, attr: string, value: any) {
+    if (value === undefined || value === null) return;
+    
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      element.setAttribute(attr, String(value));
+    } else {
+      // It's a Ref
+      element.setAttribute(attr, String(value.value));
+      const unsub = value.subscribe((newValue: any) => {
+        element.setAttribute(attr, String(newValue));
+      });
+      this.cleanups.push(unsub);
+    }
+  }
+
+  /**
+   * Generic element creator for any HTML tag
+   */
+  private createElement(
+    tagName: HTMLTag, 
+    config: ElementConfig, 
+    builder?: (ui: LayoutBuilder) => void
+  ) {
+    const element = el(tagName).build();
+    
+    // Apply text content (support both string and Ref<string>)
+    if (config.text !== undefined) {
+      if (typeof config.text === 'string') {
+        element.textContent = config.text;
+      } else {
+        element.textContent = config.text.value;
+        const unsub = config.text.subscribe((newValue) => {
+          element.textContent = newValue;
+        });
+        this.cleanups.push(unsub);
+      }
+    }
+    
+    // Apply ID
+    if (config.id) element.id = config.id;
+    
+    // Apply className
+    this.applyClassName(element, config.className);
+    
+    // Apply events
+    this.applyEvents(element, config.on);
+    
+    // Apply common attributes
+    if (config.href) this.applyAttribute(element, 'href', config.href);
+    if (config.src) this.applyAttribute(element, 'src', config.src);
+    if (config.alt) this.applyAttribute(element, 'alt', config.alt);
+    if (config.type) this.applyAttribute(element, 'type', config.type);
+    if (config.placeholder) this.applyAttribute(element, 'placeholder', config.placeholder);
+    
+    // Handle value (for inputs)
+    if (config.value !== undefined) {
+      if (typeof config.value === 'string') {
+        (element as HTMLInputElement).value = config.value;
+      } else {
+        (element as HTMLInputElement).value = config.value.value;
+        const unsub = config.value.subscribe((newValue) => {
+          (element as HTMLInputElement).value = newValue;
+        });
+        this.cleanups.push(unsub);
+      }
+    }
+    
+    // Handle checked (for checkboxes)
+    if (config.checked !== undefined) {
+      if (typeof config.checked === 'boolean') {
+        (element as HTMLInputElement).checked = config.checked;
+      } else {
+        (element as HTMLInputElement).checked = config.checked.value;
+        const unsub = config.checked.subscribe((newValue) => {
+          (element as HTMLInputElement).checked = newValue;
+        });
+        this.cleanups.push(unsub);
+      }
+    }
+    
+    // Handle disabled
+    if (config.disabled !== undefined) {
+      if (typeof config.disabled === 'boolean') {
+        (element as HTMLButtonElement | HTMLInputElement).disabled = config.disabled;
+      } else {
+        (element as HTMLButtonElement | HTMLInputElement).disabled = config.disabled.value;
+        const unsub = config.disabled.subscribe((newValue) => {
+          (element as HTMLButtonElement | HTMLInputElement).disabled = newValue;
+        });
+        this.cleanups.push(unsub);
+      }
+    }
+    
+    // If builder function provided, execute it and append children
+    if (builder) {
+      const childBuilder = new LayoutBuilder();
+      builder(childBuilder);
+      const childContainer = childBuilder.build();
+      Array.from(childContainer.children).forEach(child => {
+        element.appendChild(child);
+      });
+      this.cleanups.push(() => childBuilder.destroy());
+    }
+    
+    this.children.push(element);
+    return this;
+  }
+
   /**
    * Creates a div container element.
    * 
-   * @param {DIVConfig} config - Configuration for the div
+   * @param {ElementConfig} config - Configuration for the div
    * @param {Function} [builder] - Optional builder function for nested content
    * @returns {LayoutBuilder} The builder instance for chaining
    * 
@@ -97,35 +236,14 @@ export class LayoutBuilder {
    * })
    * ```
    */
-  Div(config: DIVConfig, builder?: (ui: LayoutBuilder) => void) {
-    const div = el("div").build();
-    if (config.text) div.textContent = config.text;
-    if (config.id) div.id = config.id;
-    this.applyClassName(div, config.className);
-    this.applyEvents(div, config.on);
-    
-    // If builder function provided, execute it and append children
-    if (builder) {
-      const childBuilder = new LayoutBuilder();
-      builder(childBuilder);
-      const childContainer = childBuilder.build();
-      // Append all children from the container
-      Array.from(childContainer.children).forEach(child => {
-        div.appendChild(child);
-      });
-      
-      // Track child cleanup
-      this.cleanups.push(() => childBuilder.destroy());
-    }
-    
-    this.children.push(div);
-    return this;
+  Div(config: ElementConfig = {}, builder?: (ui: LayoutBuilder) => void) {
+    return this.createElement('div', config, builder);
   }
 
   /**
    * Creates a button element.
    * 
-   * @param {ButtonConfig} config - Button configuration
+   * @param {ElementConfig} config - Button configuration
    * @returns {LayoutBuilder} The builder instance for chaining
    * 
    * @example
@@ -151,37 +269,8 @@ export class LayoutBuilder {
    * })
    * ```
    */
-  Button(config: ButtonConfig) {
-    const btn = el("button").build();
-    
-    // Handle text (string or Ref)
-    if (typeof config.text === 'string') {
-      btn.textContent = config.text;
-    } else {
-      btn.textContent = config.text.value;
-      const unsub = config.text.subscribe((newValue) => {
-        btn.textContent = newValue;
-      });
-      this.cleanups.push(unsub);
-    }
-    
-    this.applyEvents(btn, config.on);
-    this.applyClassName(btn, config.className);
-    
-    if (config.disabled) {
-      if (typeof config.disabled === 'boolean') {
-        (btn as HTMLButtonElement).disabled = config.disabled;
-      } else {
-        (btn as HTMLButtonElement).disabled = config.disabled.value;
-        const unsub = config.disabled.subscribe((newValue) => {
-          (btn as HTMLButtonElement).disabled = newValue;
-        });
-        this.cleanups.push(unsub);
-      }
-    }
-    
-    this.children.push(btn);
-    return this;
+  Button(config: ElementConfig) {
+    return this.createElement('button', config);
   }
 
   /**
@@ -237,7 +326,7 @@ export class LayoutBuilder {
   /**
    * Creates an input element.
    * 
-   * @param {InputConfig} config - Input configuration
+   * @param {ElementConfig} config - Input configuration
    * @returns {LayoutBuilder} The builder instance for chaining
    * 
    * @example
@@ -265,40 +354,8 @@ export class LayoutBuilder {
    * })
    * ```
    */
-  Input(config: InputConfig) {
-    const inp = el("input").build() as HTMLInputElement;
-    if (config.id) inp.id = config.id;
-    if (config.placeholder) inp.placeholder = config.placeholder;
-    if (config.type) inp.type = config.type;
-    this.applyClassName(inp, config.className);
-    
-    if (config.value) {
-      if (typeof config.value === 'string') {
-        inp.value = config.value;
-      } else {
-        inp.value = config.value.value;
-        const unsub = config.value.subscribe((newValue) => {
-          inp.value = newValue;
-        });
-        this.cleanups.push(unsub);
-      }
-    }
-    
-    if (config.checked !== undefined) {
-      if (typeof config.checked === 'boolean') {
-        inp.checked = config.checked;
-      } else {
-        inp.checked = config.checked.value;
-        const unsub = config.checked.subscribe((newValue) => {
-          inp.checked = newValue;
-        });
-        this.cleanups.push(unsub);
-      }
-    }
-    
-    this.applyEvents(inp, config.on);
-    this.children.push(inp);
-    return this;
+  Input(config: ElementConfig) {
+    return this.createElement('input', config);
   }
 
   /**
@@ -341,44 +398,46 @@ export class LayoutBuilder {
     const getKey = config.key || ((_item: T, index: number) => index);
 
     const render = () => {
-      const items = config.items.value || [];
-      const newKeys = new Set<string | number>();
-      const fragment = document.createDocumentFragment();
+      const newItems = config.items.value || [];
+      const newKeys = new Set(newItems.map((item, index) => getKey(item, index)));
 
-      items.forEach((item, index) => {
-        const key = getKey(item, index);
-        newKeys.add(key);
-
-        let entry = elementMap.get(key);
-
-        if (!entry) {
-          // Only create NEW elements
-          const itemBuilder = new LayoutBuilder();
-          config.render(item, index, itemBuilder);
-          const itemElement = itemBuilder.build();
-          
-          // Get the first child as the grid item
-          const element = itemElement.children[0] as HTMLElement || itemElement;
-          
-          entry = { element, builder: itemBuilder };
-          elementMap.set(key, entry);
-        }
-
-        fragment.appendChild(entry.element);
-      });
-
-      // Remove deleted elements and cleanup subscriptions
+      // 1. Remove elements that are no longer in the list
       elementMap.forEach((entry, key) => {
         if (!newKeys.has(key)) {
           entry.element.remove();
-          entry.builder.destroy(); // Cleanup subscriptions
+          entry.builder.destroy();
           elementMap.delete(key);
         }
       });
 
-      // Update DOM in one operation
-      container.innerHTML = "";
-      container.appendChild(fragment);
+      // 2. Add, update, and move elements
+      let lastElement: HTMLElement | null = null;
+      newItems.forEach((item, index) => {
+        const key = getKey(item, index);
+        let entry = elementMap.get(key);
+
+        if (!entry) {
+          // Item is new: create it and add to map
+          const itemBuilder = new LayoutBuilder();
+          config.render(item, index, itemBuilder);
+          const itemElement = itemBuilder.build();
+          const element = (itemElement.children[0] as HTMLElement) || itemElement;
+          entry = { element, builder: itemBuilder };
+          elementMap.set(key, entry);
+        }
+
+        // Sync position: ensure the element is in the correct place
+        const targetElement = entry.element;
+        if (index === 0) {
+          if (container.firstChild !== targetElement) {
+            container.insertBefore(targetElement, container.firstChild);
+          }
+        } else if (lastElement && lastElement.nextSibling !== targetElement) {
+          container.insertBefore(targetElement, lastElement.nextSibling);
+        }
+        
+        lastElement = targetElement;
+      });
     };
 
     render();
@@ -416,7 +475,7 @@ export class LayoutBuilder {
    * })
    * ```
    */
-  When(condition: Ref<boolean>, thenBuilder: (ui: LayoutBuilder) => void) {
+  When(condition: Ref<boolean>, thenBuilder: (ui: LayoutBuilder) => void): { Else: (builder: (ui: LayoutBuilder) => void) => LayoutBuilder } {
     const container = el("div").build();
     let elseBuilder: ((ui: LayoutBuilder) => void) | null = null;
     let currentBuilder: LayoutBuilder | null = null;
@@ -570,6 +629,55 @@ export function Row(fn: (ui: LayoutBuilder) => void): HTMLElement {
  * document.getElementById('app').appendChild(App)
  * ```
  */
+
+// Dynamically add methods for all remaining HTML tags
+HTML_TAGS.forEach(tag => {
+  const methodName = tag.charAt(0).toUpperCase() + tag.slice(1);
+  
+  // Skip if method already exists
+  if ((LayoutBuilder.prototype as any)[methodName]) return;
+  
+  (LayoutBuilder.prototype as any)[methodName] = function(
+    config: ElementConfig = {}, 
+    builder?: (ui: LayoutBuilder) => void
+  ) {
+    return this.createElement(tag, config, builder);
+  };
+});
+
+// TypeScript declaration merging for dynamically added methods
+export interface LayoutBuilder {
+  Span(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  P(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  H1(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  H2(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  H3(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  H4(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  H5(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  H6(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  A(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Img(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Ul(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Ol(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Li(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Table(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Tr(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Td(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Th(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Form(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Label(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Select(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Option(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Textarea(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Header(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Footer(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Nav(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Main(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Section(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Article(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+  Aside(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
+}
+
 export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
   const builder = new LayoutBuilder();
   const cleanupFns = new Set<() => void>();

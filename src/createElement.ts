@@ -1,16 +1,45 @@
 import type { Ref } from "./state";
 
-
-type HTMLTags = 'div' | 'button' | 'p' | 'span' | 'input' | 'form';
+type HTMLTags = 
+  | 'div' | 'span' | 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+  | 'a' | 'img' | 'ul' | 'ol' | 'li' | 'table' | 'tr' | 'td' | 'th'
+  | 'form' | 'label' | 'select' | 'option' | 'textarea'
+  | 'header' | 'footer' | 'nav' | 'main' | 'section' | 'article' | 'aside'
+  | 'button' | 'input';
 
 type TagToElement = {
     'div': HTMLDivElement;
-    'button': HTMLButtonElement;
-    'p': HTMLParagraphElement;
     'span': HTMLSpanElement;
-    'input': HTMLInputElement;
+    'p': HTMLParagraphElement;
+    'h1': HTMLHeadingElement;
+    'h2': HTMLHeadingElement;
+    'h3': HTMLHeadingElement;
+    'h4': HTMLHeadingElement;
+    'h5': HTMLHeadingElement;
+    'h6': HTMLHeadingElement;
+    'a': HTMLAnchorElement;
+    'img': HTMLImageElement;
+    'ul': HTMLUListElement;
+    'ol': HTMLOListElement;
+    'li': HTMLLIElement;
+    'table': HTMLTableElement;
+    'tr': HTMLTableRowElement;
+    'td': HTMLTableCellElement;
+    'th': HTMLTableCellElement;
     'form': HTMLFormElement;
-    
+    'label': HTMLLabelElement;
+    'select': HTMLSelectElement;
+    'option': HTMLOptionElement;
+    'textarea': HTMLTextAreaElement;
+    'header': HTMLElement;
+    'footer': HTMLElement;
+    'nav': HTMLElement;
+    'main': HTMLElement;
+    'section': HTMLElement;
+    'article': HTMLElement;
+    'aside': HTMLElement;
+    'button': HTMLButtonElement;
+    'input': HTMLInputElement;
 };
 
 export type EventMap = {

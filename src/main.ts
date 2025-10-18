@@ -1,7 +1,7 @@
 import { Component } from "./dsl"
 import { ref, watch, type Ref } from "./state"
 import { fetch as fetchData } from "./fetch"
-import { Router, setRouter, Link, useParams, useQuery, useRouter } from "./router"
+import { Router, setRouter, Link, useParams, useQuery, useRouter } from "./index"
 
 
 type Comment = {
@@ -41,7 +41,7 @@ const HomePage = () => {
                 value: "A simple SPA router demo",
                 className: "text-xl text-gray-600 mb-12"
             })
-            
+    
             ui.Div({ className: "flex gap-4 justify-center" }, (ui) => {
                 ui.append(Link({ 
                     to: '/comments', 
@@ -67,7 +67,6 @@ const CommentsPage = () => {
             'https://jsonplaceholder.typicode.com/comments?postId=1',
             { cacheKey: 'comments' }  // ✅ Cache with key "comments"
         )
-        
         ui.Div({ className: "min-h-screen bg-gray-50" }, (ui) => {
         // Navigation
         ui.Div({ className: "bg-white shadow-sm border-b sticky top-0 z-10" }, (ui) => {
@@ -162,6 +161,7 @@ const ProductsPage = () => {
                 })
             })
         })
+
         
         ui.Div({ className: "max-w-6xl mx-auto p-8" }, (ui) => {
             ui.When(loading, (ui) => {
@@ -223,7 +223,8 @@ const ProductDetailPage = () => {
         const params = useParams()
     
     const { data, loading, error } = fetchData<Product>(
-        () => `https://dummyjson.com/products/${params.value.id}`
+        () => `https://dummyjson.com/products/${params.value.id}`,
+        {cacheKey:`${params.value.id}`}
     )
     
     ui.Div({ className: "min-h-screen bg-gray-50" }, (ui) => {
