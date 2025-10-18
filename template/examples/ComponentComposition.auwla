@@ -1,0 +1,134 @@
+<script>
+import { ref } from 'auwla'
+import type { Ref } from 'auwla'
+
+// Props for Card component
+interface CardProps {
+  title: string
+  description: string
+  isHighlighted?: Ref<boolean>
+  onCardClick?: () => void
+}
+
+// Props for Button component
+interface ButtonProps {
+  text: string
+  variant?: 'primary' | 'secondary' | 'danger'
+  onClick?: () => void
+}
+
+// State
+const selectedCard = ref<number | null>(null)
+const counter = ref(0)
+
+const cards = [
+  { id: 1, title: 'Component Props', description: 'Pass data to child components via props' },
+  { id: 2, title: 'Reactive State', description: 'Use refs to create reactive properties' },
+  { id: 3, title: 'Event Handlers', description: 'Handle clicks and interactions' },
+]
+
+function selectCard(id: number) {
+  selectedCard.value = selectedCard.value === id ? null : id
+}
+
+function incrementCounter() {
+  counter.value++
+}
+
+function decrementCounter() {
+  counter.value--
+}
+
+function resetCounter() {
+  counter.value = 0
+  selectedCard.value = null
+}
+</script>
+
+export function Card(props: CardProps) {
+  return (
+    <div 
+      class={props.isHighlighted?.value 
+        ? "p-6 bg-indigo-50 border-2 border-indigo-500 rounded-lg shadow-lg cursor-pointer transition-all" 
+        : "p-6 bg-white border border-gray-200 rounded-lg shadow hover:shadow-md cursor-pointer transition-all"
+      }
+      onClick={props.onCardClick}
+    >
+      <h3 class="text-xl font-bold text-gray-800 mb-2">{props.title}</h3>
+      <p class="text-gray-600">{props.description}</p>
+    </div>
+  )
+}
+
+export function Button(props: ButtonProps) {
+  const variant = props.variant || 'primary'
+  const baseClass = "px-4 py-2 rounded-lg font-semibold transition-colors"
+  const variantClass = variant === 'primary' 
+    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+    : variant === 'secondary'
+    ? "bg-gray-200 text-gray-800 hover:bg-gray-300"
+    : "bg-red-600 text-white hover:bg-red-700"
+  
+  return (
+    <button 
+      class={`${baseClass} ${variantClass}`}
+      onClick={props.onClick}
+    >
+      {props.text}</button>
+  )
+}
+
+export default function ComponentComposition() {
+  return (
+    <div class="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
+      <div class="max-w-4xl mx-auto">
+        
+        {/* Header */}
+        <div class="text-center mb-8">
+          <h1 class="text-4xl font-bold text-gray-900 mb-2">Component Composition</h1>
+          <p class="text-lg text-gray-600">Reusable components with props and events</p>
+        </div>
+
+        {/* Counter Section */}
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4">Counter: {counter.value}</h2>
+          <div class="flex gap-3">
+            <Button text="Increment" variant="primary" onClick={incrementCounter} />
+            <Button text="Decrement" variant="secondary" onClick={decrementCounter} />
+            <Button text="Reset All" variant="danger" onClick={resetCounter} />
+          </div>
+        </div>
+
+        {/* Cards Grid */}
+        <div class="mb-4">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4">
+            Select a Card {selectedCard.value ? `(Selected: ${selectedCard.value})` : ''}
+          </h2>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {cards.map(it=>(
+            <Card
+              title={it.title}
+              description={it.description}
+              isHighlighted={watch([selectedCard], () => selectedCard.value === it.id) as Ref<boolean>}
+              onCardClick={() => selectCard(it.id)}
+            />
+        ))} 
+        </div>
+
+        {/* Selected Card Details */}
+        {$if(selectedCard.value !== null, () => (
+          <div class="mt-8 p-6 bg-indigo-100 border-2 border-indigo-300 rounded-lg">
+            <h3 class="text-xl font-bold text-indigo-900 mb-2">✨ Card Selected!</h3>
+            <p class="text-indigo-700">
+              You selected card #{selectedCard.value}. Click it again to deselect.
+            </p>
+          </div>
+        ))}
+
+      </div>
+    </div>
+  )
+}

@@ -140,8 +140,9 @@ export class LayoutBuilder {
     // Apply ID
     if (config.id) element.id = config.id;
     
-    // Apply className
-    this.applyClassName(element, config.className);
+    // Apply className (support both 'class' and 'className')
+    const classValue = (config as any).class || config.className;
+    this.applyClassName(element, classValue);
     
     // Apply events
     this.applyEvents(element, config.on);

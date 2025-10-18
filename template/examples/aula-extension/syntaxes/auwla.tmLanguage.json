@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Auwla",
+  "scopeName": "source.auwla",
+  "fileTypes": ["auwla"],
+  "patterns": [
+    {
+      "begin": "\\A(<script>)",
+      "end": "(</script>)",
+      "beginCaptures": {
+        "1": { "name": "meta.tag.script.auwla entity.name.tag.script.auwla" }
+      },
+      "endCaptures": {
+        "1": { "name": "meta.tag.script.auwla entity.name.tag.script.auwla" }
+      },
+      "contentName": "meta.embedded.block.typescript source.ts",
+      "patterns": [
+        { "include": "source.ts" }
+      ]
+    },
+    {
+      "begin": "(?<=</script>)",
+      "end": "\\z",
+      "contentName": "meta.embedded.block.tsx source.tsx",
+      "patterns": [
+        { "include": "source.tsx" }
+      ]
+    }
+  ]
+}

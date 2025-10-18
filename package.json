@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -31,15 +31,26 @@
     "dev": "vite",
     "build": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
     "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "template:parse": "bun run template/test/test-parser.ts",
+    "template:test": "bun run template/test/test-full.ts"
   },
   "devDependencies": {
+    "@types/acorn": "^6.0.4",
     "@types/bun": "latest",
-    "vite": "latest",
-    "typescript": "latest"
+    "@types/handlebars": "^4.1.0",
+    "acorn": "^8.15.0",
+    "handlebars": "^4.7.8",
+    "typescript": "latest",
+    "vite": "latest"
   },
   "dependencies": {
+    "@babel/generator": "^7.28.3",
+    "@babel/parser": "^7.28.4",
+    "@babel/traverse": "^7.28.4",
+    "@babel/types": "^7.28.4",
     "@tailwindcss/vite": "^4.1.14",
+    "node-html-parser": "^7.0.1",
     "tailwindcss": "^4.1.14"
   }
 }

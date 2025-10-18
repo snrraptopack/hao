@@ -1,0 +1,10 @@
+{
+  "files.associations": {
+    "*.auwla": "auwla"
+  },
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": true
+  }
+}

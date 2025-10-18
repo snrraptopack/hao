@@ -1,0 +1,11 @@
+{
+  "iconDefinitions": {
+    "auwla-icon": {
+      "iconPath": "./icon.svg"
+    }
+  },
+  "fileExtensions": {
+    "auwla": "auwla-icon"
+  },
+  "fileNames": {}
+}

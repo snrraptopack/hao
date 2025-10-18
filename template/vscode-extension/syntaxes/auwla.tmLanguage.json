@@ -1,0 +1,32 @@
+{
+  "scopeName": "source.auwla",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#tags" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [{ "name": "comment.line.double-slash.auwla", "match": "//.*$" }, { "name": "comment.block.auwla", "begin": "/\\*", "end": "\\*/" }]
+    },
+    "strings": {
+      "patterns": [{ "name": "string.quoted.double.auwla", "begin": "\"", "end": "\"", "patterns": [] }, { "name": "string.quoted.single.auwla", "begin": "'", "end": "'", "patterns": [] }]
+    },
+    "keywords": {
+      "patterns": [{ "name": "keyword.control.auwla", "match": "\\b(if|else|for|while|return|import|from|export|function|const|let|var|interface)\\b" }]
+    },
+    "tags": {
+      "patterns": [{
+        "name": "meta.tag.auwla",
+        "begin": "<",
+        "end": ">",
+        "patterns": [
+          { "name": "entity.name.tag.auwla", "match": "[A-Za-z][A-Za-z0-9-]*" },
+          { "name": "punctuation.definition.tag.begin.auwla", "match": "<" },
+          { "name": "punctuation.definition.tag.end.auwla", "match": ">" }
+        ]
+      }]
+    }
+  }
+}

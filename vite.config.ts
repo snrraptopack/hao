@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite'
+import { templateCompiler } from './template/compiler/vite-plugin';
 
 export default defineConfig({
   build: {
@@ -21,5 +22,8 @@ export default defineConfig({
     port: 5173,
     open: true
   },
-  plugins:[tailwindcss()]
+  plugins: [
+    tailwindcss(),
+    templateCompiler()
+  ]
 });
