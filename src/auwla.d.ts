@@ -21,7 +21,7 @@ declare module 'auwla/template' {
    * @param condition - Ref<boolean> or boolean expression
    * @param thenFn - Callback function that renders when condition is true
    */
-  export function if(
+  export function $if(
     condition: Ref<boolean> | boolean,
     thenFn: () => void
   ): void;

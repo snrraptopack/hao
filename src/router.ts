@@ -89,8 +89,9 @@ export class Router {
     console.log(`🗑️ Cleared cache for: ${key}`)
   }
   
-  constructor(container: HTMLElement) {
-    this.container = container
+  constructor(routes: Route[] = [], container?: HTMLElement) {
+    this.routes = routes
+    this.container = container || document.body
     this.currentPath = ref(window.location.pathname)
     this.currentParams = ref({})
     this.currentQuery = ref({})
@@ -239,17 +240,21 @@ export class Router {
     
     for (const route of this.routes) {
       if (typeof route.path === 'string') {
+        // Case-insensitive matching: normalize both pattern and incoming path to lower-case
+        const normalizedPath = path.toLowerCase();
+        const normalizedRoute = route.path.toString().toLowerCase();
+
         // Convert route pattern to regex (e.g., /products/:id -> /products/(?<id>[^/]+))
-        const pattern = route.path.replace(/:\w+/g, (match) => {
+        const pattern = normalizedRoute.replace(/:\w+/g, (match) => {
           const paramName = match.slice(1) // Remove the ':'
           return `(?<${paramName}>[^/]+)`
         })
-        
+
         const regex = new RegExp(`^${pattern}$`)
-        const match = path.match(regex)
-        
+        const match = normalizedPath.match(regex)
+
         console.log(`Testing ${path} against ${route.path} (regex: ${regex}):`, match)
-        
+
         if (match) {
           return {
             route,
@@ -259,7 +264,7 @@ export class Router {
           }
         }
       } else {
-        // RegExp match
+        // RegExp match (leave behaviour unchanged)
         const match = path.match(route.path)
         if (match) {
           return {
@@ -393,22 +398,32 @@ export function Link(config: {
   activeClassName?: string;
 }) {
   return Component((ui) => {
-    const router = getRouter()
+    // Defer router access until component is actually rendered
+    let router: Router
+    let isActive: Ref<boolean>
+    let className: string | Ref<string>
     
-    // Watch if this link is active
-    const isActive = watchRef(router.currentPath, (path) => {
-      return path === config.to
-    }) as Ref<boolean>
-    
-    // Combine class names
-    const className = config.activeClassName
-      ? watchRef(isActive, (active) => {
-          const base = typeof config.className === 'string' 
-            ? config.className 
-            : config.className?.value || ''
-          return active ? `${base} ${config.activeClassName}` : base
-        }) as Ref<string>
-      : config.className
+    try {
+      router = getRouter()
+      
+      // Watch if this link is active
+      isActive = watchRef(router.currentPath, (path) => {
+        return path === config.to
+      }) as Ref<boolean>
+      
+      // Combine class names
+      className = config.activeClassName
+        ? watchRef(isActive, (active) => {
+            const base = typeof config.className === 'string' 
+              ? config.className 
+              : config.className?.value || ''
+            return active ? `${base} ${config.activeClassName}` : base
+          }) as Ref<string>
+        : (config.className || '')
+    } catch (e) {
+      // Router not initialized yet, use basic className
+      className = config.className || ''
+    }
     
     ui.Button({
       text: config.text,
@@ -416,7 +431,12 @@ export function Link(config: {
       on: {
         click: (e) => {
           e.preventDefault()
-          router.push(config.to)
+          try {
+            const currentRouter = getRouter()
+            currentRouter.push(config.to)
+          } catch (err) {
+            console.error('Router not available:', err)
+          }
         }
       }
     })

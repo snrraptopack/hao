@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@types/acorn": "^6.0.4",
+    "@types/babel__traverse": "^7.28.0",
     "@types/bun": "latest",
     "@types/handlebars": "^4.1.0",
     "acorn": "^8.15.0",

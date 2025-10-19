@@ -1,4 +1,4 @@
-import { parseTemplate } from '../compiler/parser';
+import { compile } from '../compiler';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -6,15 +6,12 @@ import { join } from 'path';
 const htmlPath = join(__dirname, '../examples/Counter.html');
 const htmlContent = readFileSync(htmlPath, 'utf-8');
 
-console.log('🔍 Testing Template Parser...\n');
+console.log('🔍 Testing Template Compiler (auwla pipeline)...\n');
 
-// Parse the template
-const result = parseTemplate(htmlContent);
+// Compile (this returns generated TypeScript source)
+const ts = compile(htmlContent);
 
-console.log('✅ Parsed Template:');
-console.log('-------------------');
-console.log('Template HTML:');
-console.log(result.template);
-console.log('\n📦 State:');
-console.log('\n⚡ Methods:');
-console.log('\n✅ Parser test complete!');
+console.log('✅ Generated TypeScript:');
+console.log('-------------------------');
+console.log(ts);
+console.log('\n✅ Compiler test complete!');

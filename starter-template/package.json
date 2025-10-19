@@ -1,0 +1,23 @@
+{
+  "name": "my-auwla-app",
+  "version": "1.0.0",
+  "description": "My Auwla Framework Application",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "routes:generate": "auwla-routes generate"
+  },
+  "dependencies": {
+    "auwla": "file:../"
+  },
+  "devDependencies": {
+    "@auwla/compiler": "file:../packages/auwla-compiler",
+    "@types/bun": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "@tailwindcss/vite": "^4.1.14",
+    "tailwindcss": "^4.1.14"
+  }
+}

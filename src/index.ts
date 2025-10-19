@@ -11,6 +11,11 @@ export { LayoutBuilder } from './dsl';
 
 // Router
 export { Router, setRouter, Link, useParams, useQuery, useRouter } from "./router"
+export type { Route as RouteConfig } from "./router"
+
+// App
+export { createApp } from './app'
+export type { App, AppConfig } from './app'
 
 // Element Creator (for advanced use)
 export { el } from './createElement';

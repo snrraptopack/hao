@@ -49,7 +49,7 @@ export function analyzeJSX(functionBody: t.BlockStatement): JSXNode[] {
         // Handle expressions like {someValue}
         jsxNodes.push({
           type: 'expression',
-          expression: (argument as any)?.expression || null
+          expression: (argument as any).expression || null
         });
       }
     }
@@ -311,7 +311,7 @@ function parseDirective(name: string, value: t.JSXAttribute['value']): Directive
   }
   
   // Event handlers: onClick, onInput, onKeyDown, etc.
-  if (name && name.startsWith('on') && name.length > 2 && name[2] && /[A-Z]/.test(name[2])) {
+  if (name.startsWith('on') && name.length > 2 && /[A-Z]/.test(name[2])) {
     const eventName = name.slice(2); // onCardClick -> CardClick
     const camelCaseEventName = eventName.charAt(0).toLowerCase() + eventName.slice(1); // CardClick -> cardClick
     return {

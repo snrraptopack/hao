@@ -1,0 +1,17 @@
+// @page
+// @title Welcome
+// @description Welcome page for Auwla SPA
+
+<script>
+
+</script>
+
+export default function Home(){
+
+    return(
+        <h1>
+            <h1>Hello from Auwla SPA! 🚀</h1>
+            <p>Edit this .auwla file and watch it hot-reload!</p>
+        </h1>
+    )
+}

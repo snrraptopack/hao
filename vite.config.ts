@@ -24,6 +24,12 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    templateCompiler()
-  ]
+    templateCompiler({ verbose: false, emitDebugFiles: true })
+  ],
+  // Ensure .auwla files are treated as modules, not assets
+  assetsInclude: [],
+  // Configure Vite to handle .auwla files
+  optimizeDeps: {
+    exclude: ['**/*.auwla']
+  }
 });

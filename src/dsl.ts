@@ -81,7 +81,13 @@ export class LayoutBuilder {
     if (!handlers) return;
     (Object.keys(handlers) as (keyof EventMap)[]).forEach(eventName => {
       const handler = handlers[eventName];
-      if (handler) el.addEventListener(eventName, handler as EventListener);
+      if (handler){
+        el.addEventListener(eventName, handler as EventListener);
+
+        this.cleanups.push(()=>{
+          el.removeEventListener(eventName,handler as EventListener)
+        })
+      }
     });
   }
 
@@ -484,7 +490,6 @@ export class LayoutBuilder {
     const render = () => {
       container.innerHTML = "";
       
-      // Cleanup previous builder
       if (currentBuilder) {
         currentBuilder.destroy();
       }
@@ -496,6 +501,8 @@ export class LayoutBuilder {
         thenBuilder(builder);
       } else if (!condition.value && elseBuilder) {
         elseBuilder(builder);
+      }else{
+        this.destroy()
       }
       
       const content = builder.build();

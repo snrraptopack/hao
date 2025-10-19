@@ -6,5 +6,6 @@
     "other": true,
     "comments": false,
     "strings": true
-  }
+  },
+  "kiroAgent.configureMCP": "Disabled"
 }

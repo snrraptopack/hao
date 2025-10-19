@@ -1,0 +1,61 @@
+import { Component, ref } from 'auwla'
+
+// @title Test Component
+// @description A sample TSX component to test our compiler
+
+<script>
+    const count = ref(0)
+    const message = ref("Hello from TSX!")
+</script>
+
+const TestComponent = () => {
+ 
+  return (
+    <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-lg">
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        {message}
+      </h1>
+      
+      <div className="flex items-center gap-4 mb-4">
+        <button 
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          onClick={() => count.value--}
+        >
+          -
+        </button>
+        
+        <span className="text-xl font-semibold">
+          Count: {count}
+        </span>
+        
+        <button 
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          onClick={() => count.value++}
+        >
+          +
+        </button>
+      </div>
+      
+      <div className="space-y-2">
+        <input 
+          type="text"
+          className="w-full px-3 py-2 border border-gray-300 rounded"
+          placeholder="Enter a message"
+          onInput={(e) => message.value = e.target.value}
+        />
+        
+        <div className="text-sm text-gray-600">
+          Current message: {message}
+        </div>
+      </div>
+      
+      {count.value > 5 && (
+        <div className="mt-4 p-3 bg-yellow-100 border border-yellow-400 rounded">
+          Wow! You've clicked {count} times!s
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default TestComponent

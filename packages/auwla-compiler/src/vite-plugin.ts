@@ -320,9 +320,7 @@ function extractDependencies(code: string): Set<string> {
   let match;
 
   while ((match = importRegex.exec(code)) !== null) {
-    if (match && match[1]) {
-      dependencies.add(match[1]);
-    }
+    dependencies.add(match[1]);
   }
 
   return dependencies;
@@ -368,10 +366,10 @@ function isCssOnlyChange(oldCode: string, newCode: string): boolean {
 
     // Check if only className changed
     const classNameRegex = /className:\s*["']([^"']*)["']/;
-    const oldMatch = oldLine?.match(classNameRegex);
-    const newMatch = newLine?.match(classNameRegex);
+    const oldMatch = oldLine.match(classNameRegex);
+    const newMatch = newLine.match(classNameRegex);
 
-    if (oldMatch && newMatch && oldLine && newLine) {
+    if (oldMatch && newMatch) {
       // className changed, but structure is same
       const oldWithoutClass = oldLine.replace(classNameRegex, 'className: "__CLASS__"');
       const newWithoutClass = newLine.replace(classNameRegex, 'className: "__CLASS__"');

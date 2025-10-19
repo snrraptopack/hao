@@ -1,0 +1,35 @@
+{
+  "name": "auwla-compiler",
+  "version": "0.0.0",
+  "description": "Auwla file compiler + Vite plugin (compile .auwla to JS/TS)",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.cjs.js",
+  "module": "./dist/index.esm.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "bin": {
+    "auwla-compile": "./dist/cli.cjs.js"
+  },
+  "scripts": {
+    "build": "tsup ./index.ts ./vite-plugin.ts ./auwla-codegen.ts ./auwla-parser.ts ./debug-transpile-auwla.ts --format cjs,esm --dts",
+    "build:watch": "tsup --watch ./index.ts ./vite-plugin.ts ./auwla-codegen.ts ./auwla-parser.ts --format cjs,esm --dts"
+  },
+  "peerDependencies": {
+    "auwla": "^0.0.4"
+  },
+  "devDependencies": {
+    "tsup": "^6.0.0",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.28.3",
+    "@babel/parser": "^7.28.4",
+    "@babel/traverse": "^7.28.4",
+    "@babel/types": "^7.28.4",
+    "node-html-parser": "^7.0.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
