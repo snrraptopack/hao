@@ -1,6 +1,6 @@
 {
   "name": "auwla-compiler",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "description": "Auwla Framework Compiler - Transforms .auwla files to reactive components",
   "type": "module",
   "main": "./dist/index.js",
@@ -29,15 +29,24 @@
     "vite",
     "plugin"
   ],
-  "author": "Your Name",
+  "author": "snrraptopack",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snrraptopack/auwla.git",
+    "directory": "packages/auwla-compiler"
+  },
+  "homepage": "https://github.com/snrraptopack/auwla#readme",
+  "bugs": {
+    "url": "https://github.com/snrraptopack/auwla/issues"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "bun run test-route-generator.ts"
   },
   "peerDependencies": {
-    "auwla": "^0.0.4",
+    "auwla": "^0.0.6",
     "vite": "^5.0.0"
   },
   "dependencies": {
