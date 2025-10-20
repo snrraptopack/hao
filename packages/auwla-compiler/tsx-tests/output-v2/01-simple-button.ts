@@ -10,7 +10,7 @@ export default function SimpleButtonPage() {
     ui.Div({ className: "p-8" }, (ui: LayoutBuilder) => {
       ui.H1({ text: "Button Test" })
       ui.Button({ text: "Click me", on: { click: () => count.value++ } })
-      ui.P({ text: watch([count], () => "Count:" + String(count.value)) as Ref<string> })
+      ui.P({ text: watch([count], () => `Count:${count.value}`) as Ref<string> })
     })
   })
 }

@@ -6,7 +6,7 @@ import * as _babelGenerator from '@babel/generator'
 // Normalize the generator import
 const generate: any = (_babelGenerator as any)?.generate ?? (_babelGenerator as any)?.default?.default ?? (_babelGenerator as any)?.default;
 import { isPascalCase, extractRefsFromExpression, formatComplexExpression } from './utils.js'
-// Control flow functions will be imported dynamically to avoid circular imports
+import * as controlFlow from './control-flow.js'
 
 /**
  * Generate code for a single JSX node
@@ -25,28 +25,23 @@ export function generateNode(node: any, indent: number): string {
       const controlFlowType = (node as any).controlFlowType
       
       if (controlFlowType === 'if') {
-        const { generateIfExpression } = require('./control-flow')
-        return generateIfExpression(node.expression, indent)
+        return controlFlow.generateIfExpression(node.expression, indent, generateNode)
       }
       
       if (controlFlowType === 'elseif') {
-        const { generateElseIfExpression } = require('./control-flow')
-        return generateElseIfExpression(node.expression, indent)
+        return controlFlow.generateElseIfExpression(node.expression, indent, generateNode)
       }
       
       if (controlFlowType === 'else') {
-        const { generateElseExpression } = require('./control-flow')
-        return generateElseExpression(node.expression, indent)
+        return controlFlow.generateElseExpression(node.expression, indent, generateNode)
       }
       
       if (controlFlowType === 'each') {
-        const { generateEachExpression } = require('./control-flow')
-        return generateEachExpression(node.expression, indent)
+        return controlFlow.generateEachExpression(node.expression, indent, generateNode)
       }
       
       if (controlFlowType === 'map') {
-        const { generateMapExpression } = require('./control-flow')
-        return generateMapExpression(node.expression, indent)
+        return controlFlow.generateMapExpression(node.expression, indent, generateNode)
       }
     }
     
@@ -290,27 +285,27 @@ function buildConfigObjectInternal(node: any, textChildren: any[] | null): strin
         if (exprCode.includes('.value')) {
           const refs = extractRefsFromExpression(child.expression)
           if (refs.length > 0) {
-            // Wrap in watch for reactivity
-            configParts.push(`text: watch([${refs.join(', ')}], () => String(${exprCode})) as Ref<string>`)
+            // Use template literal for better formatting
+            configParts.push(`text: watch([${refs.join(', ')}], () => \`${exprCode}\`) as Ref<string>`)
           } else {
-            configParts.push(`text: () => String(${exprCode})`)
+            configParts.push(`text: () => \`${exprCode}\``)
           }
         } else {
           // Not reactive
-          configParts.push(`text: String(${exprCode})`)
+          configParts.push(`text: \`${exprCode}\``)
         }
       }
     } else {
-      // Multiple text/expression children - concatenate them
-      const parts: string[] = []
+      // Multiple text/expression children - use template literal for better formatting
+      const templateParts: string[] = []
       const allRefs: string[] = []
       
       for (const child of textChildren) {
         if (child.type === 'text') {
-          parts.push(`"${child.text || ''}"`)
+          templateParts.push(child.text || '')
         } else if (child.type === 'expression') {
           const exprCode = generate(child.expression as any).code
-          parts.push(`String(${exprCode})`)
+          templateParts.push(`\${${exprCode}}`)
           
           // Collect refs for watch
           if (exprCode.includes('.value')) {
@@ -324,14 +319,14 @@ function buildConfigObjectInternal(node: any, textChildren: any[] | null): strin
         }
       }
       
-      const concatenated = parts.join(' + ')
+      const templateLiteral = templateParts.join('')
       
       if (allRefs.length > 0) {
         // Has reactive refs - wrap in watch
-        configParts.push(`text: watch([${allRefs.join(', ')}], () => ${concatenated}) as Ref<string>`)
+        configParts.push(`text: watch([${allRefs.join(', ')}], () => \`${templateLiteral}\`) as Ref<string>`)
       } else {
         // All static
-        configParts.push(`text: ${concatenated}`)
+        configParts.push(`text: \`${templateLiteral}\``)
       }
     }
   }

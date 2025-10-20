@@ -7,20 +7,15 @@ import * as _babelGenerator from '@babel/generator'
 const generate: any = (_babelGenerator as any)?.generate ?? (_babelGenerator as any)?.default?.default ?? (_babelGenerator as any)?.default;
 import { isRefIdentifier, extractRefsFromExpression, analyzeJSXElementSimple } from './utils.js'
 
-// Dynamic import to avoid circular dependency
-function getGenerateNode() {
-  const { generateNode } = require('./elements')
-  return generateNode
-}
+// generateNode will be passed as a parameter to avoid circular dependency
 
 /**
  * Generate $if(condition, <jsx>) expression
  * $if(isVisible.value, <div>Content</div>) -> if(watch(() => isVisible.value)) { ui.Div(...) }
  * $if(count.value > 3, <span>High</span>) -> if(watch(() => count.value > 3)) { ui.Span(...) }
  */
-export function generateIfExpression(callExpr: any, indent: number): string {
+export function generateIfExpression(callExpr: any, indent: number, generateNode: (node: any, indent: number) => string): string {
   const spaces = '  '.repeat(indent)
-  const generateNode = getGenerateNode()
 
   if (!t.isCallExpression(callExpr) || callExpr.arguments.length < 2) {
     return ''
@@ -101,9 +96,8 @@ export function generateIfExpression(callExpr: any, indent: number): string {
  * Generate $elseif(condition, <jsx>) expression
  * $elseif(count.value > 5, <span>Very High</span>) -> else if(watch(() => count.value > 5)) { ui.Span(...) }
  */
-export function generateElseIfExpression(callExpr: any, indent: number): string {
+export function generateElseIfExpression(callExpr: any, indent: number, generateNode: (node: any, indent: number) => string): string {
   const spaces = '  '.repeat(indent)
-  const generateNode = getGenerateNode()
 
   if (!t.isCallExpression(callExpr) || callExpr.arguments.length < 2) {
     return ''
@@ -160,9 +154,8 @@ export function generateElseIfExpression(callExpr: any, indent: number): string 
  * Generate $else(<jsx>) expression
  * $else(<span>Default</span>) -> else { ui.Span(...) }
  */
-export function generateElseExpression(callExpr: any, indent: number): string {
+export function generateElseExpression(callExpr: any, indent: number, generateNode: (node: any, indent: number) => string): string {
   const spaces = '  '.repeat(indent)
-  const generateNode = getGenerateNode()
 
   if (!t.isCallExpression(callExpr) || callExpr.arguments.length < 1) {
     return ''
@@ -204,9 +197,8 @@ export function generateElseExpression(callExpr: any, indent: number): string {
 /**
  * Generate $each(items, (item) => <jsx>) expression
  */
-export function generateEachExpression(callExpr: any, indent: number): string {
+export function generateEachExpression(callExpr: any, indent: number, generateNode: (node: any, indent: number) => string): string {
   const spaces = '  '.repeat(indent)
-  const generateNode = getGenerateNode()
 
   if (!t.isCallExpression(callExpr) || callExpr.arguments.length < 2) {
     return ''
@@ -312,9 +304,8 @@ export function generateEachExpression(callExpr: any, indent: number): string {
  * If array is static: use forEach() for non-reactive iteration
  * Example: items.map(item => <Component {...} />)
  */
-export function generateMapExpression(callExpr: any, indent: number): string {
+export function generateMapExpression(callExpr: any, indent: number, generateNode: (node: any, indent: number) => string): string {
   const spaces = '  '.repeat(indent)
-  const generateNode = getGenerateNode()
 
   if (!t.isCallExpression(callExpr) || callExpr.arguments.length < 1) {
     return ''

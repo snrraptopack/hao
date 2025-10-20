@@ -47,6 +47,7 @@ export function generateAuwlaFile(parsed: AuwlaFile): string {
   
   // Add component helpers (shared across all components in this file)
   if (parsed.helpers.length > 0) {
+
     code += '// Component helpers (shared across all components)\n'
     code += parsed.helpers.join('\n') + '\n\n'
   }
@@ -195,6 +196,7 @@ function generatePageComponent(component: ComponentFunction): string {
   // Add UI helpers (pageHelpers from <script> section) at component function scope
   const currentFile = getCurrentParsedFile()
   if (currentFile && currentFile.pageHelpers.length > 0) {
+
     code += '  // UI helpers (scoped to this page UI)\n'
     code += currentFile.pageHelpers.map(h => `  ${h}`).join('\n') + '\n\n'
   }

@@ -13,7 +13,7 @@ export default function SimpleEachPage() {
         items: items,
         key: (item) => item,
         render: (item: any, index: number, ui: LayoutBuilder) => {
-          ui.Div({ text: String(item) })
+          ui.Div({ text: `item` })
         }
       })
     })

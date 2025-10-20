@@ -22,6 +22,12 @@ export interface AuwlaFile {
   helpers: string[]; // Global scope - module level
   pageHelpers: string[]; // Page scope - component function level (from <script>)
   types: string[]; // Interface/type declarations
+  metadata: {
+    page?: string;
+    title?: string;
+    description?: string;
+    guard?: string;
+  };
 }
 
 /**
@@ -40,12 +46,17 @@ function isPascalCase(name: string): boolean {
  * 3. Mixed: Any combination of the above
  */
 export function parseAuwlaFile(content: string): AuwlaFile {
+  // Extract metadata from comments (like @page directive) FIRST
+  const metadata = extractMetadata(content);
+
+
   const result: AuwlaFile = {
     imports: [],
     components: [],
     helpers: [],
     pageHelpers: [],
-    types: []
+    types: [],
+    metadata
   };
 
   // Check if this is a traditional .auwla file with <script> tags
@@ -201,12 +212,17 @@ export function parseAuwlaFile(content: string): AuwlaFile {
 }
 
 function extractFromAST(ast: any, source: string): AuwlaFile {
+  // Extract metadata from comments (like @page directive) FIRST
+  const metadata = extractMetadata(source);
+
+
   const result: AuwlaFile = {
     imports: [],
     components: [],
     helpers: [],
     pageHelpers: [],
-    types: []
+    types: [],
+    metadata
   };
 
   traverse(ast, {
@@ -252,7 +268,14 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
         // Regular helper function (camelCase or other)
         const start = path.node.start!;
         const end = path.node.end!;
-        result.helpers.push(source.substring(start, end));
+        
+        // For @page directive: outside page scope → inside page scope (pageHelpers)
+        if (result.metadata.page) {
+          result.pageHelpers.push(source.substring(start, end));
+        } else {
+          // Regular component: helper functions stay in helpers (global scope)
+          result.helpers.push(source.substring(start, end));
+        }
       }
     },
     
@@ -365,12 +388,18 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
         }
       }
       
-      // Top-level variable declarations are component helpers (shared across all components)
-      // This ensures that variables like `const counter = ref(0)` in TSX files
-      // are available for ref detection and shared across components
+      // For @page directive: outside page scope → inside page scope (pageHelpers)
+      // For regular components: top-level variables stay in helpers (global scope)
       const start = path.node.start!;
       const end = path.node.end!;
-      result.helpers.push(source.substring(start, end));
+      
+      if (result.metadata.page) {
+        // @page directive: outside page scope → inside page scope
+        result.pageHelpers.push(source.substring(start, end));
+      } else {
+        // Regular component: top-level variables stay in global scope
+        result.helpers.push(source.substring(start, end));
+      }
     },
 
     // Extract expression statements (setInterval, console.log, etc.)
@@ -382,8 +411,19 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
       
       const start = path.node.start!;
       const end = path.node.end!;
-      // For TSX files, treat top-level expressions as component helpers (shared across components)
-      result.helpers.push(source.substring(start, end));
+      
+      // Check if this is a side effect that should run in component scope
+      const isSideEffect = t.isCallExpression(path.node.expression) && (
+        (t.isIdentifier(path.node.expression.callee) && 
+         ['setInterval', 'setTimeout', 'addEventListener', 'console'].includes(path.node.expression.callee.name)) ||
+        (t.isMemberExpression(path.node.expression.callee) &&
+         t.isIdentifier(path.node.expression.callee.object) &&
+         path.node.expression.callee.object.name === 'console')
+      );
+      
+      // For TSX files: ALL top-level expressions should be component-scoped
+      // Everything outside the JSX function goes into component scope
+      result.pageHelpers.push(source.substring(start, end));
     }
   });
 
@@ -455,4 +495,44 @@ export function extractJSXFromBody(body: any): any[] {
   }, undefined, body);
 
   return jsxElements;
+}
+/**
+
+ * Extract metadata from comments (like @page directive)
+ */
+function extractMetadata(content: string): AuwlaFile['metadata'] {
+  const metadata: AuwlaFile['metadata'] = {}
+  
+  // Look for @page directive - check all lines, not just the first
+  const lines = content.split(/\r?\n/)
+  
+  for (const line of lines) {
+    const pageLineMatch = line.match(/^\/\/\s*@page(?:\s+(.*))?$/)
+    if (pageLineMatch) {
+      // If there's a path after @page, use it, otherwise just mark as page
+      const pagePath = pageLineMatch[1]?.trim()
+      metadata.page = pagePath && pagePath.length > 0 ? pagePath : 'true'
+      break // Found it, no need to continue
+    }
+  }
+  
+  // Look for other metadata directives
+  for (const line of lines) {
+    const titleMatch = line.match(/^\/\/\s*@title\s+(.+)$/)
+    if (titleMatch) {
+      metadata.title = titleMatch[1].trim()
+    }
+    
+    const descMatch = line.match(/^\/\/\s*@description\s+(.+)$/)
+    if (descMatch) {
+      metadata.description = descMatch[1].trim()
+    }
+    
+    const guardMatch = line.match(/^\/\/\s*@guard\s+(.+)$/)
+    if (guardMatch) {
+      metadata.guard = guardMatch[1].trim()
+    }
+  }
+  
+  return metadata
 }

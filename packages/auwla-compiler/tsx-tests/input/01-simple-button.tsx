@@ -1,4 +1,4 @@
-// @page /simple-button
+// @page/simple-button
 // Test case: Simple button with static text
 
 import { ref, type Ref } from 'auwla'

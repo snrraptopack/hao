@@ -4,9 +4,9 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { parseTSXFile, generateAuwlaFromTSX } from './src/tsx-compiler'
 
-// Test the TSX compiler with the comprehensive test file
-const testFile = join(__dirname, 'comprehensive-test.tsx')
-const outputFile = join(__dirname, 'test-output.ts')
+// Test the TSX compiler with the page scoping test file
+const testFile = join(__dirname, 'tsx-tests/input/14-page-scoping.tsx')
+const outputFile = join(__dirname, 'tsx-tests/output-v2/14-page-scoping.ts')
 
 try {
   console.log('🔍 Reading TSX file:', testFile)

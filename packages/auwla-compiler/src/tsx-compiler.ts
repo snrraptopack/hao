@@ -63,15 +63,21 @@ export function parseTSXFile(content: string): TSXComponent {
       result.types.push(generate(path.node).code)
     },
 
-    // Extract top-level variables (component scope)
+    // Extract top-level variables (outside page scope)
     VariableDeclaration(path) {
       // Skip if inside a function
       if (path.getFunctionParent()) return
       
-      result.componentScopeCode.push(generate(path.node).code)
+      // With @page directive: outside page scope → inside page scope (uiScopeCode)
+      if (result.metadata.page) {
+        result.uiScopeCode.push(generate(path.node).code)
+      } else {
+        // Regular component: top-level stays in componentScopeCode
+        result.componentScopeCode.push(generate(path.node).code)
+      }
     },
 
-    // Extract top-level functions (component scope)
+    // Extract top-level functions (outside page scope)
     FunctionDeclaration(path) {
       const functionName = path.node.id?.name
       if (!functionName) return
@@ -81,8 +87,13 @@ export function parseTSXFile(content: string): TSXComponent {
         result.name = functionName
         extractComponentBody(path.node, result)
       } else {
-        // Helper function - goes to component scope
-        result.componentScopeCode.push(generate(path.node).code)
+        // Helper function - with @page directive: outside page scope → inside page scope (uiScopeCode)
+        if (result.metadata.page) {
+          result.uiScopeCode.push(generate(path.node).code)
+        } else {
+          // Regular component: helper functions stay in componentScopeCode
+          result.componentScopeCode.push(generate(path.node).code)
+        }
       }
     },
 
@@ -125,11 +136,18 @@ function extractComponentBody(functionNode: t.FunctionDeclaration, result: TSXCo
         result.jsxContent = generate(statement.argument).code
       }
     } else {
-      // This is UI scope code (inside component function, before return)
+      // For @page directive: inside page function logic → goes to Component UI scope (componentScopeCode)
       const code = generate(statement).code
-      // Avoid duplicates
-      if (!result.uiScopeCode.includes(code)) {
-        result.uiScopeCode.push(code)
+      if (result.metadata.page) {
+        // Inside page function logic goes to componentScopeCode (Component UI scope)
+        if (!result.componentScopeCode.includes(code)) {
+          result.componentScopeCode.push(code)
+        }
+      } else {
+        // Regular component: inside function logic stays in uiScopeCode
+        if (!result.uiScopeCode.includes(code)) {
+          result.uiScopeCode.push(code)
+        }
       }
     }
   }
@@ -153,16 +171,18 @@ export function generateAuwlaFromTSX(component: TSXComponent): string {
   // Generate component function
   code += `export default function ${component.name}() {\n`
 
-  // Add component scope code (refs, helpers)
-  if (component.componentScopeCode.length > 0) {
-    code += component.componentScopeCode.map(line => `  ${line}`).join('\n') + '\n\n'
+  // Add UI scope code (outside page scope → inside page function)
+  if (component.uiScopeCode.length > 0) {
+    code += '  // Logic that was outside page scope → now inside page scope\n'
+    code += component.uiScopeCode.map(line => `  ${line}`).join('\n') + '\n\n'
   }
 
   code += `  return Component((ui: LayoutBuilder) => {\n`
 
-  // Add UI scope code (inside component function)
-  if (component.uiScopeCode.length > 0) {
-    code += component.uiScopeCode.map(line => `    ${line}`).join('\n') + '\n\n'
+  // Add component scope code (inside page scope → inside Component UI scope)
+  if (component.componentScopeCode.length > 0) {
+    code += '    // Logic that was inside page scope → now inside Component UI scope\n'
+    code += component.componentScopeCode.map(line => `    ${line}`).join('\n') + '\n\n'
   }
 
   // Convert JSX to UI builder calls
@@ -187,8 +207,10 @@ function generateImports(component: TSXComponent): string {
   const auwlaImports = ['Component']
   const auwlaTypeImports = ['LayoutBuilder']
 
-  // Check if we need ref
+  // Check if we need ref (check both component and UI scope)
   const needsRef = component.componentScopeCode.some(line => 
+    line.includes('ref(') || line.includes('ref<')
+  ) || component.uiScopeCode.some(line => 
     line.includes('ref(') || line.includes('ref<')
   )
   if (needsRef) {
@@ -196,8 +218,10 @@ function generateImports(component: TSXComponent): string {
     auwlaTypeImports.push('Ref')
   }
 
-  // Check if we need watch
+  // Check if we need watch (check both scopes and JSX)
   const needsWatch = component.componentScopeCode.some(line => 
+    line.includes('watch(') || line.includes('watch<')
+  ) || component.uiScopeCode.some(line => 
     line.includes('watch(') || line.includes('watch<')
   ) || component.jsxContent.includes('&&') || component.jsxContent.includes('?') ||
   component.jsxContent.includes('.value')
@@ -397,6 +421,7 @@ function convertJSXElementToUICall(element: t.JSXElement): string {
  */
 function extractPropsConfig(attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[]): string {
   const props: string[] = []
+  const eventHandlers: string[] = []
 
   for (const attr of attributes) {
     if (t.isJSXAttribute(attr)) {
@@ -414,7 +439,11 @@ function extractPropsConfig(attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[
         const eventName = propName.slice(2).toLowerCase()
         const handler = getAttributeValue(attr.value)
         if (handler) {
-          props.push(`on: { ${eventName}: ${handler} }`)
+          // Wrap handler in function if it's not already a function
+          const wrappedHandler = handler.includes('=>') || handler.includes('function') 
+            ? handler 
+            : `(e) => ${handler}()`
+          eventHandlers.push(`${eventName}: ${wrappedHandler}`)
         }
       } else if (propName === 'children') {
         // Skip children prop - handled separately
@@ -427,6 +456,11 @@ function extractPropsConfig(attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[
         }
       }
     }
+  }
+
+  // Add event handlers as a single 'on' object
+  if (eventHandlers.length > 0) {
+    props.push(`on: { ${eventHandlers.join(', ')} }`)
   }
 
   return props.length > 0 ? `{ ${props.join(', ')} }` : '{}'
@@ -581,8 +615,14 @@ function getAttributeValue(value: t.JSXElement | t.JSXFragment | t.StringLiteral
 function extractMetadata(content: string): TSXComponent['metadata'] {
   const metadata: TSXComponent['metadata'] = {}
   
-  const pageMatch = content.match(/\/\/\s*@page\s+(.+)/i)
-  if (pageMatch) metadata.page = pageMatch[1].trim()
+  // Look for @page directive - split by lines to handle line endings properly
+  const lines = content.split(/\r?\n/)
+  const pageLineMatch = lines[0]?.match(/^\/\/\s*@page(?:\s+(.*))?$/)
+  if (pageLineMatch) {
+    // If there's a path after @page, use it, otherwise just mark as page
+    const pagePath = pageLineMatch[1]?.trim()
+    metadata.page = pagePath && pagePath.length > 0 ? pagePath : 'true'
+  }
   
   const titleMatch = content.match(/\/\/\s*@title\s+(.+)/i)
   if (titleMatch) metadata.title = titleMatch[1].trim()

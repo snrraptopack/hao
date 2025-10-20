@@ -18,7 +18,7 @@ try {
   // Ensure output directory exists
   mkdirSync(outputDir, { recursive: true })
   
-  const testFiles = ['01-simple-button.tsx', '02-dynamic-button.tsx', '03-mixed-elements.tsx', '04-if-syntax.tsx', '05-if-block-syntax.tsx', '06-complex-structure.tsx', '07-if-else-chain.tsx', '08-simple-if-else.tsx', '09-each-syntax.tsx', '10-simple-each.tsx', '11-reactive-map.tsx', '12-static-map.tsx', '13-component-composition.tsx']
+  const testFiles = ['01-simple-button.tsx', '02-dynamic-button.tsx', '03-mixed-elements.tsx', '04-if-syntax.tsx', '05-if-block-syntax.tsx', '06-complex-structure.tsx', '07-if-else-chain.tsx', '08-simple-if-else.tsx', '09-each-syntax.tsx', '10-simple-each.tsx', '11-reactive-map.tsx', '12-static-map.tsx', '13-component-composition.tsx', '14-page-scoping.tsx']
   
   for (const inputFile of testFiles) {
     const inputPath = join(inputDir, inputFile)
