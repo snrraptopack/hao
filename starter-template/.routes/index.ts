@@ -1,15 +1,34 @@
-// Auto-generated routes index
-// This file is automatically updated when routes are added/removed
+// Auto-generated route registry
+// This file is automatically updated when you run 'npm run routes:generate'
 
-import type { RouteConfig } from 'auwla'
+export interface RouteDefinition {
+  path: string
+  component: () => any
+  name: string
+  meta?: Record<string, any>
+}
 
-// Manual routes
-import home from './manual/home.js'
-import about from './manual/about.js'
-import _404 from './manual/_404.js'
+// --- AUTO-GENERATED IMPORTS START ---
+import AboutPage from './about'
+// --- AUTO-GENERATED IMPORTS END ---
 
-export const routes: RouteConfig[] = [
-  home,
-  about,
-  _404
+// Manual routes (add your custom routes here)
+const manualRoutes: RouteDefinition[] = []
+
+// --- AUTO-GENERATED ROUTES START ---
+const generatedRoutes: RouteDefinition[] = [
+  {
+    path: '/about',
+    component: AboutPage,
+    name: 'about'
+  }
 ]
+// --- AUTO-GENERATED ROUTES END ---
+
+// Export all routes
+export const routes: RouteDefinition[] = [
+  ...manualRoutes,
+  ...generatedRoutes
+]
+
+export default routes
