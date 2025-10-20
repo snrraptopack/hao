@@ -18,7 +18,8 @@ export interface ComponentFunction {
 export interface AuwlaFile {
   imports: string[];
   components: ComponentFunction[];
-  helpers: string[]; // Non-component functions and variables
+  helpers: string[]; // Global scope - module level
+  pageHelpers: string[]; // Page scope - component function level (from <script>)
   types: string[]; // Interface/type declarations
 }
 
@@ -40,6 +41,7 @@ export function parseAuwlaFile(content: string): AuwlaFile {
     imports: [],
     components: [],
     helpers: [],
+    pageHelpers: [],
     types: []
   };
 
@@ -74,15 +76,15 @@ export function parseAuwlaFile(content: string): AuwlaFile {
         VariableDeclaration(path) {
           const start = path.node.start!;
           const end = path.node.end!;
-          result.helpers.push(scriptContent.substring(start, end));
+          result.pageHelpers.push(scriptContent.substring(start, end));
         },
         FunctionDeclaration(path) {
           const name = path.node.id?.name;
           const start = path.node.start!;
           const end = path.node.end!;
-          // All functions in script are helpers (including PascalCase sub-components)
+          // All functions in script are pageHelpers (component function scope)
           if (name) {
-            result.helpers.push(scriptContent.substring(start, end));
+            result.pageHelpers.push(scriptContent.substring(start, end));
           }
         },
         ExpressionStatement(path) {
@@ -93,7 +95,7 @@ export function parseAuwlaFile(content: string): AuwlaFile {
           
           const start = path.node.start!;
           const end = path.node.end!;
-          result.helpers.push(scriptContent.substring(start, end));
+          result.pageHelpers.push(scriptContent.substring(start, end));
         }
       });
     }
@@ -169,6 +171,7 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
     imports: [],
     components: [],
     helpers: [],
+    pageHelpers: [],
     types: []
   };
 

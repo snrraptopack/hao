@@ -1,9 +1,9 @@
 // Main exports for @auwla/compiler package
-export { parseAuwlaFile } from './auwla-parser'
-export { generateAuwlaFile } from './auwla-codegen'
-export { generateRoutes } from './route-generator'
-export { templateCompiler } from './vite-plugin'
+export { parseAuwlaFile } from './auwla-parser.js'
+export { generateAuwlaFile } from './codegen/main.js'
+export { generateRoutes } from './route-generator.js'
+export { templateCompiler } from './vite-plugin.js'
 
 // Types
-export type { AuwlaFile, ComponentFunction } from './auwla-parser'
-export type { JSXNode, JSXProp, Directive } from './jsx-analyzer'
+export type { AuwlaFile, ComponentFunction } from './auwla-parser.js'
+export type { JSXNode, JSXProp, Directive } from './jsx-analyzer.js'

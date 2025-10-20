@@ -16,14 +16,50 @@ declare module 'auwla/template' {
 
   /**
    * Reactive conditional rendering
-   * Compiles to ui.When() in template context
+   * Compiles to if(watch([refs], () => condition)) in template context
    * 
    * @param condition - Ref<boolean> or boolean expression
-   * @param thenFn - Callback function that renders when condition is true
+   * @param thenFn - Optional callback function that renders when condition is true
    */
   export function $if(
     condition: Ref<boolean> | boolean,
-    thenFn: () => void
+    thenFn?: () => void
+  ): boolean;
+
+  /**
+   * Else if conditional rendering
+   * Must follow $if or another $elseif
+   * Compiles to else if(watch([refs], () => condition)) in template context
+   * 
+   * @param condition - Ref<boolean> or boolean expression
+   * @param content - JSX content to render when condition is true
+   */
+  export function $elseif(
+    condition: Ref<boolean> | boolean,
+    content?: any
+  ): boolean;
+
+  /**
+   * Else conditional rendering
+   * Must follow $if or $elseif
+   * Compiles to else block in template context
+   * 
+   * @param content - JSX content to render when all previous conditions are false
+   */
+  export function $else(
+    content?: any
+  ): void;
+
+  /**
+   * Simple conditional rendering (new syntax)
+   * Compiles to ui.When() in template context
+   * 
+   * @param condition - Ref<boolean> or boolean expression
+   * @param content - JSX content to render when condition is true
+   */
+  export function $when(
+    condition: Ref<boolean> | boolean,
+    content: any
   ): void;
 
   /**

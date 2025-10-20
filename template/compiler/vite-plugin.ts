@@ -2,7 +2,7 @@ import type { Plugin } from 'vite';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { parseAuwlaFile } from './auwla-parser';
-import { generateAuwlaFile } from './auwla-codegen';
+import { generateAuwlaFile } from 'auwla-compiler';
 
 /**
  * Vite plugin for compiling .html template files with smart caching and hot reload

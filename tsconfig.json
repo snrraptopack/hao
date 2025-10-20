@@ -9,9 +9,8 @@
     "allowJs": true,
 
     // Bundler mode
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
 
     // Declaration files
     "declaration": true,

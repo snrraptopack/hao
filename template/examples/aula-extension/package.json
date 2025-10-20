@@ -2,7 +2,7 @@
   "name": "auwla-vscode",
   "displayName": "Auwla Language Support",
   "description": "Language support for .auwla files with JSX-like syntax and TypeScript IntelliSense",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "publisher": "auwla",
   "license": "MIT",
   "repository": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/auwla/auwla-vscode"
   },
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Programming Languages"
@@ -53,17 +53,19 @@
         }
       }
     ],
-    "typescriptServerPlugins": [
-      {
-        "name": "typescript-auwla-plugin",
-        "enableForWorkspaceTypeScriptVersions": true
-      }
-    ],
+
     "iconThemes": [
       {
         "id": "auwla-icons",
         "label": "Auwla File Icons",
         "path": "./fileicons/auwla-icon-theme.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "auwla.setupTypeScript",
+        "title": "Setup TypeScript Configuration",
+        "category": "Auwla"
       }
     ]
   },
@@ -75,7 +77,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.80.0",
+    "@types/vscode": "^1.105.0",
     "typescript": "^5.0.0"
   }
 }

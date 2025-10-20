@@ -49,7 +49,7 @@ export function analyzeJSX(functionBody: t.BlockStatement): JSXNode[] {
         // Handle expressions like {someValue}
         jsxNodes.push({
           type: 'expression',
-          expression: (argument as any).expression || null
+          expression: (argument as any)?.expression || null
         });
       }
     }
@@ -128,14 +128,140 @@ function analyzeJSXChild(child: t.JSXElement['children'][0]): JSXNode | null {
       return null;
     }
     
+    // Check for condition && jsx patterns
+    if (t.isLogicalExpression(expr) && expr.operator === '&&') {
+      const left = expr.left;
+      const right = expr.right;
+      
+      // Check if left side is $if(condition)
+      if (t.isCallExpression(left) && 
+          t.isIdentifier(left.callee) && 
+          left.callee.name === '$if') {
+        // Transform $if(condition) && jsx into $if(condition, jsx)
+        const condition = left.arguments[0];
+        const jsxContent = right;
+        
+        // Create a synthetic call expression
+        const syntheticCall = t.callExpression(
+          t.identifier('$if'),
+          [condition, jsxContent]
+        );
+        
+        return {
+          type: 'expression',
+          expression: syntheticCall,
+          isControlFlow: true,
+          controlFlowType: 'if'
+        } as any;
+      }
+      
+      // Check if left side is $elseif(condition)
+      if (t.isCallExpression(left) && 
+          t.isIdentifier(left.callee) && 
+          left.callee.name === '$elseif') {
+        // Transform $elseif(condition) && jsx into $elseif(condition, jsx)
+        const condition = left.arguments[0];
+        const jsxContent = right;
+        
+        // Create a synthetic call expression
+        const syntheticCall = t.callExpression(
+          t.identifier('$elseif'),
+          [condition, jsxContent]
+        );
+        
+        return {
+          type: 'expression',
+          expression: syntheticCall,
+          isControlFlow: true,
+          controlFlowType: 'elseif'
+        } as any;
+      }
+      
+      // Check if left side is $else()
+      if (t.isCallExpression(left) && 
+          t.isIdentifier(left.callee) && 
+          left.callee.name === '$else') {
+        // Transform $else() && jsx into $else(jsx)
+        const jsxContent = right;
+        
+        // Create a synthetic call expression
+        const syntheticCall = t.callExpression(
+          t.identifier('$else'),
+          [jsxContent]
+        );
+        
+        return {
+          type: 'expression',
+          expression: syntheticCall,
+          isControlFlow: true,
+          controlFlowType: 'else'
+        } as any;
+      }
+      
+      // Check if right side is JSX (regular condition && jsx pattern)
+      if (t.isJSXElement(right) || t.isJSXFragment(right) || 
+          (t.isParenthesizedExpression(right) && 
+           (t.isJSXElement(right.expression) || t.isJSXFragment(right.expression)))) {
+        
+        // Transform condition && jsx into $if(condition, jsx)
+        let jsxContent: any = right;
+        if (t.isParenthesizedExpression(right)) {
+          jsxContent = right.expression;
+        }
+        
+        // Create a synthetic $if call
+        const syntheticCall = t.callExpression(
+          t.identifier('$if'),
+          [left, jsxContent]
+        );
+        
+        return {
+          type: 'expression',
+          expression: syntheticCall,
+          isControlFlow: true,
+          controlFlowType: 'if'
+        } as any;
+      }
+    }
+
     // Check for special control flow functions: $if, $each, and .map()
     if (t.isCallExpression(expr)) {
       const callee = expr.callee;
       
-      // Check if it's $if or $each
+      // Check if it's $if, $each, or if
       if (t.isIdentifier(callee)) {
         if (callee.name === '$if') {
           // $if(condition, () => <jsx>)
+          return {
+            type: 'expression',
+            expression: expr,
+            isControlFlow: true,
+            controlFlowType: 'if'
+          } as any;
+        }
+        
+        if (callee.name === '$elseif') {
+          // $elseif(condition, <jsx>)
+          return {
+            type: 'expression',
+            expression: expr,
+            isControlFlow: true,
+            controlFlowType: 'elseif'
+          } as any;
+        }
+        
+        if (callee.name === '$else') {
+          // $else(<jsx>)
+          return {
+            type: 'expression',
+            expression: expr,
+            isControlFlow: true,
+            controlFlowType: 'else'
+          } as any;
+        }
+        
+        if (callee.name === '$when') {
+          // $when(condition, <jsx>)
           return {
             type: 'expression',
             expression: expr,
@@ -311,7 +437,7 @@ function parseDirective(name: string, value: t.JSXAttribute['value']): Directive
   }
   
   // Event handlers: onClick, onInput, onKeyDown, etc.
-  if (name.startsWith('on') && name.length > 2 && /[A-Z]/.test(name[2])) {
+  if (name && name.startsWith('on') && name.length > 2 && name[2] && /[A-Z]/.test(name[2])) {
     const eventName = name.slice(2); // onCardClick -> CardClick
     const camelCaseEventName = eventName.charAt(0).toLowerCase() + eventName.slice(1); // CardClick -> cardClick
     return {

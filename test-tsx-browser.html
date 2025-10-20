@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSX Test - Auwla</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        // Import the auwla framework
+        import { Component, ref, watch } from './dist/auwla.js'
+        
+        // Simple test to make sure auwla is working
+        const testComponent = Component((ui) => {
+            ui.Div({ className: "p-8" }, (ui) => {
+                ui.H1({ text: "TSX Test Page", className: "text-2xl font-bold mb-4" })
+                ui.P({ text: "If you see this, Auwla is working!" })
+                
+                // Add navigation to test different compiled files
+                ui.Div({ className: "mt-8 space-y-2" }, (ui) => {
+                    ui.H2({ text: "Available Tests:", className: "text-lg font-semibold" })
+                    ui.Button({ 
+                        text: "06 - Complex Structure (Todo App)", 
+                        className: "block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600",
+                        on: { click: () => loadTest('06-complex-structure') }
+                    })
+                    ui.Button({ 
+                        text: "09 - Each Syntax", 
+                        className: "block px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mt-2",
+                        on: { click: () => loadTest('09-each-syntax') }
+                    })
+                })
+            })
+        })
+        
+        async function loadTest(testName) {
+            try {
+                // Dynamically import the compiled test file
+                const module = await import(`./packages/auwla-compiler/tsx-tests/output-v2/${testName}.ts`)
+                const TestComponent = module.default
+                
+                // Clear the app and mount the test component
+                const app = document.getElementById('app')
+                app.innerHTML = ''
+                
+                // Component() returns an HTMLElement, so we can append it directly
+                const componentElement = TestComponent()
+                app.appendChild(componentElement)
+            } catch (error) {
+                console.error('Failed to load test:', error)
+                alert(`Failed to load test: ${testName}`)
+            }
+        }
+        
+        // Mount the initial test selector
+        const app = document.getElementById('app')
+        app.appendChild(testComponent)
+    </script>
+</body>
+</html>

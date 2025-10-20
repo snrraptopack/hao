@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.0.5",
+  "version": "0.2.5",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -25,18 +25,31 @@
     "spa",
     "router"
   ],
-  "author": "Your Name",
+  "author": "snrraptopack",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snrraptopack/auwla.git"
+  },
+  "homepage": "https://github.com/snrraptopack/auwla#readme",
+  "bugs": {
+    "url": "https://github.com/snrraptopack/auwla/issues"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build": "vite build && tsc",
     "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
     "preview": "vite preview",
     "template:parse": "bun run template/test/test-parser.ts",
     "template:test": "bun run template/test/test-full.ts"
   },
+  "bin": {
+    "auwla": "./dist/cli.js",
+    "auwla-routes": "./dist/cli.js"
+  },
   "devDependencies": {
     "@types/acorn": "^6.0.4",
+    "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0",
     "@types/bun": "latest",
     "@types/handlebars": "^4.1.0",

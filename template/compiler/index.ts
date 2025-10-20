@@ -1,5 +1,5 @@
 import { parseAuwlaFile } from './auwla-parser'
-import { generateAuwlaFile } from './auwla-codegen'
+import { generateAuwlaFile } from 'auwla-compiler'
 import { templateCompiler } from './vite-plugin'
 import debugTranspile from './debug-transpile-auwla'
 

@@ -1,0 +1,28 @@
+// @page /lifecycle
+
+<script>
+import { ref, onMount, onUnmount } from 'auwla';
+
+const pageTimer = ref(0);
+</script>
+
+export default function WithLifecycle(){
+    // Component builder scope - lifecycle hooks available here
+    const componentState = ref('mounted');
+    
+    onMount(() => {
+        console.log('Component mounted!');
+        componentState.value = 'ready';
+    });
+    
+    onUnmount(() => {
+        console.log('Component unmounting!');
+    });
+    
+    return(
+        <div>
+            <h1>Lifecycle Test</h1>
+            <p>State: {componentState.value}</p>
+        </div>
+    )
+}

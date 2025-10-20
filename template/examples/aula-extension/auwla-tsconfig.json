@@ -1,19 +1,27 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM"],
-    "jsx": "react",
-    "jsxFactory": "ui",
-    "strict": true,
-    "esModuleInterop": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "allowJs": true,
     "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "typeRoots": ["./types", "./node_modules/@types"]
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
   },
-  "include": ["**/*.auwla", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "out"]
+  "include": [
+    "src/**/*",
+    "**/*.auwla"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build"
+  ]
 }

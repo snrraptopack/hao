@@ -1,8 +1,8 @@
 import type { Plugin } from 'vite';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { parseAuwlaFile } from './auwla-parser';
-import { generateAuwlaFile } from './auwla-codegen';
+import { parseAuwlaFile } from './auwla-parser.js';
+import { generateAuwlaFile } from './codegen/main.js';
 
 /**
  * Vite plugin for compiling .html template files with smart caching and hot reload
@@ -50,11 +50,12 @@ export function templateCompiler(options?: { verbose?: boolean; emitDebugFiles?:
       lastCssHash = '';
     },
 
-    // Handle .html and .auwla files
+    // Handle .html, .auwla, and .tsx files
     async transform(code, id) {
-      // Only process .html and .auwla files in the template directory
+      // Only process .html, .auwla, and .tsx files in the template directory or pages directory
 
-      const isTemplateFile = id.includes('template') && (id.endsWith('.html') || id.endsWith('.auwla'));
+      const isTemplateFile = (id.includes('template') || id.includes('pages')) && 
+                            (id.endsWith('.html') || id.endsWith('.auwla') || id.endsWith('.tsx') || id.endsWith('.jsx'));
 
       // Only log per-file checks for template files or when verbose mode is enabled
       if (opts.verbose || isTemplateFile) {
@@ -105,7 +106,7 @@ export function templateCompiler(options?: { verbose?: boolean; emitDebugFiles?:
 
         // Emit compiled TypeScript next to source for debugging (helpful when JS still contains JSX)
         try {
-          const outTsPath = id.replace(/\.(auwla|html)$/, '.compiled.ts');
+          const outTsPath = id.replace(/\.(auwla|html|tsx|jsx)$/, '.compiled.ts');
           fs.promises.writeFile(outTsPath, compiledTS, 'utf-8').catch(() => {});
         } catch (e) {}
 
@@ -124,7 +125,7 @@ export function templateCompiler(options?: { verbose?: boolean; emitDebugFiles?:
         // Emit compiled JS file next to source for debugging (non-blocking)
         if (opts.emitDebugFiles) {
           try {
-            const outPath = id.replace(/\.(auwla|html)$/, '.compiled.js');
+            const outPath = id.replace(/\.(auwla|html|tsx|jsx)$/, '.compiled.js');
             fs.promises.writeFile(outPath, compiledJS, 'utf-8').catch(() => {});
           } catch (e) {
             // ignore write errors in environments that forbid disk writes
@@ -146,7 +147,8 @@ export function templateCompiler(options?: { verbose?: boolean; emitDebugFiles?:
 
     // Enhanced hot reload support
     async handleHotUpdate({ file, server, modules }) {
-      const isTemplateFile = file.includes('template') && (file.endsWith('.html') || file.endsWith('.auwla'));
+      const isTemplateFile = (file.includes('template') || file.includes('pages')) && 
+                            (file.endsWith('.html') || file.endsWith('.auwla') || file.endsWith('.tsx') || file.endsWith('.jsx'));
       const isCssFile = file.endsWith('.css') || file.includes('tailwind');
 
       if (isTemplateFile) {
@@ -202,7 +204,7 @@ export function templateCompiler(options?: { verbose?: boolean; emitDebugFiles?:
                   // Emit compiled JS for debugging (only when enabled)
                   if (opts.emitDebugFiles) {
                     try {
-                      const outPath = file.replace(/\.(auwla|html)$/, '.compiled.js');
+                      const outPath = file.replace(/\.(auwla|html|tsx|jsx)$/, '.compiled.js');
                       fs.promises.writeFile(outPath, newCompiled, 'utf-8').catch(() => {});
                     } catch (e) {}
                   }
@@ -223,7 +225,7 @@ export function templateCompiler(options?: { verbose?: boolean; emitDebugFiles?:
 
           // Emit compiled JS for debugging
           try {
-            const outPath = file.replace(/\.(auwla|html)$/, '.compiled.js');
+            const outPath = file.replace(/\.(auwla|html|tsx|jsx)$/, '.compiled.js');
             fs.promises.writeFile(outPath, newCompiled, 'utf-8').catch(() => {});
           } catch (e) {}
 
@@ -320,7 +322,9 @@ function extractDependencies(code: string): Set<string> {
   let match;
 
   while ((match = importRegex.exec(code)) !== null) {
-    dependencies.add(match[1]);
+    if (match && match[1]) {
+      dependencies.add(match[1]);
+    }
   }
 
   return dependencies;
@@ -366,10 +370,10 @@ function isCssOnlyChange(oldCode: string, newCode: string): boolean {
 
     // Check if only className changed
     const classNameRegex = /className:\s*["']([^"']*)["']/;
-    const oldMatch = oldLine.match(classNameRegex);
-    const newMatch = newLine.match(classNameRegex);
+    const oldMatch = oldLine?.match(classNameRegex);
+    const newMatch = newLine?.match(classNameRegex);
 
-    if (oldMatch && newMatch) {
+    if (oldMatch && newMatch && oldLine && newLine) {
       // className changed, but structure is same
       const oldWithoutClass = oldLine.replace(classNameRegex, 'className: "__CLASS__"');
       const newWithoutClass = newLine.replace(classNameRegex, 'className: "__CLASS__"');

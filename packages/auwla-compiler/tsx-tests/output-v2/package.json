@@ -1,0 +1,8 @@
+{
+  "name": "auwla-tsx-test-output",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "auwla": "file:../../../../"
+  }
+}

@@ -9,6 +9,10 @@ export function activate(context: vscode.ExtensionContext) {
   // Enable TypeScript for .auwla files
   vscode.commands.executeCommand('setContext', 'auwla.enabled', true);
   
+  // Configure TypeScript to treat .auwla files as TypeScript React files
+  vscode.workspace.getConfiguration('typescript').update('preferences.includePackageJsonAutoImports', 'on', true);
+  vscode.workspace.getConfiguration('typescript').update('suggest.autoImports', true, true);
+  
   // Associate .auwla files with TypeScript React language features
   vscode.languages.setLanguageConfiguration('auwla', {
     __characterPairSupport: {
@@ -220,7 +224,63 @@ export function activate(context: vscode.ExtensionContext) {
     '(', ','
   );
 
-  context.subscriptions.push(completionProvider, hoverProvider, signatureProvider);
+  // Register command to setup TypeScript configuration
+  const setupTsConfigCommand = vscode.commands.registerCommand('auwla.setupTypeScript', async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      vscode.window.showErrorMessage('No workspace folder found');
+      return;
+    }
+
+    const tsConfigPath = vscode.Uri.joinPath(workspaceFolder.uri, 'tsconfig.json');
+    
+    try {
+      await vscode.workspace.fs.stat(tsConfigPath);
+      const overwrite = await vscode.window.showWarningMessage(
+        'tsconfig.json already exists. Overwrite?',
+        'Yes', 'No'
+      );
+      if (overwrite !== 'Yes') return;
+    } catch {
+      // File doesn't exist, continue
+    }
+
+    const tsConfig = {
+      compilerOptions: {
+        target: "ES2020",
+        lib: ["ES2020", "DOM", "DOM.Iterable"],
+        allowJs: true,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        strict: true,
+        forceConsistentCasingInFileNames: true,
+        moduleResolution: "node",
+        resolveJsonModule: true,
+        isolatedModules: true,
+        noEmit: true,
+        jsx: "react-jsx"
+      },
+      include: [
+        "src/**/*",
+        "**/*.auwla"
+      ],
+      exclude: [
+        "node_modules",
+        "dist",
+        "build"
+      ]
+    };
+
+    await vscode.workspace.fs.writeFile(
+      tsConfigPath,
+      Buffer.from(JSON.stringify(tsConfig, null, 2))
+    );
+
+    vscode.window.showInformationMessage('TypeScript configuration created for Auwla project!');
+  });
+
+  context.subscriptions.push(completionProvider, hoverProvider, signatureProvider, setupTsConfigCommand);
   
   // Register definition provider to enable Go to Definition
   const definitionProvider = vscode.languages.registerDefinitionProvider(

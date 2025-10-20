@@ -3,11 +3,22 @@
 // @description Welcome page for Auwla SPA
 
 <script>
+import { ref } from 'auwla';
+
+const counter = ref(0);
+
+
+function inc(){
+    counter.value += 1;
+}
 
 </script>
 
 export default function Home(){
-
+    // so any function or ref found here goes to the place life cycle can be
+    function lifeCycle(){
+        console.log("do nothing")
+    }
     return(
         <h1>
             <h1>Hello from Auwla SPA! 🚀</h1>

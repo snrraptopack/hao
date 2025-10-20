@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import { join, basename, relative } from 'path'
 import { parseAuwlaFile } from './auwla-parser'
-import { generateAuwlaFile } from './auwla-codegen'
+import { generateAuwlaFile } from 'auwla-compiler'
 
 /**
  * Generates route definitions from .auwla files that are marked as pages

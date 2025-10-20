@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import { parseAuwlaFile } from './auwla-parser'
-import { generateAuwlaFile } from './auwla-codegen'
+import { generateAuwlaFile } from 'auwla-compiler'
 
 async function transpile(tsSource: string) {
   try {

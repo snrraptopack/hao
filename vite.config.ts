@@ -31,5 +31,11 @@ export default defineConfig({
   // Configure Vite to handle .auwla files
   optimizeDeps: {
     exclude: ['**/*.auwla']
+  },
+  // Add alias to resolve 'auwla' imports to the local src
+  resolve: {
+    alias: {
+      'auwla': resolve(__dirname, 'src/index.ts')
+    }
   }
 });

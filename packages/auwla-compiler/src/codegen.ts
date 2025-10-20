@@ -1,7 +1,7 @@
 // DEPRECATED: This older code generator has been replaced by
 // `template/compiler/auwla-codegen.ts`. The new generator works with the
 // Babel-based parser and produces TypeScript that is then transpiled to JS.
-import type { TemplateNode } from './analyzer';
+import type { TemplateNode } from './analyzer.js';
 
 /**
  * Tracks generated condition variables to ensure unique names

@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
-import { parseAuwlaFile } from './auwla-parser'
-import { generateAuwlaFile } from './auwla-codegen'
+import { parseAuwlaFile } from './template/compiler/auwla-parser'
+import { generateAuwlaFile } from './packages/auwla-compiler/dist/index.js'
 
 async function transpile(tsSource: string) {
   try {
@@ -22,7 +22,7 @@ async function transpile(tsSource: string) {
 }
 
 async function run() {
-  const path = '../examples/ComponentComposition.auwla'
+  const path = 'starter-template/src/pages/about.auwla'
   const content = await fs.readFile(path, 'utf-8')
   const parsed = parseAuwlaFile(content)
   console.log('--- Parsed result (auwla-parser) ---')
@@ -35,7 +35,8 @@ async function run() {
   const js = await transpile(ts)
   console.log('\n--- Transpiled JavaScript ---')
   console.log(js)
-  const outPath = '../examples/ComponentComposition.compiled.debug.js'
+
+  const outPath = 'about.compiled.js'
   await fs.writeFile(outPath, js, 'utf-8')
   console.log('\nWrote transpiled JS to', outPath)
 }
