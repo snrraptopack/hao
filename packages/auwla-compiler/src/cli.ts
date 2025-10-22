@@ -47,11 +47,25 @@ async function generateRoutesCommand() {
 
 function showVersion() {
   try {
-    const packagePath = join(__dirname, '..', 'package.json');
-    const pkg = JSON.parse(readFileSync(packagePath, 'utf-8'));
-    console.log(pkg.version);
+    // Try multiple possible paths for package.json
+    const possiblePaths = [
+      join(__dirname, '..', 'package.json'),
+      join(__dirname, '..', '..', 'package.json'),
+      join(process.cwd(), 'node_modules', 'auwla-compiler', 'package.json')
+    ];
+    
+    for (const packagePath of possiblePaths) {
+      if (existsSync(packagePath)) {
+        const pkg = JSON.parse(readFileSync(packagePath, 'utf-8'));
+        console.log(pkg.version);
+        return;
+      }
+    }
+    
+    // Fallback to current version
+    console.log('0.3.1');
   } catch {
-    console.log('0.1.0');
+    console.log('0.3.1');
   }
 }
 

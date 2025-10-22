@@ -5,7 +5,8 @@ type HTMLTags =
   | 'a' | 'img' | 'ul' | 'ol' | 'li' | 'table' | 'tr' | 'td' | 'th'
   | 'form' | 'label' | 'select' | 'option' | 'textarea'
   | 'header' | 'footer' | 'nav' | 'main' | 'section' | 'article' | 'aside'
-  | 'button' | 'input';
+  | 'button' | 'input' | 'strong' | 'em' | 'b' | 'i' | 'u' | 'small'
+  | 'code' | 'pre' | 'blockquote' | 'hr' | 'br';
 
 type TagToElement = {
     'div': HTMLDivElement;
@@ -40,6 +41,17 @@ type TagToElement = {
     'aside': HTMLElement;
     'button': HTMLButtonElement;
     'input': HTMLInputElement;
+    'strong': HTMLElement;
+    'em': HTMLElement;
+    'b': HTMLElement;
+    'i': HTMLElement;
+    'u': HTMLElement;
+    'small': HTMLElement;
+    'code': HTMLElement;
+    'pre': HTMLPreElement;
+    'blockquote': HTMLQuoteElement;
+    'hr': HTMLHRElement;
+    'br': HTMLBRElement;
 };
 
 export type EventMap = {
@@ -82,13 +94,13 @@ export function el<K extends HTMLTags>(tag: K): ElementBuilder<TagToElement[K]> 
                 const getText = (v: any) => formatter ? formatter(v) : String(v.value);
         
                 this.element.textContent = getText(ref.value);
-                ref.subscribe((newValue) => {
-                    this.element.textContent = getText(newValue);
+                ref.subscribe(() => {
+                    this.element.textContent = getText(ref.value);
                 });
             } else {
                 this.element.textContent = String(input);
             }
-    return this;
+        return this;
 },
         withId(id: string) {
             element.id = id;

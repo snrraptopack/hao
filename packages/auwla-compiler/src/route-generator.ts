@@ -151,8 +151,8 @@ async function findAuwlaFiles(dir: string): Promise<string[]> {
  * 4. For TSX files: any file in pages/ directory is considered a route by default
  */
 function shouldBeRoute(content: string, filePath: string, pagesDir: string): boolean {
-  // Check for @page directive at start of line (most explicit)
-  const hasPageDirective = /^\/\/\s*@page/m.test(content) || /^\/\/\s*@route/m.test(content)
+  // Check for @page directive anywhere in comment lines (flexible matching)
+  const hasPageDirective = /\/\/.*@page/.test(content) || /\/\/.*@route/.test(content)
   if (hasPageDirective) {
     return true
   }
@@ -242,8 +242,12 @@ function generateRouteComponent(content: string, componentName: string, fileName
     console.warn(`Warning: Could not compile ${fileName} with Auwla compiler: ${error instanceof Error ? error.message : String(error)}`);
     
     // Fallback to simple generation
-    const pageMatch = content.match(/\/\/\s*@page\s+(.+)/);
-    const pagePath = pageMatch ? pageMatch[1].trim() : '/';
+    const pageMatch = content.match(/\/\/.*@page(?:[\/\s]+(.+))?/);
+    let pagePath = pageMatch ? pageMatch[1]?.trim() || '' : '';
+    if (pagePath && !pagePath.startsWith('/')) {
+      pagePath = `/${pagePath}`;
+    }
+    pagePath = pagePath || '/';
     
     const scriptMatch = content.match(/<script[^>]*>([\s\S]*?)<\/script>/);
     const scriptContent = scriptMatch ? scriptMatch[1].trim() : '';

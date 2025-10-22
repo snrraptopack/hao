@@ -1,17 +1,19 @@
-import { ref } from "auwla"
+//@page/about
+import {ref } from "auwla"
 
-const hello = ref(10)
+const counter = ref(0)
 
-setInterval(() => {
-    hello.value += 1
-}, 1000)
+function inc(){
+    counter.value += 1
+}
 
 export default function AboutPage() {
     return (
         <div className="p-8">
             <h1 className="text-2xl font-bold mb-4">About Page</h1>
-            <p>Hello world: {hello.value}</p>
-            <p>This counter updates every second!</p>
+            <p>The count is {counter.value}</p>
+            <button onClick={inc}>Increment</button>
+            {$if(counter.value > 0, <p>hello</p>)}
         </div>
     )
 }

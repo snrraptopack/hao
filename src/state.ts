@@ -30,6 +30,24 @@ export type Ref<T> = {
 export function ref<T>(initialValue: T): Ref<T> {
     let value = initialValue;
     const subscribers: ((newValue: T) => void)[] = [];
+    let notifyScheduled = false;
+
+    const scheduleNotify = () => {
+        if (notifyScheduled) return;
+        notifyScheduled = true;
+        
+        queueMicrotask(() => {
+            notifyScheduled = false;
+            // Call each subscriber once with latest value
+            subscribers.forEach(callback => {
+                try {
+                    callback(value);
+                } catch (error) {
+                    console.error('Subscriber error:', error);
+                }
+            });
+        });
+    };
 
     const handler: ProxyHandler<{ value: T }> = {
         get(target, property: string | symbol) {
@@ -39,8 +57,6 @@ export function ref<T>(initialValue: T): Ref<T> {
             if (property === 'subscribe') {
                 return (callback: (newValue: T) => void) => {
                     subscribers.push(callback);
-                    
-                    // Return unsubscribe function
                     return () => {
                         const index = subscribers.indexOf(callback);
                         if (index > -1) {
@@ -49,24 +65,18 @@ export function ref<T>(initialValue: T): Ref<T> {
                     };
                 };
             }
-            // Allow access to other properties (like __cleanup)
             return (target as any)[property];
         },
         
         set(target, property: string | symbol, newValue: any) {
             if (property === 'value') {
-                if (value === newValue) return true; // Skip if same value
+                if (value === newValue) return true; // Skip if same reference
                 
                 value = newValue;
-                
-                // Notify all subscribers
-                subscribers.forEach(callback => {
-                    callback(newValue);
-                });
+                scheduleNotify(); // ✅ Batched
                 
                 return true;
             }
-            // Allow setting other properties (like __cleanup)
             (target as any)[property] = newValue;
             return true;
         }
@@ -75,17 +85,38 @@ export function ref<T>(initialValue: T): Ref<T> {
     return new Proxy({ value: initialValue }, handler) as Ref<T>;
 }
 
+// Track current component context for automatic cleanup
+let currentWatchContext: Set<() => void> | null = null;
+
+/**
+ * Set the current watch context (used by Component internally)
+ * @internal
+ */
+export function setWatchContext(context: Set<() => void> | null) {
+    currentWatchContext = context;
+}
+
+/**
+ * Get the current watch context
+ * @internal
+ */
+export function getWatchContext() {
+    return currentWatchContext;
+}
+
 /**
  * Watches one or more refs and creates derived state or runs side effects.
  * Returns a new Ref if the callback returns a value, otherwise runs as a side effect.
  * 
- * The returned ref (if any) has a special __cleanup property for unsubscribing.
+ * **Auto-cleanup**: When used inside a Component, subscriptions are automatically 
+ * cleaned up when the component unmounts. No manual cleanup needed!
  * 
  * @template T - The type(s) of the source ref(s)
  * @template R - The return type of the callback
  * @param {Ref<T> | Ref<any>[]} source - Single ref or array of refs to watch
  * @param {Function} callback - Function to run when sources change
- * @returns {Ref<R> | void} New reactive ref if callback returns value, void for side effects
+ * @returns {Ref<R> | (() => void)} New reactive ref if callback returns value, 
+ *                                   cleanup function for side effects
  * 
  * @example
  * // Computed value (returns Ref)
@@ -102,72 +133,118 @@ export function ref<T>(initialValue: T): Ref<T> {
  * const fullName = watch([firstName, lastName], ([f, l]) => `${f} ${l}`)
  * 
  * @example
- * // Side effect (no return value)
- * watch(todos, (newTodos) => {
- *   localStorage.setItem('todos', JSON.stringify(newTodos))
+ * // Side effect with auto-cleanup in Component
+ * const App = Component((ui) => {
+ *   const todos = ref([])
+ *   
+ *   // ✅ Automatically cleaned up when component unmounts
+ *   watch(todos, (newTodos) => {
+ *     console.log('Todos changed:', newTodos)
+ *   })
  * })
  * 
  * @example
- * // Cleanup when done
- * const derived = watch(source, (v) => v * 2)
+ * // Side effect with manual cleanup (outside Component)
+ * const cleanup = watch(source, (v) => console.log(v))
  * // Later...
- * if (derived && '__cleanup' in derived) {
- *   (derived as any).__cleanup()
- * }
+ * cleanup() // ✅ Call to unsubscribe
+ * 
+ * @example
+ * // Derived ref - cleanup is automatic in Component
+ * const doubled = watch(count, (v) => v * 2)
+ * // No manual cleanup needed inside Component!
  */
 export function watch<T, R>(
     source: Ref<T> | Ref<any>[],
     callback: ((value: any, oldValue?: any) => R | void)
-): Ref<R> | void {
+): Ref<R> | (() => void) {
     const isArray = Array.isArray(source);
     const sources = isArray ? source : [source];
     
-    // Get initial values
     const getValues = () => isArray 
         ? sources.map(s => s.value) as T
         : (sources[0]?.value as T);
     
     let oldValues = getValues();
-    const result = callback(oldValues, undefined);
+    let cachedResult = callback(oldValues, undefined);
     
-    // If callback returns a value, create a derived ref
-    const hasReturnValue = result !== undefined;
-    
-    if (!hasReturnValue) {
-        // Side effect only - just subscribe
-        sources.forEach((sourceRef) => {
-            sourceRef.subscribe(() => {
-                const newValues = getValues();
-                callback(newValues, oldValues);
-                oldValues = newValues;
-            });
-        });
-        return;
-    }
-    
-    // Create derived ref with cleanup
-    const derivedRef = ref(result as R);
+    const hasReturnValue = cachedResult !== undefined;
     const unsubscribers: Array<() => void> = [];
     
-    // Subscribe to all sources and track unsubscribers
+    if (!hasReturnValue) {
+        // Side effect
+        sources.forEach((sourceRef) => {
+            const unsub = sourceRef.subscribe(() => {
+                const newValues = getValues();
+                
+                // OPTIMIZATION: Deep equality check for arrays/objects
+                if (!shallowEqual(newValues, oldValues)) {
+                    callback(newValues, oldValues);
+                    oldValues = newValues;
+                }
+            });
+            unsubscribers.push(unsub);
+        });
+        
+        const cleanup = () => unsubscribers.forEach(unsub => unsub());
+        
+        if (currentWatchContext) {
+            currentWatchContext.add(cleanup);
+        }
+        
+        return cleanup;
+    }
+    
+    // Derived ref with memoization
+    const derivedRef = ref(cachedResult as R);
+    
     sources.forEach((sourceRef) => {
         const unsub = sourceRef.subscribe(() => {
             const newValues = getValues();
-            const computedResult = callback(newValues, oldValues);
             
-            if (computedResult !== undefined) {
-                derivedRef.value = computedResult as R;
+            // OPTIMIZATION: Only recompute if values actually changed
+            if (!shallowEqual(newValues, oldValues)) {
+                const computedResult = callback(newValues, oldValues);
+                
+                if (computedResult !== undefined) {
+                    // OPTIMIZATION: Only update if result changed
+                    if (!shallowEqual(computedResult, cachedResult)) {
+                        cachedResult = computedResult;
+                        derivedRef.value = computedResult as R;
+                    }
+                }
+                
+                oldValues = newValues;
             }
-            
-            oldValues = newValues;
         });
         unsubscribers.push(unsub);
     });
     
-    // Add cleanup method to derived ref
     (derivedRef as any).__cleanup = () => {
         unsubscribers.forEach(unsub => unsub());
     };
     
+    if (currentWatchContext) {
+        currentWatchContext.add((derivedRef as any).__cleanup);
+    }
+    
     return derivedRef as Ref<R>;
+}
+
+function shallowEqual(a: any, b: any): boolean {
+    if (a === b) return true;
+    
+    if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return false;
+        return a.every((val, idx) => val === b[idx]);
+    }
+    
+    if (typeof a === 'object' && typeof b === 'object' && a !== null && b !== null) {
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        return keysA.every(key => a[key] === b[key]);
+    }
+    
+    return false;
 }

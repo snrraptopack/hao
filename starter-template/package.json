@@ -10,7 +10,7 @@
     "routes:generate": "npx auwla-compiler generate"
   },
   "dependencies": {
-    "auwla": "file:../"
+    "auwla": "^0.0.8"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",

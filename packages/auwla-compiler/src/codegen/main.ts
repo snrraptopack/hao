@@ -46,8 +46,8 @@ export function generateAuwlaFile(parsed: AuwlaFile): string {
   code += '\n'
   
   // Add component helpers (shared across all components in this file)
-  if (parsed.helpers.length > 0) {
-
+  // For page components, helpers are added inside the component function instead
+  if (parsed.helpers.length > 0 && !parsed.metadata.page) {
     code += '// Component helpers (shared across all components)\n'
     code += parsed.helpers.join('\n') + '\n\n'
   }
@@ -184,44 +184,32 @@ function generateReusableComponent(component: ComponentFunction): string {
 
 /**
  * Generate the main page component (export default)
- * Logic outside function = Component helpers (shared across components)
- * Logic inside function = UI helpers (scoped to that page's UI)
+ * For @page files: Logic outside function → Component scope, Logic inside function → UI scope
+ * For regular components: Logic outside function → Global scope, Logic inside function → UI scope
  */
 function generatePageComponent(component: ComponentFunction): string {
   const jsxNodes = analyzeJSX(component.body)
+  const currentFile = getCurrentParsedFile()
+  const isPageFile = currentFile?.metadata?.page
   
   let code = `// Page component (has lifecycle)\n`
   code += `export default function ${component.name || 'Component'}() {\n`
   
-  // Add UI helpers (pageHelpers from <script> section) at component function scope
-  const currentFile = getCurrentParsedFile()
-  if (currentFile && currentFile.pageHelpers.length > 0) {
-
-    code += '  // UI helpers (scoped to this page UI)\n'
-    code += currentFile.pageHelpers.map(h => `  ${h}`).join('\n') + '\n\n'
+  // Add helpers (variables outside component) - only for @page files
+  // For regular components, helpers are already added to global scope in generateAuwlaFile
+  if (isPageFile && currentFile && currentFile.helpers.length > 0) {
+    code += '  // Logic that was outside page scope → now inside page scope\n'
+    code += currentFile.helpers.map(h => `  ${h}`).join('\n') + '\n\n'
   }
   
   code += `  return Component((ui: LayoutBuilder) => {\n`
   
-  // Extract any variable declarations from the component body (component builder scope)
-  const uiHelpers: string[] = []
-  const bodyStatements = component.body.body || []
-  
-  for (const stmt of bodyStatements) {
-    // Skip the return statement (that's the JSX we'll compile)
-    if (t.isReturnStatement(stmt)) continue
-    
-    // Add variable declarations and other statements to UI helpers scope
-    if (t.isVariableDeclaration(stmt) || t.isExpressionStatement(stmt)) {
-      const stmtCode = generate(stmt as any).code
-      uiHelpers.push(`    ${stmtCode}`)
+  // Add pageHelpers (variables inside component) at callback scope
+  if (currentFile && currentFile.pageHelpers.length > 0) {
+    if (isPageFile) {
+      code += '    // Logic that was inside page scope → now inside Component UI scope\n'
     }
-  }
-  
-  // Add UI helpers inside the Component builder
-  if (uiHelpers.length > 0) {
-    code += '    // Additional UI helpers\n'
-    code += uiHelpers.join('\n') + '\n\n'
+    code += currentFile.pageHelpers.map(h => `    ${h}`).join('\n') + '\n\n'
   }
   
   // Generate JSX

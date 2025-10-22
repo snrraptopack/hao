@@ -269,11 +269,19 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
         const start = path.node.start!;
         const end = path.node.end!;
         
-        // For @page directive: outside page scope → inside page scope (pageHelpers)
-        if (result.metadata.page) {
-          result.pageHelpers.push(source.substring(start, end));
-        } else {
-          // Regular component: helper functions stay in helpers (global scope)
+        // Check if this function is inside a component function
+        const parentFunction = path.getFunctionParent();
+        if (parentFunction && parentFunction.node.id) {
+          const parentFunctionName = parentFunction.node.id.name;
+          if (isPascalCase(parentFunctionName) || returnsJSX(parentFunction.node.body)) {
+            // This function is inside a component function → pageHelpers (callback scope)
+            result.pageHelpers.push(source.substring(start, end));
+            return;
+          }
+        }
+        
+        // Top-level functions (outside any component function) → component scope (helpers)
+        if (!parentFunction) {
           result.helpers.push(source.substring(start, end));
         }
       }
@@ -362,11 +370,6 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
 
     // Extract variable declarations (const, let, var)
     VariableDeclaration(path) {
-      // Skip if this is inside a component function
-      if (path.getFunctionParent()) {
-        return;
-      }
-      
       // Check if this is a component variable (const Component = () => JSX)
       let hasComponent = false;
       for (const declarator of path.node.declarations) {
@@ -388,16 +391,27 @@ function extractFromAST(ast: any, source: string): AuwlaFile {
         }
       }
       
-      // For @page directive: outside page scope → inside page scope (pageHelpers)
-      // For regular components: top-level variables stay in helpers (global scope)
+      // Skip component variables - they're handled above
+      if (hasComponent) {
+        return;
+      }
+      
       const start = path.node.start!;
       const end = path.node.end!;
       
-      if (result.metadata.page) {
-        // @page directive: outside page scope → inside page scope
-        result.pageHelpers.push(source.substring(start, end));
-      } else {
-        // Regular component: top-level variables stay in global scope
+      // Check if this variable is inside a component function
+      const parentFunction = path.getFunctionParent();
+      if (parentFunction && parentFunction.node.id) {
+        const functionName = parentFunction.node.id.name;
+        if (isPascalCase(functionName) || returnsJSX(parentFunction.node.body)) {
+          // This variable is inside a component function → pageHelpers (callback scope)
+          result.pageHelpers.push(source.substring(start, end));
+          return;
+        }
+      }
+      
+      // Top-level variables (outside any function) → component scope (helpers)
+      if (!parentFunction) {
         result.helpers.push(source.substring(start, end));
       }
     },
@@ -504,14 +518,21 @@ function extractMetadata(content: string): AuwlaFile['metadata'] {
   const metadata: AuwlaFile['metadata'] = {}
   
   // Look for @page directive - check all lines, not just the first
+  // Use flexible regex to match @page anywhere in a comment line
   const lines = content.split(/\r?\n/)
   
   for (const line of lines) {
-    const pageLineMatch = line.match(/^\/\/\s*@page(?:\s+(.*))?$/)
+    const pageLineMatch = line.match(/\/\/.*@page(?:[\/\s]+(.*))?/)
     if (pageLineMatch) {
-      // If there's a path after @page, use it, otherwise just mark as page
-      const pagePath = pageLineMatch[1]?.trim()
-      metadata.page = pagePath && pagePath.length > 0 ? pagePath : 'true'
+      // Extract and clean the path
+      let pagePath = pageLineMatch[1]?.trim() || ''
+      
+      // Ensure path starts with / if it exists
+      if (pagePath && !pagePath.startsWith('/')) {
+        pagePath = `/${pagePath}`
+      }
+      
+      metadata.page = pagePath || 'true'
       break // Found it, no need to continue
     }
   }

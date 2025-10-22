@@ -5,7 +5,7 @@ import { join } from 'path'
 import { parseTSXFile, generateAuwlaFromTSX } from '../src/tsx-compiler'
 
 const inputDir = join(__dirname, 'input')
-const outputDir = join(__dirname, 'output')
+const outputDir = join(__dirname, 'output-v2')
 
 console.log('🧪 Running TSX Compiler Tests')
 console.log('=' .repeat(50))

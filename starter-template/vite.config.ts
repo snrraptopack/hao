@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
-import { templateCompiler } from 'auwla-compiler/vite-plugin'
+import { templateCompiler } from 'auwla-compiler'
 
 export default defineConfig({
     plugins: [
-        templateCompiler({ verbose: true, emitDebugFiles: true })
+        templateCompiler()
     ],
     build: {
         target: 'es2020'

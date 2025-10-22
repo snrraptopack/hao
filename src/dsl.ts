@@ -1,6 +1,13 @@
 import { el,type EventHandlers, type EventMap } from "./createElement";
 import type { Ref } from "./state";
-import { setCurrentComponent } from "./lifecycle";
+import { setCurrentComponent, 
+  createComponentContext, 
+  executeMountCallbacks, 
+  executeCleanup,
+  type ComponentContext
+ } from "./lifecycle";
+
+ import { setWatchContext } from "./state";
 
 const HTML_TAGS = [
   'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -25,6 +32,7 @@ interface ElementConfig {
   value?: string | Ref<string>;
   checked?: boolean | Ref<boolean>;
   disabled?: boolean | Ref<boolean>;
+  shouldHide?: Ref<boolean>;
   [key: string]: any; // Allow any other HTML attributes
 }
 
@@ -128,6 +136,7 @@ export class LayoutBuilder {
     config: ElementConfig, 
     builder?: (ui: LayoutBuilder) => void
   ) {
+
     const element = el(tagName).build();
     
     // Apply text content (support both string and Ref<string>)
@@ -396,64 +405,80 @@ export class LayoutBuilder {
    * })
    * ```
    */
-  List<T>(config: ListConfig<T>) {
-    const container = el("div").build();
-    this.applyClassName(container, config.className);
+ List<T>(config: ListConfig<T>) {
+  const container = el("div").build();
+  this.applyClassName(container, config.className);
 
-    // Track elements by key for efficient updates with cleanup
-    const elementMap = new Map<string | number, { element: HTMLElement; builder: LayoutBuilder }>();
-    const getKey = config.key || ((_item: T, index: number) => index);
+  // Track elements by key for efficient updates with cleanup
+  const elementMap = new Map<string | number, { element: HTMLElement; builder: LayoutBuilder }>();
+  const getKey = config.key || ((_item: T, index: number) => index);
 
-    const render = () => {
-      const newItems = config.items.value || [];
-      const newKeys = new Set(newItems.map((item, index) => getKey(item, index)));
+  const render = () => {
+    const newItems = config.items.value || [];
+    const newKeys = new Set(newItems.map((item, index) => getKey(item, index)));
+    
+    // Use a DocumentFragment to perform DOM manipulation off the main tree
+    const fragment = document.createDocumentFragment();
+    let isOrderChanged = newItems.length !== container.children.length; // Assume change if size differs
 
-      // 1. Remove elements that are no longer in the list
-      elementMap.forEach((entry, key) => {
-        if (!newKeys.has(key)) {
-          entry.element.remove();
-          entry.builder.destroy();
-          elementMap.delete(key);
-        }
-      });
+    // 1. Remove elements that are no longer in the list
+    elementMap.forEach((entry, key) => {
+      if (!newKeys.has(key)) {
+        entry.element.remove();
+        entry.builder.destroy();
+        elementMap.delete(key);
+        isOrderChanged = true; // Removal requires a full DOM patch to re-sync
+      }
+    });
 
-      // 2. Add, update, and move elements
-      let lastElement: HTMLElement | null = null;
-      newItems.forEach((item, index) => {
-        const key = getKey(item, index);
-        let entry = elementMap.get(key);
+    // 2. Add, update, and collect elements into the fragment in the correct new order
+    const currentChildren = Array.from(container.children);
+    
+    newItems.forEach((item, index) => {
+      const key = getKey(item, index);
+      let entry = elementMap.get(key);
 
-        if (!entry) {
-          // Item is new: create it and add to map
-          const itemBuilder = new LayoutBuilder();
-          config.render(item, index, itemBuilder);
-          const itemElement = itemBuilder.build();
-          const element = (itemElement.children[0] as HTMLElement) || itemElement;
-          entry = { element, builder: itemBuilder };
-          elementMap.set(key, entry);
-        }
-
-        // Sync position: ensure the element is in the correct place
-        const targetElement = entry.element;
-        if (index === 0) {
-          if (container.firstChild !== targetElement) {
-            container.insertBefore(targetElement, container.firstChild);
-          }
-        } else if (lastElement && lastElement.nextSibling !== targetElement) {
-          container.insertBefore(targetElement, lastElement.nextSibling);
-        }
+      if (!entry) {
+        // Item is new: create it and add to map
+        const itemBuilder = new LayoutBuilder();
+        config.render(item, index, itemBuilder);
+        const itemElement = itemBuilder.build();
+        const element = (itemElement.children[0] as HTMLElement) || itemElement;
+        entry = { element, builder: itemBuilder };
+        elementMap.set(key, entry);
+        isOrderChanged = true; // New element requires a full DOM patch
+      } else {
+        // Item is existing: trigger update logic on its builder
+        // We assume config.render will intelligently update reactive parts of the item's builder
+        config.render(item, index, entry.builder); 
         
-        lastElement = targetElement;
-      });
-    };
+        // Check if the DOM element is in the correct position for the new order
+        if (entry.element !== currentChildren[index]) {
+            isOrderChanged = true;
+        }
+      }
 
-    render();
-    const unsub = config.items.subscribe(() => render());
-    this.cleanups.push(unsub);
+      // Append the element to the fragment. 
+      // This efficiently detaches it from the main container (if present)
+      // and positions it in the fragment in the final desired order.
+      fragment.appendChild(entry.element);
+    });
 
-    this.children.push(container);
-    return this;
-  }
+    // 3. Apply changes to the DOM in one bulk operation only if a change occurred
+    if (isOrderChanged) {
+      // replaceChildren is the fastest way to replace all contents of an element
+      // with the children of a DocumentFragment.
+      container.replaceChildren(fragment);
+    }
+  };
+
+  render();
+  const unsub = config.items.subscribe(() => render());
+  this.cleanups.push(unsub);
+
+  this.children.push(container);
+  return this;
+}
 
   /**
    * Conditionally renders content based on a boolean ref.
@@ -482,7 +507,7 @@ export class LayoutBuilder {
    * })
    * ```
    */
-  When(condition: Ref<boolean>, thenBuilder: (ui: LayoutBuilder) => void): { Else: (builder: (ui: LayoutBuilder) => void) => LayoutBuilder } {
+When(condition: Ref<boolean>, thenBuilder: (ui: LayoutBuilder) => void): { Else: (builder: (ui: LayoutBuilder) => void) => LayoutBuilder } {
     const container = el("div").build();
     let elseBuilder: ((ui: LayoutBuilder) => void) | null = null;
     let currentBuilder: LayoutBuilder | null = null;
@@ -497,21 +522,27 @@ export class LayoutBuilder {
       const builder = new LayoutBuilder();
       currentBuilder = builder;
       
+      let hasContent = false; // NEW: Track if we are rendering anything
+      
       if (condition.value && thenBuilder) {
         thenBuilder(builder);
+        hasContent = true; // NEW: We have content
       } else if (!condition.value && elseBuilder) {
         elseBuilder(builder);
-      }else{
-        this.destroy()
+        hasContent = true; // NEW: We have content
       }
+      // (The bug fix from before: no final 'else' block)
       
       const content = builder.build();
       Array.from(content.children).forEach(child => {
         container.appendChild(child);
       });
+
+      // NEW: Hide the container if it has no content
+      container.style.display = hasContent ? '' : 'none';
     };
 
-    render();
+    render(); // Initial render will now correctly hide if false
     const unsub = condition.subscribe(() => render());
     this.cleanups.push(unsub);
 
@@ -686,24 +717,64 @@ export interface LayoutBuilder {
   Aside(config?: ElementConfig, builder?: (ui: LayoutBuilder) => void): LayoutBuilder;
 }
 
+
+/**
+ * Creates a component with lifecycle support.
+ * 
+ * @param {Function} fn - Builder function that defines the component UI
+ * @returns {HTMLElement} The root element of the component
+ * 
+ * @example
+ * ```typescript
+ * import { onMount, onUnmount } from "./lifecycle"
+ * 
+ * const App = Component((ui) => {
+ *   onMount(() => {
+ *     console.log('Mounted!')
+ *     
+ *     const interval = setInterval(() => console.log('tick'), 1000)
+ *     
+ *     // Return cleanup
+ *     return () => clearInterval(interval)
+ *   })
+ *   
+ *   onUnmount(() => {
+ *     console.log('Component unmounted')
+ *   })
+ *   
+ *   ui.Div({ className: "container" }, (ui) => {
+ *     ui.Text({ value: "Hello World" })
+ *     ui.Button({ text: "Click me", on: { click: () => alert('Hi!') } })
+ *   })
+ * })
+ * 
+ * document.getElementById('app').appendChild(App)
+ * ```
+ */
 export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
   const builder = new LayoutBuilder();
-  const cleanupFns = new Set<() => void>();
+  const context = createComponentContext();
   
-  // Set lifecycle context
-  setCurrentComponent(cleanupFns);
+  // Set lifecycle context AND watch context
+  setCurrentComponent(context);
+  setWatchContext(context.cleanups); // ✅ Enable auto-cleanup for watch()
+  
   fn(builder);
+  
+  // Clear contexts after component setup
   setCurrentComponent(null);
+  setWatchContext(null); // ✅ Clear watch context
   
   const element = builder.build();
   
-  // Store cleanup on element for later
+  // Store context and cleanup on element
+  (element as any).__context = context;
   (element as any).__cleanup = () => {
-    cleanupFns.forEach(fn => fn());
+    executeCleanup(context);
     builder.destroy();
   };
   
-  // Setup MutationObserver to detect removal from DOM
+  // Setup MutationObserver for automatic cleanup on DOM removal
   if (typeof MutationObserver !== 'undefined') {
     const observer = new MutationObserver((mutations) => {
       mutations.forEach(mutation => {
@@ -716,15 +787,56 @@ export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
       });
     });
     
-    // Start observing when element is attached
-    requestAnimationFrame(() => {
+    // Observe parent when element is attached
+    const attachObserver = () => {
       if (element.parentElement) {
         observer.observe(element.parentElement, { 
           childList: true, 
           subtree: true 
         });
       }
+    };
+    
+    // Try to attach immediately if already in DOM
+    if (element.parentElement) {
+      attachObserver();
+    } else {
+      // Otherwise wait for next frame
+      requestAnimationFrame(attachObserver);
+    }
+  }
+  
+  // Execute mount callbacks after element is added to DOM
+  // Use two approaches for better coverage:
+  
+  // 1. Try immediate execution if already in DOM
+  if (element.isConnected) {
+    executeMountCallbacks(context);
+  } else {
+    // 2. Wait for next frame
+    requestAnimationFrame(() => {
+      if (element.isConnected) {
+        executeMountCallbacks(context);
+      }
     });
+    
+    // 3. Also use MutationObserver to catch insertion
+    if (typeof MutationObserver !== 'undefined') {
+      const mountObserver = new MutationObserver(() => {
+        if (element.isConnected) {
+          executeMountCallbacks(context);
+          mountObserver.disconnect();
+        }
+      });
+      
+      // Observe document body for when element gets added
+      if (document.body) {
+        mountObserver.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      }
+    }
   }
   
   return element;

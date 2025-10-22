@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite'
-import { templateCompiler } from './template/compiler/vite-plugin';
+//import { templateCompiler } from './template/compiler/vite-plugin';
 
 export default defineConfig({
   build: {
@@ -24,7 +24,7 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
-    templateCompiler({ verbose: false, emitDebugFiles: true })
+    //templateCompiler({ verbose: false, emitDebugFiles: true })
   ],
   // Ensure .auwla files are treated as modules, not assets
   assetsInclude: [],

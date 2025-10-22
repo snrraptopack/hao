@@ -1,7 +1,13 @@
 type CleanupFn = () => void;
 type LifecycleCallback = () => void | CleanupFn;
 
-let currentComponent: Set<CleanupFn> | null = null;
+export interface ComponentContext {
+  cleanups: Set<CleanupFn>;
+  mountCallbacks: LifecycleCallback[];
+  isMounted: boolean;
+}
+
+let currentComponent: ComponentContext | null = null;
 
 /**
  * Runs callback when component is mounted to the DOM.
@@ -30,17 +36,12 @@ let currentComponent: Set<CleanupFn> | null = null;
  */
 export function onMount(callback: LifecycleCallback) {
   if (!currentComponent) {
-    console.warn('onMount called outside component context')
-    return
+    console.warn('onMount called outside component context');
+    return;
   }
   
-  // Schedule for next frame (after DOM is ready)
-  requestAnimationFrame(() => {
-    const cleanup = callback()
-    if (cleanup && currentComponent) {
-      currentComponent.add(cleanup)
-    }
-  })
+  // Store callback to run after DOM is ready
+  currentComponent.mountCallbacks.push(callback);
 }
 
 /**
@@ -58,18 +59,18 @@ export function onMount(callback: LifecycleCallback) {
  */
 export function onUnmount(callback: CleanupFn) {
   if (!currentComponent) {
-    console.warn('onUnmount called outside component context')
-    return
+    console.warn('onUnmount called outside component context');
+    return;
   }
-  currentComponent.add(callback)
+  currentComponent.cleanups.add(callback);
 }
 
 /**
  * Internal: Set the current component context
  * @internal
  */
-export function setCurrentComponent(cleanups: Set<CleanupFn> | null) {
-  currentComponent = cleanups
+export function setCurrentComponent(context: ComponentContext | null) {
+  currentComponent = context;
 }
 
 /**
@@ -77,5 +78,58 @@ export function setCurrentComponent(cleanups: Set<CleanupFn> | null) {
  * @internal
  */
 export function getCurrentComponent() {
-  return currentComponent
+  return currentComponent;
+}
+
+/**
+ * Internal: Execute mount callbacks for a component
+ * Should be called after component is attached to DOM
+ * @internal
+ */
+export function executeMountCallbacks(context: ComponentContext) {
+  if (context.isMounted) return;
+  context.isMounted = true;
+  
+  // Execute all mount callbacks
+  context.mountCallbacks.forEach(callback => {
+    try {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') {
+        context.cleanups.add(cleanup);
+      }
+    } catch (error) {
+      console.error('Error in onMount callback:', error);
+    }
+  });
+  
+  // Clear callbacks after execution
+  context.mountCallbacks = [];
+}
+
+/**
+ * Internal: Execute cleanup callbacks for a component
+ * Should be called when component is being destroyed
+ * @internal
+ */
+export function executeCleanup(context: ComponentContext) {
+  context.cleanups.forEach(cleanup => {
+    try {
+      cleanup();
+    } catch (error) {
+      console.error('Error in cleanup:', error);
+    }
+  });
+  context.cleanups.clear();
+}
+
+/**
+ * Creates a new component context
+ * @internal
+ */
+export function createComponentContext(): ComponentContext {
+  return {
+    cleanups: new Set<CleanupFn>(),
+    mountCallbacks: [],
+    isMounted: false
+  };
 }
