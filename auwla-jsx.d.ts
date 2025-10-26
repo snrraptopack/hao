@@ -9,6 +9,9 @@ declare global {
       // Allow any HTML elements with any props
       [elemName: string]: any;
     }
+    
+    // Define Element type for JSX
+    type Element = HTMLElement;
   }
 
   /**

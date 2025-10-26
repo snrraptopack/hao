@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite'
-//import { templateCompiler } from './template/compiler/vite-plugin';
+// import react from '@vitejs/plugin-react'; // Commented out to use custom JSX runtime
+
 
 export default defineConfig({
   build: {
@@ -24,18 +25,30 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
+    // react(), // Commented out to use custom JSX runtime
     //templateCompiler({ verbose: false, emitDebugFiles: true })
   ],
   // Ensure .auwla files are treated as modules, not assets
   assetsInclude: [],
-  // Configure Vite to handle .auwla files
+  // Configure Vite to handle .auwla files and JSX
   optimizeDeps: {
-    exclude: ['**/*.auwla']
+    exclude: ['**/*.auwla'],
+    esbuildOptions: {
+      loader: {
+        '.tsx': 'tsx',
+        '.ts': 'ts'
+      }
+    }
   },
   // Add alias to resolve 'auwla' imports to the local src
   resolve: {
     alias: {
       'auwla': resolve(__dirname, 'src/index.ts')
     }
+  },
+  // Configure esbuild to handle JSX with our custom runtime
+  esbuild: {
+    jsxFactory: 'h',
+    jsxFragment: 'Fragment'
   }
 });

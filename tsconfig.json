@@ -2,11 +2,14 @@
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext","DOM"],
-    "target": "ESNext",
+    "target": "ES2015",
     "module": "ESNext",
     "moduleDetection": "force",
-    "jsx": "react-jsx",
+    "jsx": "preserve",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
     "allowJs": true,
+    "types": ["./auwla-jsx", "node"],
 
     // Bundler mode
     "moduleResolution": "node",

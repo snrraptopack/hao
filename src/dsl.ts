@@ -14,7 +14,7 @@ const HTML_TAGS = [
   'a', 'img', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th',
   'form', 'label', 'select', 'option', 'textarea',
   'header', 'footer', 'nav', 'main', 'section', 'article', 'aside',
-  'button', 'input'
+  'button', 'input',
 ] as const;
 
 type HTMLTag = typeof HTML_TAGS[number];
@@ -405,71 +405,159 @@ export class LayoutBuilder {
    * })
    * ```
    */
- List<T>(config: ListConfig<T>) {
+/**
+   * OPTIMIZED LIST IMPLEMENTATION
+   * Using for...of loops (faster than forEach)
+   * Avoiding unnecessary array allocations
+   * Enhanced with automatic reactive property conversion
+   */
+
+  List<T>(config: ListConfig<T>) {
   const container = el("div").build();
   this.applyClassName(container, config.className);
 
-  // Track elements by key for efficient updates with cleanup
-  const elementMap = new Map<string | number, { element: HTMLElement; builder: LayoutBuilder }>();
+  // Cache: key → { element, builder, item }
+  const cache = new Map<string | number, { 
+    element: HTMLElement; 
+    builder: LayoutBuilder;
+    item: T; // Track item reference for change detection
+  }>();
+  
   const getKey = config.key || ((_item: T, index: number) => index);
 
   const render = () => {
     const newItems = config.items.value || [];
-    const newKeys = new Set(newItems.map((item, index) => getKey(item, index)));
+    const itemCount = newItems.length;
     
-    // Use a DocumentFragment to perform DOM manipulation off the main tree
-    const fragment = document.createDocumentFragment();
-    let isOrderChanged = newItems.length !== container.children.length; // Assume change if size differs
-
-    // 1. Remove elements that are no longer in the list
-    elementMap.forEach((entry, key) => {
-      if (!newKeys.has(key)) {
-        entry.element.remove();
-        entry.builder.destroy();
-        elementMap.delete(key);
-        isOrderChanged = true; // Removal requires a full DOM patch to re-sync
+    // Quick exit for empty list
+    if (itemCount === 0) {
+      if (cache.size > 0) {
+        for (const entry of cache.values()) {
+          entry.element.remove();
+          entry.builder.destroy();
+        }
+        cache.clear();
       }
-    });
-
-    // 2. Add, update, and collect elements into the fragment in the correct new order
-    const currentChildren = Array.from(container.children);
+      return;
+    }
     
-    newItems.forEach((item, index) => {
-      const key = getKey(item, index);
-      let entry = elementMap.get(key);
-
-      if (!entry) {
-        // Item is new: create it and add to map
-        const itemBuilder = new LayoutBuilder();
-        config.render(item, index, itemBuilder);
-        const itemElement = itemBuilder.build();
-        const element = (itemElement.children[0] as HTMLElement) || itemElement;
-        entry = { element, builder: itemBuilder };
-        elementMap.set(key, entry);
-        isOrderChanged = true; // New element requires a full DOM patch
-      } else {
-        // Item is existing: trigger update logic on its builder
-        // We assume config.render will intelligently update reactive parts of the item's builder
-        config.render(item, index, entry.builder); 
-        
-        // Check if the DOM element is in the correct position for the new order
-        if (entry.element !== currentChildren[index]) {
-            isOrderChanged = true;
+    // Build new keys array efficiently
+    const newKeys: (string | number)[] = new Array(itemCount);
+    for (let i = 0; i < itemCount; i++) {
+      const item = newItems[i];
+      if (item === undefined) {
+        throw new Error(`Item at index ${i} is undefined`);
+      }
+      const key = getKey(item, i);
+      if (key === undefined) {
+        throw new Error(`Key at index ${i} is undefined`);
+      }
+      newKeys[i] = key;
+    }
+    
+    // Create Set for fast lookup
+    const newKeysSet = new Set(newKeys);
+    
+    // STEP 1: Remove stale entries
+    const keysToRemove: (string | number)[] = [];
+    for (const key of cache.keys()) {
+      if (!newKeysSet.has(key)) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    if (keysToRemove.length > 0) {
+      for (const key of keysToRemove) {
+        const entry = cache.get(key);
+        if (entry) {
+          entry.element.remove();
+          entry.builder.destroy();
+          cache.delete(key);
         }
       }
-
-      // Append the element to the fragment. 
-      // This efficiently detaches it from the main container (if present)
-      // and positions it in the fragment in the final desired order.
-      fragment.appendChild(entry.element);
-    });
-
-    // 3. Apply changes to the DOM in one bulk operation only if a change occurred
-    if (isOrderChanged) {
-      // replaceChildren is the fastest way to replace all contents of an element
-      // with the children of a DocumentFragment.
-      container.replaceChildren(fragment);
     }
+    
+    // STEP 2: Detect scenario
+    const hasRemovals = keysToRemove.length > 0;
+    let hasAdditions = false;
+    let hasChanges = false;
+    
+    // Check if any items are new or changed
+    for (let i = 0; i < itemCount; i++) {
+      const key = newKeys[i];
+      const item = newItems[i];
+      if (item === undefined) {
+        throw new Error(`Item at index ${i} is undefined`);
+      }
+      if (key === undefined) {
+        throw new Error(`Key at index ${i} is undefined`);
+      }
+      const entry = cache.get(key);
+      
+      if (!entry) {
+        hasAdditions = true;
+      } else if (entry.item !== item) {
+        // Item reference changed - needs update
+        hasChanges = true;
+      }
+    }
+    
+    // OPTIMIZATION: Reorder-only path (fastest)
+    if (!hasRemovals && !hasAdditions && !hasChanges) {
+      // Just reorder existing elements
+      const fragment = document.createDocumentFragment();
+      for (const key of newKeys) {
+        if (key === undefined) {
+          throw new Error(`Key is undefined in reorder path`);
+        }
+        const entry = cache.get(key);
+        if (entry) {
+          fragment.appendChild(entry.element);
+        }
+      }
+      container.replaceChildren(fragment);
+      return;
+    }
+    
+    // STEP 3: Create/update elements
+    const fragment = document.createDocumentFragment();
+    
+    for (let i = 0; i < itemCount; i++) {
+      const item = newItems[i];
+      if (item === undefined) {
+        throw new Error(`Item at index ${i} is undefined`);
+      }
+      const key = newKeys[i];
+      if (key === undefined) {
+        throw new Error(`Key at index ${i} is undefined`);
+      }
+      let entry = cache.get(key);
+      
+      if (!entry) {
+        // Create new element
+        const itemBuilder = new LayoutBuilder();
+        config.render(item, i, itemBuilder);
+        const itemElement = itemBuilder.build();
+        const element = (itemElement.children[0] as HTMLElement) || itemElement;
+        entry = { element, builder: itemBuilder, item };
+        cache.set(key, entry);
+      } else if (entry.item !== item) {
+        // Item changed - recreate
+        entry.element.remove();
+        entry.builder.destroy();
+        
+        const itemBuilder = new LayoutBuilder();
+        config.render(item, i, itemBuilder);
+        const itemElement = itemBuilder.build();
+        const element = (itemElement.children[0] as HTMLElement) || itemElement;
+        entry = { element, builder: itemBuilder, item };
+        cache.set(key, entry);
+      }
+      
+      fragment.appendChild(entry.element);
+    }
+    
+    container.replaceChildren(fragment);
   };
 
   render();
@@ -479,7 +567,6 @@ export class LayoutBuilder {
   this.children.push(container);
   return this;
 }
-
   /**
    * Conditionally renders content based on a boolean ref.
    * Content is mounted/unmounted reactively when condition changes.

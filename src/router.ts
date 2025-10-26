@@ -86,7 +86,7 @@ export class Router {
    */
   clearCacheKey(key: string) {
     delete this.state[key]
-    console.log(`🗑️ Cleared cache for: ${key}`)
+    console.log(`cache for: ${key}`)
   }
   
   constructor(routes: Route[] = [], container?: HTMLElement) {

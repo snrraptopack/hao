@@ -2,11 +2,12 @@
 import { Component } from './dsl'
 import type { LayoutBuilder } from './dsl'
 
-// Main exports
-export { Component } from './dsl'
+// Re-export for external use
 export { ref, watch } from './state'
 export type { Ref } from './state'
+export { Component } from './dsl'
 export type { LayoutBuilder } from './dsl'
+export { h, Fragment } from './jsx'
 
 // Simple routing utilities (basic implementation)
 export function createApp(config: { routes: any[], target: string }) {
