@@ -20,20 +20,23 @@ const HTML_TAGS = [
 type HTMLTag = typeof HTML_TAGS[number];
 
 interface ElementConfig {
-  text?: string | Ref<string>;
+  text?: string | number | Ref<string | number>;
   on?: EventHandlers;
   id?: string;
   className?: string | Ref<string>;
+  style?: string | Partial<CSSStyleDeclaration> | Ref<string | Partial<CSSStyleDeclaration>>;
   href?: string; // for <a>
   src?: string;  // for <img>
   alt?: string;  // for <img>
   type?: string; // for <input>, <button>
   placeholder?: string; // for <input>, <textarea>
-  value?: string | Ref<string>;
+  value?: string | number | Ref<string | number>;
   checked?: boolean | Ref<boolean>;
   disabled?: boolean | Ref<boolean>;
   shouldHide?: Ref<boolean>;
-  [key: string]: any; // Allow any other HTML attributes
+  // Element ref callback: invoked with the created element
+  ref?: (el: HTMLElement) => void;
+  [key: string]: unknown; // Allow other HTML attributes without constraining known keys
 }
 
 // interface DIVConfig{
@@ -68,7 +71,7 @@ interface ElementConfig {
 // }
 
 interface TextConfig {
-  value: string | Ref<any>;
+  value: string | number | Ref<string | number>;
   formatter?: (v: any) => string;
   on?: EventHandlers;
   className?: string | Ref<string>;
@@ -104,27 +107,70 @@ export class LayoutBuilder {
     
     if (typeof className === 'string') {
       element.className = className;
+      (element as any)[DSL_CLASS_TOKENS] = new Set(tokenizeClass(className));
     } else {
-      element.className = className.value;
+      const initial = className.value;
+      element.className = initial;
+      (element as any)[DSL_CLASS_TOKENS] = new Set(tokenizeClass(initial));
       const unsub = className.subscribe((newValue) => {
-        element.className = newValue;
+        applyClassTokens(element, newValue);
       });
       this.cleanups.push(unsub); // Track for cleanup
     }
   }
 
-  private applyAttribute(element: HTMLElement, attr: string, value: any) {
+  private applyAttribute(element: HTMLElement, attr: string, value: string | number | boolean | Ref<string | number | boolean>) {
     if (value === undefined || value === null) return;
     
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
       element.setAttribute(attr, String(value));
     } else {
       // It's a Ref
-      element.setAttribute(attr, String(value.value));
-      const unsub = value.subscribe((newValue: any) => {
+      element.setAttribute(attr, String((value as Ref<any>).value));
+      const unsub = (value as Ref<any>).subscribe((newValue: any) => {
         element.setAttribute(attr, String(newValue));
       });
       this.cleanups.push(unsub);
+    }
+  }
+
+  private applyStyle(element: HTMLElement, style?: string | Partial<CSSStyleDeclaration> | Ref<string | Partial<CSSStyleDeclaration>>) {
+    if (!style) return;
+    // String style
+    if (typeof style === 'string') {
+      element.setAttribute('style', style);
+      return;
+    }
+    // Ref style
+    if (style && typeof style === 'object' && 'value' in (style as any) && typeof (style as any).subscribe === 'function') {
+      const refStyle = style as Ref<string | Partial<CSSStyleDeclaration>>;
+      const initial = refStyle.value;
+      if (typeof initial === 'string') {
+        element.setAttribute('style', initial);
+      } else {
+        this.setStyleObject(element, initial);
+      }
+      const unsub = refStyle.subscribe((newVal: any) => {
+        if (typeof newVal === 'string') {
+          element.setAttribute('style', newVal);
+        } else {
+          this.setStyleObject(element, newVal);
+        }
+      });
+      this.cleanups.push(unsub);
+      return;
+    }
+    // Object style
+    this.setStyleObject(element, style as Partial<CSSStyleDeclaration>);
+  }
+
+  private setStyleObject(element: HTMLElement, styleObj: Partial<CSSStyleDeclaration> | null | undefined) {
+    if (!styleObj || typeof styleObj !== 'object') return;
+    for (const k in styleObj) {
+      try {
+        const val = (styleObj as any)[k];
+        (element.style as any)[k] = val as any;
+      } catch {}
     }
   }
 
@@ -138,15 +184,22 @@ export class LayoutBuilder {
   ) {
 
     const element = el(tagName).build();
+
+    // Apply ref callback if provided
+    try {
+      if (typeof (config as any).ref === 'function') {
+        ((config as any).ref as (el: HTMLElement) => void)(element);
+      }
+    } catch {}
     
-    // Apply text content (support both string and Ref<string>)
+    // Apply text content (string | number | Ref)
     if (config.text !== undefined) {
-      if (typeof config.text === 'string') {
-        element.textContent = config.text;
+      if (typeof config.text === 'string' || typeof config.text === 'number') {
+        element.textContent = String(config.text);
       } else {
-        element.textContent = config.text.value;
+        element.textContent = String(config.text.value);
         const unsub = config.text.subscribe((newValue) => {
-          element.textContent = newValue;
+          element.textContent = String(newValue);
         });
         this.cleanups.push(unsub);
       }
@@ -158,6 +211,9 @@ export class LayoutBuilder {
     // Apply className (support both 'class' and 'className')
     const classValue = (config as any).class || config.className;
     this.applyClassName(element, classValue);
+
+    // Apply style (string, object, or Ref)
+    this.applyStyle(element, (config as any).style);
     
     // Apply events
     this.applyEvents(element, config.on);
@@ -171,12 +227,12 @@ export class LayoutBuilder {
     
     // Handle value (for inputs)
     if (config.value !== undefined) {
-      if (typeof config.value === 'string') {
-        (element as HTMLInputElement).value = config.value;
+      if (typeof config.value === 'string' || typeof config.value === 'number') {
+        (element as HTMLInputElement).value = String(config.value);
       } else {
-        (element as HTMLInputElement).value = config.value.value;
+        (element as HTMLInputElement).value = String(config.value.value);
         const unsub = config.value.subscribe((newValue) => {
-          (element as HTMLInputElement).value = newValue;
+          (element as HTMLInputElement).value = String(newValue);
         });
         this.cleanups.push(unsub);
       }
@@ -320,8 +376,8 @@ export class LayoutBuilder {
     const p = el("p").build();
     
     // Handle value (string or Ref)
-    if (typeof config.value === 'string') {
-      p.textContent = config.value;
+    if (typeof config.value === 'string' || typeof config.value === 'number') {
+      p.textContent = String(config.value);
     } else {
       const getText = (val: any) => {
         return config.formatter ? config.formatter(val) : String(val);
@@ -425,6 +481,43 @@ export class LayoutBuilder {
   
   const getKey = config.key || ((_item: T, index: number) => index);
 
+  // Helper: Longest Increasing Subsequence (indexes of LIS)
+  function lis(arr: number[]): number[] {
+    const n = arr.length;
+    const p: number[] = new Array(n);
+    const result: number[] = [];
+    let u: number, v: number;
+    for (let i = 0; i < n; i++) {
+      const ai = arr[i]!;
+      if (ai === -1) { p[i] = -1; continue; }
+      const lastIdx = result.length > 0 ? result[result.length - 1]! : -1;
+      if (result.length === 0 || (lastIdx !== -1 && arr[lastIdx]! < ai)) {
+        p[i] = lastIdx !== -1 ? lastIdx : -1;
+        result.push(i);
+        continue;
+      }
+      u = 0; v = result.length - 1;
+      while (u < v) {
+        const c = ((u + v) / 2) | 0;
+        const rc = result[c]!;
+        if (arr[rc]! < ai) u = c + 1; else v = c;
+      }
+      const ru = result[u]!;
+      if (ai < arr[ru]!) {
+        if (u > 0) p[i] = result[u - 1]!; else p[i] = -1;
+        result[u] = i;
+      }
+    }
+    let u2 = result.length;
+    let v2 = result[u2 - 1]!;
+    const lisIdx: number[] = new Array(u2);
+    while (u2-- > 0) {
+      lisIdx[u2] = v2;
+      v2 = p[v2] ?? -1;
+    }
+    return lisIdx;
+  }
+
   const render = () => {
     const newItems = config.items.value || [];
     const itemCount = newItems.length;
@@ -441,8 +534,10 @@ export class LayoutBuilder {
       return;
     }
     
-    // Build new keys array efficiently
+    // Build new keys array efficiently with duplicate detection
     const newKeys: (string | number)[] = new Array(itemCount);
+    const seenKeys = new Set<string | number>();
+    let dupWarned = false;
     for (let i = 0; i < itemCount; i++) {
       const item = newItems[i];
       if (item === undefined) {
@@ -452,6 +547,11 @@ export class LayoutBuilder {
       if (key === undefined) {
         throw new Error(`Key at index ${i} is undefined`);
       }
+      if (seenKeys.has(key) && !dupWarned) {
+        dupWarned = true;
+        console.warn('[auwla] List: duplicate keys detected; subsequent items overwrite earlier entries');
+      }
+      seenKeys.add(key);
       newKeys[i] = key;
     }
     
@@ -519,9 +619,9 @@ export class LayoutBuilder {
       return;
     }
     
-    // STEP 3: Create/update elements
-    const fragment = document.createDocumentFragment();
-    
+    // STEP 3: Create/update elements and perform minimal moves
+    const newCache = new Map<string | number, { element: HTMLElement; builder: LayoutBuilder; item: T }>();
+
     for (let i = 0; i < itemCount; i++) {
       const item = newItems[i];
       if (item === undefined) {
@@ -532,32 +632,68 @@ export class LayoutBuilder {
         throw new Error(`Key at index ${i} is undefined`);
       }
       let entry = cache.get(key);
-      
       if (!entry) {
-        // Create new element
         const itemBuilder = new LayoutBuilder();
         config.render(item, i, itemBuilder);
         const itemElement = itemBuilder.build();
         const element = (itemElement.children[0] as HTMLElement) || itemElement;
         entry = { element, builder: itemBuilder, item };
-        cache.set(key, entry);
       } else if (entry.item !== item) {
-        // Item changed - recreate
         entry.element.remove();
         entry.builder.destroy();
-        
         const itemBuilder = new LayoutBuilder();
         config.render(item, i, itemBuilder);
         const itemElement = itemBuilder.build();
         const element = (itemElement.children[0] as HTMLElement) || itemElement;
         entry = { element, builder: itemBuilder, item };
-        cache.set(key, entry);
       }
-      
-      fragment.appendChild(entry.element);
+      newCache.set(key, entry!);
     }
-    
-    container.replaceChildren(fragment);
+
+    // Initial mount optimization
+    if (cache.size === 0) {
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < newKeys.length; i++) {
+        const k = newKeys[i]!;
+        const entry = newCache.get(k)!;
+        frag.appendChild(entry.element);
+      }
+      container.replaceChildren(frag);
+    } else {
+      // Keyed reorder using LIS to minimize moves
+      const oldKeys = Array.from(cache.keys());
+      const oldIndexMap = new Map<string | number, number>();
+      for (let i = 0; i < oldKeys.length; i++) {
+        const ok = oldKeys[i]!;
+        oldIndexMap.set(ok, i);
+      }
+
+      const pos = new Array(newKeys.length);
+      for (let i = 0; i < newKeys.length; i++) {
+        const k = newKeys[i]!;
+        const idx = oldIndexMap.get(k);
+        pos[i] = idx === undefined ? -1 : idx;
+      }
+      const lisIdx = lis(pos);
+      const lisSet = new Set(lisIdx);
+
+      // Move only nodes not in LIS or newly created
+      for (let i = newKeys.length - 1; i >= 0; i--) {
+        const k = newKeys[i]!;
+        const entry = newCache.get(k)!;
+        const node = entry.element;
+        const anchor = i + 1 < newKeys.length ? newCache.get(newKeys[i + 1]!)!.element : null;
+        if (pos[i] === -1 || !lisSet.has(i)) {
+          container.insertBefore(node, anchor);
+        }
+      }
+    }
+
+    // Update cache
+    cache.clear();
+    for (const [k, v] of newCache.entries()) {
+      cache.set(k, v);
+    }
   };
 
   render();
@@ -590,10 +726,20 @@ export class LayoutBuilder {
    * // With computed condition
    * const hasItems = watch(items, arr => arr.length > 0)
    * ui.When(hasItems, (ui) => {
-   *   ui.List({ items, ... })
-   * })
-   * ```
-   */
+  *   ui.List({ items, ... })
+  * })
+  * ```
+   *
+   * @example
+   * // JSX alternative:
+   * // <When>
+   * //   {isLoggedIn}={() => <button>Logout</button>}
+   * //   {() => <>
+   * //     <p>Please login</p>
+   * //     <button>Login</button>
+   * //   </>}
+   * // </When>
+  */
 When(condition: Ref<boolean>, thenBuilder: (ui: LayoutBuilder) => void): { Else: (builder: (ui: LayoutBuilder) => void) => LayoutBuilder } {
     const container = el("div").build();
     let elseBuilder: ((ui: LayoutBuilder) => void) | null = null;
@@ -713,6 +859,15 @@ When(condition: Ref<boolean>, thenBuilder: (ui: LayoutBuilder) => void): { Else:
  * 
  * document.body.appendChild(MyComponent)
  * ```
+ *
+ * @example
+ * // JSX usage inside a Component
+ * const App = Component(() => (
+ *   <div className="container">
+ *     <h1>Title</h1>
+ *     <button onClick={() => alert('Hi!')}>Click me</button>
+ *   </div>
+ * ))
  */
 export function Column(fn: (ui: LayoutBuilder) => void): HTMLElement {
   const builder = new LayoutBuilder();
@@ -720,6 +875,15 @@ export function Column(fn: (ui: LayoutBuilder) => void): HTMLElement {
   return builder.build();
 }
 
+/**
+ * Creates a component with horizontal layout (flexbox row).
+ *
+ * @example
+ * const Toolbar = Row((ui) => {
+ *   ui.Button({ text: 'Save' })
+ *   ui.Button({ text: 'Cancel' })
+ * })
+ */
 export function Row(fn: (ui: LayoutBuilder) => void): HTMLElement {
   const builder = new LayoutBuilder();
   fn(builder);
@@ -837,6 +1001,20 @@ export interface LayoutBuilder {
  * 
  * document.getElementById('app').appendChild(App)
  * ```
+ *
+ * @example
+ * // JSX-based component with lifecycle
+ * import { onMount, onUnmount } from './lifecycle'
+ * const App = Component(() => {
+ *   onMount(() => console.log('Mounted'))
+ *   onUnmount(() => console.log('Unmounted'))
+ *   return (
+ *     <main>
+ *       <h1>Hello World</h1>
+ *       <button onClick={() => alert('Hi!')}>Click me</button>
+ *     </main>
+ *   )
+ * })
  */
 export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
   const builder = new LayoutBuilder();
@@ -927,4 +1105,25 @@ export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
   }
   
   return element;
+}
+// Class name diffing helpers for DSL elements
+const DSL_CLASS_TOKENS = Symbol('auwla_dsl_class_tokens');
+function tokenizeClass(str: any): string[] {
+  const s = String(str ?? '').trim();
+  return s ? s.split(/\s+/).filter(Boolean) : [];
+}
+function applyClassTokens(el: HTMLElement, nextStr: any) {
+  const prev: Set<string> = (el as any)[DSL_CLASS_TOKENS] || new Set<string>();
+  const nextTokens = tokenizeClass(nextStr);
+  const nextSet = new Set(nextTokens);
+  // Remove tokens previously managed but no longer present
+  prev.forEach((tok) => {
+    if (!nextSet.has(tok)) el.classList.remove(tok);
+  });
+  // Add new tokens
+  nextTokens.forEach((tok) => {
+    if (!prev.has(tok)) el.classList.add(tok);
+  });
+  // Update record
+  (el as any)[DSL_CLASS_TOKENS] = nextSet;
 }

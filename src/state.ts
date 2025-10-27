@@ -3,6 +3,55 @@ export type Ref<T> = {
     subscribe(callback: (newValue: T) => void): () => void;
 };
 
+// -------------------------------------------------------------
+// Global reactive scheduler
+// - Batches ref notifications in a microtask by default
+// - Provides flushSync() to synchronously drain pending updates
+// -------------------------------------------------------------
+type Task = () => void;
+const pendingTasks: Set<Task> = new Set();
+let microtaskScheduled = false;
+
+function flushPending() {
+  // Drain until stable to handle cascading updates
+  while (pendingTasks.size > 0) {
+    const tasks = Array.from(pendingTasks);
+    pendingTasks.clear();
+    for (const task of tasks) {
+      try {
+        task();
+      } catch (error) {
+        console.error('Subscriber error:', error);
+      }
+    }
+  }
+}
+
+function scheduleTask(task: Task) {
+  pendingTasks.add(task);
+  if (!microtaskScheduled) {
+    microtaskScheduled = true;
+    queueMicrotask(() => {
+      microtaskScheduled = false;
+      flushPending();
+    });
+  }
+}
+
+export function flushSync() {
+  // Run all pending notifications immediately
+  microtaskScheduled = false;
+  flushPending();
+}
+
+// Async flush: wait for the scheduler microtask and next paint
+export async function flush() {
+  // Ensure any pending microtask-batched notifications run
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  // Wait a frame so the browser can commit layout/paint
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 /**
  * Creates a reactive reference that tracks changes and notifies subscribers.
  * 
@@ -26,27 +75,36 @@ export type Ref<T> = {
  * // Cleanup when done
  * unsubscribe()
  * ```
+ *
+ * @example
+ * // JSX usage: refs render as text nodes
+ * const count = ref(0)
+ * const App = () => (
+ *   <button onClick={() => count.value++}>Clicked {count} times</button>
+ * )
  */
 export function ref<T>(initialValue: T): Ref<T> {
     let value = initialValue;
     const subscribers: ((newValue: T) => void)[] = [];
     let notifyScheduled = false;
 
+    const notifySubscribers = () => {
+        notifyScheduled = false;
+        // Call each subscriber once with latest value
+        subscribers.forEach(callback => {
+            try {
+                callback(value);
+            } catch (error) {
+                console.error('Subscriber error:', error);
+            }
+        });
+    };
+
     const scheduleNotify = () => {
         if (notifyScheduled) return;
         notifyScheduled = true;
-        
-        queueMicrotask(() => {
-            notifyScheduled = false;
-            // Call each subscriber once with latest value
-            subscribers.forEach(callback => {
-                try {
-                    callback(value);
-                } catch (error) {
-                    console.error('Subscriber error:', error);
-                }
-            });
-        });
+        // Use global scheduler for batching, can be drained via flushSync()
+        scheduleTask(notifySubscribers);
     };
 
     const handler: ProxyHandler<{ value: T }> = {
@@ -150,10 +208,24 @@ export function getWatchContext() {
  * cleanup() // ✅ Call to unsubscribe
  * 
  * @example
+ * // JSX usage: use derived refs directly in templates
+ * const count = ref(0)
+ * const doubled = watch(count, (v) => v * 2)
+ * const App = () => (
+ *   <div>
+ *     <button onClick={() => count.value++}>Inc</button>
+ *     <span>Value: {count}, Doubled: {doubled}</span>
+ *   </div>
+ * )
+ * 
+ * @example
  * // Derived ref - cleanup is automatic in Component
  * const doubled = watch(count, (v) => v * 2)
  * // No manual cleanup needed inside Component!
  */
+// Overloads: return Ref<R> when callback returns a value, otherwise return cleanup function
+export function watch<T, R>(source: Ref<T> | Ref<any>[], callback: (value: any, oldValue?: any) => R): Ref<R>;
+export function watch<T>(source: Ref<T> | Ref<any>[], callback: (value: any, oldValue?: any) => void): () => void;
 export function watch<T, R>(
     source: Ref<T> | Ref<any>[],
     callback: ((value: any, oldValue?: any) => R | void)
@@ -233,18 +305,48 @@ export function watch<T, R>(
 
 function shallowEqual(a: any, b: any): boolean {
     if (a === b) return true;
-    
+
+    // Arrays: element-wise reference equality
     if (Array.isArray(a) && Array.isArray(b)) {
         if (a.length !== b.length) return false;
-        return a.every((val, idx) => val === b[idx]);
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
     }
-    
-    if (typeof a === 'object' && typeof b === 'object' && a !== null && b !== null) {
+
+    // Treat DOM Nodes and non-plain objects as unequal unless strictly equal
+    const isObjectA = typeof a === 'object' && a !== null;
+    const isObjectB = typeof b === 'object' && b !== null;
+    if (isObjectA && isObjectB) {
+        // Detect DOM Node (has numeric nodeType)
+        const isNodeA = typeof (a as any).nodeType === 'number';
+        const isNodeB = typeof (b as any).nodeType === 'number';
+        if (isNodeA || isNodeB) {
+            // If either is a Node, only strict equality counts as equal
+            return false;
+        }
+
+        // Plain object check: only compare enumerable own props
+        const protoA = Object.getPrototypeOf(a);
+        const protoB = Object.getPrototypeOf(b);
+        const isPlainA = protoA === Object.prototype || protoA === null;
+        const isPlainB = protoB === Object.prototype || protoB === null;
+        if (!isPlainA || !isPlainB) {
+            // Non-plain objects (Date, Map, Set, custom classes) are unequal by default
+            return false;
+        }
+
         const keysA = Object.keys(a);
         const keysB = Object.keys(b);
         if (keysA.length !== keysB.length) return false;
-        return keysA.every(key => a[key] === b[key]);
+        for (let i = 0; i < keysA.length; i++) {
+            const key = keysA[i]!;
+            if ((a as any)[key] !== (b as any)[key]) return false;
+        }
+        return true;
     }
-    
+
+    // Primitives: already handled by strict equality at top
     return false;
 }

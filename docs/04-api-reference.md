@@ -108,6 +108,52 @@ const isEven = watch(count, (v) => v % 2 === 0) as Ref<boolean>
 
 ---
 
+### `flushSync(): void`
+
+Immediately drains all pending reactive updates in the current tick. Use this when you need state changes to reflect in the DOM synchronously, without waiting for the scheduler.
+
+```typescript
+import { ref, watch, flushSync } from './src/state'
+
+const count = ref(0)
+count.value = 1
+flushSync() // DOM reflects the change immediately
+```
+
+**When to use:**
+- Imperative UI updates that must be visible right away (e.g., toggling classes before measuring sizes)
+- Testing scenarios that require deterministic timing
+
+---
+
+### `flush(): Promise<void>`
+
+Asynchronously waits for the scheduler’s microtask to run and the next animation frame, ensuring the browser has committed DOM updates, layout, and paint. Ideal for benchmarks and flows where you want to measure or sequence after the UI actually updates.
+
+```typescript
+import { ref, flush } from './src/state'
+
+const items = ref<string[]>([])
+
+// Create phase
+items.value = Array.from({ length: 1_000 }, (_, i) => `Item ${i}`)
+await flush() // measure after DOM & paint commit
+
+// Update phase
+items.value = items.value.map((s, i) => (i % 2 === 0 ? `${s}*` : s))
+await flush() // measure update after commit
+```
+
+**When to use:**
+- Benchmarks: measure create/update/reorder after the browser commits
+- Orchestrating multi-step UI flows that depend on the previous step rendering fully
+
+**Notes:**
+- `flush()` combines a microtask turn and `requestAnimationFrame`, so it resolves on the next frame after queued updates are processed.
+- Prefer `flushSync()` for immediate, same-tick visibility; prefer `flush()` when you care about post-paint timing.
+
+---
+
 ## UI Building
 
 ### `Component(fn: (ui: LayoutBuilder) => void): HTMLElement`

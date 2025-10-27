@@ -49,6 +49,7 @@ Start learning the framework step by step:
 2. **[Intermediate Guide](./docs/02-intermediate.md)** - Computed values, lists, conditional rendering, lifecycle
 3. **[Advanced Guide](./docs/03-advanced.md)** - Router, state caching, performance optimization, advanced patterns
 4. **[API Reference](./docs/04-api-reference.md)** - Complete API documentation
+5. **[JSX Guide](./docs/05-jsx-guide.md)** - Use Auwla with JSX (setup, lists, conditionals)
 
 ## 🏗️ Architecture
 

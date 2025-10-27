@@ -1,59 +1,5 @@
 import type { Ref } from "./state";
 
-type HTMLTags = 
-  | 'div' | 'span' | 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
-  | 'a' | 'img' | 'ul' | 'ol' | 'li' | 'table' | 'tr' | 'td' | 'th'
-  | 'form' | 'label' | 'select' | 'option' | 'textarea'
-  | 'header' | 'footer' | 'nav' | 'main' | 'section' | 'article' | 'aside'
-  | 'button' | 'input' | 'strong' | 'em' | 'b' | 'i' | 'u' | 'small'
-  | 'code' | 'pre' | 'blockquote' | 'hr' | 'br';
-
-type TagToElement = {
-    'div': HTMLDivElement;
-    'span': HTMLSpanElement;
-    'p': HTMLParagraphElement;
-    'h1': HTMLHeadingElement;
-    'h2': HTMLHeadingElement;
-    'h3': HTMLHeadingElement;
-    'h4': HTMLHeadingElement;
-    'h5': HTMLHeadingElement;
-    'h6': HTMLHeadingElement;
-    'a': HTMLAnchorElement;
-    'img': HTMLImageElement;
-    'ul': HTMLUListElement;
-    'ol': HTMLOListElement;
-    'li': HTMLLIElement;
-    'table': HTMLTableElement;
-    'tr': HTMLTableRowElement;
-    'td': HTMLTableCellElement;
-    'th': HTMLTableCellElement;
-    'form': HTMLFormElement;
-    'label': HTMLLabelElement;
-    'select': HTMLSelectElement;
-    'option': HTMLOptionElement;
-    'textarea': HTMLTextAreaElement;
-    'header': HTMLElement;
-    'footer': HTMLElement;
-    'nav': HTMLElement;
-    'main': HTMLElement;
-    'section': HTMLElement;
-    'article': HTMLElement;
-    'aside': HTMLElement;
-    'button': HTMLButtonElement;
-    'input': HTMLInputElement;
-    'strong': HTMLElement;
-    'em': HTMLElement;
-    'b': HTMLElement;
-    'i': HTMLElement;
-    'u': HTMLElement;
-    'small': HTMLElement;
-    'code': HTMLElement;
-    'pre': HTMLPreElement;
-    'blockquote': HTMLQuoteElement;
-    'hr': HTMLHRElement;
-    'br': HTMLBRElement;
-};
-
 export type EventMap = {
     'click': MouseEvent;
     'input': InputEvent;
@@ -79,8 +25,8 @@ interface ElementBuilder<T extends HTMLElement>{
     build(): T;
 }
 
-export function el<K extends HTMLTags>(tag: K): ElementBuilder<TagToElement[K]> {
-    const element = document.createElement(tag);    
+export function el<K extends keyof HTMLElementTagNameMap>(tag: K): ElementBuilder<HTMLElementTagNameMap[K]> {
+    const element = document.createElement(tag) as HTMLElementTagNameMap[K];    
     return {
         element,
         withClass(className: string) {

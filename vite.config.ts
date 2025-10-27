@@ -13,9 +13,13 @@ export default defineConfig({
     },
     rollupOptions: {
       // Externalize deps that shouldn't be bundled
-      external: [],
+      external: ['react', 'react-dom', 'react-dom/client'],
       output: {
-        globals: {}
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'react-dom/client': 'ReactDOM'
+        }
       }
     }
   },

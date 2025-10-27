@@ -65,6 +65,24 @@ export function onUnmount(callback: CleanupFn) {
   currentComponent.cleanups.add(callback);
 }
 
+// Routed lifecycle: runs after mount with route context provided by the router
+import { getRoutedContext } from './router'
+export function onRouted(
+  callback: (ctx: ReturnType<typeof getRoutedContext> extends infer C ? C : any) => void | CleanupFn
+) {
+  if (!currentComponent) {
+    console.warn('onRouted called outside component context');
+    return;
+  }
+  const ctx = getRoutedContext();
+  if (!ctx) {
+    console.warn('onRouted: no routed context available');
+    return;
+  }
+  // Capture ctx and run after mount; cleanup handled by executeMountCallbacks
+  currentComponent.mountCallbacks.push(() => callback(ctx));
+}
+
 /**
  * Internal: Set the current component context
  * @internal

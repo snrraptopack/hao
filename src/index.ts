@@ -1,45 +1,37 @@
-// Import what we need for internal use
-import { Component } from './dsl'
-import type { LayoutBuilder } from './dsl'
+// Side-effect import to include global JSX types in the package declarations
+import './types/jsx-global'
 
-// Re-export for external use
-export { ref, watch } from './state'
+// Core state
+export { ref, watch, flushSync, flush } from './state'
 export type { Ref } from './state'
+
+// Core DSL / JSX
 export { Component } from './dsl'
 export type { LayoutBuilder } from './dsl'
 export { h, Fragment } from './jsx'
+export { For, When } from './jsxutils'
 
-// Simple routing utilities (basic implementation)
-export function createApp(config: { routes: any[], target: string }) {
-  return {
-    mount() {
-      const target = document.querySelector(config.target)
-      if (target) {
-        // Simple demo - just show first route or a default component
-        const DemoApp = Component((ui: LayoutBuilder) => {
-          ui.Div({ className: "p-8" }, (ui: LayoutBuilder) => {
-            ui.H1({ text: "Auwla App Running!", className: "text-2xl font-bold mb-4" })
-            ui.P({ text: `Found ${config.routes.length} routes` })
-            ui.Div({ className: "mt-4" }, (ui: LayoutBuilder) => {
-              config.routes.forEach((route, index) => {
-                ui.Div({ className: "p-2 border-b" }, (ui: LayoutBuilder) => {
-                  ui.P({ text: `Route ${index + 1}: ${route.path || 'Unknown'}` })
-                })
-              })
-            })
-          })
-        })
-        target.appendChild(DemoApp)
-      }
-    }
-  }
-}
+// Lifecycle
+export { onMount, onUnmount, onRouted } from './lifecycle'
 
-// Basic routing utilities (placeholders)
-export function useParams() {
-  return {}
-}
+// Routing
+export { Router, Link, useRouter, useParams, useQuery, setRouter, getRouter } from './router'
+export type {
+  Route,
+  RouteMatch,
+  RouteParams,
+  QueryParams,
+  PathParams,
+  RouteGuard,
+  RoutedContext,
+} from './router'
 
-export function useQuery() {
-  return {}
-}
+// Routing helpers
+export { defineRoutes, composeRoutes, group, pathFor } from './routes'
+
+// Data fetching helpers
+export { fetch, asyncOp } from './fetch'
+export type { FetchState } from './fetch'
+
+// Optional integrations
+export { ReactIsland, createReactIsland } from './integrations/react'

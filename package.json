@@ -39,9 +39,12 @@
     "dev": "vite",
     "build": "vite build && tsc",
     "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build:app": "vite build --config vite.config.app.ts",
     "preview": "vite preview",
+    "preview:app": "vite preview --outDir dist-app",
     "template:parse": "bun run template/test/test-parser.ts",
-    "template:test": "bun run template/test/test-full.ts"
+    "template:test": "bun run template/test/test-full.ts",
+    "prepublishOnly": "npm run build"
   },
   "bin": {
     "auwla": "./dist/cli.js",
@@ -57,15 +60,23 @@
     "acorn": "^8.15.0",
     "handlebars": "^4.7.8",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "@tailwindcss/vite": "^4.1.14",
+    "tailwindcss": "^4.1.14"
   },
   "dependencies": {
     "@babel/generator": "^7.28.3",
     "@babel/parser": "^7.28.4",
     "@babel/traverse": "^7.28.4",
     "@babel/types": "^7.28.4",
-    "@tailwindcss/vite": "^4.1.14",
-    "node-html-parser": "^7.0.1",
-    "tailwindcss": "^4.1.14"
+    "node-html-parser": "^7.0.1"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19",
+    "react-dom": "^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
   }
 }

@@ -1,155 +1,349 @@
-import { el } from './createElement'
-import type { Ref } from './state'
+import { el } from './createElement'; // Assuming this import
+import { 
+  ref, 
+  watch, 
+  setWatchContext, 
+  type Ref 
+} from './state';
+import { 
+  createComponentContext, 
+  setCurrentComponent, 
+  executeMountCallbacks, 
+  executeCleanup 
+} from './lifecycle';
+
+// --- HELPERS (Modified for watch) ---
 
 function isRef<T = any>(v: any): v is Ref<T> {
-  return v && typeof v === 'object' && 'value' in v && typeof v.subscribe === 'function'
+  return v && typeof v === 'object' && 'value' in v && typeof v.subscribe === 'function';
 }
 
-const eventPropRE = /^on([A-Z].*)$/
+const eventPropRE = /^on([A-Z].*)$/;
 function toEventName(prop: string) {
-  const m = eventPropRE.exec(prop)
-  if (!m) return null
-  const name = m[1]
-  return name.charAt(0).toLowerCase() + name.slice(1)
+  const m = eventPropRE.exec(prop);
+  if (!m) return null;
+  const name = m[1] ?? " ";
+  return name.charAt(0).toLowerCase() + name.slice(1);
 }
 
 function applyStyle(el: HTMLElement, style: any) {
-  if (!style) return
+  if (!style) return;
   if (typeof style === 'string') {
-    el.setAttribute('style', style)
+    el.setAttribute('style', style);
   } else if (typeof style === 'object') {
     for (const k in style) {
-      ;(el.style as any)[k] = (style as any)[k]
+      (el.style as any)[k] = (style as any)[k];
     }
   }
+}
+
+// Class name diffing helpers
+const CLASS_TOKENS = Symbol('auwla_jsx_class_tokens');
+function tokenizeClass(str: any): string[] {
+  const s = String(str ?? '').trim();
+  return s ? s.split(/\s+/).filter(Boolean) : [];
+}
+function applyClassTokens(el: HTMLElement, nextStr: any) {
+  const prev: Set<string> = (el as any)[CLASS_TOKENS] || new Set<string>();
+  const nextTokens = tokenizeClass(nextStr);
+  const nextSet = new Set(nextTokens);
+  // Remove tokens we previously managed but are no longer present
+  prev.forEach((tok) => {
+    if (!nextSet.has(tok)) el.classList.remove(tok);
+  });
+  // Add new tokens
+  nextTokens.forEach((tok) => {
+    if (!prev.has(tok)) el.classList.add(tok);
+  });
+  // Update record
+  (el as any)[CLASS_TOKENS] = nextSet;
 }
 
 function setAttr(el: HTMLElement, key: string, value: any) {
   if (value == null || value === false) {
-    el.removeAttribute(key)
-    return
+    el.removeAttribute(key);
+    return;
   }
   if (value === true) {
-    el.setAttribute(key, '')
-    return
+    el.setAttribute(key, '');
+    return;
   }
   // Prefer property when available, fallback to attribute
   if (key in el) {
     try {
-      ;(el as any)[key] = value
-      return
+      (el as any)[key] = value;
+      return;
     } catch {}
   }
-  el.setAttribute(key, String(value))
+  el.setAttribute(key, String(value));
 }
 
+/**
+ * Appends children to a parent node.
+ * ✅ Uses watch() for automatic cleanup and supports Ref<Node | string | array>.
+ */
 function appendChildren(parent: Node, children: any[]) {
-  for (const child of children.flat(Infinity)) {
-    if (child == null || child === false || child === true) continue
+  const flatChildren = children.flat(Infinity);
+  for (const child of flatChildren) {
+    if (child == null || child === false || child === true) continue;
+
+    const insertValue = (before: Node, v: any) => {
+      if (v == null || v === false || v === true) return;
+      if (typeof v === 'string' || typeof v === 'number') {
+        before.parentNode?.insertBefore(document.createTextNode(String(v)), before);
+      } else if (v instanceof Node) {
+        before.parentNode?.insertBefore(v, before);
+      } else if (Array.isArray(v)) {
+        for (const c of v.flat(Infinity)) insertValue(before, c);
+      } else {
+        // Fallback: stringify unknown types
+        before.parentNode?.insertBefore(document.createTextNode(String(v)), before);
+      }
+    };
 
     if (isRef(child)) {
-      // Treat as text binding by default
-      const placeholder = document.createTextNode('')
-      parent.appendChild(placeholder)
-      // initial
-      placeholder.textContent = child.value == null ? '' : String(child.value)
-      // subscribe
-      child.subscribe(v => {
-        placeholder.textContent = v == null ? '' : String(v)
-      })
-      continue
+      // OPTIMIZATION: Lightweight text binding for Ref<string | number>
+      const initial = child.value;
+      if (typeof initial === 'string' || typeof initial === 'number') {
+        const text = document.createTextNode(String(initial));
+        parent.appendChild(text);
+        watch(child, (v) => { text.textContent = String(v ?? ''); });
+      } else {
+        // Fallback to marker-based rendering for complex types (Node/array)
+        const start = document.createComment('ref-start');
+        const end = document.createComment('ref-end');
+        parent.appendChild(start);
+        parent.appendChild(end);
+
+        const render = (v: any) => {
+          // Remove all nodes between markers
+          let node: ChildNode | null = start.nextSibling as ChildNode | null;
+          while (node && node !== end) {
+            const next = node.nextSibling as ChildNode | null;
+            node.remove();
+            node = next;
+          }
+          // Insert new value(s)
+          insertValue(end, v);
+        };
+
+        render(child.value);
+        watch(child, (v) => render(v));
+      }
+      continue;
     }
 
     if (typeof child === 'string' || typeof child === 'number') {
-      parent.appendChild(document.createTextNode(String(child)))
+      parent.appendChild(document.createTextNode(String(child)));
     } else if (child instanceof Node) {
-      parent.appendChild(child)
+      parent.appendChild(child);
     } else if (Array.isArray(child)) {
-      appendChildren(parent, child)
-    } else {
-      // Unknown child type; ignore
+      appendChildren(parent, child);
     }
   }
 }
 
-export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
-  const props = rawProps || {}
+// --- CORE JSX RUNTIME ---
 
-  // Function component
+/**
+ * The core JSX factory function used by Auwla.
+ * Handles function components, refs as children, attributes/events,
+ * and automatic lifecycle binding with `onMount`/cleanup.
+ *
+ * Examples (JSX):
+ *
+ * - Basic element
+ *   `<div className="box">Hello</div>`
+ *
+ * - Event handlers
+ *   `<button onClick={() => alert('clicked')}>Click</button>`
+ *
+ * - Reactive children with `Ref`
+ *   `const count = ref(0); <button onClick={() => count.value++}>{count}</button>`
+ *
+ * - Component usage
+ *   `function App() { return <main><h1>Welcome</h1></main>; }`
+ */
+export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
+  const props = rawProps || {};
+
+  // ---------------------------------------------
+  // ✅ 1. FUNCTION COMPONENT (with Lifecycle)
+  // ---------------------------------------------
   if (typeof type === 'function') {
-    return type({ ...props, children: rawChildren })
+    // It's a component, so we must set up the lifecycle context
+    const context = createComponentContext();
+
+    // 1. SET THE GLOBAL CONTEXT
+    setCurrentComponent(context);
+    setWatchContext(context.cleanups); // For auto-cleanup of watch()
+
+    // 2. RUN THE COMPONENT FUNCTION
+    // All onMount, onUnmount, and watch calls inside will
+    // now register with the `context`
+    const element = type({ ...props, children: rawChildren }) as HTMLElement;
+
+    // 3. CLEAR THE GLOBAL CONTEXT
+    setCurrentComponent(null);
+    setWatchContext(null);
+
+    // 4. ATTACH LIFECYCLE AND CLEANUP LOGIC TO THE ELEMENT
+    (element as any).__context = context;
+    (element as any).__cleanup = () => {
+      executeCleanup(context);
+    };
+
+    // 5. SETUP AUTO-MOUNT & AUTO-CLEANUP (MutationObservers)
+    if (typeof MutationObserver !== 'undefined') {
+      // --- Auto-cleanup on DOM removal ---
+      const cleanupObserver = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+          mutation.removedNodes.forEach(node => {
+            if (node === element || node.contains(element)) {
+              (element as any).__cleanup?.();
+              cleanupObserver.disconnect();
+            }
+          });
+        });
+      });
+      
+      // Function to start observing
+      const attachCleanupObserver = () => {
+        if (element.parentElement) {
+          cleanupObserver.observe(element.parentElement, { 
+            childList: true, 
+            subtree: true 
+          });
+        } else {
+          // Wait a frame if not yet attached
+          requestAnimationFrame(attachCleanupObserver);
+        }
+      };
+      attachCleanupObserver();
+
+      // --- Auto-run onMount when added to DOM ---
+      if (element.isConnected) {
+        executeMountCallbacks(context);
+      } else {
+        const mountObserver = new MutationObserver(() => {
+          if (element.isConnected) {
+            executeMountCallbacks(context);
+            mountObserver.disconnect();
+          }
+        });
+        // Observe the document body for the element
+        mountObserver.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      }
+    } else {
+      // Fallback for older envs: run mount on next frame
+      requestAnimationFrame(() => {
+        if (element.isConnected) {
+          executeMountCallbacks(context);
+        }
+      });
+    }
+
+    // 6. RETURN THE FULLY-LIFECYCLE-AWARE ELEMENT
+    return element;
   }
 
-  // Intrinsic element
-  const tag = type as keyof HTMLElementTagNameMap
-  const builder = el(tag)
-  const element = builder.element
+  // ---------------------------------------------
+  // ✅ 2. INTRINSIC ELEMENT (with reactive bindings)
+  // ---------------------------------------------
+  const tag = type as keyof HTMLElementTagNameMap;
+  const builder = el(tag); // Assuming `el` is from './createElement'
+  const element = builder.element;
 
   for (const key in props) {
-    if (key === 'children') continue
-    const val = props[key]
+    if (key === 'children') continue;
+    const val = props[key];
 
     // Events (onClick, onInput, ...)
-    const eventName = toEventName(key)
+    const eventName = toEventName(key);
     if (eventName) {
-      element.addEventListener(eventName, val as EventListener)
-      continue
+      element.addEventListener(eventName, val as EventListener);
+      // TODO: Add event listener cleanup via onUnmount if needed,
+      // but browser garbage collection is usually fine for this.
+      continue;
     }
 
     // class / className
     if (key === 'class' || key === 'className') {
       if (isRef(val)) {
-        element.className = String(val.value ?? '')
-        val.subscribe(v => { element.className = String(v ?? '') })
+        // Initial set and record tokens
+        const initial = String(val.value ?? '');
+        element.className = initial;
+        (element as any)[CLASS_TOKENS] = new Set(tokenizeClass(initial));
+        // ✅ subscribe -> watch with diff-based updates
+        watch(val, (v) => applyClassTokens(element, v));
       } else {
-        element.className = String(val ?? '')
+        // Static set
+        element.className = String(val ?? '');
+        (element as any)[CLASS_TOKENS] = new Set(tokenizeClass(val));
       }
-      continue
+      continue;
     }
 
     // style
     if (key === 'style') {
       if (isRef(val)) {
-        applyStyle(element, val.value)
-        val.subscribe(v => applyStyle(element, v))
+        applyStyle(element, val.value);
+        // ✅ subscribe -> watch
+        watch(val, (v) => applyStyle(element, v));
       } else {
-        applyStyle(element, val)
+        applyStyle(element, val);
       }
-      continue
+      continue;
     }
 
     // ref callback
     if (key === 'ref' && typeof val === 'function') {
-      val(element)
-      continue
+      val(element);
+      continue;
     }
 
     // Common input-specific mirroring (value/checked/disabled/placeholder/type)
-    if (key === 'value' || key === 'checked' || key === 'disabled' || key === 'placeholder' || key === 'type' || key === 'href' || key === 'src' || key === 'alt') {
+    const commonProps = ['value', 'checked', 'disabled', 'placeholder', 'type', 'href', 'src', 'alt'];
+    if (commonProps.includes(key)) {
       if (isRef(val)) {
-        setAttr(element, key, val.value)
-        val.subscribe(v => setAttr(element, key, v))
+        setAttr(element, key, val.value);
+        // ✅ subscribe -> watch
+        watch(val, (v) => setAttr(element, key, v));
       } else {
-        setAttr(element, key, val)
+        setAttr(element, key, val);
       }
-      continue
+      continue;
     }
 
     // Generic attribute/property with Ref support
     if (isRef(val)) {
-      setAttr(element, key, val.value)
-      val.subscribe(v => setAttr(element, key, v))
+      setAttr(element, key, val.value);
+      // ✅ subscribe -> watch
+      watch(val, (v) => setAttr(element, key, v));
     } else {
-      setAttr(element, key, val)
+      setAttr(element, key, val);
     }
   }
 
-  appendChildren(element, rawChildren)
-  return element
+  appendChildren(element, rawChildren);
+  return element;
 }
 
+/**
+ * JSX `Fragment` support for grouping children without introducing extra DOM elements.
+ *
+ * Example (JSX):
+ * `<Fragment>
+ *   <h1>Title</h1>
+ *   <p>Description</p>
+ * </Fragment>`
+ */
 export function Fragment(props: any, ...children: any[]): DocumentFragment {
-  const frag = document.createDocumentFragment()
-  appendChildren(frag, children)
-  return frag
+  const frag = document.createDocumentFragment();
+  // Pass children to the *modified* appendChildren
+  appendChildren(frag, children);
+  return frag;
 }

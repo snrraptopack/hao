@@ -5,16 +5,54 @@ export type QueryParams = Record<string, string>;
 
 export type RouteGuard = (to: RouteMatch, from: RouteMatch | null) => boolean | Promise<boolean>;
 
-export type Route = {
-  path: string | RegExp;
-  component: (params?: RouteParams, query?: QueryParams) => HTMLElement;
-  name?: string;
-  guard?: RouteGuard;
+// Infer param names from a ":param" path pattern
+type PathParamNames<S extends string> =
+  S extends `${string}:${infer P}/${infer Rest}` ? P | PathParamNames<`/${Rest}`> :
+  S extends `${string}:${infer P}` ? P :
+  never;
+
+export type PathParams<S extends string> = Record<PathParamNames<S>, string>;
+
+export type RoutedContext = {
+  state: Record<string, any>;
+  params: RouteParams;
+  query: QueryParams;
+  prev: RouteMatch<any> | null;
+  path: string;
+  router: Router;
 }
 
-export type RouteMatch = {
-  route: Route;
-  params: RouteParams;
+let currentRoutedContext: RoutedContext | null = null;
+export function setRoutedContext(ctx: RoutedContext | null) {
+  currentRoutedContext = ctx;
+}
+export function getRoutedContext(): RoutedContext | null {
+  return currentRoutedContext;
+}
+
+export type Route<P extends string | RegExp = string> = {
+  path: P;
+  component: (
+    params?: P extends string ? PathParams<P> : RouteParams,
+    query?: QueryParams
+  ) => HTMLElement;
+  name?: string;
+  guard?: RouteGuard;
+  layout?: (
+    child: HTMLElement,
+    params?: P extends string ? PathParams<P> : RouteParams,
+    query?: QueryParams
+  ) => HTMLElement;
+  routed?: (
+    state: Record<string, any>,
+    params?: P extends string ? PathParams<P> : RouteParams,
+    prev?: RouteMatch<any> | null
+  ) => void | (() => void);
+}
+
+export type RouteMatch<P extends string | RegExp = string> = {
+  route: Route<P>;
+  params: P extends string ? PathParams<P> : RouteParams;
   query: QueryParams;
   path: string;
 }
@@ -42,12 +80,13 @@ export type RouteMatch = {
  * ```
  */
 export class Router {
-  private routes: Route[] = []
+  private routes: Route<any>[] = []
   public currentPath: Ref<string>
   public currentParams: Ref<RouteParams>
   public currentQuery: Ref<QueryParams>
   private container: HTMLElement
-  private currentMatch: RouteMatch | null = null
+  private currentMatch: RouteMatch<any> | null = null
+  private routeCleanup: (() => void) | null = null
   
   /**
    * State object for caching data across route navigations.
@@ -119,16 +158,29 @@ export class Router {
    * })
    * ```
    */
-  add(
-    path: string | RegExp, 
-    component: (params?: RouteParams, query?: QueryParams) => HTMLElement,
-    options?: { name?: string; guard?: RouteGuard }
+  add<P extends string | RegExp>(
+    path: P,
+    component: (
+      params?: P extends string ? PathParams<P> : RouteParams,
+      query?: QueryParams
+    ) => HTMLElement,
+    options?: { name?: string; guard?: RouteGuard; layout?: (
+      child: HTMLElement,
+      params?: P extends string ? PathParams<P> : RouteParams,
+      query?: QueryParams
+    ) => HTMLElement; routed?: (
+      state: Record<string, any>,
+      params?: P extends string ? PathParams<P> : RouteParams,
+      prev?: RouteMatch<any> | null
+    ) => void | (() => void) }
   ) {
-    this.routes.push({ 
-      path, 
-      component, 
+    this.routes.push({
+      path,
+      component: component as any,
       name: options?.name,
-      guard: options?.guard
+      guard: options?.guard,
+      layout: options?.layout as any,
+      routed: options?.routed as any,
     })
     return this
   }
@@ -235,7 +287,7 @@ export class Router {
     return params
   }
   
-  private matchRoute(path: string): RouteMatch | null {
+  private matchRoute(path: string): RouteMatch<any> | null {
     console.log('Matching path:', path, 'against routes:', this.routes.map(r => r.path))
     
     for (const route of this.routes) {
@@ -316,6 +368,24 @@ export class Router {
       }
     }
     
+    // Invoke previous routed cleanup before switching
+    if (this.routeCleanup) {
+      try { this.routeCleanup() } catch (e) { console.error('Error in routed cleanup:', e) }
+      this.routeCleanup = null
+    }
+
+    // Call routed lifecycle for the incoming route (before component render)
+    if (match.route.routed) {
+      try {
+        const cleanup = match.route.routed(this.state, match.params, this.currentMatch)
+        if (typeof cleanup === 'function') {
+          this.routeCleanup = cleanup
+        }
+      } catch (e) {
+        console.error('Error in routed lifecycle:', e)
+      }
+    }
+
     // Update current match
     this.currentMatch = match
     this.currentParams.value = match.params
@@ -329,7 +399,20 @@ export class Router {
     
     // Render new component
     this.container.innerHTML = ''
-    this.container.appendChild(match.route.component(match.params, match.query))
+    // Provide routed context to component lifecycle hooks
+    setRoutedContext({
+      state: this.state,
+      params: match.params,
+      query: match.query,
+      prev: this.currentMatch,
+      path: match.path,
+      router: this,
+    })
+    const child = match.route.component(match.params, match.query)
+    // Clear routed context after component creation
+    setRoutedContext(null)
+    const wrapped = match.route.layout ? match.route.layout(child, match.params, match.query) : child
+    this.container.appendChild(wrapped)
   }
   
   /**
@@ -393,54 +476,65 @@ import { watch as watchRef } from "./state"
 
 export function Link(config: {
   to: string;
+  params?: Record<string, string | number>;
+  query?: Record<string, string | number>;
   text: string | Ref<string>;
   className?: string | Ref<string>;
   activeClassName?: string;
 }) {
   return Component((ui) => {
-    // Defer router access until component is actually rendered
-    let router: Router
-    let isActive: Ref<boolean>
-    let className: string | Ref<string>
-    
+    const stripQuery = (p: string) => p.split('?')[0] || p;
+    const buildHref = () => {
+      let path = config.to;
+      if (config.params) {
+        for (const [k, v] of Object.entries(config.params)) {
+          path = path.replace(`:${k}`, encodeURIComponent(String(v)));
+        }
+      }
+      const qs = config.query
+        ? new URLSearchParams(
+            Object.entries(config.query).map(([k, v]) => [k, String(v)])
+          ).toString()
+        : '';
+      return qs ? `${path}?${qs}` : path;
+    };
+
+    let router: Router | null = null;
+    let isActive: Ref<boolean> | null = null;
+    let className: string | Ref<string> = config.className || '';
+    const href = buildHref();
+
     try {
-      router = getRouter()
-      
-      // Watch if this link is active
+      router = getRouter();
       isActive = watchRef(router.currentPath, (path) => {
-        return path === config.to
-      }) as Ref<boolean>
-      
-      // Combine class names
-      className = config.activeClassName
-        ? watchRef(isActive, (active) => {
-            const base = typeof config.className === 'string' 
-              ? config.className 
-              : config.className?.value || ''
-            return active ? `${base} ${config.activeClassName}` : base
-          }) as Ref<string>
-        : (config.className || '')
+        return stripQuery(path) === stripQuery(href);
+      }) as Ref<boolean>;
+
+      if (config.activeClassName) {
+        const base = typeof className === 'string' ? className : className?.value || '';
+        className = watchRef(isActive, (active) => (active ? `${base} ${config.activeClassName}` : base)) as Ref<string>;
+      }
     } catch (e) {
-      // Router not initialized yet, use basic className
-      className = config.className || ''
+      // Router not initialized; fall back to provided className.
     }
-    
-    ui.Button({
+
+    ui.A({
+      href,
       text: config.text,
       className: className || '',
       on: {
         click: (e) => {
-          e.preventDefault()
+          e.preventDefault();
           try {
-            const currentRouter = getRouter()
-            currentRouter.push(config.to)
+            const r = getRouter();
+            r.push(href);
           } catch (err) {
-            console.error('Router not available:', err)
+            console.error('Router not available:', err);
           }
-        }
-      }
-    })
-  })
+        },
+      },
+    });
+  });
 }
 
 /**

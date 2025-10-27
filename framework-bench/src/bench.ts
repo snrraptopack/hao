@@ -1,0 +1,25 @@
+export type Stat = {
+  mean: number;
+  stddev: number;
+  min: number;
+  max: number;
+  opsPerSec?: number;
+};
+
+export function summarize(samples: number[], ops = 1): Stat {
+  const n = samples.length || 1;
+  const mean = samples.reduce((a, b) => a + b, 0) / n;
+  const min = samples.length ? Math.min(...samples) : 0;
+  const max = samples.length ? Math.max(...samples) : 0;
+  const variance = samples.reduce((acc, x) => acc + Math.pow(x - mean, 2), 0) / n;
+  const stddev = Math.sqrt(variance);
+  const opsPerSec = mean > 0 ? (ops * 1000) / mean : 0;
+  return { mean, stddev, min, max, opsPerSec };
+}
+
+export function measure(fn: () => void): number {
+  const t0 = performance.now();
+  fn();
+  const t1 = performance.now();
+  return t1 - t0;
+}
