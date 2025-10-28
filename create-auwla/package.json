@@ -1,6 +1,6 @@
 {
   "name": "create-auwla",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Initialize a new Auwla app from ready-to-run templates",
   "type": "module",
   "bin": {
@@ -16,5 +16,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/snrraptopack/auwla.git"
-  }
+  },
+  "publishConfig": { "access": "public" }
 }
