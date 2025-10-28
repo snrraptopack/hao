@@ -3,6 +3,9 @@ export type Ref<T> = {
     subscribe(callback: (newValue: T) => void): () => void;
 };
 
+// DevTools integration
+import { devHook, isDevEnv } from './devtools';
+
 // -------------------------------------------------------------
 // Global reactive scheduler
 // - Batches ref notifications in a microtask by default
@@ -51,6 +54,9 @@ export async function flush() {
   // Wait a frame so the browser can commit layout/paint
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
+
+// Track current component context for automatic cleanup
+let currentWatchContext: Set<() => void> | null = null;
 
 /**
  * Creates a reactive reference that tracks changes and notifies subscribers.
@@ -110,6 +116,10 @@ export function ref<T>(initialValue: T): Ref<T> {
     const handler: ProxyHandler<{ value: T }> = {
         get(target, property: string | symbol) {
             if (property === 'value') {
+                // DevTools: Track ref access
+                if (isDevEnv() && (target as any).__devtools_id) {
+                    devHook('onRefAccessed', (target as any).__devtools_id, 'get');
+                }
                 return value;
             }
             if (property === 'subscribe') {
@@ -130,7 +140,14 @@ export function ref<T>(initialValue: T): Ref<T> {
             if (property === 'value') {
                 if (value === newValue) return true; // Skip if same reference
                 
+                const oldValue = value;
                 value = newValue;
+                
+                // DevTools: Track ref update
+                if (isDevEnv() && (target as any).__devtools_id) {
+                    devHook('onRefUpdated', (target as any).__devtools_id, oldValue, newValue);
+                }
+                
                 scheduleNotify(); // ✅ Batched
                 
                 return true;
@@ -140,11 +157,16 @@ export function ref<T>(initialValue: T): Ref<T> {
         }
     };
 
-    return new Proxy({ value: initialValue }, handler) as Ref<T>;
+    const refProxy = new Proxy({ value: initialValue }, handler) as Ref<T>;
+    
+    // DevTools: Track ref creation with scope
+    if (isDevEnv()) {
+        const scope = currentWatchContext ? 'component' : 'global';
+        devHook('onRefCreated', refProxy, '', scope);
+    }
+    
+    return refProxy;
 }
-
-// Track current component context for automatic cleanup
-let currentWatchContext: Set<() => void> | null = null;
 
 /**
  * Set the current watch context (used by Component internally)
@@ -258,7 +280,19 @@ export function watch<T, R>(
             unsubscribers.push(unsub);
         });
         
-        const cleanup = () => unsubscribers.forEach(unsub => unsub());
+        const cleanup = () => {
+            unsubscribers.forEach(unsub => unsub());
+            // DevTools: Track watcher cleanup
+            if (isDevEnv() && (cleanup as any).__devtools_id) {
+                devHook('onWatcherDestroyed', (cleanup as any).__devtools_id);
+            }
+        };
+        
+        // DevTools: Track watcher creation
+        if (isDevEnv()) {
+            const scope = currentWatchContext ? 'component' : 'global';
+            devHook('onWatcherCreated', cleanup, sources, scope);
+        }
         
         if (currentWatchContext) {
             currentWatchContext.add(cleanup);
@@ -294,7 +328,17 @@ export function watch<T, R>(
     
     (derivedRef as any).__cleanup = () => {
         unsubscribers.forEach(unsub => unsub());
+        // DevTools: Track watcher cleanup
+        if (isDevEnv() && (derivedRef as any).__devtools_id) {
+            devHook('onWatcherDestroyed', (derivedRef as any).__devtools_id);
+        }
     };
+    
+    // DevTools: Track watcher creation
+    if (isDevEnv()) {
+        const scope = currentWatchContext ? 'component' : 'global';
+        devHook('onWatcherCreated', derivedRef, sources, scope);
+    }
     
     if (currentWatchContext) {
         currentWatchContext.add((derivedRef as any).__cleanup);

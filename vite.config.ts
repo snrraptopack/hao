@@ -36,7 +36,7 @@ export default defineConfig({
   assetsInclude: [],
   // Configure Vite to handle .auwla files and JSX
   optimizeDeps: {
-    exclude: ['**/*.auwla'],
+    exclude: ['**/*.auwla', 'react', 'react-dom', 'react-dom/client'],
     esbuildOptions: {
       loader: {
         '.tsx': 'tsx',

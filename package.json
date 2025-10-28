@@ -53,9 +53,6 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc -p tsconfig.lib.json",
-    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
-    "prebuild": "npm run clean",
     "postbuild": "node -e \"require('fs').rmSync('dist/app', { recursive: true, force: true })\"",
     "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
     "build:app": "vite build --config vite.config.app.ts",
@@ -63,7 +60,13 @@
     "preview:app": "vite preview --outDir dist-app",
     "template:parse": "bun run template/test/test-parser.ts",
     "template:test": "bun run template/test/test-full.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "dev:bench:auwla": "npm --prefix apps/auwla-bench run dev",
+    "dev:bench:react": "npm --prefix apps/react-bench run dev",
+    "dev:bench:vue": "npm --prefix apps/vue-bench run dev",
+    "preview:bench:auwla": "npm --prefix apps/auwla-bench run preview",
+    "preview:bench:react": "npm --prefix apps/react-bench run preview",
+    "preview:bench:vue": "npm --prefix apps/vue-bench run preview"
   },
   "bin": {
     "auwla": "./dist/cli.js",
@@ -73,21 +76,15 @@
     "@types/acorn": "^6.0.4",
     "@types/bun": "latest",
     "@types/handlebars": "^4.1.0",
-    "@vitejs/plugin-react": "^5.0.4",
-    "acorn": "^8.15.0",
     "handlebars": "^4.7.8",
     "typescript": "latest",
     "vite": "latest",
     "@tailwindcss/vite": "^4.1.14",
     "tailwindcss": "^4.1.14"
   },
-  "dependencies": {},
   "peerDependencies": {
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
-  "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
-  }
+  "dependencies": {}
 }

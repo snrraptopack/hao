@@ -33,8 +33,9 @@ export function ReactIsland(config: { component: any; props?: Record<string, any
         if (root) {
           try {
             // Lazy import React to build element only when needed
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const React = require('react')
+            // Use dynamic import with string concatenation to avoid Vite's static analysis
+            const reactModule = 'react'
+            const React = require(reactModule)
             root.render(React.createElement(config.component, currentProps))
           } catch (e) {
             console.error('React re-render failed (is React installed?)', e)
@@ -49,8 +50,12 @@ export function ReactIsland(config: { component: any; props?: Record<string, any
   onMount(() => {
     ;(async () => {
       try {
-        const React = (await import('react')).default || (await import('react'))
-        const ReactDOM = await import('react-dom/client')
+        // Use dynamic import with string concatenation to avoid Vite's static analysis
+        const reactModule = 'react'
+        const reactDomModule = 'react-dom/client'
+        
+        const React = (await import(/* @vite-ignore */ reactModule)).default || (await import(/* @vite-ignore */ reactModule))
+        const ReactDOM = await import(/* @vite-ignore */ reactDomModule)
         root = (ReactDOM as any).createRoot(container)
         root.render((React as any).createElement(config.component, currentProps))
       } catch (e) {

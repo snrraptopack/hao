@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AUWLA DevTools Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .counter {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        .devtools-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        .log-ref { color: #4fc1ff; }
+        .log-component { color: #c586c0; }
+        .log-watcher { color: #9cdcfe; }
+        .log-context { color: #dcdcaa; }
+    </style>
+</head>
+<body>
+    <h1>AUWLA DevTools Test</h1>
+    <p>This page tests the DevTools integration with AUWLA's reactive system.</p>
+    
+    <div id="app"></div>
+    
+    <div class="devtools-output" id="devtools-log">
+        <div><strong>DevTools Log:</strong></div>
+    </div>
+
+    <script type="module">
+        import { ref, watch, h, onMount, onUnmount, initDevTools, getDevTools } from './dist/index.js';
+
+        // Initialize DevTools
+        initDevTools();
+        const devtools = getDevTools();
+
+        // Setup logging
+        const logElement = document.getElementById('devtools-log');
+        function addLog(type, message) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Override console methods to capture DevTools output
+        const originalLog = console.log;
+        console.log = (...args) => {
+            originalLog(...args);
+            if (args[0] && args[0].includes('DevTools')) {
+                addLog('ref', args.join(' '));
+            }
+        };
+
+        // Test Counter Component
+        function Counter({ name }) {
+            const count = ref(0);
+            const doubled = ref(0);
+
+            // Test watcher
+            watch(count, (newVal) => {
+                doubled.value = newVal * 2;
+            });
+
+            onMount(() => {
+                addLog('component', `Counter "${name}" mounted`);
+            });
+
+            onUnmount(() => {
+                addLog('component', `Counter "${name}" unmounted`);
+            });
+
+            return h('div', { className: 'counter' }, [
+                h('h3', {}, `Counter: ${name}`),
+                h('p', {}, `Count: `, count),
+                h('p', {}, `Doubled: `, doubled),
+                h('button', { 
+                    onClick: () => {
+                        count.value++;
+                        addLog('ref', `Count incremented to ${count.value}`);
+                    }
+                }, 'Increment'),
+                h('button', { 
+                    onClick: () => {
+                        count.value = 0;
+                        addLog('ref', `Count reset to 0`);
+                    }
+                }, 'Reset')
+            ]);
+        }
+
+        // Test App Component
+        function App() {
+            const showSecondCounter = ref(false);
+            const globalCounter = ref(100);
+
+            onMount(() => {
+                addLog('component', 'App mounted');
+                
+                // Test global ref access
+                setTimeout(() => {
+                    globalCounter.value = 200;
+                    addLog('ref', 'Global counter updated to 200');
+                }, 2000);
+            });
+
+            return h('div', {}, [
+                h('h2', {}, 'DevTools Integration Test'),
+                
+                Counter({ name: 'Primary' }),
+                
+                h('div', {}, [
+                    h('button', {
+                        onClick: () => {
+                            showSecondCounter.value = !showSecondCounter.value;
+                            addLog('component', `Second counter ${showSecondCounter.value ? 'shown' : 'hidden'}`);
+                        }
+                    }, showSecondCounter.value ? 'Hide Second Counter' : 'Show Second Counter'),
+                    
+                    showSecondCounter.value ? Counter({ name: 'Secondary' }) : null
+                ]),
+                
+                h('div', {}, [
+                    h('p', {}, 'Global Counter: ', globalCounter),
+                    h('button', {
+                        onClick: () => {
+                            globalCounter.value += 10;
+                            addLog('ref', `Global counter incremented to ${globalCounter.value}`);
+                        }
+                    }, 'Increment Global')
+                ]),
+
+                h('div', {}, [
+                    h('h4', {}, 'DevTools Status'),
+                    h('p', {}, `Refs tracked: ${devtools ? Object.keys(devtools.getDependencyGraph().refs).length : 0}`),
+                    h('p', {}, `Components tracked: ${devtools ? Object.keys(devtools.getDependencyGraph().components).length : 0}`),
+                    h('button', {
+                        onClick: () => {
+                            if (devtools) {
+                                const snapshot = devtools.getStateSnapshot();
+                                addLog('ref', `State snapshot: ${snapshot.totalRefs} refs, ${snapshot.totalWatchers} watchers`);
+                                console.log('DevTools Snapshot:', snapshot);
+                            }
+                        }
+                    }, 'Log State Snapshot'),
+                    h('button', {
+                        onClick: () => {
+                            if (devtools) {
+                                const orphans = devtools.detectOrphanedRefs();
+                                addLog('ref', `Orphaned refs detected: ${orphans.length}`);
+                                console.log('Orphaned refs:', orphans);
+                            }
+                        }
+                    }, 'Detect Orphaned Refs')
+                ])
+            ]);
+        }
+
+        // Render the app
+        const appElement = App();
+        document.getElementById('app').appendChild(appElement);
+
+        // Log initial state
+        addLog('component', 'Application initialized');
+        if (devtools) {
+            addLog('ref', 'DevTools initialized successfully');
+        } else {
+            addLog('ref', 'DevTools failed to initialize');
+        }
+    </script>
+</body>
+</html>

@@ -20,6 +20,7 @@ export function AppLayout(child: HTMLElement): HTMLElement {
             <Link to="/app/users" text="Users" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
             <Link to="/app/posts" text="Posts" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
             <Link to="/app/search" text="Search" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
+            <Link to="/app/devtools" text="DevTools" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
             <Link to="/admin/dashboard" text="Admin" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
           </nav>
           <button class="px-3 py-2 rounded border" onClick={() => toggleAuth()}>{authedText as any}</button>

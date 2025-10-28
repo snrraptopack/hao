@@ -4,6 +4,7 @@ import { AppLayout } from './layouts/AppLayout'
 import { HomePage } from './pages/Home'
 import { LandingPage } from './pages/Landing'
 import { PerfDemo } from './pages/PerfDemo'
+import { DevToolsDemo } from './pages/DevToolsDemo'
 import { usersRoutes } from './modules/users/routes'
 import { postsRoutes } from './modules/posts/routes'
 import { adminRoutes } from './modules/admin/routes'
@@ -22,7 +23,8 @@ export const appGrouped = group('/app', { layout: AppLayout }, composeRoutes(
   postsRoutes,
   defineRoutes([
     { path: '/search', component: () => <SearchPage /> },
-    { path: '/perf', component: () => <PerfDemo /> }
+    { path: '/perf', component: () => <PerfDemo /> },
+    { path: '/devtools', component: () => <DevToolsDemo /> }
   ])
 ))
 

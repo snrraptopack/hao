@@ -12,6 +12,9 @@ import {
   executeCleanup 
 } from './lifecycle';
 
+// DevTools integration
+import { devHook, isDevEnv } from './devtools';
+
 // --- HELPERS (Modified for watch) ---
 
 function isRef<T = any>(v: any): v is Ref<T> {
@@ -174,6 +177,11 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
     // It's a component, so we must set up the lifecycle context
     const context = createComponentContext();
 
+    // DevTools: Track component creation
+    if (isDevEnv()) {
+      devHook('onComponentCreated', type.name || 'Anonymous', context, props);
+    }
+
     // 1. SET THE GLOBAL CONTEXT
     setCurrentComponent(context);
     setWatchContext(context.cleanups); // For auto-cleanup of watch()
@@ -190,6 +198,10 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
     // 4. ATTACH LIFECYCLE AND CLEANUP LOGIC TO THE ELEMENT
     (element as any).__context = context;
     (element as any).__cleanup = () => {
+      // DevTools: Track component cleanup
+      if (isDevEnv()) {
+        devHook('onComponentDestroyed', type.name || 'Anonymous', context);
+      }
       executeCleanup(context);
     };
 
