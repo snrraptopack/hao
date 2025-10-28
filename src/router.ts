@@ -1,4 +1,5 @@
-import { ref, watch, type Ref } from "./state";
+import { ref, watch, type Ref, setWatchContext } from "./state";
+import { createComponentContext, setCurrentComponent, executeMountCallbacks, executeCleanup } from "./lifecycle";
 
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string>;
@@ -399,6 +400,7 @@ export class Router {
     
     // Render new component
     this.container.innerHTML = ''
+
     // Provide routed context to component lifecycle hooks
     setRoutedContext({
       state: this.state,
@@ -408,11 +410,31 @@ export class Router {
       path: match.path,
       router: this,
     })
-    const child = match.route.component(match.params, match.query)
-    // Clear routed context after component creation
-    setRoutedContext(null)
-    const wrapped = match.route.layout ? match.route.layout(child, match.params, match.query) : child
-    this.container.appendChild(wrapped)
+
+    // Create a component lifecycle context so onMount/onRouted work inside route components
+    const context = createComponentContext();
+    setCurrentComponent(context);
+    setWatchContext(context.cleanups);
+
+    const child = match.route.component(match.params, match.query);
+
+    // Clear contexts after component creation
+    setCurrentComponent(null);
+    setWatchContext(null);
+    setRoutedContext(null);
+
+    const wrapped = match.route.layout ? match.route.layout(child, match.params, match.query) : child;
+
+    // Attach cleanup to the element we append so router can clean previous view
+    (wrapped as any).__context = context;
+    (wrapped as any).__cleanup = () => {
+      executeCleanup(context);
+    };
+
+    this.container.appendChild(wrapped);
+
+    // Execute mount callbacks now that element is in the DOM
+    executeMountCallbacks(context);
   }
   
   /**

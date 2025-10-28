@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -53,7 +53,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc",
+    "build": "vite build && tsc -p tsconfig.lib.json",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "prebuild": "npm run clean",
+    "postbuild": "node -e \"require('fs').rmSync('dist/app', { recursive: true, force: true })\"",
     "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
     "build:app": "vite build --config vite.config.app.ts",
     "preview": "vite preview",

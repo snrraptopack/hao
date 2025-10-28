@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "auwla": "^0.1.0"
+    "auwla": "^0.1.2"
   },
   "devDependencies": {
     "typescript": "latest",

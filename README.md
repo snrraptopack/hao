@@ -46,15 +46,55 @@ document.querySelector("#app")!.appendChild(App)
 - Scaffold a new project with the zero-dependency initializer and minimal JSX template:
 
 ```bash
-npm create auwla@latest
+npm create auwla@latest my-app
 # Answer prompts, then:
-cd <your-app>
+cd my-app
 npm install
 npm run dev
 ```
 
-- The template uses Vite + TypeScript and compiles JSX with Auwla's classic factory (`jsxFactory` `h`, `jsxFragmentFactory` `Fragment`).
-- See `src/main.tsx` in the template for a minimal counter using `ref` and `watch`.
+- The template uses Vite + TypeScript with Auwla’s automatic JSX runtime (`jsxImportSource: "auwla"`).
+- Routing is ready out of the box: edit `src/routes.tsx` to add pages; `src/main.tsx` initializes `Router` and sets the global router for `Link`.
+
+### Scaffold with Vite (Recommended)
+
+- Non-React baseline (vanilla TS):
+
+```bash
+npm create vite@latest auwla -- --template vanilla-ts
+```
+
+- React variant (when needed):
+
+```bash
+npm create vite@latest auwla-react -- --template react-ts
+```
+
+After scaffolding the non‑React app, install and wire Auwla:
+
+```bash
+cd auwla
+npm i auwla
+```
+
+Update `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "auwla",
+    "moduleResolution": "Bundler",
+    "types": ["vite/client", "auwla/jsx-runtime"]
+  }
+}
+```
+
+Optional (editor reliability): add to the top of `.tsx` files:
+
+```tsx
+/** @jsxImportSource auwla */
+```
 
 ## 📚 Documentation
 

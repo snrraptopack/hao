@@ -1,0 +1,26 @@
+{
+  // Library-only TypeScript config: excludes sample app files
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "outDir": "./dist"
+  },
+  "files": [
+    "src/index.ts",
+    "src/jsx-runtime.ts",
+    "src/jsx-dev-runtime.ts",
+    "src/integrations/react.tsx",
+    "src/cli.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "benchmark",
+    "src/app/**",
+    "src/app.ts",
+    "src/main.ts",
+    "dist-app/**"
+  ]
+}
