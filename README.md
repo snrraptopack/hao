@@ -41,6 +41,21 @@ const App = Component((ui) => {
 document.querySelector("#app")!.appendChild(App)
 ```
 
+## 🧰 Create Auwla App (JSX)
+
+- Scaffold a new project with the zero-dependency initializer and minimal JSX template:
+
+```bash
+npm create auwla@latest
+# Answer prompts, then:
+cd <your-app>
+npm install
+npm run dev
+```
+
+- The template uses Vite + TypeScript and compiles JSX with Auwla's classic factory (`jsxFactory` `h`, `jsxFragmentFactory` `Fragment`).
+- See `src/main.tsx` in the template for a minimal counter using `ref` and `watch`.
+
 ## 📚 Documentation
 
 Start learning the framework step by step:

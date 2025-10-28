@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -11,6 +11,22 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/auwla.js",
       "require": "./dist/auwla.umd.cjs"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "import": "./dist/jsx-dev-runtime.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "jsx-runtime": ["dist/jsx-runtime.d.ts"],
+      "jsx-dev-runtime": ["dist/jsx-dev-runtime.d.ts"],
+      "integrations/react": ["dist/integrations/react.d.ts"],
+      "*": ["dist/index.d.ts"]
     }
   },
   "files": [
@@ -52,8 +68,6 @@
   },
   "devDependencies": {
     "@types/acorn": "^6.0.4",
-    "@types/babel__generator": "^7.27.0",
-    "@types/babel__traverse": "^7.28.0",
     "@types/bun": "latest",
     "@types/handlebars": "^4.1.0",
     "@vitejs/plugin-react": "^5.0.4",
@@ -64,13 +78,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "tailwindcss": "^4.1.14"
   },
-  "dependencies": {
-    "@babel/generator": "^7.28.3",
-    "@babel/parser": "^7.28.4",
-    "@babel/traverse": "^7.28.4",
-    "@babel/types": "^7.28.4",
-    "node-html-parser": "^7.0.1"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"

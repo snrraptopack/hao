@@ -1,5 +1,4 @@
-// Side-effect import to include global JSX types in the package declarations
-import './types/jsx-global'
+// Note: Global JSX types are provided via auwla/jsx-runtime for automatic JSX.
 
 // Core state
 export { ref, watch, flushSync, flush } from './state'

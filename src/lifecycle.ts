@@ -10,29 +10,23 @@ export interface ComponentContext {
 let currentComponent: ComponentContext | null = null;
 
 /**
- * Runs callback when component is mounted to the DOM.
+ * Run a callback after the component is mounted to the DOM.
  * Return a cleanup function to run on unmount.
  * 
  * @param {LifecycleCallback} callback - Function to run on mount
  * 
- * @example
- * ```typescript
- * const App = Component((ui) => {
+ * Example (JSX):
+ * ```tsx
+ * function Clock() {
  *   onMount(() => {
- *     console.log('Component mounted!')
- *     
- *     // Setup interval
- *     const interval = setInterval(() => {
- *       console.log('tick')
- *     }, 1000)
- *     
- *     // Return cleanup function
- *     return () => clearInterval(interval)
+ *     const id = setInterval(() => console.log('tick'), 1000)
+ *     return () => clearInterval(id)
  *   })
- *   
- *   ui.Text({ value: "Hello" })
- * })
+ *   return <div>Clock running…</div>
+ * }
  * ```
+ * 
+ * Builder usage remains supported.
  */
 export function onMount(callback: LifecycleCallback) {
   if (!currentComponent) {
@@ -45,16 +39,16 @@ export function onMount(callback: LifecycleCallback) {
 }
 
 /**
- * Runs callback when component is removed from DOM.
+ * Run a cleanup callback when the component is removed from the DOM.
  * 
  * @param {CleanupFn} callback - Cleanup function
  * 
- * @example
- * ```typescript
- * onUnmount(() => {
- *   console.log('Cleaning up...')
- *   // Cancel subscriptions, close connections, etc.
- * })
+ * Example (JSX):
+ * ```tsx
+ * function Sub() {
+ *   onUnmount(() => console.log('Cleaning up…'))
+ *   return <div>Subscribed</div>
+ * }
  * ```
  */
 export function onUnmount(callback: CleanupFn) {
@@ -65,8 +59,38 @@ export function onUnmount(callback: CleanupFn) {
   currentComponent.cleanups.add(callback);
 }
 
-// Routed lifecycle: runs after mount with route context provided by the router
 import { getRoutedContext } from './router'
+
+// Routed lifecycle: runs after mount with route context provided by the router
+
+
+/**
+ * Run a callback after the component mounts with the current routed context.
+ * Useful for reacting to `params`, `query`, reading/writing router `state`,
+ * or performing route-scoped effects.
+ *
+ * Example (JSX):
+ * ```tsx
+ * function UserPage() {
+ *   onRouted((ctx) => {
+ *     // Access path, params, query, router and previous match
+ *     console.log(ctx.path, ctx.params.id, ctx.query.tab)
+ *
+ *     // Cache fetched data on the router to avoid refetching
+ *     if (!ctx.state.user) {
+ *       // fetchUser returns a promise, you can manage it here
+ *       // and optionally return a cleanup for abort controllers, etc.
+ *       // ctx.state.user = await fetchUser(ctx.params.id)
+ *     }
+ *   })
+ *   return <div>User { /* render using refs or ctx.state /*} </div>
+ /** 
+ *
+ *
+ * Notes:
+ * - Runs after mount; cleanup (if returned) is handled automatically.
+ * - Prefer this over route-level `routed` when you need component-local effects.
+ */
 export function onRouted(
   callback: (ctx: ReturnType<typeof getRoutedContext> extends infer C ? C : any) => void | CleanupFn
 ) {

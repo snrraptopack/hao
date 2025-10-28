@@ -220,3 +220,75 @@ See API details in `docs/04-api-reference.md`.
 
 - Check `framework-bench/src/App.tsx` for JSX list rendering patterns.
 - See `src/counter.tsx` for a complete JSX app using refs, lists, and lifecycle.
+
+---
+
+## React Interop (JSX)
+
+Use React components inside AUWLA via `ReactIsland`. You can author React islands with JSX.
+
+- Install React
+  - `npm i react react-dom`
+
+- Dev aliasing (pre-publish)
+  - Map AUWLA subpaths to local files in `vite.config.ts`:
+    - `auwla/jsx-dev-runtime` → `../src/jsx-dev-runtime.ts`
+    - `auwla/jsx-runtime` → `../src/jsx-runtime.ts`
+    - `auwla` → `../src/index.ts`
+  - Put subpath aliases before the root `auwla` alias.
+  - Add matching `paths` in `tsconfig.json` for type resolution.
+
+- AUWLA JSX mode
+  - Classic: set `jsxFactory: 'h'`, `jsxFragment: 'Fragment'` (and import `h`, `Fragment` per file or use file pragmas `/** @jsx h */ /** @jsxFrag Fragment */`).
+  - Automatic: set `esbuild.jsx: 'automatic'` and `jsxImportSource: 'auwla'`; no need to import `h`/`Fragment`.
+
+- React island JSX options
+  - Classic (recommended with classic AUWLA):
+    - At top of React-only file:
+      - `/** @jsx React.createElement */`
+      - `/** @jsxFrag React.Fragment */`
+    - Import React: `import * as React from 'react'`
+  - Automatic (per file):
+    - At top of React-only file: `/** @jsxImportSource react */`
+    - Works when the app/bundler uses automatic JSX; no need to import React.
+
+Example (classic per-file pragmas):
+```tsx
+/** @jsx React.createElement */
+/** @jsxFrag React.Fragment */
+import * as React from 'react';
+
+export function ReactHello(props: { title: string; count: number; onIncrement: () => void }) {
+  return (
+    <div>
+      <p>Title (from AUWLA): {props.title}</p>
+      <p>Count (from AUWLA): {props.count}</p>
+      <button onClick={props.onIncrement}>Increment in React</button>
+    </div>
+  );
+}
+```
+
+Mount inside AUWLA:
+```tsx
+import { ReactIsland, ref, h, Fragment } from 'auwla'
+import ReactHello from './ReactHello'
+
+export default function App() {
+  const title = ref('Hello')
+  const count = ref(0)
+  return (
+    <div>
+      <ReactIsland component={ReactHello} props={{
+        title,
+        count,
+        onIncrement: () => { count.value++ }
+      }} />
+    </div>
+  ) as HTMLElement
+}
+```
+
+Troubleshooting:
+- If you see `Failed to resolve import "auwla/jsx-dev-runtime"` in dev, ensure Vite aliases map AUWLA subpaths to local files and that subpath aliases precede the root `auwla` alias.
+- Ensure `react` and `react-dom` are installed.

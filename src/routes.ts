@@ -24,7 +24,20 @@ export function defineRoutes<R extends Route<any>[]>(routes: [...R]): [...R] {
 
 // Compose multiple route arrays into one
 /**
- * Compose several route arrays into a single array.
+ * Compose several route arrays into a single list.
+ *
+ * Example:
+ * ```ts
+ * const userRoutes = defineRoutes([
+ *   { path: '/users', component: UsersPage },
+ *   { path: '/users/:id', component: (p) => UserDetail(p!.id) },
+ * ])
+ * const adminRoutes = defineRoutes([
+ *   { path: '/admin', component: AdminHome },
+ * ])
+ *
+ * const routes = composeRoutes(userRoutes, adminRoutes)
+ * ```
  */
 export function composeRoutes(
   ...sources: Array<ReadonlyArray<Route<any>>>
@@ -38,15 +51,37 @@ export function composeRoutes(
 
 // Group routes under a base path, optionally applying a shared guard/layout
 /**
- * Group routes under a base path and optionally apply a shared guard/layout.
+ * Group routes under a base path and optionally apply a shared guard or layout.
  *
- * Example:
- * ```ts
- * const adminRoutes = group('/admin', { guard: isAdminGuard }, [
- *   { path: '/', component: () => <h2>Admin Home</h2> },
- *   { path: '/users', component: () => <div>Manage Users</div> },
- * ])
- * ```
+ * Examples:
+ * - Shared guard
+ *   ```ts
+ *   const adminRoutes = group('/admin', { guard: isAdminGuard }, [
+ *     { path: '/', component: AdminHome },
+ *     { path: '/users', component: AdminUsers },
+ *   ])
+ *   ```
+ *
+ * - Shared layout (wraps each child route)
+ *   ```ts
+ *   const AdminLayout = (child: HTMLElement) => {
+ *     const shell = document.createElement('div')
+ *     shell.className = 'admin-shell'
+ *     shell.append(
+ *       <nav class="admin-nav">
+ *         <a href="/admin">Home</a>
+ *         <a href="/admin/users">Users</a>
+ *       </nav>,
+ *       child,
+ *     )
+ *     return shell
+ *   }
+ *
+ *   const adminRoutes = group('/admin', { layout: AdminLayout }, [
+ *     { path: '/', component: AdminHome },
+ *     { path: '/users', component: AdminUsers },
+ *   ])
+ *   ```
  */
 export function group(
   base: string,
@@ -72,8 +107,15 @@ export function group(
 /**
  * Build a path string from a pattern and params/query.
  *
- * Example (JSX):
- * `<Link to={pathFor('/users/:id', { id: user.id })} text={user.name} />`
+ * Examples:
+ * - Replace params
+ *   `pathFor('/users/:id', { id: user.id }) // "/users/42"`
+ *
+ * - Add query params
+ *   `pathFor('/search', {}, { q: 'laptop', page: 2 }) // "/search?q=laptop&page=2"`
+ *
+ * - Combine params and query (JSX)
+ *   `<Link to={pathFor('/users/:id', { id }, { tab: 'posts' })} text={username} />`
  */
 export function pathFor<P extends string>(
   pattern: P,

@@ -5,11 +5,16 @@
     "target": "ES2015",
     "module": "ESNext",
     "moduleDetection": "force",
-    "jsx": "preserve",
-    "jsxFactory": "h",
-    "jsxFragmentFactory": "Fragment",
+    "jsx": "react-jsx",
+    "jsxImportSource": "auwla",
     "allowJs": true,
     "types": ["./auwla-jsx", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "auwla": ["src/index.ts"],
+      "auwla/jsx-runtime": ["src/jsx-runtime.ts"],
+      "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"]
+    },
 
     // Bundler mode
     "moduleResolution": "node",

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["DOM", "ESNext"],
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "auwla",
+    "baseUrl": ".",
+    "paths": {},
+    "types": ["vite/client", "auwla/jsx-runtime"]
+  },
+  "include": ["src"]
+}

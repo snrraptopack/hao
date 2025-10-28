@@ -1,0 +1,20 @@
+{
+  "name": "create-auwla",
+  "version": "0.0.1",
+  "description": "Initialize a new Auwla app from ready-to-run templates",
+  "type": "module",
+  "bin": {
+    "create-auwla": "./bin/index.js"
+  },
+  "files": [
+    "bin",
+    "templates"
+  ],
+  "keywords": ["auwla", "initializer", "scaffold", "template", "starter"],
+  "author": "snrraptopack",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snrraptopack/auwla.git"
+  }
+}

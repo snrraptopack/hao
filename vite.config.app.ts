@@ -25,11 +25,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      'auwla': resolve(__dirname, 'src/index.ts')
+      'auwla/jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
+      'auwla/jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
     }
   },
   esbuild: {
-    jsxFactory: 'h',
-    jsxFragment: 'Fragment'
+    jsx: 'automatic',
+    jsxImportSource: 'auwla'
   }
 });

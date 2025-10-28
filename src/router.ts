@@ -452,22 +452,30 @@ export function getRouter(): Router {
 }
 
 /**
- * Create a link component that uses the router
+ * Create a navigational link that integrates with the router.
+ * Automatically sets an active class when the current path matches.
  * 
- * @example
+ * Example (JSX):
+ * `<Link to="/products" text="Shop Now" className="text-blue-600 hover:underline" />`
+ * 
+ * Using `pathFor` to build the `to` URL (JSX):
+ * ```tsx
+ * import { pathFor } from './routes'
+ * <Link to={pathFor('/users/:id', { id })} text="Profile" />
+ * ```
+ *
+ * Example with active state (JSX):
+ * `<Link to="/products" text="Products" className="px-4 py-2" activeClassName="bg-indigo-600 text-white" />`
+ * 
+ * Example with params/query (JSX):
+ * `<Link to="/users/:id" params={{ id }} query={{ tab: 'posts' }} text="View Posts" />`
+ * 
+ * Builder usage remains supported:
  * ```typescript
- * ui.append(Link({ 
- *   to: '/products', 
+ * ui.append(Link({
+ *   to: '/products',
  *   text: 'Shop Now',
  *   className: 'text-blue-500 hover:underline'
- * }))
- * 
- * // With active state
- * ui.append(Link({ 
- *   to: '/products', 
- *   text: 'Products',
- *   className: 'px-4 py-2',
- *   activeClassName: 'bg-indigo-600 text-white'
  * }))
  * ```
  */
@@ -538,57 +546,51 @@ export function Link(config: {
 }
 
 /**
- * Hook to access router in components
+ * Hook to access the router inside a component.
  * 
- * @example
- * ```typescript
- * const App = Component((ui) => {
+ * Example (JSX):
+ * ```tsx
+ * function Nav() {
  *   const router = useRouter()
- *   
- *   ui.Button({
- *     text: "Go to Products",
- *     on: { click: () => router.push('/products') }
- *   })
- * })
+ *   return <button onClick={() => router.push('/products')}>Go to Products</button>
+ * }
  * ```
+ * 
+ * Builder usage remains supported.
  */
 export function useRouter(): Router {
   return getRouter()
 }
 
 /**
- * Hook to access current route params
+ * Hook to access current route params.
  * 
- * @example
- * ```typescript
- * const ProductPage = Component((ui) => {
+ * Example (JSX):
+ * ```tsx
+ * function ProductPage() {
  *   const params = useParams()
- *   
- *   ui.Text({ 
- *     value: params,
- *     formatter: (p) => `Product ID: ${p.id}`
- *   })
- * })
+ *   return <div>Product ID: {params.value.id}</div>
+ * }
  * ```
+ * 
+ * Builder usage remains supported.
  */
 export function useParams(): Ref<RouteParams> {
   return getRouter().currentParams
 }
 
 /**
- * Hook to access current query params
+ * Hook to access current URL query parameters.
  * 
- * @example
- * ```typescript
- * const SearchPage = Component((ui) => {
+ * Example (JSX):
+ * ```tsx
+ * function SearchPage() {
  *   const query = useQuery()
- *   
- *   ui.Text({ 
- *     value: query,
- *     formatter: (q) => `Search: ${q.q}, Page: ${q.page}`
- *   })
- * })
+ *   return <div>Search: {query.value.q} • Page: {query.value.page}</div>
+ * }
  * ```
+ * 
+ * Builder usage remains supported.
  */
 export function useQuery(): Ref<QueryParams> {
   return getRouter().currentQuery

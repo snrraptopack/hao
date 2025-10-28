@@ -25,6 +25,20 @@ interface ElementBuilder<T extends HTMLElement>{
     build(): T;
 }
 
+/**
+ * Low-level DOM element builder used by Auwla's JSX runtime.
+ * Prefer JSX in app code; `el()` exists for internal composition and advanced cases.
+ * 
+ * Example (builder):
+ * ```ts
+ * const button = el('button')
+ *   .withClass('px-2 py-1 border rounded')
+ *   .withText('Click')
+ *   .on('click', () => alert('Hi'))
+ *   .build()
+ * document.body.appendChild(button)
+ * ```
+ */
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K): ElementBuilder<HTMLElementTagNameMap[K]> {
     const element = document.createElement(tag) as HTMLElementTagNameMap[K];    
     return {

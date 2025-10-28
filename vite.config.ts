@@ -47,12 +47,13 @@ export default defineConfig({
   // Add alias to resolve 'auwla' imports to the local src
   resolve: {
     alias: {
-      'auwla': resolve(__dirname, 'src/index.ts')
+      'auwla/jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
+      'auwla/jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
     }
   },
   // Configure esbuild to handle JSX with our custom runtime
   esbuild: {
-    jsxFactory: 'h',
-    jsxFragment: 'Fragment'
+    jsx: 'automatic',
+    jsxImportSource: 'auwla'
   }
 });

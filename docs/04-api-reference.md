@@ -891,3 +891,67 @@ For issues or questions:
 2. Review the [Intermediate Guide](./02-intermediate.md)
 3. Study the [Advanced Guide](./03-advanced.md)
 4. Examine `src/main.ts` for real examples
+
+---
+
+## Integrations
+
+### `ReactIsland({ component, props? }): HTMLElement`
+
+Mounts a React component subtree inside an AUWLA component tree.
+
+- Install: `npm i react react-dom`
+- Props: plain values or AUWLA `Ref`s. `Ref`s are watched; changes trigger React re-renders.
+- Cleanup: React root unmounts when the AUWLA component unmounts.
+
+**Example (AUWLA → React props with refs):**
+```tsx
+import { ReactIsland, ref } from 'auwla'
+import ReactHello from './ReactHello'
+
+const title = ref('Hello from AUWLA')
+const count = ref(0)
+
+const island = ReactIsland({
+  component: ReactHello,
+  props: { title, count, onIncrement: () => { count.value++ } }
+})
+```
+
+**Authoring React island with JSX (classic pragmas):**
+```tsx
+/** @jsx React.createElement */
+/** @jsxFrag React.Fragment */
+import * as React from 'react'
+
+export default function ReactHello(props: { title: string; count: number; onIncrement: () => void }) {
+  return (
+    <div>
+      <p>Title: {props.title}</p>
+      <p>Count: {props.count}</p>
+      <button onClick={props.onIncrement}>Increment</button>
+    </div>
+  )
+}
+```
+
+**Alternative (automatic JSX per file):**
+```tsx
+/** @jsxImportSource react */
+export default function ReactHello({ title, count, onIncrement }) {
+  return (
+    <div>
+      <p>Title: {title}</p>
+      <p>Count: {count}</p>
+      <button onClick={onIncrement}>Increment</button>
+    </div>
+  )
+}
+```
+
+**Dev-only aliasing before publish:**
+- Map AUWLA subpaths to local files in `vite.config.ts`:
+  - `auwla/jsx-dev-runtime` → `../src/jsx-dev-runtime.ts`
+  - `auwla/jsx-runtime` → `../src/jsx-runtime.ts`
+  - `auwla` → `../src/index.ts`
+- Put subpaths before root alias; add `tsconfig.json` `paths` for type resolution.

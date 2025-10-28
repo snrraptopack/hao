@@ -14,15 +14,25 @@ interface WhenProps {
 }
 
 /**
- * Conditional rendering component.
- * Renders the first truthy branch and supports a final fallback.
+ * Conditional rendering in JSX.
+ * Pairs `Ref<boolean>` conditions with render functions; the last child may be
+ * a fallback (function or Node). The first truthy condition wins.
  *
- * Example (JSX):
- * `<When>
- *   {isLoading}={() => <span>Loading...</span>}
- *   {hasError}={() => <span className="error">Error!</span>}
- *   {() => <span>Done</span>}
- * </When>`
+ * Examples (JSX):
+ * - Single condition with fallback Node
+ *   `<When>{isLoading}{() => <span>Loading…</span>}{<span>Loaded</span>}</When>`
+ *
+ * - Multiple branches with final fallback
+ *   `<When>
+ *     {isLoading}={() => <span>Loading…</span>}
+ *     {hasError}={() => <span class="error">Error!</span>}
+ *     {() => <span>Ready</span>}
+ *   </When>`
+ *
+ * Notes:
+ * - Order matters: provide `(ref)`, then its render function.
+ * - The last child is treated as fallback when no conditions are truthy.
+ * - Watches are automatically managed and cleaned up.
  */
 export function When(props: WhenProps): HTMLElement {
   const children = props.children ?? [];
@@ -109,17 +119,25 @@ interface ForProps<T> {
 }
 
 /**
- * List rendering component with keyed reconciliation.
+ * Render lists declaratively with keyed reconciliation.
  *
  * Props:
  * - `each`: `Ref<T[]>` source array
- * - `key`: function for stable keys (defaults to index)
- * - `children`/`render`: render function `(item, index) => Node`
+ * - `key`: stable key function (defaults to index)
+ * - `children` or `render`: `(item, index) => Node`
  *
- * Example (JSX):
- * `<For each={todos} key={(t) => t.id}>
- *   {(todo) => <li className={todo.done ? 'done' : ''}>{todo.title}</li>}
- * </For>`
+ * Examples (JSX):
+ * - Using children as a render function
+ *   `<For each={todos} key={(t) => t.id}>
+ *     {(todo) => <li className={todo.done ? 'done' : ''}>{todo.title}</li>}
+ *   </For>`
+ *
+ * - Using the `render` prop
+ *   `<For each={todos} render={(t) => <li>{t.title}</li>} />`
+ *
+ * Notes:
+ * - Keys improve reorder performance; prefer unique IDs over indexes.
+ * - Nodes are efficiently created/reused/moved; stale nodes are removed.
  */
 export function For<T>(props: ForProps<T>): HTMLElement {
   const { each, key, render } = props;

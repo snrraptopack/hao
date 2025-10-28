@@ -1,4 +1,4 @@
-import { h } from '../../jsx'
+// No need to import `h` with automatic JSX runtime
 
 export function HomePage(): HTMLElement {
   return (

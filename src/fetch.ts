@@ -9,39 +9,29 @@ export type FetchState<T> = {
 }
 
 /**
- * Simple fetch helper with loading/error states.
- * Automatically fetches when component mounts.
+ * Simple data-fetching helper with `data`, `loading`, `error` refs and a `refetch()` function.
+ * Automatically fetches on mount; optional `cacheKey` stores result in router state.
  * 
  * @param {string | () => string} url - URL to fetch from
  * @param {object} options - Optional configuration
  * @param {string} options.cacheKey - Key to cache data in router.state
  * @returns {FetchState<T>} Object with data, loading, error, and refetch
  * 
- * @example
- * ```typescript
+ * Example (JSX):
+ * ```tsx
  * type User = { id: number; name: string }
+ * const { data, loading, error } = fetch<User[]>('/api/users', { cacheKey: 'users' })
  * 
- * const App = Component((ui) => {
- *   // With caching
- *   const { data, loading, error } = fetch<User[]>('/api/users', {
- *     cacheKey: 'users'
- *   })
- *   
- *   ui.When(loading, (ui) => {
- *     ui.Text({ value: "Loading..." })
- *   })
- *   
- *   ui.When(watch(data, d => d !== null), (ui) => {
- *     ui.List({
- *       items: data,
- *       key: (user) => user.id,
- *       render: (user, i, ui) => {
- *         ui.Text({ value: user.name })
- *       }
- *     })
- *   })
- * })
+ * <When>
+ *   {loading}
+ *   {() => <div>Loading…</div>}
+ *   {error}
+ *   {() => <div>Error: {error.value}</div>}
+ *   {() => <ul>{(data.value || []).map(u => <li>{u.name}</li>)}</ul>}
+ * </When>
  * ```
+ * 
+ * Builder usage remains supported.
  */
 export function fetch<T>(
   url: string | (() => string),
@@ -110,26 +100,24 @@ export function fetch<T>(
 }
 
 /**
- * Async operation helper (doesn't auto-fetch on mount).
- * Use this for manual operations like form submissions.
+ * Async operation helper (does not auto-run on mount).
+ * Useful for manual actions like form submissions.
  * 
  * @param {Function} fn - Async function to execute
- * @returns {FetchState<T>} Object with data, loading, error, and execute function
+ * @returns {FetchState<T>} Object with data, loading, error, and `refetch` as the execute function
  * 
- * @example
- * ```typescript
- * const App = Component((ui) => {
- *   const { data, loading, execute } = asyncOp(async () => {
- *     const res = await fetch('/api/submit', { method: 'POST' })
- *     return res.json()
- *   })
- *   
- *   ui.Button({
- *     text: "Submit",
- *     on: { click: () => execute() }
- *   })
+ * Example (JSX):
+ * ```tsx
+ * const { data, loading, error, refetch } = asyncOp(async () => {
+ *   const res = await fetch('/api/submit', { method: 'POST' })
+ *   return res.json()
  * })
+ * 
+ * <button onClick={() => refetch()} disabled={loading.value}>Submit</button>
+ * {error.value && <div>Error: {error.value}</div>}
  * ```
+ * 
+ * Builder usage remains supported.
  */
 export function asyncOp<T>(fn: () => Promise<T>): FetchState<T> {
   const data = ref<T | null>(null)
