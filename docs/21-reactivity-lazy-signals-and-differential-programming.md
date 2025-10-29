@@ -10,8 +10,8 @@ Status: Draft (Design Proposal)
 - Auwla core contributors and advanced users building high‑performance UIs.
 
 ## TL;DR
-- Lazy Signals: Create subscriptions on first read and prune effects that never consume a signal. This reduces unnecessary propagation and effect work.
-- Differential Programming: Propagate deltas (minimal change descriptions) instead of full values; effects apply patches rather than recomputing from scratch. This cuts CPU and DOM work.
+- Lazy Signals: Create subscriptions on first read and prune watchers that never consume a signal. This reduces unnecessary propagation and watcher work.
+- Differential Programming: Propagate deltas (minimal change descriptions) instead of full values; watchers apply patches rather than recomputing from scratch. This cuts CPU and DOM work.
 
 ---
 
@@ -42,41 +42,42 @@ Only subscribe and deliver to effects that actually consume a signal. Defer crea
 
 ### Proposed API Sketch (non‑breaking additions)
 ```ts
-// Opt‑in lazy signal creation (alias or option on ref).
-const name = ref("Alice", { lazy: true });
+// Keep current API: first arg is ref(s); add optional options.
+const name = ref("Alice");
 
-// Effects may opt into lazy dependency capture.
-watch(() => {
-  // Subscription to `name` is created only after first read.
-  const n = name.get();
+// Opt‑in lazy dependency capture without introducing new API names.
+watch(name, (n) => {
   greet(n);
 }, { lazyDeps: true });
 
-// (Optional) Utility for advanced users to inspect reads.
-// In practice, the runtime instruments get() and associates it with the active effect.
+// Multiple sources remain explicit; lazyDeps prunes unused subscriptions.
+watch([items, filterText], ([list, q]) => {
+  const needle = q.toLowerCase();
+  return needle ? list.filter(x => String(x.value.value).includes(needle)) : list;
+}, { lazyDeps: true });
 ```
 
 Note: The above can be delivered with runtime instrumentation alone. A later bundler plugin can add compile‑time pruning based on simple patterns.
 
 ### Runtime Implementation Notes
-- Instrument `get()` to register the active effect lazily the first time it’s read.
-- Maintain per‑effect read sets; clear and rebuild on each effect re‑execution to reflect control‑flow changes.
-- Delivery: When a signal changes, only schedule effects that have that signal in their read set.
-- Scheduler stays the same (microtask queue + `flushSync()`), but fewer effects are enqueued.
+- Instrument `.value` reads in watcher callbacks to lazily register subscriptions on first use.
+- Maintain per‑watcher read sets; clear and rebuild on each callback re‑execution to reflect control‑flow changes.
+- Delivery: When a signal changes, only schedule watchers that have that signal in their read set.
+- Scheduler stays the same (microtask queue + `flushSync()`), but fewer watchers are enqueued.
 
 ### Compile‑Time Pruning (Optional Extension)
-- A light transform scans common patterns and annotates effects that cannot read a given signal (e.g., unconditional constants, obviously unrelated scope).
+- A light transform scans common patterns and annotates watcher callbacks that cannot read a given signal (e.g., unconditional constants, obviously unrelated scope).
 - The runtime uses annotations to skip even the first execution subscription attempt for pruned signals.
 
 ### Example: Filtered List
 ```ts
 const filterText = ref("");
-const items = ref(initialItems, { lazy: true });
+const items = ref(initialItems);
 
-// Only effects that actually read `filterText` will subscribe to it.
-watch(() => {
-  const f = filterText.get();
-  const visible = items.get().filter(x => x.text.includes(f));
+// Only watchers that actually read `filterText` will subscribe to it.
+watch([items, filterText], ([list, q]) => {
+  const needle = q.toLowerCase();
+  const visible = needle ? list.filter(x => String(x.value.value).includes(needle)) : list;
   renderList(visible);
 }, { lazyDeps: true });
 ```
@@ -113,15 +114,15 @@ type ListDiff<T> =
 ### Proposed API Sketch (optional additions)
 ```ts
 // A variation of ref for arrays that reports diffs when possible.
-const list = ref<Array<Item>>(initial, { diff: true });
+const list = ref<Array<Item>>(initial /*, { diff: true }*/);
 
-// Watchers can opt into receiving diffs.
+// Watchers can opt into receiving diffs (name TBD; design sketch).
 watchDiff(list, (diff: ListDiff<Item>) => {
   applyListPatch(domList, diff);
 });
 
 // Fallback: if no diff is available, fall back to full recompute.
-watch(() => renderList(list.get()));
+watch(list, (items) => renderList(items));
 ```
 
 ### Runtime Implementation Notes
@@ -172,8 +173,8 @@ watch(() => renderList(list.get()));
 ---
 
 ## Glossary
-- Signal/Ref: Reactive source that supports reads (`get`) and writes (`set`).
-- Effect/Watch: Function re‑executed when dependencies change.
+- Signal/Ref: Reactive source that supports reads (`.value`) and writes (`.value = x`).
+- Watch: Function re‑executed when dependencies change.
 - Lazy: Deferring subscription creation until first read.
 - Pruning: Compile‑time elimination of subscriptions for signals never read by an effect.
 - Diff/Delta: Minimal change description propagated instead of full values.

@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root { --brand-color: #111827; }
+
+html, body { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+.brand-text { color: var(--brand-color); }
+.brand-bg { background-color: var(--brand-color); }
+.brand-border { border-color: var(--brand-color); }
+
+/* Custom docs typography */
+.docs-article { @apply max-w-3xl mx-auto text-gray-800 leading-7 space-y-6; }
+.docs-prose h1 { @apply text-[28px] sm:text-[32px] font-semibold mt-0 mb-3 tracking-tight; }
+.docs-prose h2 { @apply text-[22px] sm:text-[24px] font-semibold mt-6 mb-2; }
+.docs-prose p { @apply leading-7 text-gray-800; }
+.docs-prose ul { @apply list-disc pl-6 space-y-1; }
+.docs-prose a { @apply text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline; }
+.docs-prose pre { @apply my-4; }
+.docs-code { @apply bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-auto text-sm; }
+
+/* Paint slash effect for highlighted word: a brushy, imperfect stroke */
+.paint-slash { position: relative; display: inline-block; z-index: 0; }
+.paint-slash::before {
+  content: '';
+  position: absolute;
+  left: -0.22em; right: -0.65em; top: -0.36em; bottom: -0.26em;
+  background:
+    conic-gradient(from -8deg at 30% 50%, rgba(250, 204, 21, 0.88) 0 25%, rgba(253, 224, 71, 0.88) 25% 60%, rgba(250, 204, 21, 0.88) 60% 100%),
+    repeating-linear-gradient(-14deg, rgba(253, 224, 71, 0.45) 0 8px, rgba(253, 224, 71, 0.7) 8px 16px);
+  background-blend-mode: multiply;
+  clip-path: polygon(2% 28%, 10% 16%, 28% 18%, 46% 12%, 64% 16%, 80% 24%, 92% 42%, 86% 66%, 60% 74%, 34% 72%, 14% 58%, 6% 40%);
+  border-radius: 12px 10px 12px 10px;
+  transform: rotate(-1.6deg);
+  z-index: -1;
+  filter: saturate(1.08) brightness(1.04);
+}
+.paint-slash::after {
+  content: '';
+  position: absolute; pointer-events: none;
+  left: -0.12em; right: -0.12em; top: -0.30em; bottom: -0.20em;
+  background:
+    radial-gradient(6px 4px at 12% 35%, rgba(250, 204, 21, 0.25), transparent 60%),
+    radial-gradient(5px 6px at 42% 20%, rgba(250, 204, 21, 0.18), transparent 60%),
+    radial-gradient(4px 5px at 66% 70%, rgba(250, 204, 21, 0.22), transparent 60%),
+    radial-gradient(6px 6px at 78% 40%, rgba(250, 204, 21, 0.16), transparent 60%);
+  z-index: -1;
+  filter: blur(0.2px);
+}
+
+/* Subtle colorful sprinkles for page background */
+.site-bg { 
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(251, 191, 36, 0.10) 0 8px, transparent 9px),
+    radial-gradient(circle at 85% 22%, rgba(59, 130, 246, 0.10) 0 6px, transparent 7px),
+    radial-gradient(circle at 22% 80%, rgba(16, 185, 129, 0.10) 0 7px, transparent 8px),
+    radial-gradient(circle at 70% 72%, rgba(244, 114, 182, 0.10) 0 5px, transparent 6px),
+    radial-gradient(circle at 40% 40%, rgba(99, 102, 241, 0.08) 0 6px, transparent 7px),
+    conic-gradient(at 30% 30%, rgba(253, 224, 71, 0.06) 0 25%, transparent 26% 100%),
+    conic-gradient(at 70% 70%, rgba(59, 130, 246, 0.06) 0 20%, transparent 21% 100%),
+    linear-gradient(120deg, rgba(253, 224, 71, 0.04), rgba(99, 102, 241, 0.04));
+  background-size: cover;
+  animation: drift 55s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes drift {
+  0% { transform: translate3d(-2px, -1px, 0) scale(1.01) rotate(-0.2deg); }
+  100% { transform: translate3d(2px, 1px, 0) scale(1.02) rotate(0.25deg); }
+}

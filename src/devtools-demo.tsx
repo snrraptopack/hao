@@ -13,6 +13,8 @@ function CounterDemo() {
   const count = ref(0)
   const doubled = watch(count, (v: number) => v * 2)
 
+  const a = ref(0)
+  const b = ref(0)
   // Side-effect watcher to exercise watcher events
   const lastUpdate = ref(Date.now())
   watch(count, () => { lastUpdate.value = Date.now() })
@@ -29,6 +31,11 @@ function CounterDemo() {
       <div class="flex gap-2 pt-2">
         <button class="px-3 py-1 bg-indigo-600 text-white rounded" onClick={() => (count.value += 1)}>+1</button>
         <button class="px-3 py-1 border rounded" onClick={() => (count.value = 0)}>Reset</button>
+
+        <div class="text-lg">A: {a}</div>
+        <div class="text-lg">B: {b}</div>
+        <button class="px-3 py-1 border rounded" onClick={() => (a.value += 1)}>A+1</button>
+        <button class="px-3 py-1 border rounded" onClick={() => (b.value += 1)}>B+1</button>
       </div>
     </div>
   )
