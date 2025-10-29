@@ -16,7 +16,30 @@ html, body { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
 .docs-prose ul { @apply list-disc pl-6 space-y-1; }
 .docs-prose a { @apply text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline; }
 .docs-prose pre { @apply my-4; }
-.docs-code { @apply bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-auto text-sm; }
+.docs-code { @apply bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm max-w-full overflow-x-hidden whitespace-pre-wrap break-words md:overflow-x-auto md:whitespace-pre; }
+
+/* Ensure code occupies block space within pre and respects container width */
+.docs-code code { display: block; max-width: 100%; }
+
+/* Aggressive mobile wrapping for Prism tokens to prevent horizontal overflow */
+@media (max-width: 767px) {
+  .docs-code code,
+  .docs-code code * {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Desktop restores classic pre formatting and allows horizontal scroll */
+@media (min-width: 768px) {
+  .docs-code code,
+  .docs-code code * {
+    white-space: pre;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+}
 
 /* Paint slash effect for highlighted word: a brushy, imperfect stroke */
 .paint-slash { position: relative; display: inline-block; z-index: 0; }
