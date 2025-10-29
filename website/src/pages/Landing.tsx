@@ -11,7 +11,7 @@ export function Landing() {
         </p>
         <div class="flex justify-center gap-3">
           <Link to="/docs/quick-start" text="Get Started" className="brand-bg text-white px-5 py-2.5 rounded-md shadow-md hover:shadow-lg hover:-translate-y-0.5 transition duration-200 ease-out" activeClassName="brand-bg text-white" />
-          <Link to="/docs/quick-start" text="Read Docs" className="px-5 py-2.5 rounded-md border brand-border text-gray-800 hover:bg-gray-50 hover:-translate-y-0.5 transition duration-200 ease-out" activeClassName="bg-gray-100" />
+          <Link to="/docs" text="Read Docs" className="px-5 py-2.5 rounded-md border brand-border text-gray-800 hover:bg-gray-50 hover:-translate-y-0.5 transition duration-200 ease-out" activeClassName="bg-gray-100" />
         </div>
       </section>
     </div>
