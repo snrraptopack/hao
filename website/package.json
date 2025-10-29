@@ -15,7 +15,9 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.16",
     "tailwindcss": "^4.1.16",
+    "terser": "^5.44.0",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "vite-plugin-compression": "^0.5.1"
   }
 }
