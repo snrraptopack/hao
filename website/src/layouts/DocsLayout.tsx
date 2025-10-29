@@ -3,7 +3,7 @@ import { h, Link, ref, watch, When } from 'auwla'
 export function DocsLayout(child: HTMLElement) {
   const mobileNavOpen = ref(false)
   return (
-    <div class="min-h-screen bg-white grid grid-rows-[64px_1fr]">
+    <div class="min-h-screen bg-white grid grid-rows-[64px_1fr] overflow-x-hidden">
       <header class="sticky top-0 z-10 flex items-center gap-3 px-6 border-b bg-white/80 backdrop-blur">
         <div class="text-indigo-600 font-semibold tracking-wide">Auwla Docs</div>
         <button class="md:hidden ml-auto px-3 py-2 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-100" onClick={() => mobileNavOpen.value = true}>
@@ -14,7 +14,7 @@ export function DocsLayout(child: HTMLElement) {
           <Link to="/docs/quick-start" text="Quick Start" className="px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 hover:text-indigo-700" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
         </nav>
       </header>
-      <div class="md:grid md:grid-cols-[260px_1fr] h-[calc(100vh-64px)]">
+      <div class="md:grid md:grid-cols-[260px_1fr] h-[calc(100vh-64px)] min-w-0 overflow-x-hidden">
         {/* Mobile overlay when sidebar is open */}
         <When>
           {mobileNavOpen}
@@ -121,8 +121,8 @@ export function DocsLayout(child: HTMLElement) {
             </div>
           </div>
         </aside>
-        <article class="p-8 overflow-y-auto overflow-x-hidden">
-          <div class="docs-article">{child}</div>
+        <article class="p-8 overflow-y-auto overflow-x-hidden min-w-0">
+          <div class="docs-article min-w-0">{child}</div>
         </article>
       </div>
     </div>

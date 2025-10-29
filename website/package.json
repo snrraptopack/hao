@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "auwla": "^0.1.3",
+    "auwla": "^0.1.4",
     "prismjs": "^1.30.0"
   },
   "devDependencies": {

@@ -26,7 +26,7 @@ export function CodeBlock({ code, language = 'tsx', filename, className = '' }: 
   return (
     <div class={`relative ${className}`}>
       {filename && (
-        <div class="text-[11px] text-gray-500 mb-1 select-none">{filename}</div>
+        <div class="text-[10px] text-gray-500 mb-1 select-none">{filename}</div>
       )}
       <pre class={`docs-code language-${language} w-full overflow-x-auto`} tabIndex={0}>
         {/* Auwla classic JSX supports setting innerHTML directly on elements */}

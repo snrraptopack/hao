@@ -8,7 +8,7 @@ export default defineConfig({
     compression({ algorithm: 'brotliCompress' }),
     compression({ algorithm: 'gzip' }),
   ],
-  server: { port: 5173 },
+  server: { port: 5177,host:true },
   esbuild: {
     jsxFactory: 'h',
     jsxFragment: 'Fragment'
