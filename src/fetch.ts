@@ -1,5 +1,6 @@
 import { ref, type Ref } from "./state";
 import { onMount } from "./lifecycle";
+import { createResource, type Resource } from './resource'
 
 export type FetchState<T> = {
   data: Ref<T | null>;
@@ -37,66 +38,22 @@ export function fetch<T>(
   url: string | (() => string),
   options?: { cacheKey?: string }
 ): FetchState<T> {
-  const data = ref<T | null>(null)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
-  
-  const fetchData = async () => {
-    // Check cache first if cacheKey is provided
-    if (options?.cacheKey) {
-      try {
-        const { getRouter } = await import("./router")
-        const router = getRouter()
-        
-        if (router.state[options.cacheKey]) {
-          console.log(`✅ Using cached data for: ${options.cacheKey}`)
-          data.value = router.state[options.cacheKey]
-          return
-        }
-      } catch (e) {
-        // Router not available, proceed with fetch
-      }
+  const key = options?.cacheKey ?? (typeof url === 'string' ? `fetch:${url}` : `fetch:${Date.now()}`)
+  const resource: Resource<T> = createResource<T>(key, async (signal) => {
+    const urlString = typeof url === 'function' ? url() : url
+    const response = await window.fetch(urlString, { signal })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
-    loading.value = true
-    error.value = null
-    
-    try {
-      const urlString = typeof url === 'function' ? url() : url
-      const response = await window.fetch(urlString)
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      
-      const result = await response.json()
-      data.value = result
-      
-      // Cache the result if cacheKey is provided
-      if (options?.cacheKey) {
-        try {
-          const { getRouter } = await import("./router")
-          const router = getRouter()
-          router.state[options.cacheKey] = result
-          console.log(`💾 Cached data for: ${options.cacheKey}`)
-        } catch (e) {
-          // Router not available, skip caching
-        }
-      }
-    } catch (e) {
-      error.value = (e as Error).message
-      console.error('Fetch error:', e)
-    } finally {
-      loading.value = false
-    }
+    const result = await response.json()
+    return result as T
+  }, { scope: options?.cacheKey ? 'route' : 'global' })
+  return {
+    data: resource.data as Ref<T | null>,
+    loading: resource.loading,
+    error: resource.error,
+    refetch: () => resource.refetch()
   }
-  
-  // Auto-fetch on component mount
-  onMount(() => {
-    fetchData()
-  })
-  
-  return { data, loading, error, refetch: fetchData }
 }
 
 /**

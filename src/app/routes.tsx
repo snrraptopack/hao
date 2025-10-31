@@ -13,7 +13,7 @@ import { SearchPage } from './modules/search/SearchPage'
 
 // Base route at '/'
 export const baseRoutes = defineRoutes([
-  { path: '/', component: () => <LandingPage /> },
+  { path: '/', component: () => <LandingPage />, name: 'landing' },
 ])
 
 // App feature routes grouped under /app with shared layout
@@ -22,9 +22,9 @@ export const appGrouped = group('/app', { layout: AppLayout }, composeRoutes(
   usersRoutes,
   postsRoutes,
   defineRoutes([
-    { path: '/search', component: () => <SearchPage /> },
-    { path: '/perf', component: () => <PerfDemo /> },
-    { path: '/devtools', component: () => <DevToolsDemo /> }
+    { path: '/search', component: () => <SearchPage />, name: 'search' },
+    { path: '/perf', component: () => <PerfDemo />, name: 'perf' },
+    { path: '/devtools', component: () => <DevToolsDemo />, name: 'devtools' }
   ])
 ))
 

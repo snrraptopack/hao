@@ -1,6 +1,6 @@
-# Chapter 4 — State: ref & watch
+# Chapter 4 — State: ref, watch & watchEffect
 
-Fine-grained reactivity is the core. `ref` holds values; `watch` reacts to changes and can derive new state.
+Fine-grained reactivity is the core. `ref` holds values; `watch` derives computed state; `watchEffect` runs side-effects when state changes.
 
 ## Refs
 ```ts
@@ -16,19 +16,21 @@ count.value += 1
 import { ref, watch, type Ref } from '../../src/state'
 
 const count = ref(0)
-const doubled: Ref<number> = watch(count, (n) => n * 2) as Ref<number>
+const doubled: Ref<number> = watch(count, (n) => n * 2)
 ```
 - When `count.value` changes, `doubled.value` updates.
 - If the callback returns a value, `watch` returns a new `Ref`.
 
-## watch: Side Effects
+## watchEffect: Side Effects
 ```ts
-watch(count, (n) => {
+import { watchEffect } from '../../src/state'
+
+const cleanup = watchEffect(count, (n) => {
   console.log('count changed:', n)
-  // return nothing → side effect only
 })
+// Call cleanup() if created outside a component; inside components, cleanup is automatic
 ```
-- Inside components, side-effect watches auto-clean up on unmount.
+- Inside components, side-effect watchers auto-clean up on unmount.
 
 ## Multiple Sources
 ```ts
@@ -49,9 +51,9 @@ function Counter(): HTMLElement {
 
 ## Exercise
 - Create a computed ref from two inputs and render it.
-- Add a side-effect `watch` to log changes and confirm it cleans up.
+- Add a side-effect `watchEffect` to log changes and confirm it cleans up.
 
 ## Checklist
 - [ ] You created and updated refs.
 - [ ] You wrote a derived ref with `watch`.
-- [ ] You used a side-effect `watch` in a component.
+- [ ] You used a side-effect `watchEffect` in a component.

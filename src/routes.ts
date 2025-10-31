@@ -1,5 +1,17 @@
 import type { Route, RouteGuard, QueryParams, PathParams } from './router'
 
+// Type-level helpers to preserve literal path types when grouping and composing
+type TrimLeftSlash<S extends string> = S extends `/${infer R}` ? TrimLeftSlash<R> : S
+type TrimRightSlash<S extends string> = S extends `${infer R}/` ? TrimRightSlash<R> : S
+type NormalizeBase<S extends string> = TrimRightSlash<S> extends '' | '/' ? '' : TrimRightSlash<S>
+type NormalizeChild<S extends string> = TrimLeftSlash<S>
+type JoinPathsLiteral<B extends string, C extends string> = NormalizeBase<B> extends ''
+  ? `/${NormalizeChild<C>}`
+  : `/${NormalizeBase<B>}/${NormalizeChild<C>}`
+
+// Flatten variadic arrays while preserving element literal types
+type FlattenRoutes<T extends ReadonlyArray<ReadonlyArray<Route<any>>>> = ReadonlyArray<T[number][number]>
+
 // Join base and child paths with a single slash
 function joinPaths(base: string, child: string): string {
   const b = base.endsWith('/') ? base.slice(0, -1) : base
@@ -39,14 +51,14 @@ export function defineRoutes<R extends Route<any>[]>(routes: [...R]): [...R] {
  * const routes = composeRoutes(userRoutes, adminRoutes)
  * ```
  */
-export function composeRoutes(
-  ...sources: Array<ReadonlyArray<Route<any>>>
-): Route<any>[] {
+export function composeRoutes<T extends ReadonlyArray<ReadonlyArray<Route<any>>>>(
+  ...sources: [...T]
+): FlattenRoutes<T> {
   const out: Route<any>[] = []
   for (const src of sources) {
-    out.push(...src as Route<any>[])
+    out.push(...(src as Route<any>[]))
   }
-  return out
+  return out as unknown as FlattenRoutes<T>
 }
 
 // Group routes under a base path, optionally applying a shared guard/layout
@@ -83,8 +95,8 @@ export function composeRoutes(
  *   ])
  *   ```
  */
-export function group(
-  base: string,
+export function group<B extends string, R extends ReadonlyArray<Route<string>>>(
+  base: B,
   options: {
     guard?: RouteGuard
     layout?: (
@@ -93,15 +105,26 @@ export function group(
       query?: QueryParams
     ) => HTMLElement
   } | undefined,
-  routes: ReadonlyArray<Route<string>>
-): Route<string>[] {
-  return routes.map((r) => ({
+  routes: R
+): { [K in keyof R]: R[K] extends { path: infer P extends string }
+      ? Omit<R[K], 'path'> & { path: JoinPathsLiteral<B, P> }
+      : R[K] } {
+  const mapped = routes.map((r) => ({
     ...r,
     path: joinPaths(base, r.path),
     guard: options?.guard ?? r.guard,
     layout: options?.layout ?? r.layout,
   }))
+  return mapped as unknown as { [K in keyof R]: R[K] extends { path: infer P extends string }
+    ? Omit<R[K], 'path'> & { path: JoinPathsLiteral<B, P> }
+    : R[K] }
 }
+
+// Derive a union of route names from a routes array
+export type RouteNames<R extends ReadonlyArray<Route<any>>> = Extract<R[number], { name: string }>['name']
+
+// Get path pattern type for a given route name in a routes array
+export type PathForRouteName<R extends ReadonlyArray<Route<any>>, N extends RouteNames<R>> = Extract<R[number], { name: N }> extends { path: infer P } ? P : never
 
 // Build a path string from a pattern and params/query
 /**

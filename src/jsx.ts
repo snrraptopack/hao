@@ -14,6 +14,8 @@ import {
 
 // DevTools integration
 import { devHook, isDevEnv } from './devtools';
+// Shared DOM helpers
+import { applyStyle, setAttr, CLASS_TOKENS, applyClassTokens, tokenizeClass } from './dom-attrs';
 
 // --- HELPERS (Modified for watch) ---
 
@@ -29,61 +31,9 @@ function toEventName(prop: string) {
   return name.charAt(0).toLowerCase() + name.slice(1);
 }
 
-function applyStyle(el: HTMLElement, style: any) {
-  if (!style) return;
-  if (typeof style === 'string') {
-    el.setAttribute('style', style);
-  } else if (typeof style === 'object') {
-    for (const k in style) {
-      (el.style as any)[k] = (style as any)[k];
-    }
-  }
-}
-
-// Class name diffing helpers
-const CLASS_TOKENS = Symbol('auwla_jsx_class_tokens');
-function tokenizeClass(str: any): string[] {
-  const s = String(str ?? '').trim();
-  return s ? s.split(/\s+/).filter(Boolean) : [];
-}
-function applyClassTokens(el: HTMLElement, nextStr: any) {
-  const prev: Set<string> = (el as any)[CLASS_TOKENS] || new Set<string>();
-  const nextTokens = tokenizeClass(nextStr);
-  const nextSet = new Set(nextTokens);
-  // Remove tokens we previously managed but are no longer present
-  prev.forEach((tok) => {
-    if (!nextSet.has(tok)) el.classList.remove(tok);
-  });
-  // Add new tokens
-  nextTokens.forEach((tok) => {
-    if (!prev.has(tok)) el.classList.add(tok);
-  });
-  // Update record
-  (el as any)[CLASS_TOKENS] = nextSet;
-}
-
-function setAttr(el: HTMLElement, key: string, value: any) {
-  if (value == null || value === false) {
-    el.removeAttribute(key);
-    return;
-  }
-  if (value === true) {
-    el.setAttribute(key, '');
-    return;
-  }
-  // Prefer property when available, fallback to attribute
-  if (key in el) {
-    try {
-      (el as any)[key] = value;
-      return;
-    } catch {}
-  }
-  el.setAttribute(key, String(value));
-}
-
 /**
  * Appends children to a parent node.
- * ✅ Uses watch() for automatic cleanup and supports Ref<Node | string | array>.
+ * Uses watch() for automatic cleanup and supports Ref<Node | string | array>.
  */
 function appendChildren(parent: Node, children: any[]) {
   const flatChildren = children.flat(Infinity);
@@ -167,6 +117,18 @@ function appendChildren(parent: Node, children: any[]) {
  * - Component usage
  *   `function App() { return <main><h1>Welcome</h1></main>; }`
  */
+// Overloads to provide better typing for intrinsic elements and components
+type IntrinsicTagName = keyof JSX.IntrinsicElements & keyof HTMLElementTagNameMap;
+export function h<K extends IntrinsicTagName>(
+  type: K,
+  rawProps?: JSX.IntrinsicElements[K],
+  ...rawChildren: any[]
+): HTMLElementTagNameMap[K];
+export function h<P>(
+  type: (props: P & { children?: any }) => HTMLElement,
+  rawProps?: P,
+  ...rawChildren: any[]
+): HTMLElement;
 export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
   const props = rawProps || {};
 
@@ -205,57 +167,9 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
       executeCleanup(context);
     };
 
-    // 5. SETUP AUTO-MOUNT & AUTO-CLEANUP (MutationObservers)
-    if (typeof MutationObserver !== 'undefined') {
-      // --- Auto-cleanup on DOM removal ---
-      const cleanupObserver = new MutationObserver((mutations) => {
-        mutations.forEach(mutation => {
-          mutation.removedNodes.forEach(node => {
-            if (node === element || node.contains(element)) {
-              (element as any).__cleanup?.();
-              cleanupObserver.disconnect();
-            }
-          });
-        });
-      });
-      
-      // Function to start observing
-      const attachCleanupObserver = () => {
-        if (element.parentElement) {
-          cleanupObserver.observe(element.parentElement, { 
-            childList: true, 
-            subtree: true 
-          });
-        } else {
-          // Wait a frame if not yet attached
-          requestAnimationFrame(attachCleanupObserver);
-        }
-      };
-      attachCleanupObserver();
-
-      // --- Auto-run onMount when added to DOM ---
-      if (element.isConnected) {
-        executeMountCallbacks(context);
-      } else {
-        const mountObserver = new MutationObserver(() => {
-          if (element.isConnected) {
-            executeMountCallbacks(context);
-            mountObserver.disconnect();
-          }
-        });
-        // Observe the document body for the element
-        mountObserver.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-      }
-    } else {
-      // Fallback for older envs: run mount on next frame
-      requestAnimationFrame(() => {
-        if (element.isConnected) {
-          executeMountCallbacks(context);
-        }
-      });
+    // 5. Mount callbacks if already connected; further lifecycle handled centrally
+    if (element.isConnected) {
+      executeMountCallbacks(context);
     }
 
     // 6. RETURN THE FULLY-LIFECYCLE-AWARE ELEMENT

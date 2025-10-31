@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -19,6 +19,10 @@
     "./jsx-dev-runtime": {
       "types": "./dist/jsx-dev-runtime.d.ts",
       "import": "./dist/jsx-dev-runtime.js"
+    },
+    "./integrations/react": {
+      "types": "./dist/integrations/react.d.ts",
+      "import": "./dist/integrations/react.js"
     }
   },
   "typesVersions": {
@@ -53,6 +57,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "build": "pnpm run build:lib && pnpm run build:cli",
+    "build:cli": "tsc src/cli.ts --outDir dist --target ES2020 --module ESNext --moduleResolution node --esModuleInterop --allowJs --skipLibCheck",
     "postbuild": "node -e \"require('fs').rmSync('dist/app', { recursive: true, force: true })\"",
     "build:lib": "vite build && tsc --emitDeclarationOnly --declaration --outDir dist",
     "build:app": "vite build --config vite.config.app.ts",
@@ -60,13 +66,15 @@
     "preview:app": "vite preview --outDir dist-app",
     "template:parse": "bun run template/test/test-parser.ts",
     "template:test": "bun run template/test/test-full.ts",
-    "prepublishOnly": "npm run build",
-    "dev:bench:auwla": "npm --prefix apps/auwla-bench run dev",
-    "dev:bench:react": "npm --prefix apps/react-bench run dev",
-    "dev:bench:vue": "npm --prefix apps/vue-bench run dev",
-    "preview:bench:auwla": "npm --prefix apps/auwla-bench run preview",
-    "preview:bench:react": "npm --prefix apps/react-bench run preview",
-    "preview:bench:vue": "npm --prefix apps/vue-bench run preview"
+    "prepublishOnly": "pnpm run build",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "dev:bench:auwla": "pnpm -F auwla-bench dev",
+    "dev:bench:react": "pnpm -F react-bench dev",
+    "dev:bench:vue": "pnpm -F vue-bench dev",
+    "preview:bench:auwla": "pnpm -F auwla-bench preview",
+    "preview:bench:react": "pnpm -F react-bench preview",
+    "preview:bench:vue": "pnpm -F vue-bench preview"
   },
   "bin": {
     "auwla": "./dist/cli.js",
@@ -74,11 +82,14 @@
   },
   "devDependencies": {
     "@types/acorn": "^6.0.4",
-    "@types/bun": "latest",
     "@types/handlebars": "^4.1.0",
     "handlebars": "^4.7.8",
-    "typescript": "latest",
-    "vite": "latest",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^1.5.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "c8": "^9.1.0",
+    "jsdom": "^24.0.0",
     "@tailwindcss/vite": "^4.1.14",
     "tailwindcss": "^4.1.14"
   },

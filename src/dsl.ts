@@ -8,6 +8,7 @@ import { setCurrentComponent,
  } from "./lifecycle";
 
  import { setWatchContext } from "./state";
+ import { applyClassTokens, tokenizeClass, CLASS_TOKENS, applyStyle as domApplyStyle, setStyleObject as domSetStyleObject, setAttr } from './dom-attrs';
 
 const HTML_TAGS = [
   'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -107,11 +108,11 @@ export class LayoutBuilder {
     
     if (typeof className === 'string') {
       element.className = className;
-      (element as any)[DSL_CLASS_TOKENS] = new Set(tokenizeClass(className));
+      (element as any)[CLASS_TOKENS] = new Set(tokenizeClass(className));
     } else {
       const initial = className.value;
       element.className = initial;
-      (element as any)[DSL_CLASS_TOKENS] = new Set(tokenizeClass(initial));
+      (element as any)[CLASS_TOKENS] = new Set(tokenizeClass(initial));
       const unsub = className.subscribe((newValue) => {
         applyClassTokens(element, newValue);
       });
@@ -123,12 +124,12 @@ export class LayoutBuilder {
     if (value === undefined || value === null) return;
     
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      element.setAttribute(attr, String(value));
+      setAttr(element, attr, value as any);
     } else {
       // It's a Ref
-      element.setAttribute(attr, String((value as Ref<any>).value));
+      setAttr(element, attr, (value as Ref<any>).value as any);
       const unsub = (value as Ref<any>).subscribe((newValue: any) => {
-        element.setAttribute(attr, String(newValue));
+        setAttr(element, attr, newValue as any);
       });
       this.cleanups.push(unsub);
     }
@@ -138,7 +139,7 @@ export class LayoutBuilder {
     if (!style) return;
     // String style
     if (typeof style === 'string') {
-      element.setAttribute('style', style);
+      domApplyStyle(element, style);
       return;
     }
     // Ref style
@@ -146,22 +147,22 @@ export class LayoutBuilder {
       const refStyle = style as Ref<string | Partial<CSSStyleDeclaration>>;
       const initial = refStyle.value;
       if (typeof initial === 'string') {
-        element.setAttribute('style', initial);
+        domApplyStyle(element, initial);
       } else {
-        this.setStyleObject(element, initial);
+        domSetStyleObject(element, initial as Partial<CSSStyleDeclaration>);
       }
       const unsub = refStyle.subscribe((newVal: any) => {
         if (typeof newVal === 'string') {
-          element.setAttribute('style', newVal);
+          domApplyStyle(element, newVal);
         } else {
-          this.setStyleObject(element, newVal);
+          domSetStyleObject(element, newVal as Partial<CSSStyleDeclaration>);
         }
       });
       this.cleanups.push(unsub);
       return;
     }
     // Object style
-    this.setStyleObject(element, style as Partial<CSSStyleDeclaration>);
+    domSetStyleObject(element, style as Partial<CSSStyleDeclaration>);
   }
 
   private setStyleObject(element: HTMLElement, styleObj: Partial<CSSStyleDeclaration> | null | undefined) {
@@ -636,7 +637,8 @@ export class LayoutBuilder {
         const itemBuilder = new LayoutBuilder();
         config.render(item, i, itemBuilder);
         const itemElement = itemBuilder.build();
-        const element = (itemElement.children[0] as HTMLElement) || itemElement;
+        const firstChild = itemElement.children.item(0) as HTMLElement | null;
+        const element = firstChild ?? itemElement;
         entry = { element, builder: itemBuilder, item };
       } else if (entry.item !== item) {
         entry.element.remove();
@@ -644,7 +646,8 @@ export class LayoutBuilder {
         const itemBuilder = new LayoutBuilder();
         config.render(item, i, itemBuilder);
         const itemElement = itemBuilder.build();
-        const element = (itemElement.children[0] as HTMLElement) || itemElement;
+        const firstChild = itemElement.children.item(0) as HTMLElement | null;
+        const element = firstChild ?? itemElement;
         entry = { element, builder: itemBuilder, item };
       }
       newCache.set(key, entry!);
@@ -1039,37 +1042,7 @@ export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
     builder.destroy();
   };
   
-  // Setup MutationObserver for automatic cleanup on DOM removal
-  if (typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        mutation.removedNodes.forEach(node => {
-          if (node === element || node.contains(element)) {
-            (element as any).__cleanup?.();
-            observer.disconnect();
-          }
-        });
-      });
-    });
-    
-    // Observe parent when element is attached
-    const attachObserver = () => {
-      if (element.parentElement) {
-        observer.observe(element.parentElement, { 
-          childList: true, 
-          subtree: true 
-        });
-      }
-    };
-    
-    // Try to attach immediately if already in DOM
-    if (element.parentElement) {
-      attachObserver();
-    } else {
-      // Otherwise wait for next frame
-      requestAnimationFrame(attachObserver);
-    }
-  }
+  // NOTE: Cleanup on removal will be handled by central observer.
   
   // Execute mount callbacks after element is added to DOM
   // Use two approaches for better coverage:
@@ -1078,52 +1051,9 @@ export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
   if (element.isConnected) {
     executeMountCallbacks(context);
   } else {
-    // 2. Wait for next frame
-    requestAnimationFrame(() => {
-      if (element.isConnected) {
-        executeMountCallbacks(context);
-      }
-    });
-    
-    // 3. Also use MutationObserver to catch insertion
-    if (typeof MutationObserver !== 'undefined') {
-      const mountObserver = new MutationObserver(() => {
-        if (element.isConnected) {
-          executeMountCallbacks(context);
-          mountObserver.disconnect();
-        }
-      });
-      
-      // Observe document body for when element gets added
-      if (document.body) {
-        mountObserver.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-      }
-    }
+    // NOTE: Mount detection for later insertions handled by central observer.
   }
   
   return element;
 }
-// Class name diffing helpers for DSL elements
-const DSL_CLASS_TOKENS = Symbol('auwla_dsl_class_tokens');
-function tokenizeClass(str: any): string[] {
-  const s = String(str ?? '').trim();
-  return s ? s.split(/\s+/).filter(Boolean) : [];
-}
-function applyClassTokens(el: HTMLElement, nextStr: any) {
-  const prev: Set<string> = (el as any)[DSL_CLASS_TOKENS] || new Set<string>();
-  const nextTokens = tokenizeClass(nextStr);
-  const nextSet = new Set(nextTokens);
-  // Remove tokens previously managed but no longer present
-  prev.forEach((tok) => {
-    if (!nextSet.has(tok)) el.classList.remove(tok);
-  });
-  // Add new tokens
-  nextTokens.forEach((tok) => {
-    if (!prev.has(tok)) el.classList.add(tok);
-  });
-  // Update record
-  (el as any)[DSL_CLASS_TOKENS] = nextSet;
-}
+// Class token helpers moved to shared dom-attrs.ts

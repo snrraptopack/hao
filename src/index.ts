@@ -1,11 +1,17 @@
 // Note: Global JSX types are provided via auwla/jsx-runtime for automatic JSX.
 
 // Core reactive system
-export { ref, watch, flushSync, flush } from './state';
+export { ref, watch, watchEffect, derive, flushSync, flush, batch, untracked } from './state';
 export type { Ref } from './state';
+// Structured local state
+export { createStore } from './store';
+export type { Store, SubStore } from './store';
 
 // JSX runtime
 export { h, Fragment } from './jsx';
+
+// JSX utilities
+export { When,For } from './jsxutils';
 
 // Component system
 export { Component } from './dsl';
@@ -19,7 +25,7 @@ export { createContext, Provider, useContext, useReactiveContext, setGlobalConte
 
 // DevTools (development only)
 export { initDevTools, getDevTools } from './devtools';
-export { enableDevToolsOverlay } from './devtools-ui';
+export { enableDevToolsOverlay, disableDevToolsOverlay } from './devtools-ui';
 
 // Routing
 export { Router, Link, useRouter, useParams, useQuery, setRouter, getRouter } from './router'
@@ -31,6 +37,7 @@ export type {
   PathParams,
   RouteGuard,
   RoutedContext,
+  ParamDecoder,
 } from './router'
 
 // Routing helpers
@@ -38,7 +45,9 @@ export { defineRoutes, composeRoutes, group, pathFor } from './routes'
 
 // Data fetching helpers
 export { fetch, asyncOp } from './fetch'
+export { createResource } from './resource'
 export type { FetchState } from './fetch'
+export type { Resource } from './resource'
 
-// Optional integrations
-export { ReactIsland, createReactIsland } from './integrations/react'
+// Optional integrations are available as separate imports:
+// import { ReactIsland, createReactIsland } from 'auwla/integrations/react'

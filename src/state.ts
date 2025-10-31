@@ -14,6 +14,7 @@ import { devHook, isDevEnv } from './devtools';
 type Task = () => void;
 const pendingTasks: Set<Task> = new Set();
 let microtaskScheduled = false;
+let batchingDepth = 0;
 
 function flushPending() {
   // Drain until stable to handle cascading updates
@@ -32,7 +33,8 @@ function flushPending() {
 
 function scheduleTask(task: Task) {
   pendingTasks.add(task);
-  if (!microtaskScheduled) {
+  // During batch(), accumulate tasks without scheduling a microtask.
+  if (!microtaskScheduled && batchingDepth === 0) {
     microtaskScheduled = true;
     queueMicrotask(() => {
       microtaskScheduled = false;
@@ -55,8 +57,36 @@ export async function flush() {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+// Batch API: coalesce multiple updates and synchronously flush at the end.
+export function batch<T>(fn: () => T): T {
+  batchingDepth++;
+  try {
+    const result = fn();
+    return result;
+  } finally {
+    batchingDepth--;
+    if (batchingDepth === 0) {
+      // Drain accumulated tasks immediately.
+      flushSync();
+    }
+  }
+}
+
+// untracked: temporarily ignore dependency collection in dynamic derive
+export function untracked<T>(fn: () => T): T {
+  const prev = currentDeriveCollector;
+  currentDeriveCollector = null;
+  try {
+    return fn();
+  } finally {
+    currentDeriveCollector = prev;
+  }
+}
+
 // Track current component context for automatic cleanup
 let currentWatchContext: Set<() => void> | null = null;
+// Dynamic derive dependency tracking context
+let currentDeriveCollector: Set<Ref<any>> | null = null;
 
 /**
  * Creates a reactive reference that tracks changes and notifies subscribers.
@@ -120,6 +150,11 @@ export function ref<T>(initialValue: T): Ref<T> {
                 if (isDevEnv() && (target as any).__devtools_id) {
                     devHook('onRefAccessed', (target as any).__devtools_id, 'get');
                 }
+                // Dynamic derive: collect dependency when reading value
+                if (currentDeriveCollector) {
+                    const self = (target as any).__ref;
+                    if (self) currentDeriveCollector.add(self);
+                }
                 return value;
             }
             if (property === 'subscribe') {
@@ -157,7 +192,10 @@ export function ref<T>(initialValue: T): Ref<T> {
         }
     };
 
-    const refProxy = new Proxy({ value: initialValue }, handler) as Ref<T>;
+    const target = { value: initialValue } as any;
+    const refProxy = new Proxy(target, handler) as Ref<T>;
+    // Link proxy to target so we can collect it during dynamic derive
+    target.__ref = refProxy;
     
     // DevTools: Track ref creation with scope
     if (isDevEnv()) {
@@ -245,13 +283,14 @@ export function getWatchContext() {
  * const doubled = watch(count, (v) => v * 2)
  * // No manual cleanup needed inside Component!
  */
-// Overloads: return Ref<R> when callback returns a value, otherwise return cleanup function
-export function watch<T, R>(source: Ref<T> | Ref<any>[], callback: (value: any, oldValue?: any) => R): Ref<R>;
-export function watch<T>(source: Ref<T> | Ref<any>[], callback: (value: any, oldValue?: any) => void): () => void;
 export function watch<T, R>(
     source: Ref<T> | Ref<any>[],
-    callback: ((value: any, oldValue?: any) => R | void)
-): Ref<R> | (() => void) {
+    callback: (value: any, oldValue?: any) => R
+): Ref<R>;
+export function watch<T, R>(
+    source: Ref<T> | Ref<any>[],
+    callback: (value: any, oldValue?: any) => R | void
+): any {
     const isArray = Array.isArray(source);
     const sources = isArray ? source : [source];
     
@@ -266,15 +305,23 @@ export function watch<T, R>(
     const unsubscribers: Array<() => void> = [];
     
     if (!hasReturnValue) {
-        // Side effect
+        // Side effect: schedule recompute to dedup across multiple source changes
+        let scheduled = false;
+        const run = () => {
+            scheduled = false;
+            const newValues = getValues();
+            // OPTIMIZATION: Deep equality check for arrays/objects
+            if (!shallowEqual(newValues, oldValues)) {
+                callback(newValues, oldValues);
+                oldValues = newValues;
+            }
+        };
+
         sources.forEach((sourceRef) => {
             const unsub = sourceRef.subscribe(() => {
-                const newValues = getValues();
-                
-                // OPTIMIZATION: Deep equality check for arrays/objects
-                if (!shallowEqual(newValues, oldValues)) {
-                    callback(newValues, oldValues);
-                    oldValues = newValues;
+                if (!scheduled) {
+                    scheduled = true;
+                    scheduleTask(run);
                 }
             });
             unsubscribers.push(unsub);
@@ -301,26 +348,32 @@ export function watch<T, R>(
         return cleanup;
     }
     
-    // Derived ref with memoization
+    // Derived ref with memoization, scheduled recompute
     const derivedRef = ref(cachedResult as R);
-    
+
+    let scheduled = false;
+    const run = () => {
+        scheduled = false;
+        const newValues = getValues();
+        // OPTIMIZATION: Only recompute if values actually changed
+        if (!shallowEqual(newValues, oldValues)) {
+            const computedResult = callback(newValues, oldValues);
+            if (computedResult !== undefined) {
+                // OPTIMIZATION: Only update if result changed
+                if (!shallowEqual(computedResult, cachedResult)) {
+                    cachedResult = computedResult;
+                    derivedRef.value = computedResult as R;
+                }
+            }
+            oldValues = newValues;
+        }
+    };
+
     sources.forEach((sourceRef) => {
         const unsub = sourceRef.subscribe(() => {
-            const newValues = getValues();
-            
-            // OPTIMIZATION: Only recompute if values actually changed
-            if (!shallowEqual(newValues, oldValues)) {
-                const computedResult = callback(newValues, oldValues);
-                
-                if (computedResult !== undefined) {
-                    // OPTIMIZATION: Only update if result changed
-                    if (!shallowEqual(computedResult, cachedResult)) {
-                        cachedResult = computedResult;
-                        derivedRef.value = computedResult as R;
-                    }
-                }
-                
-                oldValues = newValues;
+            if (!scheduled) {
+                scheduled = true;
+                scheduleTask(run);
             }
         });
         unsubscribers.push(unsub);
@@ -345,6 +398,156 @@ export function watch<T, R>(
     }
     
     return derivedRef as Ref<R>;
+}
+
+// Convenience alias for side-effect watchers to avoid return-type ambiguity.
+// Use this when you only want to run effects and don't need a computed Ref.
+export function watchEffect<T>(
+    source: Ref<T> | Ref<any>[],
+    effect: (value: any, oldValue?: any) => void
+): () => void {
+    const isArray = Array.isArray(source);
+    const sources = isArray ? source : [source];
+
+    const getValues = () => isArray
+        ? sources.map(s => s.value) as T
+        : (sources[0]?.value as T);
+
+    let oldValues = getValues();
+    // Initial run
+    effect(oldValues, undefined);
+
+    // Side effect: schedule recompute to dedup across multiple source changes
+    let scheduled = false;
+    const run = () => {
+        scheduled = false;
+        const newValues = getValues();
+        // OPTIMIZATION: Deep equality check for arrays/objects
+        if (!shallowEqual(newValues, oldValues)) {
+            effect(newValues, oldValues);
+            oldValues = newValues;
+        }
+    };
+
+    const unsubscribers: Array<() => void> = [];
+    sources.forEach((sourceRef) => {
+        const unsub = sourceRef.subscribe(() => {
+            if (!scheduled) {
+                scheduled = true;
+                scheduleTask(run);
+            }
+        });
+        unsubscribers.push(unsub);
+    });
+
+    const cleanup = () => {
+        unsubscribers.forEach(unsub => unsub());
+        // DevTools: Track watcher cleanup
+        if (isDevEnv() && (cleanup as any).__devtools_id) {
+            devHook('onWatcherDestroyed', (cleanup as any).__devtools_id);
+        }
+    };
+
+    // DevTools: Track watcher creation
+    if (isDevEnv()) {
+        const scope = currentWatchContext ? 'component' : 'global';
+        devHook('onWatcherCreated', cleanup, sources, scope);
+    }
+
+    if (currentWatchContext) {
+        currentWatchContext.add(cleanup);
+    }
+
+    return cleanup;
+}
+
+/**
+ * derive: First-class API for computed reactive values.
+ * Overloads:
+ * - derive(source, compute): subscribes to provided sources, returns a Ref<R>.
+ * - derive(() => expr): lazy, dynamic tracking; subscribes to refs actually read during compute.
+ * Always returns a Ref<R>; never runs side-effects.
+ */
+export function derive<R>(compute: () => R): Ref<R>;
+export function derive<T, R>(source: Ref<T> | Ref<any>[], compute: (value: any, oldValue?: any) => R): Ref<R>;
+export function derive(arg1: any, arg2?: any): Ref<any> {
+    // Lazy dynamic derive: derive(() => expr)
+    if (typeof arg1 === 'function' && arg2 === undefined) {
+        let unsubscribers: Array<() => void> = [];
+
+        // Initial compute with dependency collection
+        const initialDeps = new Set<Ref<any>>();
+        currentDeriveCollector = initialDeps;
+        let cachedResult = (arg1 as () => any)();
+        currentDeriveCollector = null;
+        const derivedRef = ref(cachedResult);
+        let deps = initialDeps;
+
+        const resubscribe = (newDeps: Set<Ref<any>>) => {
+            // Unsubscribe all previous deps
+            unsubscribers.forEach(unsub => unsub());
+            unsubscribers = [];
+            // Subscribe to new deps
+            let scheduled = false;
+            const run = () => {
+                scheduled = false;
+                // Recompute on any dependency change
+                const collector = new Set<Ref<any>>();
+                currentDeriveCollector = collector;
+                const next = (arg1 as () => any)();
+                currentDeriveCollector = null;
+                // Update value if changed
+                if (!shallowEqual(next, cachedResult)) {
+                    cachedResult = next;
+                    derivedRef.value = next;
+                }
+                // Update subscriptions if dependency set changed
+                let changed = false;
+                if (collector.size !== deps.size) {
+                    changed = true;
+                } else {
+                    for (const ref of collector) {
+                        if (!deps.has(ref)) { changed = true; break; }
+                    }
+                }
+                if (changed) {
+                    deps = collector;
+                    resubscribe(deps);
+                }
+            };
+            newDeps.forEach((d) => {
+                const unsub = d.subscribe(() => {
+                    if (!scheduled) {
+                        scheduled = true;
+                        scheduleTask(run);
+                    }
+                });
+                unsubscribers.push(unsub);
+            });
+        };
+
+        resubscribe(deps);
+
+        // Cleanup support in component context
+        const cleanup = () => {
+            unsubscribers.forEach(unsub => unsub());
+            unsubscribers = [];
+        };
+        (derivedRef as any).__cleanup = cleanup;
+        if (currentWatchContext) {
+            currentWatchContext.add(cleanup);
+        }
+        // DevTools: Track watcher creation
+        if (isDevEnv()) {
+            const scope = currentWatchContext ? 'component' : 'global';
+            devHook('onWatcherCreated', derivedRef, Array.from(deps), scope);
+        }
+
+        return derivedRef;
+    }
+
+    // Explicit sources derive: implemented over watch's derived branch
+    return watch(arg1 as any, (value: any, oldValue?: any) => (arg2 as any)(value, oldValue)) as Ref<any>;
 }
 
 function shallowEqual(a: any, b: any): boolean {

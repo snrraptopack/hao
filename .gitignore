@@ -1,9 +1,15 @@
 # dependencies (bun install)
+
+# Ignore lockfiles at repo root so CI installs from app directories only
+# (keeps per-app locks like website/package-lock.json intact)
+/bun.lock
+/package-lock.json
 node_modules
 
 # output
 out
 dist
+dist-app/
 *.tgz
 
 # code coverage

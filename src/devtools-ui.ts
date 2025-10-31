@@ -1,5 +1,13 @@
 import { initDevTools, getDevTools, isDevEnv } from './devtools'
 
+// Module-level references for teardown
+let overlayEl: HTMLElement | null = null
+let floatBtnEl: HTMLButtonElement | null = null
+let styleEl: HTMLStyleElement | null = null
+let hotkeyHandler: ((e: KeyboardEvent) => void) | null = null
+let overlayObserver: MutationObserver | null = null
+let pollingInterval: any = null
+
 export type DevToolsOverlayOptions = {
   hotkey?: string // e.g. 'Alt+D'
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
@@ -20,8 +28,8 @@ export function enableDevToolsOverlay(options: DevToolsOverlayOptions = {}): voi
   if (document.getElementById('auwla-devtools-overlay')) return
 
   // Styles scoped to AUWLA DevTools to avoid collisions
-  const style = document.createElement('style')
-  style.textContent = `
+  styleEl = document.createElement('style')
+  styleEl.textContent = `
     .auwla-devtools-floating-btn {
       position: fixed;
       ${position.includes('bottom') ? 'bottom: 16px;' : 'top: 16px;'}
@@ -94,18 +102,19 @@ export function enableDevToolsOverlay(options: DevToolsOverlayOptions = {}): voi
     .auwla-devtools-highlight { background: rgba(79,193,255,0.12); }
     .auwla-devtools-muted { color:#9ca3af; }
   `
-  document.head.appendChild(style)
+  document.head.appendChild(styleEl)
 
   // Floating toggle button
-  const floatBtn = document.createElement('button')
-  floatBtn.className = 'auwla-devtools-floating-btn'
-  floatBtn.title = `Toggle AUWLA DevTools (${hotkey})`
-  floatBtn.innerHTML = `🛠️ <span>DevTools</span>`
+  floatBtnEl = document.createElement('button')
+  floatBtnEl.className = 'auwla-devtools-floating-btn'
+  floatBtnEl.title = `Toggle AUWLA DevTools (${hotkey})`
+  floatBtnEl.innerHTML = `🛠️ <span>DevTools</span>`
 
   // Overlay modal
   const overlay = document.createElement('div')
   overlay.id = 'auwla-devtools-overlay'
   overlay.className = 'auwla-devtools-overlay'
+  overlayEl = overlay
   const modal = document.createElement('div')
   modal.className = 'auwla-devtools-modal'
   const header = document.createElement('div')
@@ -128,21 +137,22 @@ export function enableDevToolsOverlay(options: DevToolsOverlayOptions = {}): voi
   const setOpen = (open: boolean) => {
     overlay.classList.toggle('open', open)
   }
-  floatBtn.onclick = () => setOpen(!overlay.classList.contains('open'))
+  floatBtnEl.onclick = () => setOpen(!overlay.classList.contains('open'))
   close.onclick = () => setOpen(false)
   overlay.onclick = (e) => { if (e.target === overlay) setOpen(false) }
 
   // Hotkey
-  window.addEventListener('keydown', (e) => {
+  hotkeyHandler = (e: KeyboardEvent) => {
     const combo = `${e.altKey ? 'Alt+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.ctrlKey ? 'Ctrl+' : ''}${e.key.toUpperCase()}`
     if (combo === hotkey.toUpperCase()) {
       e.preventDefault()
       setOpen(!overlay.classList.contains('open'))
     }
-  })
+  }
+  window.addEventListener('keydown', hotkeyHandler)
 
   // Initial mount
-  document.body.appendChild(floatBtn)
+  document.body.appendChild(floatBtnEl)
   document.body.appendChild(overlay)
   setOpen(defaultOpen)
 
@@ -448,21 +458,49 @@ export function enableDevToolsOverlay(options: DevToolsOverlayOptions = {}): voi
   }
 
   // Poll for updates while open to keep stats fresh
-  let interval: any = null
   const startPolling = () => {
-    if (interval) return
-    interval = setInterval(render, 1000)
+    if (pollingInterval) return
+    pollingInterval = setInterval(render, 1000)
   }
   const stopPolling = () => {
-    if (interval) { clearInterval(interval); interval = null }
+    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null }
   }
 
   // Observe overlay open/close to manage polling
-  const observer = new MutationObserver(() => {
+  overlayObserver = new MutationObserver(() => {
     if (overlay.classList.contains('open')) startPolling(); else stopPolling()
   })
-  observer.observe(overlay, { attributes: true, attributeFilter: ['class'] })
+  overlayObserver.observe(overlay, { attributes: true, attributeFilter: ['class'] })
 
   // Initial render
   render()
+}
+
+/**
+ * Disable and teardown the DevTools overlay entirely.
+ * Removes DOM nodes, listeners, polling, and observers.
+ */
+export function disableDevToolsOverlay(): void {
+  // Remove hotkey listener
+  if (hotkeyHandler) {
+    try { window.removeEventListener('keydown', hotkeyHandler) } catch {}
+    hotkeyHandler = null
+  }
+  // Stop polling
+  if (pollingInterval) {
+    try { clearInterval(pollingInterval) } catch {}
+    pollingInterval = null
+  }
+  // Disconnect overlay observer
+  if (overlayObserver) {
+    try { overlayObserver.disconnect() } catch {}
+    overlayObserver = null
+  }
+  // Remove DOM nodes
+  try { overlayEl?.remove() } catch {}
+  overlayEl = null
+  try { floatBtnEl?.remove() } catch {}
+  floatBtnEl = null
+  try { styleEl?.remove() } catch {}
+  styleEl = null
 }

@@ -1,13 +1,36 @@
 import type { Ref } from "./state";
 
 export type EventMap = {
-    'click': MouseEvent;
-    'input': InputEvent;
-    'change': Event;
-    'submit': SubmitEvent;
-    'focus': FocusEvent;
-    'blur': FocusEvent;
-    "keydown":KeyboardEvent
+    // Mouse
+    click: MouseEvent;
+    dblclick: MouseEvent;
+    mouseenter: MouseEvent;
+    mouseleave: MouseEvent;
+    mousemove: MouseEvent;
+    mousedown: MouseEvent;
+    mouseup: MouseEvent;
+    // Keyboard
+    keydown: KeyboardEvent;
+    keyup: KeyboardEvent;
+    keypress: KeyboardEvent;
+    // Focus
+    focus: FocusEvent;
+    blur: FocusEvent;
+    // Input / Change
+    input: InputEvent;
+    change: Event;
+    // Form
+    submit: SubmitEvent;
+    // Pointer & Touch
+    pointerdown: PointerEvent;
+    pointerup: PointerEvent;
+    pointermove: PointerEvent;
+    pointerenter: PointerEvent;
+    pointerleave: PointerEvent;
+    touchstart: TouchEvent;
+    touchend: TouchEvent;
+    touchmove: TouchEvent;
+    touchcancel: TouchEvent;
 }
 
 export type EventHandlers = Partial<{

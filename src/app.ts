@@ -1,4 +1,5 @@
 import { Router, setRouter, type Route } from './router'
+import { disableDevToolsOverlay } from './devtools-ui'
 
 export interface AppConfig {
   router?: Router
@@ -49,7 +50,16 @@ export function createApp(config: AppConfig): App {
     },
     
     unmount() {
+      // Ensure lifecycle cleanup of the currently rendered route component
+      const oldChild = container.firstChild as any
+      if (oldChild?.__cleanup) {
+        try { oldChild.__cleanup() } catch (e) { console.error('Error during app unmount cleanup:', e) }
+      }
       container.innerHTML = ''
+      // Also destroy router side-effects (global listeners)
+      try { router.destroy() } catch {}
+      // DevTools overlay teardown for safety
+      try { disableDevToolsOverlay() } catch {}
     }
   }
 }

@@ -1,6 +1,0 @@
-[build]
-target = "browser"
-format = "esm"
-
-[dev]
-port = 3000

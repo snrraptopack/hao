@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "auwla": "file:../auwla-0.1.0.tgz",
+    "auwla": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

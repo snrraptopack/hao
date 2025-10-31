@@ -95,6 +95,34 @@ function Badge() {
 }
 ```
 
+## Typed Props & Events
+
+Auwla’s JSX runtime provides stronger TypeScript typing for intrinsic elements:
+
+- Reactive props: pass plain values or `Ref<T>` for common attributes (className, style, id, title, hidden, value, checked, disabled, etc.).
+- Event handlers: `onClick` → `MouseEvent`, `onKeydown` → `KeyboardEvent`, `onFocus/onBlur` → `FocusEvent`, `onInput` → `InputEvent`, `onSubmit` → `SubmitEvent`, with additional `pointer*`/`touch*` handlers.
+- Children: `string | number | Node | Ref<...>`; arrays supported and flattened.
+- Keys and refs: `key?: string | number`, `ref?: (el: HTMLElement) => void`.
+
+Examples:
+
+```tsx
+// Typed events
+<button onClick={(e: MouseEvent) => console.log('clicked', e)} />
+<input onInput={(e: InputEvent) => console.log('input', e)} />
+
+// Reactive props
+const checked = ref(false)
+<input type="checkbox" checked={checked} />
+
+// Typed ref
+<button ref={(el: HTMLButtonElement) => el.focus()} />
+```
+
+Notes:
+- Use `Ref<T>` for reactive binding of attributes and text children; updates are auto-subscribed.
+- For form events, some environments model `SubmitEvent` as `Event`; the handler remains compatible across DOM shims.
+
 ---
 
 ## Lists with `<For>`
