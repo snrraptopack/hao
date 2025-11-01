@@ -291,60 +291,107 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       for (const n of nodesToInsert) frag.appendChild(n);
       endMarker.parentNode!.insertBefore(frag, endMarker);
     } else {
-      // Phase 4: Reorder optimizations
+      // Phase 4: Quick Diff Algorithm (Vue 3 style)
       const oldKeys = Array.from(cache.keys());
-      const oldIndexMap = new Map<string | number, number>();
-      for (let i = 0; i < oldKeys.length; i++) {
-        const ok = oldKeys[i]!;
-        oldIndexMap.set(ok, i);
-      }
-
       const newKeys = Array.from(newCache.keys());
-      const pos = new Array(newKeys.length);
-      let hasAddition = false;
-      for (let i = 0; i < newKeys.length; i++) {
-        const k = newKeys[i]!;
-        const idx = oldIndexMap.get(k);
-        if (idx === undefined) {
-          pos[i] = -1;
-          hasAddition = true;
-        } else {
-          pos[i] = idx;
+      const oldLen = oldKeys.length;
+      const newLen = newKeys.length;
+      
+      // Build index map for O(1) lookups
+      const oldIndexMap = new Map<string | number, number>();
+      for (let i = 0; i < oldLen; i++) {
+        oldIndexMap.set(oldKeys[i]!, i);
+      }
+      
+      // Step 1: Sync from start (common prefix)
+      let i = 0;
+      while (i < oldLen && i < newLen && oldKeys[i] === newKeys[i]) {
+        i++;
+      }
+      
+      // Step 2: Sync from end (common suffix)
+      let oldEnd = oldLen - 1;
+      let newEnd = newLen - 1;
+      while (oldEnd >= i && newEnd >= i && oldKeys[oldEnd] === newKeys[newEnd]) {
+        oldEnd--;
+        newEnd--;
+      }
+      
+      // Step 3: Common sequence = same → all nodes in right place
+      if (i > oldEnd && i > newEnd) {
+        // All matched, nothing to do
+        return;
+      }
+      
+      // Step 4: Old sequence done, new items remain → append
+      if (i > oldEnd) {
+        const anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]!)!.node : endMarker;
+        for (let j = i; j <= newEnd; j++) {
+          const node = newCache.get(newKeys[j]!)!.node;
+          endMarker.parentNode!.insertBefore(node, anchor);
+        }
+        return;
+      }
+      
+      // Step 5: New sequence done, old items remain → remove
+      if (i > newEnd) {
+        for (let j = i; j <= oldEnd; j++) {
+          // Already removed in Phase 2
+        }
+        return;
+      }
+      
+      // Step 6: Unknown sequence - use LIS for minimal moves
+      const toBePatched = newEnd - i + 1;
+      const newIndexToOldIndexMap = new Array(toBePatched).fill(-1);
+      
+      // Map new positions to old positions
+      for (let j = i; j <= newEnd; j++) {
+        const newKey = newKeys[j]!;
+        const oldIndex = oldIndexMap.get(newKey);
+        if (oldIndex !== undefined && oldIndex >= i && oldIndex <= oldEnd) {
+          newIndexToOldIndexMap[j - i] = oldIndex;
         }
       }
-
-      const noRemovals = cache.size === newCache.size;
-      const reorderOnly = !hasAddition && noRemovals;
-
-      if (reorderOnly) {
-        // Fast path: pure reorder — rebuild range using a fragment
-        const frag = document.createDocumentFragment();
-        for (let i = 0; i < newKeys.length; i++) {
-          const k = newKeys[i]!;
-          const entry = newCache.get(k)!;
-          frag.appendChild(entry.node);
-        }
-        // Clear current range between markers using a DOM Range for efficiency
-        const range = document.createRange();
-        range.setStartAfter(startMarker);
-        range.setEndBefore(endMarker);
-        range.deleteContents();
-        endMarker.parentNode!.insertBefore(frag, endMarker);
-      } else {
-        // Keyed reorder using LIS to minimize moves
-        const lisIdx = lis(pos);
-        const lisSet = new Set(lisIdx);
-
-        // Move only nodes not in LIS or newly created
-        for (let i = newKeys.length - 1; i >= 0; i--) {
-          const k = newKeys[i]!;
-          const entry = newCache.get(k)!;
-          const node = entry.node;
-          const anchor = i + 1 < newKeys.length ? newCache.get(newKeys[i + 1]!)!.node : endMarker;
-          if (pos[i] === -1 || !lisSet.has(i)) {
-            endMarker.parentNode!.insertBefore(node, anchor);
+      
+      // Check if we need to move anything
+      let moved = false;
+      let maxIndexSoFar = -1;
+      for (let j = 0; j < toBePatched; j++) {
+        const oldIndex = newIndexToOldIndexMap[j];
+        if (oldIndex !== -1) {
+          if (oldIndex < maxIndexSoFar) {
+            moved = true;
+            break;
           }
+          maxIndexSoFar = oldIndex;
         }
+      }
+      
+      // If nothing moved and no additions, we're done
+      if (!moved && !newIndexToOldIndexMap.includes(-1)) {
+        return;
+      }
+      
+      // Generate LIS only if nodes need to be moved
+      const lisIndices = moved ? lis(newIndexToOldIndexMap) : [];
+      const lisSet = new Set(lisIndices);
+      
+      // Patch by moving/inserting from right to left
+      for (let j = toBePatched - 1; j >= 0; j--) {
+        const newIndex = i + j;
+        const newKey = newKeys[newIndex]!;
+        const entry = newCache.get(newKey)!;
+        const anchor = newIndex + 1 < newLen ? newCache.get(newKeys[newIndex + 1]!)!.node : endMarker;
+        
+        if (newIndexToOldIndexMap[j] === -1) {
+          // New node - insert
+          endMarker.parentNode!.insertBefore(entry.node, anchor);
+        } else if (moved && !lisSet.has(j)) {
+          // Existing node but needs to move
+          endMarker.parentNode!.insertBefore(entry.node, anchor);
+        }
+        // else: node is in LIS, already in correct position
       }
     }
     
