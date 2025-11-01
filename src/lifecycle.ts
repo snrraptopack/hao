@@ -30,7 +30,7 @@ let currentComponent: ComponentContext | null = null;
  */
 export function onMount(callback: LifecycleCallback) {
   if (!currentComponent) {
-    console.warn('onMount called outside component context');
+    console.warn('onMount called outside component context', new Error().stack);
     return;
   }
   

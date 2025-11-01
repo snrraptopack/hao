@@ -39,10 +39,8 @@ export function createApp(config: AppConfig): App {
   }
   
   // Create router if not provided
+  // Note: Router constructor automatically calls setRouter(this)
   const router = config.router || new Router(config.routes || [], container)
-  
-  // Set the global router instance
-  setRouter(router)
   
   return {
     mount() {

@@ -16,12 +16,13 @@ export function AppLayout(child: HTMLElement): HTMLElement {
             <span class="text-xs px-2 py-1 rounded bg-gray-100 border">{authedLabel as any}</span>
           </div>
           <nav class="flex gap-2">
-            <Link to="/app/home" text="Home" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
-            <Link to="/app/users" text="Users" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
-            <Link to="/app/posts" text="Posts" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
-            <Link to="/app/search" text="Search" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
-            <Link to="/app/devtools" text="DevTools" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
-            <Link to="/admin/dashboard" text="Admin" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
+            <Link to="/app/home" text="Home" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
+            <Link to="/app/users" text="Users" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
+            <Link to="/app/posts" text="Posts" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
+            <Link to="/app/search" text="Search" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
+            <Link to="/app/route-scope-demo" text="Route Scope" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
+            <Link to="/app/devtools" text="DevTools" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
+            <Link to="/admin/dashboard" text="Admin" className="px-3 py-2 rounded border" activeClassName="bg-indigo-600 text-white" prefetch="hover" />
           </nav>
           <button class="px-3 py-2 rounded border" onClick={() => toggleAuth()}>{authedText as any}</button>
         </div>

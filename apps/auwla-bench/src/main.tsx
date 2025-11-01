@@ -1,14 +1,14 @@
-import { h, Fragment,ref,onMount,watch,For, flushSync } from 'auwla';
+import { h, Fragment,ref,onMount,watch,For, flushSync } from '../../../src/index';
 
-// Use stable ids and reactive values to avoid remounts on updates
-const items = ref(Array.from({ length: 800 }, (_, i) => ({ id: i, value: ref(i) })));
+// Plain numbers array wrapped in ref (like React/Vue)
+const items = ref(Array.from({ length: 800 }, (_, i) => i));
 const filterText = ref('');
 const tick = ref(0);
 
 // Derived list must depend on both items and filter text
 const filtered = watch([items, filterText], ([list, q]) => {
   const needle = q.toLowerCase();
-  return needle ? list.filter((it) => String(it.value.value).includes(needle)) : list;
+  return needle ? list.filter((n) => String(n).includes(needle)) : list;
 });
 
 function measure(name: string) {
@@ -24,16 +24,10 @@ function measure(name: string) {
 }
 
 function App() {
-  onMount(() => {
-    performance.mark('mount:start');
-    queueMicrotask(() => measure('mount'));
-  });
-
   const updateAll = () => {
     performance.mark('update-all:start');
-    for (const it of items.value) {
-      it.value.value++;
-    }
+    // Immutable update - creates new array with incremented values
+    items.value = items.value.map(n => n + 1);
     // Ensure batched updates flush before measuring/paint for snappier UI
     flushSync();
     tick.value++;
@@ -71,13 +65,16 @@ function App() {
         <span class="small">filtered: {filtered.value.length}</span>
       </div>
       <div class="grid">
-        <For each={filtered} key={(it)=>it.id}>
-        {(it)=> <div class="card">Row {it.value}</div>}
+        <For each={filtered}>
+        {(n)=> <div class="card">Row {n}</div>}
       </For>
       </div>
     </div>
   );
 }
 
+performance.mark('mount:start');
 const root = document.getElementById('app')!;
 root.appendChild(<App />);
+performance.mark('mount:end');
+queueMicrotask(() => measure('mount'));

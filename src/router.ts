@@ -1,4 +1,4 @@
-import { ref, watch, type Ref, setWatchContext } from "./state";
+import { ref, watch, type Ref, setWatchContext, getWatchContext } from "./state";
 import { isDevEnv } from "./devtools";
 import { createComponentContext, setCurrentComponent, executeMountCallbacks, executeCleanup } from "./lifecycle";
 // PathParams generic is defined in this module (see below)
@@ -147,7 +147,7 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
   clearCache() {
     this.state = {}
     if (isDevEnv()) {
-      console.log('🗑️ Router cache cleared')
+      console.log('Router cache cleared')
     }
   }
   
@@ -168,6 +168,10 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     this.currentPath = ref(this.stripTrailingSlash(window.location.pathname))
     this.currentParams = ref({})
     this.currentQuery = ref({})
+    
+    // Set the global router instance immediately so useRouter/useQuery work in components
+    setRouter(this)
+    
     // Precompile regex for initial routes
     for (const r of this.routes) {
       if (typeof r.path === 'string') {
@@ -179,10 +183,17 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     // Listen to browser back/forward
     window.addEventListener('popstate', this.onPopState)
     
-    // Re-render on path change
+    // Re-render on path change (skip initial run since start() handles first render)
+    let isFirstRun = true
     watch(this.currentPath, (path) => {
+
+      if (isFirstRun) {
+        isFirstRun = false
+        return
+      }
       this.render(path, this.parseQuery())
     })
+    
   }
   
   /**
@@ -433,7 +444,9 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
   }
   
   private async render(path: string, query: QueryParams) {
+   
     const match = this.matchRoute(path)
+  
     
     if (!match) {
       console.error(`No route found for ${path}`)
@@ -468,6 +481,7 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
         return
       }
     }
+  
     
     // Invoke previous routed cleanup before switching
     if (this.routeCleanup) {
@@ -487,6 +501,7 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
       }
     }
 
+  
     // Update current match
     const previous = this.currentMatch
     this.currentMatch = match
@@ -501,6 +516,7 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     
     // Render new component
     this.container.innerHTML = ''
+    
 
     // Provide routed context to component lifecycle hooks
     setRoutedContext({
@@ -512,30 +528,39 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
       router: this,
     })
 
-    // Create a component lifecycle context so onMount/onRouted work inside route components
-    const context = createComponentContext();
-    setCurrentComponent(context);
-    setWatchContext(context.cleanups);
+    // Don't create a component context here - the JSX runtime (h function) will create one
+    // when it sees a function component. We just need to set the routed context.
 
-    const child = match.route.component(match.params, match.query);
 
-    // Clear contexts after component creation
-    setCurrentComponent(null);
-    setWatchContext(null);
+    let child: HTMLElement
+    try {
+      child = match.route.component(match.params, match.query);
+    } catch (e) {
+      console.error('[router] Error creating component:', e)
+      throw e
+    }
+    
+    // Clear routed context after component creation
     setRoutedContext(null);
 
     const wrapped = match.route.layout ? match.route.layout(child, match.params, match.query) : child;
 
-    // Attach cleanup to the element we append so router can clean previous view
-    (wrapped as any).__context = context;
-    (wrapped as any).__cleanup = () => {
-      executeCleanup(context);
-    };
+    // The cleanup is already attached by JSX runtime; if layout wrapped it, ensure cleanup propagates
+    if (wrapped !== child && (child as any).__cleanup) {
+      (wrapped as any).__cleanup = (child as any).__cleanup;
+      (wrapped as any).__context = (child as any).__context;
+    }
 
     this.container.appendChild(wrapped);
 
-    // Execute mount callbacks now that element is in the DOM
-    executeMountCallbacks(context);
+    // Execute mount callbacks if JSX didn't already do it (child.isConnected check in jsx.ts)
+    // Since we're appending to DOM, the element is now connected, so execute if needed
+    const ctx = (wrapped as any).__context || (child as any).__context;
+    if (ctx && !ctx.isMounted) {
+      executeMountCallbacks(ctx);
+    } else {
+      console.log('[router] Mount callbacks already executed or no context')
+    }
   }
   
   /**
@@ -701,6 +726,7 @@ export function Link<P extends string>(config: {
   text: string | Ref<string>;
   className?: string | Ref<string>;
   activeClassName?: string;
+  prefetch?: 'hover' | 'visible' | false; // Automatic prefetch strategy
 }) {
   return Component((ui) => {
     const stripQuery = (p: string) => p.split('?')[0] || p;
@@ -738,22 +764,95 @@ export function Link<P extends string>(config: {
       // Router not initialized; fall back to provided className.
     }
 
+    // Helper to find route and trigger prefetch
+    const doPrefetch = async () => {
+      if (!router) return;
+      const pathOnly = stripQuery(href);
+      const route = router['routes'].find((r: Route) => {
+        if (typeof r.path === 'string') {
+          const pattern = pathOnly.toLowerCase();
+          return router['matchRoute'](pattern)?.route === r;
+        }
+        return false;
+      });
+      if (route?.prefetch) {
+        try {
+          const match = router['matchRoute'](pathOnly);
+          if (match) {
+            // Convert query to all strings for QueryParams type
+            const queryStrings: QueryParams = {};
+            if (config.query) {
+              for (const [k, v] of Object.entries(config.query)) {
+                queryStrings[k] = String(v);
+              }
+            }
+            await route.prefetch(match.params, queryStrings, router);
+            if (isDevEnv()) console.log(`[Link] Prefetched ${pathOnly}`);
+          }
+        } catch (e) {
+          if (isDevEnv()) console.warn(`[Link] Prefetch failed for ${pathOnly}:`, e);
+        }
+      }
+    };
+
+    const events: Record<string, (e: Event) => void> = {
+      click: (e) => {
+        e.preventDefault();
+        try {
+          const r = getRouter();
+          r.push(href);
+        } catch (err) {
+          console.error('Router not available:', err);
+        }
+      },
+    };
+
+    // Add hover prefetch
+    if (config.prefetch === 'hover') {
+      let prefetched = false;
+      events.mouseenter = () => {
+        if (!prefetched) {
+          prefetched = true;
+          void doPrefetch();
+        }
+      };
+    }
+
     ui.A({
       href,
       text: config.text,
       className: className || '',
-      on: {
-        click: (e) => {
-          e.preventDefault();
-          try {
-            const r = getRouter();
-            r.push(href);
-          } catch (err) {
-            console.error('Router not available:', err);
-          }
-        },
-      },
+      on: events,
     });
+
+    // Add intersection observer prefetch
+    if (config.prefetch === 'visible' && router) {
+      let prefetched = false;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && !prefetched) {
+              prefetched = true;
+              void doPrefetch();
+              observer.disconnect();
+            }
+          });
+        },
+        { rootMargin: '50px' } // Start prefetching 50px before element enters viewport
+      );
+      
+      // Get the actual DOM element from the builder
+      const domElement = (ui as any).element as HTMLElement;
+      if (domElement) {
+        observer.observe(domElement);
+        
+        // Cleanup observer on component unmount
+        const ctx = getWatchContext();
+        if (ctx) {
+          ctx.add(() => observer.disconnect());
+        }
+      }
+    }
   });
 }
 

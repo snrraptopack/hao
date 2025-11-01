@@ -95,7 +95,8 @@ export function createResource<T>(
     entry.controller = new AbortController()
     const signal = entry.controller.signal
 
-    entry.loading.value = true
+    // Only show loader when there's no data yet; keep stale data visible during revalidation
+    entry.loading.value = entry.data.value == null
     entry.error.value = null
 
     const promise = (async () => {
@@ -163,7 +164,13 @@ export function createResource<T>(
   }
 
   // Auto-fetch on mount for convenience (mirrors fetch<T> helper behavior)
-  onMount(() => { void start(false) })
+  // Skip initial fetch if we already have cached data
+  onMount(() => { 
+    if (isDevEnv()) console.log(`[resource:${key}] onMount triggered, has cache:`, entry.data.value !== null)
+    if (entry.data.value === null) {
+      void start(false)
+    }
+  })
 
   // Abort on unmount and clear timers/listeners
   const ctx = getWatchContext()

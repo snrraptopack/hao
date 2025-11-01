@@ -119,12 +119,18 @@ interface ForProps<T> {
 }
 
 /**
- * Render lists declaratively with keyed reconciliation.
+ * Render lists declaratively with keyed reconciliation and smart change detection.
  *
  * Props:
  * - `each`: `Ref<T[]>` source array
  * - `key`: stable key function (defaults to index)
  * - `children` or `render`: `(item, index) => Node`
+ *
+ * Performance Optimization:
+ * - Uses reference equality (Object.is) for objects to detect changes
+ * - Uses value equality (===) for primitives
+ * - Only re-renders nodes whose items actually changed
+ * - Works best with immutable update patterns (like Array.map)
  *
  * Examples (JSX):
  * - Using children as a render function
@@ -132,12 +138,15 @@ interface ForProps<T> {
  *     {(todo) => <li className={todo.done ? 'done' : ''}>{todo.title}</li>}
  *   </For>`
  *
- * - Using the `render` prop
- *   `<For each={todos} render={(t) => <li>{t.title}</li>} />`
+ * - Immutable update for best performance
+ *   `todos.value = todos.value.map(t => 
+ *     t.id === 5 ? { ...t, done: true } : t  // Only item 5 gets new reference
+ *   )`
  *
  * Notes:
  * - Keys improve reorder performance; prefer unique IDs over indexes.
- * - Nodes are efficiently created/reused/moved; stale nodes are removed.
+ * - Items with unchanged references reuse existing DOM nodes.
+ * - Works seamlessly with Store's structural sharing pattern.
  */
 export function For<T>(props: ForProps<T>): HTMLElement {
   const { each, key, render } = props;
@@ -168,6 +177,20 @@ export function For<T>(props: ForProps<T>): HTMLElement {
   
   const cache = new Map<string | number, CacheEntry>();
   const getKey = key || ((_item: T, index: number) => index);
+  
+  // Detect item type for optimal comparison strategy
+  let itemType: 'primitive' | 'object' | null = null;
+  
+  function isPrimitive(val: any): boolean {
+    return val !== Object(val); // true for string, number, boolean, null, undefined
+  }
+  
+  function itemsAreEqual(a: T, b: T): boolean {
+    if (itemType === 'primitive') {
+      return a === b; // Value equality for primitives
+    }
+    return Object.is(a, b); // Reference equality for objects
+  }
 
   // Helper: Longest Increasing Subsequence (indexes of LIS)
   function lis(arr: number[]): number[] {
@@ -213,7 +236,12 @@ export function For<T>(props: ForProps<T>): HTMLElement {
     const newCache = new Map<string | number, CacheEntry>();
     const nodesToInsert: Node[] = [];
     
-    // Phase 1: Create/reuse nodes
+    // Detect item type on first non-empty render
+    if (itemType === null && newItems.length > 0 && newItems[0] !== undefined) {
+      itemType = isPrimitive(newItems[0]) ? 'primitive' : 'object';
+    }
+    
+    // Phase 1: Create/reuse nodes with smart change detection
     for (let i = 0; i < newItems.length; i++) {
       const item = newItems[i];
       if (item === undefined) continue;
@@ -222,12 +250,23 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       const cached = cache.get(itemKey);
       
       if (cached) {
-        // Reuse existing node (reactivity preserved!)
-        if (newCache.has(itemKey)) {
-          console.warn('[auwla] For: duplicate key detected:', String(itemKey));
+        // Check if item actually changed
+        if (itemsAreEqual(cached.item, item)) {
+          // Item unchanged - reuse existing node (FAST PATH)
+          if (newCache.has(itemKey)) {
+            console.warn('[auwla] For: duplicate key detected:', String(itemKey));
+          }
+          newCache.set(itemKey, cached);
+          nodesToInsert.push(cached.node);
+        } else {
+          // Item changed - re-render this node only
+          const node = renderFn(item, i);
+          if (newCache.has(itemKey)) {
+            console.warn('[auwla] For: duplicate key detected:', String(itemKey));
+          }
+          newCache.set(itemKey, { node, item });
+          nodesToInsert.push(node);
         }
-        newCache.set(itemKey, cached);
-        nodesToInsert.push(cached.node);
       } else {
         // Create new node
         const node = renderFn(item, i);
