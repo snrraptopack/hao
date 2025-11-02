@@ -65,6 +65,14 @@ export type Route<P extends string | RegExp = string> = {
     query?: QueryParams,
     router?: Router<any>
   ) => void | Promise<void>;
+  // Optional meta tags for SEO and social sharing
+  meta?: {
+    title?: string | ((params: RouteParams, query: QueryParams) => string);
+    description?: string | ((params: RouteParams, query: QueryParams) => string);
+    keywords?: string | ((params: RouteParams, query: QueryParams) => string);
+    image?: string | ((params: RouteParams, query: QueryParams) => string);
+    [key: string]: any;
+  };
 }
 
 export type RouteMatch<P extends string | RegExp = string> = {
@@ -112,6 +120,8 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
   private domObserver: MutationObserver | null = null
   // Cache compiled regex for string route patterns to avoid rebuilding on every navigation
   private compiledPatterns: Map<string, RegExp> = new Map()
+  // Scroll position cache for restoring scroll on back/forward navigation
+  private scrollPositions: Map<string, { x: number; y: number }> = new Map()
   // Keep a reference to global listeners so we can clean them up
   private onPopState = () => {
     this.currentPath.value = this.stripTrailingSlash(window.location.pathname)
@@ -255,6 +265,13 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
   */
   push<P extends string>(path: WithOptionalQuery<P>) {
     if (path === this.currentPath.value) return
+    
+    // Save current scroll position before navigating
+    this.scrollPositions.set(this.currentPath.value, {
+      x: window.scrollX,
+      y: window.scrollY
+    })
+    
     window.history.pushState({}, '', path)
     this.currentPath.value = this.stripTrailingSlash(this.getPathWithoutQuery(path))
   }
@@ -268,6 +285,12 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
    * ```
    */
   replace<P extends string>(path: WithOptionalQuery<P>) {
+    // Save scroll position for the current path before replacing
+    this.scrollPositions.set(this.currentPath.value, {
+      x: window.scrollX,
+      y: window.scrollY
+    })
+    
     window.history.replaceState({}, '', path)
     this.currentPath.value = this.stripTrailingSlash(this.getPathWithoutQuery(path))
   }
@@ -508,6 +531,9 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     this.currentParams.value = match.params
     this.currentQuery.value = match.query
     
+    // Update meta tags for this route
+    this.updateMetaTags(match.route, match.params, match.query)
+    
     // Cleanup old component
     const oldChild = this.container.firstChild as any
     if (oldChild?.__cleanup) {
@@ -561,6 +587,95 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     } else {
       console.log('[router] Mount callbacks already executed or no context')
     }
+    
+    // Restore scroll position after rendering
+    this.restoreScroll(path);
+  }
+  
+  /**
+   * Restore scroll position for the given path, or scroll to top if no saved position
+   */
+  private restoreScroll(path: string) {
+    requestAnimationFrame(() => {
+      const savedPosition = this.scrollPositions.get(path);
+      if (savedPosition) {
+        window.scrollTo(savedPosition.x, savedPosition.y);
+        if (isDevEnv()) {
+          console.log(`[router] Restored scroll position for ${path}:`, savedPosition);
+        }
+      } else {
+        // New page - scroll to top
+        window.scrollTo(0, 0);
+      }
+    });
+  }
+  
+  /**
+   * Update document meta tags based on route configuration
+   */
+  private updateMetaTags(route: Route<any>, params: RouteParams, query: QueryParams): void {
+    if (!route.meta) return
+
+    // Update title
+    if (route.meta.title) {
+      const title = typeof route.meta.title === 'function'
+        ? route.meta.title(params, query)
+        : route.meta.title
+      document.title = title
+      
+      // Also update og:title
+      this.updateMetaTag('property', 'og:title', title)
+    }
+
+    // Update description
+    if (route.meta.description) {
+      const description = typeof route.meta.description === 'function'
+        ? route.meta.description(params, query)
+        : route.meta.description
+      this.updateMetaTag('name', 'description', description)
+      this.updateMetaTag('property', 'og:description', description)
+    }
+
+    // Update keywords
+    if (route.meta.keywords) {
+      const keywords = typeof route.meta.keywords === 'function'
+        ? route.meta.keywords(params, query)
+        : route.meta.keywords
+      this.updateMetaTag('name', 'keywords', keywords)
+    }
+
+    // Update og:image
+    if (route.meta.image) {
+      const image = typeof route.meta.image === 'function'
+        ? route.meta.image(params, query)
+        : route.meta.image
+      this.updateMetaTag('property', 'og:image', image)
+    }
+
+    // Update og:url
+    this.updateMetaTag('property', 'og:url', window.location.href)
+
+    if (isDevEnv()) {
+      console.log('[Router] Meta tags updated:', {
+        title: document.title,
+        description: route.meta.description
+      })
+    }
+  }
+
+  /**
+   * Helper to update or create a meta tag
+   */
+  private updateMetaTag(attr: 'name' | 'property', value: string, content: string): void {
+    let meta = document.querySelector(`meta[${attr}="${value}"]`) as HTMLMetaElement
+    
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute(attr, value)
+      document.head.appendChild(meta)
+    }
+    
+    meta.setAttribute('content', content)
   }
   
   /**

@@ -15,23 +15,54 @@ import { SearchPage } from './modules/search/SearchPage'
 
 // Base route at '/'
 export const baseRoutes = defineRoutes([
-  { path: '/', component: () => <LandingPage />, name: 'landing' },
+  { 
+    path: '/', 
+    component: () => <LandingPage />, 
+    name: 'landing',
+    meta: {
+      title: 'Welcome to Auwla',
+      description: 'A lightweight, modular JavaScript framework for building modern web applications',
+      keywords: 'auwla, framework, spa, javascript, typescript'
+    }
+  },
 ])
 
 // App feature routes grouped under /app with shared layout
 export const appGrouped = group('/app', { layout: AppLayout }, composeRoutes(
-  defineRoutes([{ path: '/home', component: () => <HomePage /> }]),
+  defineRoutes([{ 
+    path: '/home', 
+    component: () => <HomePage />,
+    meta: {
+      title: 'Home - Auwla App',
+      description: 'Welcome to Auwla modular application demonstrating routing, state management, and data fetching',
+      keywords: 'home, dashboard, auwla'
+    }
+  }]),
   usersRoutes,
   postsRoutes,
   defineRoutes([
-    { path: '/search', component: () => <SearchPage />, name: 'search' },
+    { 
+      path: '/search', 
+      component: () => <SearchPage />, 
+      name: 'search',
+      meta: {
+        title: 'Search - Auwla App',
+        description: 'Search through content with reactive query parameters',
+        keywords: 'search, query, filter'
+      }
+    },
     {
       path: '/route-scope-demo',
       component: () => <RouteScopeDemo />, 
       name: 'route-scope-demo',
+      meta: {
+        title: 'Route Scope Demo - Auwla App',
+        description: 'Demonstration of route-scoped resource caching and prefetching',
+        keywords: 'demo, routing, cache, prefetch'
+      },
       prefetch: async (_params, _query, router) => {
         try {
-          const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=5')
+          const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=30')
           const json = await res.json()
           const items = (json as any[]).map((p) => ({ id: p.id, title: p.title }))
           // Write to router.state so createResource(key, ..., { scope: 'route' }) boots instantly
@@ -44,8 +75,26 @@ export const appGrouped = group('/app', { layout: AppLayout }, composeRoutes(
         }
       }
     },
-    { path: '/perf', component: () => <PerfDemo />, name: 'perf' },
-    { path: '/devtools', component: () => <DevToolsDemo />, name: 'devtools' }
+    { 
+      path: '/perf', 
+      component: () => <PerfDemo />, 
+      name: 'perf',
+      meta: {
+        title: 'Performance Demo - Auwla App',
+        description: 'Performance benchmarking and optimization demonstrations',
+        keywords: 'performance, benchmark, optimization'
+      }
+    },
+    { 
+      path: '/devtools', 
+      component: () => <DevToolsDemo />, 
+      name: 'devtools',
+      meta: {
+        title: 'DevTools Demo - Auwla App',
+        description: 'Developer tools integration and debugging features',
+        keywords: 'devtools, debugging, development'
+      }
+    }
   ])
 ))
 

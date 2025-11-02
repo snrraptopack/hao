@@ -24,7 +24,7 @@ export function RouteScopeDemo(): HTMLElement {
     key,
     async (signal) => {
       console.log("fetching..")
-      const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=5', { signal })
+      const res = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=30', { signal })
       const json = await res.json()
       // Map to a simpler shape
       return (json as any[]).map((p) => ({ id: p.id, title: p.title }))

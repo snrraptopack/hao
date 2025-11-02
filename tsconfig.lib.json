@@ -3,24 +3,46 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "declaration": true,
-    "emitDeclarationOnly": false,
-    "outDir": "./dist"
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "skipLibCheck": true
   },
-  "files": [
+  "include": [
     "src/index.ts",
     "src/jsx-runtime.ts",
     "src/jsx-dev-runtime.ts",
-    "src/integrations/react.tsx",
-    "src/cli.ts"
+    "src/state.ts",
+    "src/jsx.ts",
+    "src/jsxutils.tsx",
+    "src/lifecycle.ts",
+    "src/context.ts",
+    "src/createElement.ts",
+    "src/dom-attrs.ts",
+    "src/router.ts",
+    "src/resource.ts",
+    "src/fetch.ts",
+    "src/store.ts",
+    "src/dsl.ts",
+    "src/devtools.ts",
+    "src/devtools-ui.ts",
+    "src/cli.ts",
+    "src/integrations/**/*.ts",
+    "src/integrations/**/*.tsx",
+    "src/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
+    "dist-app",
     "**/*.test.ts",
+    "tests",
     "benchmark",
-    "src/app/**",
+    "apps",
+    "src/app",
     "src/app.ts",
-    "src/main.ts",
-    "dist-app/**"
+    "src/main-app.tsx",
+    "src/devtools-demo.tsx",
+    "src/routes.ts",
+    "src/style.css"
   ]
 }

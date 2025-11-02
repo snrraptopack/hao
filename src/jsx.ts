@@ -133,7 +133,7 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
   const props = rawProps || {};
 
   // ---------------------------------------------
-  // ✅ 1. FUNCTION COMPONENT (with Lifecycle)
+  //1. FUNCTION COMPONENT (with Lifecycle)
   // ---------------------------------------------
   if (typeof type === 'function') {
     // It's a component, so we must set up the lifecycle context
@@ -177,7 +177,7 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
   }
 
   // ---------------------------------------------
-  // ✅ 2. INTRINSIC ELEMENT (with reactive bindings)
+  //2. INTRINSIC ELEMENT (with reactive bindings)
   // ---------------------------------------------
   const tag = type as keyof HTMLElementTagNameMap;
   const builder = el(tag); // Assuming `el` is from './createElement'
@@ -216,10 +216,49 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
     // style
     if (key === 'style') {
       if (isRef(val)) {
+        // Ref<styles>: apply initial and subscribe to whole object/string changes
         applyStyle(element, val.value);
         // ✅ subscribe -> watch
         watch(val, (v) => applyStyle(element, v));
+      } else if (val && typeof val === 'object') {
+        // Plain style object. Support nested Ref values for individual properties.
+        const styleObj = val as any;
+        const normalized: any = {};
+        let hasReactiveProps = false;
+        
+        for (const k in styleObj) {
+          const propVal = styleObj[k];
+          if (isRef(propVal)) {
+            normalized[k] = propVal.value;
+            hasReactiveProps = true;
+          } else {
+            normalized[k] = propVal;
+            // Developer warning for common mistake
+            if (isDevEnv() && propVal && typeof propVal === 'object' && 'value' in propVal && typeof propVal.subscribe === 'function') {
+              console.warn(`[Auwla JSX] Style property '${k}' appears to be a watch() result but isn't being detected as reactive. Consider using: style={watch(source, () => ({ ${k}: value }))} instead of style={{ ${k}: watch(source, () => value) }}`);
+            }
+          }
+        }
+        
+        // Apply initial styles with unwrapped values
+        applyStyle(element, normalized);
+        
+        // Subscribe to nested Ref properties for live updates
+        if (hasReactiveProps) {
+          for (const k in styleObj) {
+            const propVal = styleObj[k];
+            if (isRef(propVal)) {
+              // Initial set already done above; now bind updates
+              watch(propVal, (v) => {
+                try {
+                  (element.style as any)[k] = v as any;
+                } catch {}
+              });
+            }
+          }
+        }
       } else {
+        // String style or nullish
         applyStyle(element, val);
       }
       continue;

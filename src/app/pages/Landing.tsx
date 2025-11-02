@@ -1,5 +1,51 @@
 import { h } from '../../jsx'
+import {ref, type Ref,watch,createStore} from "../../index"
 import { Link } from '../../router'
+
+
+type Todo = { id: number; text: string; completed: Ref<boolean> };
+
+const todos = ref<Todo[]>([
+  { id: 1, text: 'Learn Auwla', completed: ref(true)},
+  { id: 2, text: 'Build an app', completed: ref(false)},
+]);
+
+const one = [ 
+  { id: 1, text: 'Learn Auwla', completed: true},
+  { id: 2, text: 'Build an app', completed: false},
+]
+
+const store = createStore(one)
+
+function toggleTodo(id: number) {
+  console.log("clicked")
+  const todo = todos.value.find(t => t.id === id);
+  if (todo) {
+    // Update the existing Ref to preserve reactivity
+    todo.completed.value = !todo.completed.value;
+  }
+  store.update(todos=>
+    todos.map(todo=>
+      todo.id === id ? {...todo,completed:!todo.completed} : todo
+    )
+  )
+}
+
+export function TodoList() {
+  return (
+    <ul>
+      {store.value.value.map(todo => (
+        <li
+          style={todo.completed? { textDecoration: 'line-through' } : {}}
+          onClick={() => toggleTodo(todo.id)}
+        >
+          {todo.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 
 export function LandingPage(): HTMLElement {
   return (
@@ -11,6 +57,7 @@ export function LandingPage(): HTMLElement {
           <Link to="/app/home" text="Enter App" className="px-4 py-2 rounded border" activeClassName="bg-indigo-600 text-white" />
         </div>
       </div>
+      <TodoList />
     </div>
   )
 }

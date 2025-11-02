@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE rules SYSTEM "https://resources.jetbrains.com/writerside/1.0/redirection-rules.dtd">
+<rules>
+    <!-- format is as follows
+    <rule id="<unique id>">
+        <accepts>page.html</accepts>
+    </rule>
+    -->
+    <rule id="2afc0285">
+        <description>Created after removal of "this is it" from auwla-docs</description>
+        <accepts>testing.html</accepts>
+    </rule>
+    <rule id="fda4d8c">
+        <description>Created after removal of "testing" from auwla-docs</description>
+        <accepts>testing.html</accepts>
+    </rule>
+    <rule id="401f4ef1">
+        <description>Created after removal of "Rective Mutation Helpers" from auwla-docs</description>
+        <accepts>Rective-Mutation-Helpers.html</accepts>
+    </rule>
+    <rule id="4f9f224b">
+        <description>Created after removal of "Reactve Mutation" from auwla-docs</description>
+        <accepts>Reactve-Mutation.html</accepts>
+    </rule>
+    <rule id="3fc59f71">
+        <description>Created after removal of "Reactive Mutation" from auwla-docs</description>
+        <accepts>Reactive-Mutation.html</accepts>
+    </rule>
+</rules>

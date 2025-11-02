@@ -1,6 +1,5 @@
-// No need to import `h` with automatic JSX runtime
 
-export function HomePage(): HTMLElement {
+export function HomePage(){
   return (
     <div class="space-y-4">
       <h2 class="text-2xl font-bold">Welcome</h2>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE instance-profile
+        SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
+
+<instance-profile id="a"
+                 name="auwla-docs"
+                 start-page="starter-topic.md">
+
+    <toc-element toc-title="Getting Started">
+        <toc-element topic="starter-topic.md"/>
+        <toc-element topic="docs.md"/>
+        <toc-element topic="Quick-Start.md"/>
+    </toc-element>
+    <toc-element toc-title="Guide">
+        <toc-element topic="Creating-An-Application.md"/>
+        <toc-element toc-title="Templating">
+            <toc-element topic="JSX-Basics.md"/>
+            <toc-element topic="JSX-Composition-and-Children.md"/>
+            <toc-element topic="Components.md"/>
+        </toc-element>
+    </toc-element>
+    <toc-element toc-title="Reactivity">
+        <toc-element topic="Reactivity-Introduction.md"/>
+        <toc-element topic="State-and-Reactivity.md"/>
+        <toc-element topic="Watch-and-Derive.md"/>
+        <toc-element topic="Watch-and-WatchEffect.md"/>
+        <toc-element topic="The-Philosophy-of-Watch.md"/>
+        <toc-element toc-title="Reactive Mutation">
+            <toc-element topic="Managing-Complex-State.md"/>
+            <toc-element topic="Structured-State-with-createStore.md"/>
+        </toc-element>
+        <toc-element topic="Reactive-Composition.md"/>
+        <toc-element toc-title="Rendering Patterns">
+            <toc-element topic="Conditional-Rendering.md"/>
+            <toc-element topic="List-Rendering.md"/>
+        </toc-element>
+    </toc-element>
+    <toc-element toc-title="Data Fetching">
+        <toc-element topic="Data-Fetching-Basics.md"/>
+        <toc-element topic="Manual-Operations-with-asyncOp.md"/>
+        <toc-element topic="Advanced-Resource-Management.md"/>
+    </toc-element>
+    <toc-element toc-title="Routing">
+        <toc-element topic="Routing-Guide.md"/>
+    </toc-element>
+
+</instance-profile>

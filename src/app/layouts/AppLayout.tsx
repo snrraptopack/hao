@@ -8,8 +8,8 @@ export function AppLayout(child: HTMLElement): HTMLElement {
   const authedText = watch(isAuthed, () => (isAuthed.value ? 'Logout' : 'Login'))
   const authedLabel = watch(isAuthed, () => (isAuthed.value ? 'Authenticated' : 'Guest'))
   return (
-    <div class="min-h-screen bg-gray-50 text-gray-900">
-      <header class="bg-white border-b">
+    <div class="min-h-screen bg-gray-50 text-gray-900 ">
+      <header class="sticky top-0 z-50 bg-white border-b shadow-sm">
         <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div class="flex items-center gap-4">
             <h1 class="font-bold text-lg">Auwla Modular App</h1>

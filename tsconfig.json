@@ -5,7 +5,7 @@
     "target": "ES2015",
     "module": "ESNext",
     "moduleDetection": "force",
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "jsxImportSource": "auwla",
     "allowJs": true,
     "types": ["./auwla-jsx", "node"],
