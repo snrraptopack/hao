@@ -28,7 +28,8 @@ function toEventName(prop: string) {
   const m = eventPropRE.exec(prop);
   if (!m) return null;
   const name = m[1] ?? " ";
-  return name.charAt(0).toLowerCase() + name.slice(1);
+  // Convert to all lowercase for DOM events (onClick -> click, onMouseEnter -> mouseenter)
+  return name.toLowerCase();
 }
 
 /**

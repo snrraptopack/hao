@@ -13,19 +13,24 @@ type AriaAttr = `aria-${string}`;
 type Child = string | number | Node | Reactive<string | number | Node>;
 type Children = Child | Child[];
 
+// CSS properties that accept string or number values
+type CSSProperties = {
+  [K in keyof CSSStyleDeclaration]?: string | number;
+};
+
 interface EventProps {
   // Mouse
   onClick?: (e: MouseEvent) => void;
-  onDblclick?: (e: MouseEvent) => void;
-  onMouseenter?: (e: MouseEvent) => void;
-  onMouseleave?: (e: MouseEvent) => void;
-  onMousemove?: (e: MouseEvent) => void;
-  onMousedown?: (e: MouseEvent) => void;
-  onMouseup?: (e: MouseEvent) => void;
+  onDblClick?: (e: MouseEvent) => void;
+  onMouseEnter?: (e: MouseEvent) => void;
+  onMouseLeave?: (e: MouseEvent) => void;
+  onMouseMove?: (e: MouseEvent) => void;
+  onMouseDown?: (e: MouseEvent) => void;
+  onMouseUp?: (e: MouseEvent) => void;
   // Keyboard
-  onKeydown?: (e: KeyboardEvent) => void;
-  onKeyup?: (e: KeyboardEvent) => void;
-  onKeypress?: (e: KeyboardEvent) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  onKeyUp?: (e: KeyboardEvent) => void;
+  onKeyPress?: (e: KeyboardEvent) => void;
   // Focus
   onFocus?: (e: FocusEvent) => void;
   onBlur?: (e: FocusEvent) => void;
@@ -35,15 +40,15 @@ interface EventProps {
   // Form
   onSubmit?: (e: SubmitEvent) => void;
   // Pointer & Touch
-  onPointerdown?: (e: PointerEvent) => void;
-  onPointerup?: (e: PointerEvent) => void;
-  onPointermove?: (e: PointerEvent) => void;
-  onPointerenter?: (e: PointerEvent) => void;
-  onPointerleave?: (e: PointerEvent) => void;
-  onTouchstart?: (e: TouchEvent) => void;
-  onTouchend?: (e: TouchEvent) => void;
-  onTouchmove?: (e: TouchEvent) => void;
-  onTouchcancel?: (e: TouchEvent) => void;
+  onPointerDown?: (e: PointerEvent) => void;
+  onPointerUp?: (e: PointerEvent) => void;
+  onPointerMove?: (e: PointerEvent) => void;
+  onPointerEnter?: (e: PointerEvent) => void;
+  onPointerLeave?: (e: PointerEvent) => void;
+  onTouchStart?: (e: TouchEvent) => void;
+  onTouchEnd?: (e: TouchEvent) => void;
+  onTouchMove?: (e: TouchEvent) => void;
+  onTouchCancel?: (e: TouchEvent) => void;
 }
 
 type BaseProps<E extends HTMLElement> = EventProps & {
@@ -55,7 +60,7 @@ type BaseProps<E extends HTMLElement> = EventProps & {
   id?: Reactive<string>;
   title?: Reactive<string>;
   hidden?: Reactive<boolean>;
-  style?: Reactive<string | Partial<CSSStyleDeclaration>>;
+  style?: Reactive<string | Partial<CSSProperties>>;
   tabIndex?: Reactive<number>;
   draggable?: Reactive<boolean>;
   contentEditable?: Reactive<boolean>;

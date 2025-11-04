@@ -1,4 +1,7 @@
 import { watch, type Ref } from './state';
+import { onUnmount } from './lifecycle';
+import type { TransitionFn } from './transition/core';
+import { enter as transitionEnter, exit as transitionExit } from './transition/core';
 
 // Helper to check if an item is a ref
 function isRef<T = any>(v: any): v is Ref<T> {
@@ -11,10 +14,16 @@ function isRef<T = any>(v: any): v is Ref<T> {
 
 interface WhenProps {
   children?: (Ref<boolean> | (() => Node) | Node)[];
+  transition?: TransitionFn;
+  transitionConfig?: any;
+  enter?: TransitionFn;
+  enterConfig?: any;
+  exit?: TransitionFn;
+  exitConfig?: any;
 }
 
 /**
- * Conditional rendering in JSX.
+ * Conditional rendering in JSX with optional transitions.
  * Pairs `Ref<boolean>` conditions with render functions; the last child may be
  * a fallback (function or Node). The first truthy condition wins.
  *
@@ -28,11 +37,32 @@ interface WhenProps {
  *     {hasError}={() => <span class="error">Error!</span>}
  *     {() => <span>Ready</span>}
  *   </When>`
+ * 
+ * - With transitions (requires auwla/transition import)
+ *   ```tsx
+ *   import { fade } from 'auwla/transition';
+ *   
+ *   <When transition={fade} transitionConfig={{ duration: 300 }}>
+ *     {show}
+ *     {() => <div>Animated content</div>}
+ *   </When>
+ *   ```
+ * 
+ * - Separate enter/exit transitions
+ *   ```tsx
+ *   import { fly, fade } from 'auwla/transition';
+ *   
+ *   <When enter={fly} enterConfig={{ y: -20 }} exit={fade} exitConfig={{ duration: 200 }}>
+ *     {show}
+ *     {() => <div>Animated content</div>}
+ *   </When>
+ *   ```
  *
  * Notes:
  * - Order matters: provide `(ref)`, then its render function.
  * - The last child is treated as fallback when no conditions are truthy.
  * - Watches are automatically managed and cleaned up.
+ * - Transitions are tree-shakeable via auwla/transition sub-export.
  */
 export function When(props: WhenProps): HTMLElement {
   const children = props.children ?? [];
@@ -58,12 +88,65 @@ export function When(props: WhenProps): HTMLElement {
     }
   }
 
+  // Determine transition functions
+  const enterTransition = props.enter || props.transition;
+  const exitTransition = props.exit || props.transition;
+  const enterConfig = props.enterConfig || props.transitionConfig;
+  const exitConfig = props.exitConfig || props.transitionConfig;
+
   // Use start and end markers for stable positioning
   const startMarker = document.createComment('when-start');
   const endMarker = document.createComment('when-end');
   let currentNodes: Node[] = [];
+  let isTransitioning = false;
 
-  const render = () => {
+  const render = async () => {
+    if (isTransitioning) return; // Prevent concurrent transitions
+    isTransitioning = true;
+
+    // Exit transition for current nodes
+    if (currentNodes.length > 0 && exitTransition) {
+      // During exit, make elements absolute to prevent layout shift
+      const elementsToTransition = currentNodes.filter(node => node instanceof HTMLElement) as HTMLElement[];
+      
+      // Capture dimensions before making absolute
+      const capturedSizes = elementsToTransition.map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          element: el,
+          width: rect.width,
+          height: rect.height,
+          position: el.style.position,
+          top: el.style.top,
+          left: el.style.left,
+          right: el.style.right,
+          bottom: el.style.bottom,
+        };
+      });
+      
+      // Make elements absolute during exit
+      capturedSizes.forEach(({ element, width, height }) => {
+        element.style.position = 'absolute';
+        element.style.width = `${width}px`;
+        element.style.height = `${height}px`;
+      });
+      
+      await Promise.all(
+        elementsToTransition.map(node => transitionExit(node, exitTransition, exitConfig))
+      );
+      
+      // Restore original styles
+      capturedSizes.forEach(({ element, position, top, left, right, bottom }) => {
+        element.style.position = position;
+        element.style.top = top;
+        element.style.left = left;
+        element.style.right = right;
+        element.style.bottom = bottom;
+        element.style.width = '';
+        element.style.height = '';
+      });
+    }
+
     // Remove all nodes between markers
     currentNodes.forEach(node => (node as ChildNode).remove());
     currentNodes = [];
@@ -89,6 +172,17 @@ export function When(props: WhenProps): HTMLElement {
       currentNodes.push(node);
       endMarker.parentNode!.insertBefore(node, endMarker);
     }
+
+    // Enter transition for new nodes
+    if (currentNodes.length > 0 && enterTransition) {
+      await Promise.all(
+        currentNodes
+          .filter(node => node instanceof HTMLElement)
+          .map(node => transitionEnter(node as HTMLElement, enterTransition, enterConfig))
+      );
+    }
+
+    isTransitioning = false;
   };
 
   // Wrap in a span to return an HTMLElement
@@ -97,8 +191,9 @@ export function When(props: WhenProps): HTMLElement {
   wrapper.appendChild(startMarker);
   wrapper.appendChild(endMarker);
 
-  // Initial render AFTER markers are attached to a parent
-  render();
+  // Initial render - schedule after wrapper is attached to DOM
+  // Use microtask to ensure parent has appended wrapper first
+  queueMicrotask(() => render());
   
   // Watch all conditions
   watch(conditions, render);
@@ -585,3 +680,138 @@ function LoginStatus() {
 }
 
 */
+
+// ============================================
+// PORTAL Component
+// ============================================
+
+interface PortalProps {
+  target?: Element | string; // Element or CSS selector
+  children: Node | Node[] | (() => Node);
+}
+
+/**
+ * Render children into a different part of the DOM tree.
+ * Useful for modals, tooltips, dropdowns that need to escape parent overflow/z-index.
+ * 
+ * Props:
+ * - `target`: Element or CSS selector (default: document.body)
+ * - `children`: Content to render in the portal
+ * 
+ * Examples (JSX):
+ * - Basic portal to body
+ *   ```tsx
+ *   <Portal>
+ *     <div class="modal">Modal content</div>
+ *   </Portal>
+ *   ```
+ * 
+ * - Portal to specific element
+ *   ```tsx
+ *   <Portal target="#modal-root">
+ *     <div class="modal">Modal content</div>
+ *   </Portal>
+ *   ```
+ * 
+ * - Portal with CSS selector
+ *   ```tsx
+ *   <Portal target=".portal-container">
+ *     <Tooltip />
+ *   </Portal>
+ *   ```
+ * 
+ * - Conditional modal with Portal
+ *   ```tsx
+ *   function App() {
+ *     const showModal = ref(false)
+ *     
+ *     return (
+ *       <div>
+ *         <button onClick={() => showModal.value = true}>Open Modal</button>
+ *         
+ *         <When>
+ *           {showModal}
+ *           {() => (
+ *             <Portal>
+ *               <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+ *                 <div class="bg-white p-6 rounded-lg">
+ *                   <h2>Modal Title</h2>
+ *                   <p>Modal content here</p>
+ *                   <button onClick={() => showModal.value = false}>Close</button>
+ *                 </div>
+ *               </div>
+ *             </Portal>
+ *           )}
+ *         </When>
+ *       </div>
+ *     )
+ *   }
+ *   ```
+ * 
+ * Notes:
+ * - Portal maintains component context (reactive state, event handlers work)
+ * - Automatically cleaned up when component unmounts
+ * - Portal container is removed from DOM on cleanup
+ * - If target doesn't exist, falls back to document.body with warning
+ */
+export function Portal(props: PortalProps): HTMLElement {
+  // Resolve target element
+  let targetElement: Element;
+  
+  if (!props.target) {
+    targetElement = document.body;
+  } else if (typeof props.target === 'string') {
+    const found = document.querySelector(props.target);
+    if (!found) {
+      console.warn(`[Portal] Target "${props.target}" not found, falling back to document.body`);
+      targetElement = document.body;
+    } else {
+      targetElement = found;
+    }
+  } else {
+    targetElement = props.target;
+  }
+  
+  // Create container that will be inserted into target
+  const portalContainer = document.createElement('div');
+  portalContainer.setAttribute('data-portal', 'true');
+  
+  // Render children into portal container
+  // IMPORTANT: Children are already rendered JSX nodes with event handlers attached
+  const children = typeof props.children === 'function' 
+    ? props.children() 
+    : props.children;
+  
+  if (Array.isArray(children)) {
+    children.forEach(child => {
+      if (child instanceof Node) {
+        portalContainer.appendChild(child);
+      }
+    });
+  } else if (children instanceof Node) {
+    portalContainer.appendChild(children);
+  }
+  
+  // Mount portal container to target immediately
+  // The children's event handlers are already bound when JSX created them
+  targetElement.appendChild(portalContainer);
+  
+  // Cleanup: remove portal container when component unmounts
+  onUnmount(() => {
+    if (portalContainer.parentNode) {
+      portalContainer.parentNode.removeChild(portalContainer);
+    }
+  });
+  
+  // Return the portal container itself instead of a comment
+  // This allows the parent component to track it properly
+  // We'll wrap it in a span to maintain structure
+  const wrapper = document.createElement('span');
+  wrapper.style.display = 'none'; // Hide the wrapper in original location
+  wrapper.setAttribute('data-portal-placeholder', 'true');
+  
+  // Store reference to portal container for debugging
+  (wrapper as any).__portalContainer = portalContainer;
+  
+  return wrapper;
+}

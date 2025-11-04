@@ -111,7 +111,7 @@ export function App(){
         )}
 
         {() => (
-          <section class="columns-1 md:columns-2 xl:columns-3 gap-2">
+          <section style={{aspectRatio: 10}} class="columns-1 md:columns-2 xl:columns-3 gap-2">
             <For each={watch(data, (d) => (d || []) as Photo[])}>{(photo) => <ImageLoader photo={photo} />}</For>
           </section>
         )}
@@ -152,7 +152,7 @@ export  function ImageLoader({ photo }: { photo: Photo }) {
     <img
       ref={(element) => observer.observe(element)}
       class="w-full rounded-lg bg-gray-400 my-1 block"
-      style={{aspectRatio: String(photo.width / photo.height)}}
+      style={{aspectRatio: photo.width / photo.height}}
       src={imgSrc}
       alt={photo.alt}
     />

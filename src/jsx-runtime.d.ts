@@ -12,6 +12,13 @@ type AriaAttr = `aria-${string}`;
 type Child = string | number | Node | Reactive<string | number | Node>;
 type Children = Child | Child[];
 
+// CSS properties that accept string or number values
+type CSSProperties = {
+  [K in keyof CSSStyleDeclaration]?: string | number;
+};
+
+
+
 interface EventProps {
   onClick?: (e: MouseEvent) => void;
   onDblclick?: (e: MouseEvent) => void;

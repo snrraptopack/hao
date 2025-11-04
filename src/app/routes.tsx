@@ -12,7 +12,9 @@ import { postsRoutes } from './modules/posts/routes'
 import { adminRoutes } from './modules/admin/routes'
 import { adminGuard } from './modules/admin/guard'
 import { SearchPage } from './modules/search/SearchPage'
-import { App} from './pages/Simple'
+import { App as SimpleApp } from './pages/Simple'
+import { App as PortalDemoApp } from './pages/PortalDemo'
+
 
 // Base route at '/'
 export const baseRoutes = defineRoutes([
@@ -105,10 +107,19 @@ export const adminGrouped = group('/admin', { guard: adminGuard, layout: AppLayo
 const simple = defineRoutes([
   {
     path:"/simple",
-    // No cast needed - TypeScript infers params as { id: string | number }
-    component:App,
+    component: SimpleApp,
     name:"simple"
-  }
+  },
+  {
+    path:"/portal-demo",
+    component: PortalDemoApp,
+    name:"portal-demo",
+    meta: {
+      title: 'Portal Demo - Auwla',
+      description: 'Demonstration of Portal component for modals, tooltips, and dropdowns',
+      keywords: 'portal, modal, tooltip, dropdown'
+    }
+  },
 ])
 
 // All routes composed

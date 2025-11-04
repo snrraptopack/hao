@@ -5,8 +5,8 @@
 type AllRoutes = typeof import('./routes').allRoutes;
 
 // Export the paths type so it can be imported and used directly
-export type AppRoutePaths = '/' | '/app/devtools' | '/app/home' | '/app/perf' | '/app/route-scope-demo' | '/app/search' | '/devtools' | '/home' | '/perf' | '/route-scope-demo' | '/search' | '/simple';
-export type AppRouteNames = 'devtools' | 'landing' | 'perf' | 'route-scope-demo' | 'search' | 'simple';
+export type AppRoutePaths = '/' | '/app/devtools' | '/app/home' | '/app/perf' | '/app/route-scope-demo' | '/app/search' | '/devtools' | '/home' | '/perf' | '/portal-demo' | '/route-scope-demo' | '/search' | '/simple';
+export type AppRouteNames = 'devtools' | 'landing' | 'perf' | 'portal-demo' | 'route-scope-demo' | 'search' | 'simple';
 
 declare global {
   interface AuwlaRouterAppPaths {
@@ -18,6 +18,7 @@ declare global {
     'devtools': '/app/devtools';
     'landing': '/';
     'perf': '/app/perf';
+    'portal-demo': '/portal-demo';
     'route-scope-demo': '/app/route-scope-demo';
     'search': '/app/search';
     'simple': '/simple';

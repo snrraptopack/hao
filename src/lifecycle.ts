@@ -59,7 +59,7 @@ export function onUnmount(callback: CleanupFn) {
   currentComponent.cleanups.add(callback);
 }
 
-import { getRoutedContext } from './router'
+import { getRoutedContext, type RoutedContext } from './router'
 
 // Routed lifecycle: runs after mount with route context provided by the router
 
@@ -73,26 +73,40 @@ import { getRoutedContext } from './router'
  * ```tsx
  * function UserPage() {
  *   onRouted((ctx) => {
- *     // Access path, params, query, router and previous match
- *     console.log(ctx.path, ctx.params.id, ctx.query.tab)
+ *     // Access current route information
+ *     console.log('Path:', ctx.path)
+ *     console.log('Params:', ctx.params.id)
+ *     console.log('Query:', ctx.query.tab)
+ *     
+ *     // Access previous route (now available!)
+ *     if (ctx.prev) {
+ *       console.log('Came from:', ctx.prev.path)
+ *       console.log('Previous params:', ctx.prev.params)
+ *     }
  *
  *     // Cache fetched data on the router to avoid refetching
  *     if (!ctx.state.user) {
- *       // fetchUser returns a promise, you can manage it here
- *       // and optionally return a cleanup for abort controllers, etc.
- *       // ctx.state.user = await fetchUser(ctx.params.id)
+ *       fetchUser(ctx.params.id).then(user => {
+ *         ctx.state.user = user
+ *       })
+ *     }
+ *     
+ *     // Optional: return cleanup function
+ *     return () => {
+ *       console.log('Route cleanup')
  *     }
  *   })
- *   return <div>User { /* render using refs or ctx.state /*} </div>
- /** 
- *
+ *   return <div>User page content</div>
+ * }
+ * ```
  *
  * Notes:
  * - Runs after mount; cleanup (if returned) is handled automatically.
  * - Prefer this over route-level `routed` when you need component-local effects.
+ * - `ctx.prev` contains previous route match (path, params, query, route) or null if first navigation.
  */
 export function onRouted(
-  callback: (ctx: ReturnType<typeof getRoutedContext> extends infer C ? C : any) => void | CleanupFn
+  callback: (ctx: RoutedContext) => void | CleanupFn
 ) {
   if (!currentComponent) {
     console.warn('onRouted called outside component context');
@@ -174,4 +188,73 @@ export function createComponentContext(): ComponentContext {
     mountCallbacks: [],
     isMounted: false
   };
+}
+
+import { ref, type Ref } from './state';
+
+/**
+ * Hook for handling errors within a component.
+ * Returns a ref that will contain any error caught during rendering or lifecycle.
+ * 
+ * Example (JSX):
+ * ```tsx
+ * function DashboardWidget() {
+ *   const error = onError()
+ *   
+ *   // Your component logic that might throw
+ *   const data = fetchData() // might throw
+ *   
+ *   // Render error UI if error occurred
+ *   if (error.value) {
+ *     return (
+ *       <div class="error-widget">
+ *         <h3>Widget Error</h3>
+ *         <p>{error.value.message}</p>
+ *         <button onClick={() => window.location.reload()}>Retry</button>
+ *       </div>
+ *     )
+ *   }
+ *   
+ *   return <div>Widget content: {data}</div>
+ * }
+ * ```
+ * 
+ * Advanced: Wrap risky operations
+ * ```tsx
+ * function UserProfile() {
+ *   const error = onError()
+ *   const user = ref<User | null>(null)
+ *   
+ *   onMount(() => {
+ *     try {
+ *       const data = await fetchUser()
+ *       user.value = data
+ *     } catch (e) {
+ *       error.value = e as Error
+ *     }
+ *   })
+ *   
+ *   if (error.value) {
+ *     return <div>Failed to load: {error.value.message}</div>
+ *   }
+ *   
+ *   return <div>User: {user.value?.name}</div>
+ * }
+ * ```
+ * 
+ * Note: This is for component-local error handling. For app-wide error catching,
+ * consider wrapping your root component in a try-catch or using window.onerror.
+ */
+export function onError(): Ref<Error | null> {
+  const error = ref<Error | null>(null);
+  
+  if (!currentComponent) {
+    console.warn('onError called outside component context');
+    return error;
+  }
+  
+  // Store error ref in context so it can be set by error handlers
+  (currentComponent as any).__errorRef = error;
+  
+  return error;
 }

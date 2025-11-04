@@ -11,14 +11,14 @@ export type { Store, SubStore } from './store';
 export { h, Fragment } from './jsx';
 
 // JSX utilities
-export { When,For } from './jsxutils';
+export { When, For, Portal } from './jsxutils';
 
 // Component system
 export { Component } from './dsl';
 export type { LayoutBuilder } from './dsl';
 
 // Lifecycle hooks
-export { onMount, onUnmount } from './lifecycle';
+export { onMount, onUnmount, onError } from './lifecycle';
 
 // Context management
 export { createContext, Provider, useContext, useReactiveContext, setGlobalContext, type Context } from './context';
