@@ -3,8 +3,108 @@ import { isDevEnv } from "./devtools";
 import { createComponentContext, setCurrentComponent, executeMountCallbacks, executeCleanup } from "./lifecycle";
 // PathParams generic is defined in this module (see below)
 
+// Reference the global AuwlaRouterAppPaths interface that will be augmented 
+// by the app's route-types.d.ts. This allows useTypedParams to provide 
+// autocomplete for registered routes.
+// The interface is declared in src/app/route-types.d.ts
+
 export type RouteParams = Record<string, string | number>;
 export type QueryParams = Record<string, string>;
+
+// ============================================================================
+// Runtime Route Validation (Development Only)
+// ============================================================================
+
+/**
+ * Calculate Levenshtein distance between two strings for fuzzy matching.
+ * Used to suggest similar routes when a typo is detected.
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0]![j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i]![j] = matrix[i - 1]![j - 1]!;
+      } else {
+        matrix[i]![j] = Math.min(
+          matrix[i - 1]![j - 1]! + 1,
+          matrix[i]![j - 1]! + 1,
+          matrix[i - 1]![j]! + 1
+        );
+      }
+    }
+  }
+
+  return matrix[b.length]![a.length]!;
+}
+
+/**
+ * Find similar routes based on Levenshtein distance.
+ * Returns up to 3 suggestions sorted by similarity.
+ */
+function findSimilarRoutes(path: string, registeredPaths: string[]): string[] {
+  const withDistance = registeredPaths
+    .map(registered => ({
+      path: registered,
+      distance: levenshteinDistance(path, registered)
+    }))
+    .filter(({ distance }) => distance <= 3) // Only suggest if within 3 edits
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 3);
+
+  return withDistance.map(({ path }) => path);
+}
+
+/**
+ * Validate that a route path exists in the registered routes.
+ * Shows a warning in development with helpful suggestions if not found.
+ */
+function validateRoutePath(path: string, registeredPaths: string[], context: string): void {
+  if (!isDevEnv()) return; // Skip in production
+
+  // Strip query string and trailing slash for comparison
+  const pathWithoutQuery = path.split('?')[0] || '/';
+  const normalizedPath = pathWithoutQuery.replace(/\/$/, '') || '/';
+  
+  // Normalize registered paths for comparison
+  const normalizedRegistered = registeredPaths.map(p => p.replace(/\/$/, '') || '/');
+  
+  // Check if path matches any registered route (exact or pattern)
+  const isValid = normalizedRegistered.some(registered => {
+    // Exact match
+    if (normalizedPath === registered) return true;
+    
+    // Pattern match (e.g., /users/:id should accept /users/123)
+    if (registered.includes(':')) {
+      const pattern = registered.replace(/:[^/]+/g, '[^/]+');
+      const regex = new RegExp(`^${pattern}$`);
+      return regex.test(normalizedPath);
+    }
+    
+    return false;
+  });
+
+  if (!isValid) {
+    const suggestions = findSimilarRoutes(normalizedPath, normalizedRegistered);
+    const suggestionText = suggestions.length > 0
+      ? `\n   Did you mean: ${suggestions.join(', ')}?`
+      : '';
+
+    console.warn(
+      `[Auwla Router] Invalid route path in ${context}: "${path}"${suggestionText}\n` +
+      `   Registered routes: ${normalizedRegistered.join(', ')}`
+    );
+  }
+}
 
 export type RouteGuard = (to: RouteMatch, from: RouteMatch | null) => boolean | Promise<boolean>;
 
@@ -205,6 +305,16 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     })
     
   }
+
+  /**
+   * Get all registered route paths (for validation).
+   * Only includes string paths, not RegExp routes.
+   */
+  private getRegisteredPaths(): string[] {
+    return this.routes
+      .map(r => r.path)
+      .filter((p): p is string => typeof p === 'string');
+  }
   
   /**
    * Add a route with optional name and guard
@@ -266,6 +376,9 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
   push<P extends string>(path: WithOptionalQuery<P>) {
     if (path === this.currentPath.value) return
     
+    // Validate route in development
+    validateRoutePath(path, this.getRegisteredPaths(), 'router.push()')
+    
     // Save current scroll position before navigating
     this.scrollPositions.set(this.currentPath.value, {
       x: window.scrollX,
@@ -285,6 +398,9 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
    * ```
    */
   replace<P extends string>(path: WithOptionalQuery<P>) {
+    // Validate route in development
+    validateRoutePath(path, this.getRegisteredPaths(), 'router.replace()')
+    
     // Save scroll position for the current path before replacing
     this.scrollPositions.set(this.currentPath.value, {
       x: window.scrollX,
@@ -834,9 +950,56 @@ export function getRouter(): Router<any> {
  */
 import { Component } from "./dsl"
 
-export function Link<P extends string>(config: {
+// Declare global stub interfaces that apps can augment via module augmentation
+// Apps should create src/app/route-types.d.ts to augment AuwlaRouterAppPaths with actual route paths
+// The vite-plugin-route-types will auto-generate this file
+declare global {
+  // Stub interface - will be augmented by app's route-types.d.ts
+  // Using interface declaration merging allows apps to override with specific paths
+  // Note: The 'paths' property MUST NOT be optional here to match the augmented version
+  interface AuwlaRouterAppPaths {
+    paths: never; // Default: no paths, will be overridden by app
+  }
+  // Stub interface for name-to-path mapping
+  interface AuwlaRoutePathsByName {
+    // Default: empty mapping
+  }
+}
+
+// Helper type to extract registered paths for autocomplete
+// If the app has augmented AuwlaRouterAppPaths with actual paths, use those
+// Otherwise fall back to string (no autocomplete but still works)
+type RegisteredPaths = [AuwlaRouterAppPaths['paths']] extends [never]
+  ? string
+  : AuwlaRouterAppPaths['paths'];
+
+/**
+ * Link component for client-side navigation.
+ * The `to` prop will autocomplete with all registered routes once route types are generated.
+ * 
+ * To enable autocomplete:
+ * 1. Use the vite-plugin-route-types in your vite.config.ts
+ * 2. The plugin will auto-generate src/app/route-types.d.ts with all your routes
+ * 3. Restart your TypeScript server to pick up the new types
+ * 
+ * @example
+ * ```tsx
+ * // Simple link (autocompletes all registered paths!)
+ * <Link to="/app/home" text="Home" />
+ * 
+ * // Link with params (TypeScript ensures params match the path pattern)
+ * <Link to="/simple/:id" params={{ id: 42 }} text="View Item" />
+ * 
+ * // Link with query params
+ * <Link to="/app/search" query={{ q: "laptop" }} text="Search" />
+ * 
+ * // Link with active className
+ * <Link to="/app/home" text="Home" activeClassName="active" />
+ * ```
+ */
+export function Link<P extends RegisteredPaths = RegisteredPaths>(config: {
   to: P;
-  params?: PathParams<P>;
+  params?: P extends string ? PathParams<P> : never;
   query?: Record<string, string | number>;
   text: string | Ref<string>;
   className?: string | Ref<string>;
@@ -867,6 +1030,9 @@ export function Link<P extends string>(config: {
 
     try {
       router = getRouter();
+      
+      // Validate route in development
+      validateRoutePath(String(config.to), router['getRegisteredPaths'](), 'Link component');
       isActive = watch(router.currentPath, (path) => {
         return stripQuery(path) === stripQuery(href);
       }) as Ref<boolean>;
@@ -1001,8 +1167,79 @@ export function useRouter(): Router<any> {
  * 
  * Builder usage remains supported.
  */
+/**
+ * Hook to access current route parameters.
+ * Returns a Ref containing a Record of param names to values.
+ * 
+ * Note: Individual params may be undefined if not present in the current route.
+ * Use optional chaining (?.) or nullish coalescing (??) when accessing params:
+ * 
+ * Example (JSX):
+ * ```tsx
+ * function UserPage() {
+ *   const params = useParams()
+ *   // Safe access with nullish coalescing
+ *   const userId = params.value.id ?? 'unknown'
+ *   
+ *   // Or with optional chaining
+ *   const tab = params.value.tab?.toString() || 'overview'
+ *   
+ *   return <div>User {userId} - Tab: {tab}</div>
+ * }
+ * ```
+ * 
+ * For fully typed params, use the component's params argument:
+ * ```tsx
+ * function UserPage(params?: { id: string }) {
+ *   // params.id is guaranteed to be a string when the route matches
+ *   return <div>User {params!.id}</div>
+ * }
+ * ```
+ */
 export function useParams(): Ref<RouteParams> {
   return getRouter().currentParams
+}
+
+/**
+ * Typed version of useParams for specific route patterns.
+ * Provides compile-time type safety and IDE autocomplete for route parameters.
+ * The path parameter will autocomplete with all registered routes from your app
+ * (auto-generated in src/app/route-types.d.ts by vite-plugin-route-types).
+ * 
+ * The generic parameter P will autocomplete with all registered paths once
+ * the route types are generated. If you see type errors, run the build or dev server.
+ * 
+ * @template P - The route path pattern (autocompletes from registered routes)
+ * 
+ * Example (JSX):
+ * ```tsx
+ * function UserPage() {
+ *   // TypeScript will autocomplete available paths: '/users/:userId', '/app/home', '/simple/:id', etc.
+ *   const params = useTypedParams<'/users/:userId'>()
+ *   const userId = params.value.userId // TypeScript knows userId is string | number
+ *   
+ *   return <div>User {userId}</div>
+ * }
+ * ```
+ * 
+ * Example with autocomplete in Simple component:
+ * ```tsx
+ * function Simple() {
+ *   const params = useTypedParams<'/simple/:id'>() // ← Path autocompletes!
+ *   const id = params.value.id // Type: string | number (no undefined!)
+ *   return <div>ID: {id}</div>
+ * }
+ * ```
+ * 
+ * Note: This function provides type-level validation only. For runtime validation,
+ * use Link component or router.push() which check routes against registered paths.
+ */
+export function useTypedParams<
+  P extends string = string
+>(): Ref<PathParams<P>> {
+  // Note: We can't validate P at runtime since it's erased by TypeScript
+  // Validation happens in Link component and router.push/replace instead
+  return getRouter().currentParams as Ref<PathParams<P>>
 }
 
 /**

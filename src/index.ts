@@ -28,7 +28,7 @@ export { initDevTools, getDevTools } from './devtools';
 export { enableDevToolsOverlay, disableDevToolsOverlay } from './devtools-ui';
 
 // Routing
-export { Router, Link, useRouter, useParams, useQuery, setRouter, getRouter } from './router'
+export { Router, Link, useRouter, useParams, useTypedParams, useQuery, setRouter, getRouter } from './router'
 export type {
   Route,
   RouteMatch,

@@ -12,6 +12,7 @@ import { postsRoutes } from './modules/posts/routes'
 import { adminRoutes } from './modules/admin/routes'
 import { adminGuard } from './modules/admin/guard'
 import { SearchPage } from './modules/search/SearchPage'
+import { App} from './pages/Simple'
 
 // Base route at '/'
 export const baseRoutes = defineRoutes([
@@ -101,5 +102,14 @@ export const appGrouped = group('/app', { layout: AppLayout }, composeRoutes(
 // Admin routes grouped under /admin with guard and shared layout
 export const adminGrouped = group('/admin', { guard: adminGuard, layout: AppLayout }, adminRoutes)
 
+const simple = defineRoutes([
+  {
+    path:"/simple",
+    // No cast needed - TypeScript infers params as { id: string | number }
+    component:App,
+    name:"simple"
+  }
+])
+
 // All routes composed
-export const allRoutes = composeRoutes(baseRoutes, appGrouped, adminGrouped)
+export const allRoutes = composeRoutes(baseRoutes, appGrouped, adminGrouped, simple)

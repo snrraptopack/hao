@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite'
+import { routeTypesPlugin } from './scripts/vite-plugin-route-types'
 // import react from '@vitejs/plugin-react'; // Commented out to use custom JSX runtime
 
 
@@ -28,6 +29,7 @@ export default defineConfig({
     open: true
   },
   plugins: [
+    routeTypesPlugin(), // Auto-generate route types for IDE autocomplete
     tailwindcss(),
     // react(), // Commented out to use custom JSX runtime
     //templateCompiler({ verbose: false, emitDebugFiles: true })

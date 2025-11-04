@@ -25,7 +25,7 @@ export function PostsList(): HTMLElement {
         {loading}
         {() => <div class="text-gray-500">Loading posts…</div>}
         {hasError}
-        {() => <div class="text-red-600">Error: {error.value}</div>}
+        {() => <div class="text-red-600">Error: {error.value ?? ""}</div>}
         {() => (
           <div class="space-y-3">
             <For each={posts} render={(p) => (

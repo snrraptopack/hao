@@ -1,6 +1,6 @@
 {
   "name": "create-auwla",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Initialize a new Auwla app from ready-to-run templates",
   "type": "module",
   "bin": {

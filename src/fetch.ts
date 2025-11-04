@@ -2,11 +2,11 @@ import { ref, type Ref } from "./state";
 import { onMount } from "./lifecycle";
 import { createResource, type Resource } from './resource'
 
-export type FetchState<T> = {
+export type FetchState<T, P = void> = {
   data: Ref<T | null>;
   loading: Ref<boolean>;
   error: Ref<string | null>;
-  refetch: () => Promise<void>;
+  refetch: (param?: P) => Promise<void>;
 }
 
 /**
@@ -60,33 +60,41 @@ export function fetch<T>(
  * Async operation helper (does not auto-run on mount).
  * Useful for manual actions like form submissions.
  * 
- * @param {Function} fn - Async function to execute
- * @returns {FetchState<T>} Object with data, loading, error, and `refetch` as the execute function
+ * @param {Function} fn - Async function to execute (optionally accepts a parameter)
+ * @returns {FetchState<T, P>} Object with data, loading, error, and `refetch` as the execute function
  * 
  * Example (JSX):
  * ```tsx
+ * // Without parameter
  * const { data, loading, error, refetch } = asyncOp(async () => {
  *   const res = await fetch('/api/submit', { method: 'POST' })
  *   return res.json()
  * })
  * 
- * <button onClick={() => refetch()} disabled={loading.value}>Submit</button>
+ * // With parameter
+ * const { data, loading, error, refetch } = asyncOp(async (searchTerm: string) => {
+ *   return getImages(searchTerm)
+ * })
+ * 
+ * <button onClick={() => refetch('cats')} disabled={loading.value}>Submit</button>
  * {error.value && <div>Error: {error.value}</div>}
  * ```
  * 
  * Builder usage remains supported.
  */
-export function asyncOp<T>(fn: () => Promise<T>): FetchState<T> {
+export function asyncOp<T, P = void>(
+  fn: (param: P) => Promise<T>
+): FetchState<T, P> {
   const data = ref<T | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
   
-  const execute = async () => {
+  const execute = async (param?: P) => {
     loading.value = true
     error.value = null
     
     try {
-      const result = await fn()
+      const result = await fn(param as P)
       data.value = result
     } catch (e) {
       error.value = (e as Error).message
