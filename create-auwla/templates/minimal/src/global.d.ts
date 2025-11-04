@@ -1,8 +1,9 @@
-// Runtime exports used by automatic JSX
-export declare const Fragment: any;
-export declare function jsx(type: any, props?: any, key?: any): any;
-export declare const jsxs: typeof jsx;
+/**
+ * TypeScript declarations for Auwla template file support and helpers.
+ * Kept separate from global JSX types to avoid duplication during library build.
+ */
 
+// Global JSX declarations so consumers can use JSX without React types
 import type { Ref } from 'auwla';
 
 type Reactive<T> = T | Ref<T>;
@@ -12,31 +13,42 @@ type AriaAttr = `aria-${string}`;
 type Child = string | number | Node | Reactive<string | number | Node>;
 type Children = Child | Child[];
 
+// CSS properties that accept string or number values
+type CSSProperties = {
+  [K in keyof CSSStyleDeclaration]?: string | number;
+};
+
 interface EventProps {
+  // Mouse
   onClick?: (e: MouseEvent) => void;
-  onDblclick?: (e: MouseEvent) => void;
-  onMouseenter?: (e: MouseEvent) => void;
-  onMouseleave?: (e: MouseEvent) => void;
-  onMousemove?: (e: MouseEvent) => void;
-  onMousedown?: (e: MouseEvent) => void;
-  onMouseup?: (e: MouseEvent) => void;
-  onKeydown?: (e: KeyboardEvent) => void;
-  onKeyup?: (e: KeyboardEvent) => void;
-  onKeypress?: (e: KeyboardEvent) => void;
+  onDblClick?: (e: MouseEvent) => void;
+  onMouseEnter?: (e: MouseEvent) => void;
+  onMouseLeave?: (e: MouseEvent) => void;
+  onMouseMove?: (e: MouseEvent) => void;
+  onMouseDown?: (e: MouseEvent) => void;
+  onMouseUp?: (e: MouseEvent) => void;
+  // Keyboard
+  onKeyDown?: (e: KeyboardEvent) => void;
+  onKeyUp?: (e: KeyboardEvent) => void;
+  onKeyPress?: (e: KeyboardEvent) => void;
+  // Focus
   onFocus?: (e: FocusEvent) => void;
   onBlur?: (e: FocusEvent) => void;
+  // Input & Change
   onInput?: (e: InputEvent) => void;
   onChange?: (e: Event) => void;
+  // Form
   onSubmit?: (e: SubmitEvent) => void;
-  onPointerdown?: (e: PointerEvent) => void;
-  onPointerup?: (e: PointerEvent) => void;
-  onPointermove?: (e: PointerEvent) => void;
-  onPointerenter?: (e: PointerEvent) => void;
-  onPointerleave?: (e: PointerEvent) => void;
-  onTouchstart?: (e: TouchEvent) => void;
-  onTouchend?: (e: TouchEvent) => void;
-  onTouchmove?: (e: TouchEvent) => void;
-  onTouchcancel?: (e: TouchEvent) => void;
+  // Pointer & Touch
+  onPointerDown?: (e: PointerEvent) => void;
+  onPointerUp?: (e: PointerEvent) => void;
+  onPointerMove?: (e: PointerEvent) => void;
+  onPointerEnter?: (e: PointerEvent) => void;
+  onPointerLeave?: (e: PointerEvent) => void;
+  onTouchStart?: (e: TouchEvent) => void;
+  onTouchEnd?: (e: TouchEvent) => void;
+  onTouchMove?: (e: TouchEvent) => void;
+  onTouchCancel?: (e: TouchEvent) => void;
 }
 
 type BaseProps<E extends HTMLElement> = EventProps & {
@@ -48,7 +60,7 @@ type BaseProps<E extends HTMLElement> = EventProps & {
   id?: Reactive<string>;
   title?: Reactive<string>;
   hidden?: Reactive<boolean>;
-  style?: Reactive<string | Partial<CSSStyleDeclaration>>;
+  style?: Reactive<string | Partial<CSSProperties>>;
   tabIndex?: Reactive<number>;
   draggable?: Reactive<boolean>;
   contentEditable?: Reactive<boolean>;
@@ -115,10 +127,10 @@ interface FormProps extends BaseProps<HTMLFormElement> {
   method?: Reactive<string>;
 }
 
-// Global JSX types so consumers get intrinsic elements without React types
 declare global {
   namespace JSX {
     interface IntrinsicElements {
+      // Common text/content elements
       div: BaseProps<HTMLDivElement>;
       span: BaseProps<HTMLSpanElement>;
       p: BaseProps<HTMLParagraphElement>;
@@ -161,6 +173,7 @@ declare global {
       dialog: BaseProps<HTMLDialogElement>;
       label: BaseProps<HTMLLabelElement>;
 
+      // Interactive & forms
       a: AnchorProps;
       button: ButtonProps;
       input: InputProps;
@@ -171,6 +184,7 @@ declare global {
       fieldset: BaseProps<HTMLFieldSetElement>;
       legend: BaseProps<HTMLLegendElement>;
 
+      // Media
       img: ImgProps;
       audio: BaseProps<HTMLAudioElement>;
       video: BaseProps<HTMLVideoElement>;
@@ -179,6 +193,7 @@ declare global {
       canvas: BaseProps<HTMLCanvasElement>;
       iframe: BaseProps<HTMLIFrameElement>;
 
+      // Tables
       table: BaseProps<HTMLTableElement>;
       thead: BaseProps<HTMLTableSectionElement>;
       tbody: BaseProps<HTMLTableSectionElement>;
@@ -189,6 +204,7 @@ declare global {
       col: BaseProps<HTMLTableColElement>;
       colgroup: BaseProps<HTMLTableColElement>;
 
+      // Misc
       hr: BaseProps<HTMLHRElement>;
       br: BaseProps<HTMLBRElement>;
       address: BaseProps<HTMLElement>;
@@ -197,11 +213,26 @@ declare global {
       meter: BaseProps<HTMLMeterElement>;
       template: BaseProps<HTMLTemplateElement>;
     }
-    // Children property name for JSX elements
+
+    // Children property name for JSX
     interface ElementChildrenAttribute { children: Children }
-    // Shape of an element produced by Auwla JSX
+    // Define Element type for JSX
     type Element = HTMLElement;
   }
+}
+
+declare module '*.auwla' {
+  const component: HTMLElement;
+  export default component;
+}
+
+declare module 'auwla/template' {
+  import { Ref } from './src/state';
+
+  /**
+   * Reactive conditional rendering
+   * Compile-time marker transformed by the Auwla compiler
+   */
 }
 
 export {};
