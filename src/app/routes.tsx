@@ -14,6 +14,8 @@ import { adminGuard } from './modules/admin/guard'
 import { SearchPage } from './modules/search/SearchPage'
 import { App as SimpleApp } from './pages/Simple'
 import { App as PortalDemoApp } from './pages/PortalDemo'
+import { ApiTest } from './pages/ApiTest'
+import { TodoApp } from './pages/TodoApp'
 
 
 // Base route at '/'
@@ -96,6 +98,26 @@ export const appGrouped = group('/app', { layout: AppLayout }, composeRoutes(
         title: 'DevTools Demo - Auwla App',
         description: 'Developer tools integration and debugging features',
         keywords: 'devtools, debugging, development'
+      }
+    },
+    { 
+      path: '/api-test', 
+      component: () => <ApiTest />, 
+      name: 'api-test',
+      meta: {
+        title: 'API Test - Auwla App',
+        description: 'Test the backend API endpoints',
+        keywords: 'api, backend, test'
+      }
+    },
+    { 
+      path: '/todos', 
+      component: () => <TodoApp />, 
+      name: 'todos',
+      meta: {
+        title: 'Todo App - Auwla',
+        description: 'Full-featured todo app with type-safe API',
+        keywords: 'todo, tasks, productivity'
       }
     }
   ])

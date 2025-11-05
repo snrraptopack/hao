@@ -5,8 +5,8 @@
 type AllRoutes = typeof import('./routes').allRoutes;
 
 // Export the paths type so it can be imported and used directly
-export type AppRoutePaths = '/' | '/app/devtools' | '/app/home' | '/app/perf' | '/app/route-scope-demo' | '/app/search' | '/devtools' | '/home' | '/perf' | '/portal-demo' | '/route-scope-demo' | '/search' | '/simple';
-export type AppRouteNames = 'devtools' | 'landing' | 'perf' | 'portal-demo' | 'route-scope-demo' | 'search' | 'simple';
+export type AppRoutePaths = '/' | '/api-test' | '/app/api-test' | '/app/devtools' | '/app/home' | '/app/perf' | '/app/route-scope-demo' | '/app/search' | '/app/todos' | '/devtools' | '/home' | '/perf' | '/portal-demo' | '/route-scope-demo' | '/search' | '/simple' | '/todos';
+export type AppRouteNames = 'api-test' | 'devtools' | 'landing' | 'perf' | 'portal-demo' | 'route-scope-demo' | 'search' | 'simple' | 'todos';
 
 declare global {
   interface AuwlaRouterAppPaths {
@@ -15,6 +15,7 @@ declare global {
   }
   
   interface AuwlaRoutePathsByName {
+    'api-test': '/app/api-test';
     'devtools': '/app/devtools';
     'landing': '/';
     'perf': '/app/perf';
@@ -22,6 +23,7 @@ declare global {
     'route-scope-demo': '/app/route-scope-demo';
     'search': '/app/search';
     'simple': '/simple';
+    'todos': '/app/todos';
   }
 }
 
