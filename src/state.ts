@@ -283,20 +283,36 @@ export function getWatchContext() {
  * const doubled = watch(count, (v) => v * 2)
  * // No manual cleanup needed inside Component!
  */
+// Helper type to map a tuple/array of Refs to their value types
+type Values<S extends readonly Ref<any>[]> = { [K in keyof S]: S[K] extends Ref<infer V> ? V : never };
+
+// Overloads for type-safe watch
 export function watch<T, R>(
-    source: Ref<T> | Ref<any>[],
-    callback: (value: any, oldValue?: any) => R
+    source: Ref<T>,
+    callback: (value: T, oldValue?: T) => R
 ): Ref<R>;
-export function watch<T, R>(
-    source: Ref<T> | Ref<any>[],
-    callback: (value: any, oldValue?: any) => R | void
+export function watch<T>(
+    source: Ref<T>,
+    callback: (value: T, oldValue?: T) => void
+): () => void;
+export function watch<S extends readonly Ref<any>[], R>(
+    source: S,
+    callback: (value: Values<S>, oldValue?: Values<S>) => R
+): Ref<R>;
+export function watch<S extends readonly Ref<any>[]>(
+    source: S,
+    callback: (value: Values<S>, oldValue?: Values<S>) => void
+): () => void;
+export function watch(
+    source: Ref<any> | readonly Ref<any>[],
+    callback: (value: any, oldValue?: any) => any
 ): any {
     const isArray = Array.isArray(source);
-    const sources = isArray ? source : [source];
+    const sources: Ref<any>[] = isArray ? Array.from(source as readonly Ref<any>[]) : [source as Ref<any>];
     
     const getValues = () => isArray 
-        ? sources.map(s => s.value) as T
-        : (sources[0]?.value as T);
+        ? (sources.map(s => s.value) as any)
+        : (sources[0]?.value as any);
     
     let oldValues = getValues();
     let cachedResult = callback(oldValues, undefined);
@@ -349,7 +365,7 @@ export function watch<T, R>(
     }
     
     // Derived ref with memoization, scheduled recompute
-    const derivedRef = ref(cachedResult as R);
+    const derivedRef = ref(cachedResult as any);
 
     let scheduled = false;
     const run = () => {
@@ -362,7 +378,7 @@ export function watch<T, R>(
                 // OPTIMIZATION: Only update if result changed
                 if (!shallowEqual(computedResult, cachedResult)) {
                     cachedResult = computedResult;
-                    derivedRef.value = computedResult as R;
+                    derivedRef.value = computedResult as any;
                 }
             }
             oldValues = newValues;
@@ -397,7 +413,7 @@ export function watch<T, R>(
         currentWatchContext.add((derivedRef as any).__cleanup);
     }
     
-    return derivedRef as Ref<R>;
+    return derivedRef as Ref<any>;
 }
 
 // Convenience alias for side-effect watchers to avoid return-type ambiguity.

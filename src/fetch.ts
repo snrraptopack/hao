@@ -1,11 +1,11 @@
 import { ref, type Ref } from "./state";
 import { onMount } from "./lifecycle";
-import { createResource, type Resource } from './resource'
+import { createResource, type Resource, type AppError, normalizeError } from './resource'
 
 export type FetchState<T, P = void> = {
   data: Ref<T | null>;
   loading: Ref<boolean>;
-  error: Ref<string | null>;
+  error: Ref<AppError | null>;
   refetch: (param?: P) => Promise<void>;
 }
 
@@ -43,7 +43,26 @@ export function fetch<T>(
     const urlString = typeof url === 'function' ? url() : url
     const response = await window.fetch(urlString, { signal })
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      let body: any = null
+      const ct = response.headers.get('content-type') || ''
+      try {
+        if (ct.includes('application/json')) {
+          body = await response.json()
+        } else {
+          body = await response.text()
+        }
+      } catch {}
+      const message = typeof body === 'string'
+        ? body
+        : (body && typeof body === 'object' && 'message' in body ? String((body as any).message) : `HTTP ${response.status}: ${response.statusText}`)
+      const err: AppError = {
+        message,
+        status: response.status,
+        statusText: response.statusText,
+        body,
+        source: 'http'
+      }
+      throw err
     }
     const result = await response.json()
     return result as T
@@ -87,7 +106,7 @@ export function asyncOp<T, P = void>(
 ): FetchState<T, P> {
   const data = ref<T | null>(null)
   const loading = ref(false)
-  const error = ref<string | null>(null)
+  const error = ref<AppError | null>(null)
   
   const execute = async (param?: P) => {
     loading.value = true
@@ -97,7 +116,7 @@ export function asyncOp<T, P = void>(
       const result = await fn(param as P)
       data.value = result
     } catch (e) {
-      error.value = (e as Error).message
+      error.value = normalizeError(e)
       console.error('Async operation error:', e)
     } finally {
       loading.value = false

@@ -3,9 +3,52 @@ import { onMount } from './lifecycle'
 import { isDevEnv } from './devtools'
 import { getWatchContext } from './state'
 
+// Structured error type for data fetching and async operations
+export type AppError = {
+  message: string
+  status?: number
+  statusText?: string
+  code?: string | number
+  body?: unknown
+  source?: 'http' | 'network' | 'abort' | 'unknown'
+  cause?: unknown
+}
+
+export function normalizeError(e: any): AppError {
+  try {
+    // Already an AppError-like object
+    if (e && typeof e === 'object' && 'message' in e) {
+      const obj = e as Partial<AppError & { name?: string }>
+      // AbortError from fetch
+      if (obj.name === 'AbortError') {
+        return { message: 'Request aborted', source: 'abort', cause: e }
+      }
+      return {
+        message: String(obj.message ?? 'Unknown error'),
+        status: obj.status,
+        statusText: obj.statusText,
+        code: obj.code,
+        body: obj.body,
+        source: obj.source ?? 'unknown',
+        cause: obj.cause ?? e,
+      }
+    }
+
+    // Native Error
+    if (e instanceof Error) {
+      return { message: e.message, source: 'unknown', cause: e }
+    }
+
+    // Primitive or unknown shape
+    return { message: String(e), source: 'unknown', cause: e }
+  } catch {
+    return { message: 'Unknown error', source: 'unknown' }
+  }
+}
+
 export type Resource<T> = {
   data: Ref<T | null>
-  error: Ref<string | null>
+  error: Ref<AppError | null>
   loading: Ref<boolean>
   stale: Ref<boolean>
   updatedAt: Ref<number | null>
@@ -21,7 +64,7 @@ export type ResourceOptions<T> = {
 
 type Entry = {
   data: Ref<any>
-  error: Ref<string | null>
+  error: Ref<AppError | null>
   loading: Ref<boolean>
   stale: Ref<boolean>
   updatedAt: Ref<number | null>
@@ -46,7 +89,7 @@ function getOrInitEntry<T>(key: string, fetcher: (signal: AbortSignal) => Promis
 
   const entry: Entry = {
     data: ref<any>(null),
-    error: ref<string | null>(null),
+    error: ref<AppError | null>(null),
     loading: ref<boolean>(false),
     stale: ref<boolean>(false),
     updatedAt: ref<number | null>(null),
@@ -133,7 +176,7 @@ export function createResource<T>(
         if (signal.aborted) {
           if (isDevEnv()) console.log(`[resource:${key}] aborted`)
         } else {
-          entry.error.value = String(e?.message ?? e)
+          entry.error.value = normalizeError(e)
         }
       } finally {
         entry.loading.value = false

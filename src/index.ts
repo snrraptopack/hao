@@ -11,14 +11,14 @@ export type { Store, SubStore } from './store';
 export { h, Fragment } from './jsx';
 
 // JSX utilities
-export { When, For, Portal } from './jsxutils';
+export { When, For, Portal, If } from './jsxutils';
 
 // Component system
 export { Component } from './dsl';
 export type { LayoutBuilder } from './dsl';
 
 // Lifecycle hooks
-export { onMount, onUnmount, onError } from './lifecycle';
+export { onMount, onUnmount, onError,onRouted } from './lifecycle';
 
 // Context management
 export { createContext, Provider, useContext, useReactiveContext, setGlobalContext, type Context } from './context';
@@ -47,7 +47,7 @@ export { defineRoutes, composeRoutes, group, pathFor } from './routes'
 export { fetch, asyncOp } from './fetch'
 export { createResource } from './resource'
 export type { FetchState } from './fetch'
-export type { Resource } from './resource'
+export type { Resource, AppError } from './resource'
 
 // Optional integrations are available as separate imports:
 // import { ReactIsland, createReactIsland } from 'auwla/integrations/react'

@@ -3,7 +3,7 @@ import { ref, watch, derive } from '../../state'
 import { createResource } from '../../resource'
 import { When, For } from '../../jsxutils'
 import { $api } from '../$api'
-import {fetch} from "../../index"
+import {asyncOp,onMount} from "../../index"
 
 type Todo = {
   id: number
@@ -15,16 +15,12 @@ type Todo = {
 export function TodoApp() {
   const newTodoText = ref('')
   
-  // Use createResource for automatic loading states and caching
-  const todosResource = createResource<{ todos: Todo[] }>(
-    'todos-list',
-    async (signal) => {
-      return await $api.todos.get({},{signal})
-    },
-    { scope: 'route', staleTime: 50000 } // Cache for 5 seconds
-  )
-
-  const{data,loading,error,refetch:fetchTodo}  = fetch<{todos:Todo[]}>(()=> $api.todos.get({}))
+  const{
+    data,
+    loading,
+    error,
+    refetch:fetchTodo
+}  = asyncOp<{todos:Todo[]}>(()=> $api.todos.get({}))
 
   const handleAddTodo = async (e: Event) => {
     e.preventDefault()
@@ -32,10 +28,9 @@ export function TodoApp() {
     if (!text) return
 
     try {
-      await $api.todos.post({ body: { text } })
-      newTodoText.value = ''
-      // Refetch to get updated list
-      todosResource.refetch()
+        await $api.todos.post({ body: { text } })
+        newTodoText.value = ''
+        fetchTodo()
     } catch (err) {
       console.error('Failed to add todo:', err)
     }
@@ -47,7 +42,7 @@ export function TodoApp() {
         params: { id: todo.id },
         body: { completed: !todo.completed }
       })
-      todosResource.refetch()
+      fetchTodo()
     } catch (err) {
       console.error('Failed to toggle todo:', err)
     }
@@ -56,21 +51,27 @@ export function TodoApp() {
   const deleteTodo = async (id: number) => {
     try {
       await $api.todo.delete({ params: { id } })
-      todosResource.refetch()
+       fetchTodo()
     } catch (err) {
       console.error('Failed to delete todo:', err)
     }
   }
 
-  // Use derive for computed values - fully type-safe!
-  const activeTodos = derive(() => {
-    const data = todosResource.data.value
-    return data?.todos.filter(t => !t.completed) ?? []
+
+  const activeTodos = derive(()=>{
+    const todos = data.value
+    return todos?.todos.filter(it=> !it.completed) ?? []
   })
 
-  const completedTodos = derive(() => {
-    const data = todosResource.data.value
-    return data?.todos.filter(t => t.completed) ?? []
+
+  const completedTodos = derive(()=>{
+    const todos = data.value
+    return todos?.todos.filter(it=> it.completed) ?? []
+  })
+
+
+  onMount(()=>{
+    fetchTodo()
   })
 
   return (
@@ -101,7 +102,7 @@ export function TodoApp() {
 
         {/* Loading / Error / Content */}
         <When>
-          {todosResource.loading}
+          {loading}
           {() => (
             <div class="text-center py-8 text-gray-500">
               <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -109,10 +110,10 @@ export function TodoApp() {
             </div>
           )}
 
-          {watch(todosResource.error, (err) => err !== null)}
+          {watch(error, (err) => err !== null)}
           {() => (
             <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              Error: {todosResource.error.value ?? ""}
+              Error: {error.value ?? ""}
             </div>
           )}
 

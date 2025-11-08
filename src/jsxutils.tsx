@@ -1,4 +1,4 @@
-import { watch, type Ref } from './state';
+import { watch, type Ref, derive } from './state';
 import { onUnmount } from './lifecycle';
 import type { TransitionFn } from './transition/core';
 import { enter as transitionEnter, exit as transitionExit } from './transition/core';
@@ -198,6 +198,66 @@ export function When(props: WhenProps): HTMLElement {
   // Watch all conditions
   watch(conditions, render);
   
+  return wrapper;
+}
+
+// ============================================
+// IF Helper - derive-powered conditional
+// ============================================
+
+interface IfOptions {
+  predicate?: (v: any) => boolean;
+}
+
+/**
+ * Simple conditional rendering that auto-tracks dependencies via `derive`.
+ * Default gating uses strict JS truthiness (`!!value`), so `0` and `''` are falsy.
+ *
+ * Examples:
+ * - `If(() => loading.value, () => <p>Loading…</p>)`
+ * - `If(() => error.value?.message, msg => <p class="error">{msg}</p>)`
+ * - `If(() => total.value, t => <p>Total: {t}</p>, () => <p>—</p>)`
+ */
+export function If<T>(
+  getter: () => T,
+  then: (value: NonNullable<T>) => Node,
+  otherwise?: () => Node,
+  options?: IfOptions
+): HTMLElement {
+  const predicate = options?.predicate ?? ((v: any) => !!v);
+  const derived = derive(getter);
+
+  const startMarker = document.createComment('if-start');
+  const endMarker = document.createComment('if-end');
+  let currentNodes: Node[] = [];
+
+  const render = (value: T) => {
+    // Remove previous nodes
+    currentNodes.forEach(node => (node as ChildNode).remove());
+    currentNodes = [];
+
+    if (predicate(value)) {
+      const node = then(value as NonNullable<T>);
+      currentNodes.push(node);
+      endMarker.parentNode!.insertBefore(node, endMarker);
+    } else if (otherwise) {
+      const node = otherwise();
+      currentNodes.push(node);
+      endMarker.parentNode!.insertBefore(node, endMarker);
+    }
+  };
+
+  const wrapper = document.createElement('span');
+  wrapper.style.display = 'contents';
+  wrapper.appendChild(startMarker);
+  wrapper.appendChild(endMarker);
+
+  // Initial render once wrapper is in DOM
+  queueMicrotask(() => render(derived.value));
+
+  // Re-render on changes
+  watch(derived, (val) => { render(val as T); });
+
   return wrapper;
 }
 
