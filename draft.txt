@@ -1,0 +1,535 @@
+Perfect! Let's build this properly then.
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+┌─────────────────────────────────────────┐
+│  Developer Code                          │
+│  definePage + component (uses Core JSX) │
+└─────────────────────────────────────────┘
+                   ↓
+┌─────────────────────────────────────────┐
+│  Meta-Framework (auwla-meta)             │
+│  - definePage (HOC factory)              │
+│  - Plugin system                         │
+│  - Context creation                      │
+└─────────────────────────────────────────┘
+                   ↓
+┌─────────────────────────────────────────┐
+│  Auwla Core                              │
+│  - Receives regular components           │
+│  - JSX runtime, reactivity, router       │
+│  - createSignal, createStore, etc.       │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## 🔧 Implementation
+
+```typescript
+// packages/auwla-meta/src/types.ts
+
+export interface PageContext {
+  route: {
+    path: string
+    params: Record<string, string>
+    query: URLSearchParams
+  }
+  // Plugins extend this
+  [key: string]: any
+}
+
+export interface PageDefinition<TContext = any> {
+  // Optional: runs before component renders
+  context?: (ctx: PageContext) => TContext | Promise<TContext>
+  
+  // The actual component - receives context as prop
+  component: (props: { context: PageContext & { data?: TContext } }) => JSX.Element
+  
+  // Optional metadata
+  meta?: {
+    title?: string
+    [key: string]: any
+  }
+}
+
+export interface MetaPlugin {
+  name: string
+  
+  // Hooks
+  onContextCreate?: (ctx: PageContext) => PageContext | Promise<PageContext>
+  onContextExtend?: (ctx: PageContext) => void | Promise<void>
+  onBeforeLoad?: (ctx: PageContext) => void | Promise<void>
+  onAfterLoad?: (ctx: PageContext, data: any) => void | Promise<void>
+}
+```
+
+```typescript
+// packages/auwla-meta/src/runtime.ts
+
+import type { MetaPlugin, PageContext } from './types'
+
+class MetaRuntime {
+  private plugins: MetaPlugin[] = []
+  
+  use(plugin: MetaPlugin) {
+    this.plugins.push(plugin)
+    return this
+  }
+  
+  async createContext(base: Partial<PageContext>): Promise<PageContext> {
+    let ctx: PageContext = {
+      route: base.route!,
+      ...base
+    }
+    
+    // Phase 1: Context creation (plugins can transform whole context)
+    for (const plugin of this.plugins) {
+      if (plugin.onContextCreate) {
+        const result = await plugin.onContextCreate(ctx)
+        if (result) ctx = result
+      }
+    }
+    
+    // Phase 2: Context extension (plugins add properties)
+    for (const plugin of this.plugins) {
+      if (plugin.onContextExtend) {
+        await plugin.onContextExtend(ctx)
+      }
+    }
+    
+    return ctx
+  }
+  
+  async runContextLoader(
+    loader: Function,
+    ctx: PageContext
+  ) {
+    // Before load hooks
+    for (const plugin of this.plugins) {
+      if (plugin.onBeforeLoad) {
+        await plugin.onBeforeLoad(ctx)
+      }
+    }
+    
+    // Run the actual context loader
+    const data = await loader(ctx)
+    
+    // After load hooks
+    for (const plugin of this.plugins) {
+      if (plugin.onAfterLoad) {
+        await plugin.onAfterLoad(ctx, data)
+      }
+    }
+    
+    return data
+  }
+}
+
+// Singleton instance
+let metaRuntime: MetaRuntime | null = null
+
+export function createMetaRuntime(plugins: MetaPlugin[] = []) {
+  metaRuntime = new MetaRuntime()
+  plugins.forEach(p => metaRuntime.use(p))
+  return metaRuntime
+}
+
+export function getMetaRuntime(): MetaRuntime {
+  if (!metaRuntime) {
+    throw new Error('Meta runtime not initialized. Call createMetaRuntime() first.')
+  }
+  return metaRuntime
+}
+
+export function definePlugin(
+  name: string,
+  hooks: Omit<MetaPlugin, 'name'>
+): MetaPlugin {
+  return { name, ...hooks }
+}
+```
+
+```typescript
+// packages/auwla-meta/src/page.ts
+
+import { createSignal, createEffect } from 'auwla' // Auwla Core reactivity
+import { getMetaRuntime } from './runtime'
+import type { PageDefinition, PageContext } from './types'
+
+export function definePage<TContext = any>(
+  definition: PageDefinition<TContext>
+) {
+  // Returns a component that Auwla Core can render
+  return (props: any) => {
+    const runtime = getMetaRuntime()
+    
+    // Reactive state
+    const [context, setContext] = createSignal<PageContext | null>(null)
+    const [loading, setLoading] = createSignal(true)
+    const [error, setError] = createSignal<Error | null>(null)
+    
+    // Run on mount and when route changes
+    createEffect(async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Create base context with route info
+        const baseContext = await runtime.createContext({
+          route: {
+            path: props.path || window.location.pathname,
+            params: props.params || {},
+            query: new URLSearchParams(window.location.search)
+          },
+          meta: definition.meta
+        })
+        
+        // Run page's context loader if it exists
+        if (definition.context) {
+          const data = await runtime.runContextLoader(
+            definition.context,
+            baseContext
+          )
+          baseContext.data = data
+        }
+        
+        setContext(baseContext)
+        setLoading(false)
+      } catch (err) {
+        setError(err as Error)
+        setLoading(false)
+      }
+    })
+    
+    // Render function
+    return () => {
+      if (loading()) {
+        return <div>Loading...</div>
+      }
+      
+      if (error()) {
+        return <div>Error: {error()!.message}</div>
+      }
+      
+      if (!context()) {
+        return null
+      }
+      
+      // Render the actual component with context
+      return definition.component({ context: context()! })
+    }
+  }
+}
+```
+
+---
+
+## 🔌 Plugin Examples
+
+```typescript
+// packages/fullstack/src/index.ts
+
+import { definePlugin } from 'auwla-meta'
+
+export default definePlugin('fullstack', {
+  async onContextExtend(ctx) {
+    const isClient = typeof window !== 'undefined'
+    
+    if (isClient) {
+      // Client-side: Create fetch-based API proxy
+      ctx.$api = createAPIProxy()
+    } else {
+      // Server-side: Direct backend imports (future)
+      // const backend = await import('./backend')
+      // ctx.$api = backend.api
+    }
+  }
+})
+
+function createAPIProxy() {
+  const cache = new Map()
+  
+  return new Proxy({} as any, {
+    get(_, namespace: string) {
+      return new Proxy({}, {
+        get(_, method: string) {
+          return async (...args: any[]) => {
+            const cacheKey = `${namespace}.${method}:${JSON.stringify(args)}`
+            
+            if (cache.has(cacheKey)) {
+              return cache.get(cacheKey)
+            }
+            
+            const response = await fetch(`/api/${namespace}/${method}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(args)
+            })
+            
+            if (!response.ok) {
+              throw new Error(`API call failed: ${response.statusText}`)
+            }
+            
+            const data = await response.json()
+            cache.set(cacheKey, data)
+            
+            return data
+          }
+        }
+      })
+    }
+  })
+}
+```
+
+```typescript
+// packages/auth/src/index.ts
+
+import { definePlugin } from 'auwla-meta'
+
+export default definePlugin('auth', {
+  async onContextExtend(ctx) {
+    // Get user from storage/cookie
+    const token = localStorage.getItem('auth_token')
+    let user = null
+    
+    if (token) {
+      try {
+        // Verify token and get user
+        const response = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (response.ok) {
+          user = await response.json()
+        }
+      } catch (err) {
+        console.error('Auth check failed:', err)
+      }
+    }
+    
+    ctx.user = user
+    ctx.$auth = {
+      login: async (credentials: any) => {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials)
+        })
+        const { token, user } = await response.json()
+        localStorage.setItem('auth_token', token)
+        ctx.user = user
+        return user
+      },
+      logout: () => {
+        localStorage.removeItem('auth_token')
+        ctx.user = null
+        window.location.href = '/login'
+      },
+      check: () => !!user
+    }
+  },
+  
+  async onBeforeLoad(ctx) {
+    // Check if route requires auth
+    if (ctx.meta?.requiresAuth && !ctx.user) {
+      throw new Error('Unauthorized: Please login')
+      // Or: window.location.href = '/login'
+    }
+  }
+})
+```
+
+---
+
+## 👨‍💻 Developer Experience
+
+```typescript
+// app.tsx
+import { defineRoutes, group, compose } from 'auwla' // Core router
+import { createMetaRuntime, definePage } from 'auwla-meta'
+import fullstackPlugin from '@auwla/fullstack'
+import authPlugin from '@auwla/auth'
+
+// Initialize meta-framework with plugins
+createMetaRuntime([
+  fullstackPlugin,
+  authPlugin
+])
+
+// Define pages using meta-framework
+const HomePage = definePage({
+  component: ({ context }) => {
+    return (
+      <div>
+        <h1>Welcome to Auwla</h1>
+        {context.user && <p>Hello, {context.user.name}!</p>}
+      </div>
+    )
+  }
+})
+
+const UsersPage = definePage({
+  context: async ({ $api }) => {
+    const users = await $api.users.list()
+    return { users }
+  },
+  
+  component: ({ context }) => {
+    return (
+      <div>
+        <h1>Users</h1>
+        <ul>
+          {context.data.users.map(user => (
+            <li key={user.id}>{user.name}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+})
+
+const UserDetailPage = definePage({
+  context: async ({ route, $api }) => {
+    const user = await $api.users.getUser(route.params.id)
+    return { user }
+  },
+  
+  component: ({ context }) => {
+    const user = context.data.user
+    
+    return (
+      <div>
+        <h1>{user.name}</h1>
+        <p>Email: {user.email}</p>
+        <p>Role: {user.role}</p>
+      </div>
+    )
+  }
+})
+
+const AdminDashboard = definePage({
+  meta: { requiresAuth: true }, // Auth plugin will check this
+  
+  context: async ({ $api, user }) => {
+    const stats = await $api.admin.getStats()
+    return { stats }
+  },
+  
+  component: ({ context }) => {
+    return (
+      <div>
+        <h1>Admin Dashboard</h1>
+        <p>Total Users: {context.data.stats.totalUsers}</p>
+        <p>Active Sessions: {context.data.stats.activeSessions}</p>
+      </div>
+    )
+  }
+})
+
+// Use Auwla Core's routing composition
+const routes = compose(
+  defineRoutes([
+    { path: '/', component: HomePage },
+    { path: '/users', component: UsersPage },
+    { path: '/users/:id', component: UserDetailPage }
+  ]),
+  
+  group({
+    path: '/admin',
+    routes: [
+      { path: '/', component: AdminDashboard }
+    ]
+  })
+)
+
+// Mount with Auwla Core router
+const app = createApp(routes)
+app.mount('#app')
+```
+
+---
+
+## 🎯 What This Gives You
+
+✅ **Clean separation** - Meta-framework doesn't touch Core
+✅ **Plugin composability** - Stack capabilities via plugins
+✅ **Reactivity preserved** - Components use Core's createSignal, etc.
+✅ **Type-safe** - Can infer types from context loaders
+✅ **Progressive** - Start simple, add plugins as needed
+✅ **Runtime intelligent** - Plugins detect client/server automatically
+
+---
+
+## 🤔 Next Steps
+
+1. **Type safety** - How to make `context.$api` fully typed?
+2. **Error boundaries** - Better error handling in definePage?
+3. **Loading states** - Custom loading components per page?
+4. **Context caching** - Smart invalidation strategies?
+5. **Nested contexts** - Should layouts pass context to children?
+
+What feels most important to tackle next?
+
+
+You're absolutely right! I got carried away and started redesigning things. Let me reset.
+
+---
+
+## What You Actually Said:
+
+1. **Auwla Core** = Reactive UI library with router (like Solid.js)
+   - Has `defineRoutes`, `group`, `compose` 
+   - JSX runtime, reactivity, stores
+   - Already complete, don't touch it
+
+2. **Meta-framework layer** = Separate thing you're building
+   - Plugin system with hooks
+   - `definePage` with loaders and context
+   - This layer uses parts of core but is independent
+
+3. **The context/plugin system** should be intelligent enough to:
+   - Detect if it's client-only or has backend available
+   - Automatically adapt $api behavior
+   - Work with or without SSR
+
+---
+
+## Back to Your Original Vision
+
+So the plugin system you described earlier was:
+
+```typescript
+// Plugin defines hooks
+definePlugin('fullstack', {
+  createContext(ctx) {
+    ctx.$api = /* client or server version */
+    return ctx
+  }
+})
+
+// Pages use definePage (from meta-framework, not core)
+definePage({
+  context: async ({ route, $api }) => {
+    const user = await $api.users.getUser(route.params.id)
+    return { user }
+  },
+  component: ({ context }) => <div>{context.user.name}</div>
+})
+```
+
+And my question for you is:
+
+**How does `definePage` connect to Auwla Core's routing?**
+
+Is it:
+- A) File-based convention (pages/ folder auto-discovered)?
+- B) Explicit registration somewhere?
+- C) Something else?
+
+Because the meta-framework needs to somehow tell Auwla Core's router about these pages, right?
+
+Let me stop assuming and just ask: **How do you envision connecting the two layers?**

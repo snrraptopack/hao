@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "jsx": "preserve",
+    "jsxImportSource": "auwla",
+    "baseUrl": ".",
+    "paths": {
+      "auwla": ["../src/index.ts"],
+      "auwla/jsx-runtime": ["../src/jsx-runtime.ts"],
+      "auwla/jsx-dev-runtime": ["../src/jsx-dev-runtime.ts"]
+    },
+    "types": ["../auwla-jsx", "node"],
+    "moduleResolution": "node"
+  },
+  "include": ["src", "server"],
+  "exclude": ["node_modules", "dist"]
+}

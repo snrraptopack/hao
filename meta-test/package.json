@@ -1,0 +1,19 @@
+{
+  "name": "hono-bridge-template",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server:hono": "bun run server/app-hono.ts",
+    "dev": "bunx vite --config vite.config.ts"
+  },
+  "dependencies": {
+    "hono": "^4.10.4",
+    "zod": "^4.1.12",
+    "auwsomebridge": "0.0.8"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/bun": "latest",
+    "vite": "^5.4.21"
+  }
+}
