@@ -43,6 +43,17 @@ export function definePage<Ext = {}, Data = void>(def: PageDefinition<Ext, Data>
     const data = ref<Data | null>(null)
 
     let ctx: PageContext<Ext>
+    // Initialize context immediately so it's defined before first render.
+    // This avoids "used before being assigned" and provides a safe default
+    // until onRouted() supplies the fully populated routed context.
+    ctx = runtime.createContext({
+      state: router.state,
+      params: paramsRef.value,
+      query: queryRef.value,
+      prev: null,
+      path: router.currentPath.value,
+      router,
+    } as RoutedContext)
     let isInitial = true
     let loadSeq = 0
     let currentController: AbortController | null = null
@@ -57,7 +68,7 @@ export function definePage<Ext = {}, Data = void>(def: PageDefinition<Ext, Data>
         try { currentController.abort() } catch {}
       }
       currentController = new AbortController()
-      ;(ctx as any).signal = currentController.signal
+      ctx.signal = currentController.signal
 
       // Basic per-route cache using router.state; opt-in via force and TTL support
       const cacheKey = computeCacheKey()

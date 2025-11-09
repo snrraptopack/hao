@@ -17,6 +17,8 @@ export default defineConfig({
       // Use local Auwla JSX runtimes so TSX works
       'auwla/jsx-runtime': resolve(__dirname, '../src/jsx-runtime.ts'),
       'auwla/jsx-dev-runtime': resolve(__dirname, '../src/jsx-dev-runtime.ts'),
+      // Point auwla/meta to local source during development
+      'auwla/meta': resolve(__dirname, '../src/meta/index.ts'),
     },
   },
   esbuild: {

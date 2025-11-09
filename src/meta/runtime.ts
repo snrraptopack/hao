@@ -10,7 +10,7 @@ declare global {
 
 export type MetaContextExtensions = AuwlaMetaContext
 
-export type PageContext<Ext = {}> = MetaContextBase & Ext
+export type PageContext<Ext = {}> = MetaContextBase & MetaContextExtensions & Ext
 
 export type BeforeLoadFn<Ctx> = (ctx: Ctx) => void | Promise<void>
 export type AfterLoadFn<Ctx, Data> = (

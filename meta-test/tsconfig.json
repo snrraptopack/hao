@@ -8,11 +8,12 @@
     "paths": {
       "auwla": ["../src/index.ts"],
       "auwla/jsx-runtime": ["../src/jsx-runtime.ts"],
-      "auwla/jsx-dev-runtime": ["../src/jsx-dev-runtime.ts"]
+      "auwla/jsx-dev-runtime": ["../src/jsx-dev-runtime.ts"],
+      "auwla/meta": ["../src/meta/index.ts"]
     },
     "types": ["../auwla-jsx", "node"],
     "moduleResolution": "node"
   },
-  "include": ["src", "server"],
+  "include": ["src", "server", "../src/meta/context-extensions.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

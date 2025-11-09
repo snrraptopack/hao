@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.1.9",
+  "version": "0.1.20",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -31,6 +31,11 @@
     "./integrations/react": {
       "types": "./dist/integrations/react.d.ts",
       "import": "./dist/integrations/react.js"
+    },
+    "./meta": {
+      "types": "./dist/meta/index.d.ts",
+      "import": "./dist/auwla.js",
+      "require": "./dist/auwla.umd.cjs"
     }
   },
   "typesVersions": {
@@ -39,6 +44,7 @@
       "jsx-dev-runtime": ["dist/jsx-dev-runtime.d.ts"],
       "transition": ["dist/transition/index.d.ts"],
       "integrations/react": ["dist/integrations/react.d.ts"],
+      "meta": ["dist/meta/index.d.ts"],
       "*": ["dist/index.d.ts"]
     }
   },

@@ -28,7 +28,10 @@
     "src/cli.ts",
     "src/integrations/**/*.ts",
     "src/integrations/**/*.tsx",
-    "src/types/**/*.ts"
+    "src/types/**/*.ts",
+    "src/meta/**/*.ts",
+    "src/meta/**/*.tsx",
+    "src/meta/context-extensions.d.ts"
   ],
   "exclude": [
     "node_modules",
