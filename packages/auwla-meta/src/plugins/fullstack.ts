@@ -1,5 +1,5 @@
 import type { MetaPlugin, PageContext } from '../runtime'
-import type { Router } from '../../router'
+import type { Router } from 'auwla'
 
 // Lightweight cache wrapper around an existing $api client using router.state
 function withRouterCache<Api extends Record<string, any>>(api: Api, router: Router<any>): Api {

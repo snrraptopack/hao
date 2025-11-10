@@ -1,5 +1,5 @@
-import { type RoutedContext } from '../router'
-import { isDevEnv, devHook } from '../devtools'
+import { type RoutedContext } from 'auwla'
+import { isDevEnv, devHook } from 'auwla'
 
 export type MetaContextBase = RoutedContext
 

@@ -25,6 +25,7 @@ export { createContext, Provider, useContext, useReactiveContext, setGlobalConte
 
 // DevTools (development only)
 export { initDevTools, getDevTools } from './devtools';
+export { isDevEnv, devHook } from './devtools';
 export { enableDevToolsOverlay, disableDevToolsOverlay } from './devtools-ui';
 
 // Routing
@@ -45,7 +46,7 @@ export { defineRoutes, composeRoutes, group, pathFor } from './routes'
 
 // Data fetching helpers
 export { fetch, asyncOp } from './fetch'
-export { createResource } from './resource'
+export { createResource, normalizeError } from './resource'
 export type { FetchState } from './fetch'
 export type { Resource, AppError } from './resource'
 

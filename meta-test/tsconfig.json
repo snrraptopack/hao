@@ -9,11 +9,12 @@
       "auwla": ["../src/index.ts"],
       "auwla/jsx-runtime": ["../src/jsx-runtime.ts"],
       "auwla/jsx-dev-runtime": ["../src/jsx-dev-runtime.ts"],
-      "auwla/meta": ["../src/meta/index.ts"]
+      "auwla/meta": ["../packages/auwla-meta/src/index.ts"],
+      "auwla-meta": ["../packages/auwla-meta/src/index.ts"]
     },
-    "types": ["../auwla-jsx", "node"],
+    "types": ["node"],
     "moduleResolution": "node"
   },
-  "include": ["src", "server", "../src/meta/context-extensions.d.ts"],
+  "include": ["src", "server", "../packages/auwla-meta/src/context-extensions.d.ts", "../auwla-jsx.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

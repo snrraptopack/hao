@@ -1,5 +1,5 @@
 /** @jsxImportSource auwla */
-import { definePage, fullstackPlugin } from 'auwla/meta'
+import { definePage, fullstackPlugin } from 'auwla-meta'
 import { $api } from '../../server/app-hono'
 import { h, watch, If ,ref, onMount} from "auwla"
 
@@ -9,7 +9,7 @@ import { h, watch, If ,ref, onMount} from "auwla"
 export const UserPage = definePage({
   context: async ({ $api, query}) => {
     const id = String(query.id ?? '1')
-    return await $api.getUser({ id })
+    return  $api.getUser({ id })
   },
   component: (_ctx, { data, loading, error }) => {
     

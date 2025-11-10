@@ -8,12 +8,16 @@
     "jsx": "preserve",
     "jsxImportSource": "auwla",
     "allowJs": true,
-    "types": ["./auwla-jsx", "node"],
+    "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "auwla": ["src/index.ts"],
       "auwla/jsx-runtime": ["src/jsx-runtime.ts"],
-      "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"]
+      "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"],
+      "@auwla/meta": ["packages/auwla-meta/src/index.ts"],
+      "@auwla/meta/*": ["packages/auwla-meta/src/*"],
+      "auwla-meta": ["packages/auwla-meta/src/index.ts"],
+      "auwla-meta/*": ["packages/auwla-meta/src/*"]
     },
 
     // Bundler mode
@@ -37,6 +41,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "auwla-jsx.d.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "benchmark"]
 }

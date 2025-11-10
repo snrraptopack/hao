@@ -1,9 +1,9 @@
-import { h } from '../jsx'
-import { ref, watch, type Ref } from '../state'
-import { onRouted } from '../lifecycle'
-import { useRouter, useParams, useQuery, type RoutedContext } from '../router'
+import { h } from 'auwla'
+import { ref, watch, type Ref } from 'auwla'
+import { onRouted } from 'auwla'
+import { useRouter, useParams, useQuery, type RoutedContext } from 'auwla'
 import { createMetaRuntime, type MetaPlugin, type PageContext } from './runtime'
-import { type AppError, normalizeError } from '../resource'
+import { type AppError, normalizeError } from 'auwla'
 
 export type PageDefinition<Ext = {}, Data = void> = {
   // Optional loader: runs on mount and when params/query change

@@ -1,6 +1,7 @@
 packages:
   - .
   - apps/*
+  - packages/*
   - website
   - react-interop
   - create-auwla
