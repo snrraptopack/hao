@@ -1,10 +1,14 @@
-// Augment the Auwla meta context to include an optional AbortSignal
-// so page loaders can cancel in-flight requests when params/query change.
+// Global augmentation for Auwla meta loader context.
+// Plugins can extend this interface to add typed properties to the loader context.
+//
+// Example:
+// declare global {
+//   interface AuwlaMetaContext {
+//     $api: typeof apiClient
+//   }
+// }
 declare global {
-  interface AuwlaMetaContext {
-    /** Abort signal for the current page load (if any) */
-    signal?: AbortSignal
-  }
+  interface AuwlaMetaContext {}
 }
 
 export {}

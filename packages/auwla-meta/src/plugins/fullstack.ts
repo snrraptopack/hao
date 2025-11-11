@@ -1,32 +1,34 @@
-import type { MetaPlugin, PageContext } from '../runtime'
-import type { Router } from 'auwla'
+import type { MetaPlugin, LoaderContext } from '../runtime'
 
-// Lightweight cache wrapper around an existing $api client using router.state
-function withRouterCache<Api extends Record<string, any>>(api: Api, router: Router<any>): Api {
-  const cacheableMethods = new Set(['get'])
-  return new Proxy(api, {
-    get(target, prop: string) {
-      const orig = (target as any)[prop]
-      if (typeof orig !== 'function') return orig
-      if (!cacheableMethods.has(prop)) return orig
-      return async function (...args: any[]) {
-        const key = `api:${String(prop)}:${JSON.stringify(args)}`
-        if (router.state[key] !== undefined) return router.state[key]
-        const res = await orig(...args)
-        router.state[key] = res
-        return res
-      }
-    }
-  }) as Api
-}
-
+/**
+ * Fullstack plugin that injects a type-safe API client into the loader context.
+ * 
+ * This plugin demonstrates how to extend the loader context with custom properties.
+ * For caching, use `createResource` from core Auwla instead of built-in caching.
+ * 
+ * @example
+ * ```typescript
+ * const page = definePage({
+ *   loader: ({ $api, params }) => {
+ *     // Use createResource for caching
+ *     const user = createResource(
+ *       `user-${params.id}`,
+ *       (signal) => $api.getUser({ id: params.id })
+ *     )
+ *     return { user }
+ *   },
+ *   component: (ctx, { user }) => (
+ *     <div>{user.data.value?.name}</div>
+ *   )
+ * }, [fullstackPlugin($api)])
+ * ```
+ */
 export function fullstackPlugin<Api extends Record<string, any>>(apiClient: Api): MetaPlugin<{ $api: Api }> {
   return {
     name: 'fullstack',
-    onContextCreate(ctx: PageContext<{ $api: Api }>) {
-      // Attach $api; wrap GETs with router-state cache for convenience
-      const cached = withRouterCache(apiClient as any, ctx.router)
-      ;(ctx as any).$api = cached
+    onContextCreate(ctx: LoaderContext<{ $api: Api }>) {
+      // Attach $api directly to context (no caching - use createResource instead)
+      ;(ctx as any).$api = apiClient
     },
   }
 }
