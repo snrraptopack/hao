@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.1.20",
+  "version": "0.2.0",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
@@ -105,5 +105,7 @@
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
-  "dependencies": {}
+  "dependencies": {
+    "auwla": "^0.2.0"
+  }
 }

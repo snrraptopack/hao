@@ -3,7 +3,8 @@ import {
   ref, 
   watch, 
   setWatchContext, 
-  type Ref 
+  type Ref,
+  derive
 } from './state';
 import { 
   createComponentContext, 
@@ -50,10 +51,77 @@ function appendChildren(parent: Node, children: any[]) {
       } else if (Array.isArray(v)) {
         for (const c of v.flat(Infinity)) insertValue(before, c);
       } else {
-        // Fallback: stringify unknown types
         before.parentNode?.insertBefore(document.createTextNode(String(v)), before);
       }
     };
+
+    if (typeof child === 'function') {
+      const start = document.createComment('fn-start');
+      const end = document.createComment('fn-end');
+      parent.appendChild(start);
+      parent.appendChild(end);
+
+      const derivedRef = derive(child);
+      let cache = new Map<any, Node>();
+
+      const clearBetween = () => {
+        let node: ChildNode | null = start.nextSibling as ChildNode | null;
+        while (node && node !== end) {
+          const next = node.nextSibling as ChildNode | null;
+          node.remove();
+          node = next;
+        }
+      };
+
+      const render = (v: any) => {
+        if (Array.isArray(v)) {
+          const arr = v.flat(Infinity).filter(x => !(x == null || x === false || x === true));
+          const allKeyed = arr.length > 0 && arr.every(n => n instanceof Node && (n as any).__key !== undefined);
+          if (allKeyed) {
+            const newCache = new Map<any, Node>();
+            const newKeys: any[] = arr.map(n => (n as any).__key);
+
+            for (let i = 0; i < newKeys.length; i++) {
+              const k = newKeys[i];
+              const prev = cache.get(k);
+              if (prev) {
+                newCache.set(k, prev);
+              } else {
+                newCache.set(k, arr[i] as Node);
+              }
+            }
+
+            for (const [k, n] of cache.entries()) {
+              if (!newCache.has(k)) {
+                (n as ChildNode).remove();
+              }
+            }
+
+            for (let j = newKeys.length - 1; j >= 0; j--) {
+              const k = newKeys[j];
+              const node = newCache.get(k)!;
+              const anchorKey = j + 1 < newKeys.length ? newKeys[j + 1] : null;
+              const anchorNode = anchorKey != null ? newCache.get(anchorKey)! : end as Node;
+              end.parentNode!.insertBefore(node, anchorNode);
+            }
+
+            cache = newCache;
+            return;
+          }
+
+          clearBetween();
+          for (const n of arr) insertValue(end, n);
+          return;
+        }
+
+        clearBetween();
+        insertValue(end, v);
+      };
+
+      render(derivedRef.value);
+      watch(derivedRef, (v) => render(v));
+      continue;
+    }
 
     if (isRef(child)) {
       // OPTIMIZATION: Lightweight text binding for Ref<string | number>

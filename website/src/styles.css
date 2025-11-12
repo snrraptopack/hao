@@ -2,24 +2,26 @@
 
 :root { --brand-color: #111827; }
 
-html, body { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+html, body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
 
 .brand-text { color: var(--brand-color); }
 .brand-bg { background-color: var(--brand-color); }
 .brand-border { border-color: var(--brand-color); }
 
 /* Custom docs typography */
-.docs-article { @apply max-w-3xl mx-auto text-gray-800 leading-7 space-y-6; }
-.docs-prose h1 { @apply text-[28px] sm:text-[32px] font-semibold mt-0 mb-3 tracking-tight; }
-.docs-prose h2 { @apply text-[22px] sm:text-[24px] font-semibold mt-6 mb-2; }
+.docs-article { @apply max-w-3xl mx-auto text-gray-800 leading-7 space-y-6 tracking-normal antialiased text-[14px] md:text-[15px]; }
+.docs-prose h1 { @apply text-[30px] sm:text-[34px] font-semibold mt-0 mb-3 tracking-tight; }
+.docs-prose h2 { @apply text-[22px] sm:text-[24px] font-semibold mt-7 mb-2; }
 .docs-prose p { @apply leading-7 text-gray-800; }
 .docs-prose ul { @apply list-disc pl-6 space-y-1; }
 .docs-prose a { @apply text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline; }
-.docs-prose pre { @apply my-4; }
-.docs-code { @apply bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono leading-6 text-[12px] md:text-[13px] w-full max-w-full overflow-x-auto whitespace-pre; }
+.docs-prose pre { @apply my-5; }
+.docs-code { @apply bg-[#2d2d2d] text-[#f8f8f2] border border-gray-800 rounded-lg p-4 shadow-sm leading-6 text-[12px] md:text-[13px] w-full max-w-full overflow-x-auto whitespace-pre; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
 /* Ensure code occupies block space within pre and respects container width */
 .docs-code code { display: block; max-width: 100%; white-space: inherit; word-break: normal; overflow-wrap: normal; tab-size: 2; }
+/* Toggle wrapping on demand */
+.docs-code.wrapped code { white-space: pre-wrap; word-break: break-word; }
 
 /* Aggressive mobile wrapping for Prism tokens to prevent horizontal overflow */
 @media (max-width: 767px) {

@@ -391,13 +391,6 @@ export function For<T>(props: ForProps<T>): HTMLElement {
     const newCache = new Map<string | number, CacheEntry>();
     const nodesToInsert: Node[] = [];
     
-    console.log('[For] renderList called', {
-      oldLen: cache.size,
-      newLen: newItems.length,
-      oldKeys: Array.from(cache.keys()).slice(0, 5),
-      newKeys: newItems.slice(0, 5)
-    });
-    
     // Detect item type on first non-empty render
     if (itemType === null && newItems.length > 0 && newItems[0] !== undefined) {
       itemType = isPrimitive(newItems[0]) ? 'primitive' : 'object';
@@ -482,14 +475,41 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       
       // Step 3: Common sequence = same → all nodes in right place
       if (i > oldEnd && i > newEnd) {
-        // All matched, nothing to do
-        console.log('[For] Early exit: all matched');
+        // Keys matched, but need to check if items actually changed
+        // This handles the case where keys are stable (e.g., index) but values changed
+        let anyItemChanged = false;
+        for (const [key, entry] of newCache.entries()) {
+          const oldEntry = cache.get(key);
+          if (oldEntry && !itemsAreEqual(oldEntry.item, entry.item)) {
+            anyItemChanged = true;
+            break;
+          }
+        }
+        
+        if (!anyItemChanged) {
+          return;
+        }
+        
+        // Keys match but values changed - need to update the DOM nodes
+        // Replace old nodes with new ones
+        for (const [key, newEntry] of newCache.entries()) {
+          const oldEntry = cache.get(key);
+          if (oldEntry && !itemsAreEqual(oldEntry.item, newEntry.item)) {
+            // Replace the old node with the new one
+            oldEntry.node.parentNode?.replaceChild(newEntry.node, oldEntry.node);
+          }
+        }
+        
+        // Update cache
+        cache.clear();
+        for (const [k, v] of newCache.entries()) {
+          cache.set(k, v);
+        }
         return;
       }
       
       // Step 4: Old sequence done, new items remain → append
       if (i > oldEnd) {
-        console.log('[For] Appending new items', { from: i, to: newEnd, count: newEnd - i + 1 });
         const anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]!)!.node : endMarker;
         for (let j = i; j <= newEnd; j++) {
           const node = newCache.get(newKeys[j]!)!.node;
@@ -500,7 +520,6 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       
       // Step 5: New sequence done, old items remain → remove
       if (i > newEnd) {
-        console.log('[For] Removing old items', { from: i, to: oldEnd });
         for (let j = i; j <= oldEnd; j++) {
           // Already removed in Phase 2
         }
@@ -522,50 +541,73 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       
       // Check if we need to move anything
       let moved = false;
+      let movedCount = 0;
       let maxIndexSoFar = -1;
       for (let j = 0; j < toBePatched; j++) {
         const oldIndex = newIndexToOldIndexMap[j];
         if (oldIndex !== -1) {
           if (oldIndex < maxIndexSoFar) {
             moved = true;
-            break;
+            movedCount++;
           }
-          maxIndexSoFar = oldIndex;
+          maxIndexSoFar = Math.max(maxIndexSoFar, oldIndex);
         }
       }
       
-      console.log('[For] LIS path', { 
-        toBePatched, 
-        moved, 
-        hasAdditions: newIndexToOldIndexMap.includes(-1) 
-      });
+      const hasAdditions = newIndexToOldIndexMap.includes(-1);
+      const movePercentage = toBePatched > 0 ? movedCount / toBePatched : 0;
       
       // If nothing moved and no additions, we're done
-      if (!moved && !newIndexToOldIndexMap.includes(-1)) {
-        console.log('[For] Early exit: nothing moved, no additions');
+      if (!moved && !hasAdditions) {
         return;
       }
       
-      // Generate LIS only if nodes need to be moved
-      const lisIndices = moved ? lis(newIndexToOldIndexMap) : [];
+      // Option B: Skip LIS for small changes (< 30% moved)
+      // For small changes, simple moves are faster than computing LIS
+      const useLIS = moved && movePercentage > 0.3;
+      const lisIndices = useLIS ? lis(newIndexToOldIndexMap) : [];
       const lisSet = new Set(lisIndices);
-      console.log('[For] Moving/inserting nodes', { lisLength: lisIndices.length });
       
-      // Patch by moving/inserting from right to left
-      for (let j = toBePatched - 1; j >= 0; j--) {
-        const newIndex = i + j;
-        const newKey = newKeys[newIndex]!;
-        const entry = newCache.get(newKey)!;
-        const anchor = newIndex + 1 < newLen ? newCache.get(newKeys[newIndex + 1]!)!.node : endMarker;
+      // Option A: Batch DOM moves with DocumentFragment for better performance
+      if (moved && toBePatched > 10) {
+        // Collect nodes that need to be moved
+        const nodesToMove: Array<{ node: Node; anchor: Node | null }> = [];
         
-        if (newIndexToOldIndexMap[j] === -1) {
-          // New node - insert
-          endMarker.parentNode!.insertBefore(entry.node, anchor);
-        } else if (moved && !lisSet.has(j)) {
-          // Existing node but needs to move
-          endMarker.parentNode!.insertBefore(entry.node, anchor);
+        for (let j = toBePatched - 1; j >= 0; j--) {
+          const newIndex = i + j;
+          const newKey = newKeys[newIndex]!;
+          const entry = newCache.get(newKey)!;
+          const anchor = newIndex + 1 < newLen ? newCache.get(newKeys[newIndex + 1]!)!.node : endMarker;
+          
+          if (newIndexToOldIndexMap[j] === -1) {
+            // New node - insert
+            nodesToMove.push({ node: entry.node, anchor });
+          } else if (!useLIS || !lisSet.has(j)) {
+            // Existing node but needs to move (or not using LIS)
+            nodesToMove.push({ node: entry.node, anchor });
+          }
         }
-        // else: node is in LIS, already in correct position
+        
+        // Batch insert all nodes
+        for (const { node, anchor } of nodesToMove) {
+          endMarker.parentNode!.insertBefore(node, anchor);
+        }
+      } else {
+        // For small lists, use original one-by-one approach
+        for (let j = toBePatched - 1; j >= 0; j--) {
+          const newIndex = i + j;
+          const newKey = newKeys[newIndex]!;
+          const entry = newCache.get(newKey)!;
+          const anchor = newIndex + 1 < newLen ? newCache.get(newKeys[newIndex + 1]!)!.node : endMarker;
+          
+          if (newIndexToOldIndexMap[j] === -1) {
+            // New node - insert
+            endMarker.parentNode!.insertBefore(entry.node, anchor);
+          } else if (!useLIS || !lisSet.has(j)) {
+            // Existing node but needs to move
+            endMarker.parentNode!.insertBefore(entry.node, anchor);
+          }
+        }
       }
     }
     

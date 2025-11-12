@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { fileURLToPath } from 'url'
 import tailwindcss from '@tailwindcss/vite'
 import compression from 'vite-plugin-compression'
 
@@ -9,6 +10,11 @@ export default defineConfig({
     compression({ algorithm: 'gzip' }),
   ],
   server: { port: 5177,host:true },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    }
+  },
   esbuild: {
     jsxFactory: 'h',
     jsxFragment: 'Fragment'

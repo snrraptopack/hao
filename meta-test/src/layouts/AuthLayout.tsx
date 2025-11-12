@@ -1,21 +1,11 @@
 /** @jsxImportSource auwla */
-import { defineLayout, authPlugin, i18nPlugin, onMount, If ,watch} from 'auwla'
+import { defineLayout, authPlugin, i18nPlugin, If ,watch} from 'auwla'
+import { exampleTranslations } from '../../../src/plugins/i18n/examples'
 
 
 // Create plugin instances
 const auth = authPlugin()
-const i18n = i18nPlugin({
-  en: {
-    welcome: 'Welcome',
-    logout: 'Logout',
-    user_greeting: 'Hello, {name}!'
-  },
-  es: {
-    welcome: 'Bienvenido',
-    logout: 'Cerrar sesión',
-    user_greeting: '¡Hola, {name}!'
-  }
-})
+const i18n = i18nPlugin(exampleTranslations)
 
 // Layout that provides auth and i18n to all children
 // Also exports a .definePage helper for type-safe child pages

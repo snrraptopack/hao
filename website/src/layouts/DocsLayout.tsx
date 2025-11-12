@@ -32,6 +32,7 @@ export function DocsLayout(child: HTMLElement) {
                     <Link to="/docs/installation" text="Installation" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/" text="Introduction" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/quick-start" text="Quick Start" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+                    <Link to="/docs/philosophy" text="Philosophy" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                   </div>
                 </div>
                 <div>
@@ -43,6 +44,8 @@ export function DocsLayout(child: HTMLElement) {
                     
                     <Link to="/docs/events" text="Events" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/styling" text="Styling" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+                    <Link to="/docs/framework-overview" text="Framework Overview" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+                    <Link to="/docs/plugin-system" text="Plugin System" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                   </div>
                 </div>
                 <div>
@@ -50,9 +53,17 @@ export function DocsLayout(child: HTMLElement) {
                   <div class="space-y-1">
                     <Link to="/docs/reactivity/" text="Introduction" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/reactivity/ref-and-watch" text="Ref & Watch" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+                    <Link to="/docs/reactivity/watch-effect" text="watchEffect" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/reactivity/conditional-rendering" text="Conditional Rendering" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/reactivity/list-rendering" text="List Rendering (For)" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                     <Link to="/docs/reactivity/composition" text="Reactive Composition" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+                    <Link to="/docs/reactivity/derive-untracked" text="derive & untracked" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+                  </div>
+                </div>
+                <div>
+                  <div class="text-[11px] uppercase tracking-wider text-gray-500 mb-3">State</div>
+                  <div class="space-y-1">
+                    <Link to="/docs/state/create-store" text="createStore" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
                   </div>
                 </div>
                 <div>
@@ -82,6 +93,7 @@ export function DocsLayout(child: HTMLElement) {
               <Link to="/docs/installation" text="Installation" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/" text="Introduction" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/quick-start" text="Quick Start" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+              <Link to="/docs/philosophy" text="Philosophy" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
             </div>
           </div>
           <div>
@@ -93,6 +105,8 @@ export function DocsLayout(child: HTMLElement) {
               
               <Link to="/docs/events" text="Events" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/styling" text="Styling" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+              <Link to="/docs/framework-overview" text="Framework Overview" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+              <Link to="/docs/plugin-system" text="Plugin System" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
             </div>
           </div>
           <div>
@@ -100,9 +114,17 @@ export function DocsLayout(child: HTMLElement) {
             <div class="space-y-1">
               <Link to="/docs/reactivity/" text="Introduction" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/reactivity/ref-and-watch" text="Ref & Watch" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+              <Link to="/docs/reactivity/watch-effect" text="watchEffect" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/reactivity/conditional-rendering" text="Conditional Rendering" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/reactivity/list-rendering" text="List Rendering (For)" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
               <Link to="/docs/reactivity/composition" text="Reactive Composition" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+              <Link to="/docs/reactivity/derive-untracked" text="derive & untracked" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
+            </div>
+          </div>
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-gray-500 mb-3">State</div>
+            <div class="space-y-1">
+              <Link to="/docs/state/create-store" text="createStore" className="block px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-gray-100" activeClassName="bg-gray-50 text-gray-900 font-medium border border-gray-200" />
             </div>
           </div>
           <div>
@@ -121,7 +143,7 @@ export function DocsLayout(child: HTMLElement) {
             </div>
           </div>
         </aside>
-        <article class="p-8 overflow-y-auto overflow-x-hidden min-w-0">
+        <article class="p-8 overflow-y-auto overflow-x-hidden min-w-0" data-router-scroll>
           <div class="docs-article min-w-0">{child}</div>
         </article>
       </div>

@@ -71,7 +71,7 @@ function App() {
         <span class="small">filtered: {filtered.value.length}</span>
       </div>
       <div class="grid">
-        <For each={filtered} key={(it)=> `${it}`}>
+        <For each={filtered} key={(it,index)=> it}>
         {(n)=> <div class="card">Row {n}</div>}
       </For>
       </div>

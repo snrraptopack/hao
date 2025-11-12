@@ -222,6 +222,8 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
   private compiledPatterns: Map<string, RegExp> = new Map()
   // Scroll position cache for restoring scroll on back/forward navigation
   private scrollPositions: Map<string, { x: number; y: number }> = new Map()
+  // Optional scroll container inside router container (e.g., docs page content area)
+  private scrollElement: HTMLElement | null = null
   // Keep a reference to global listeners so we can clean them up
   private onPopState = () => {
     this.currentPath.value = this.stripTrailingSlash(window.location.pathname)
@@ -380,10 +382,8 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     validateRoutePath(path, this.getRegisteredPaths(), 'router.push()')
     
     // Save current scroll position before navigating
-    this.scrollPositions.set(this.currentPath.value, {
-      x: window.scrollX,
-      y: window.scrollY
-    })
+    const { x, y } = this.getScrollPosition()
+    this.scrollPositions.set(this.currentPath.value, { x, y })
     
     window.history.pushState({}, '', path)
     this.currentPath.value = this.stripTrailingSlash(this.getPathWithoutQuery(path))
@@ -402,10 +402,8 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     validateRoutePath(path, this.getRegisteredPaths(), 'router.replace()')
     
     // Save scroll position for the current path before replacing
-    this.scrollPositions.set(this.currentPath.value, {
-      x: window.scrollX,
-      y: window.scrollY
-    })
+    const { x, y } = this.getScrollPosition()
+    this.scrollPositions.set(this.currentPath.value, { x, y })
     
     window.history.replaceState({}, '', path)
     this.currentPath.value = this.stripTrailingSlash(this.getPathWithoutQuery(path))
@@ -694,6 +692,8 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
     }
 
     this.container.appendChild(wrapped);
+    // Discover scroll container if marked
+    this.scrollElement = this.container.querySelector('[data-router-scroll]') as HTMLElement | null
 
     // Execute mount callbacks if JSX didn't already do it (child.isConnected check in jsx.ts)
     // Since we're appending to DOM, the element is now connected, so execute if needed
@@ -713,17 +713,26 @@ export class Router<R extends ReadonlyArray<Route<any>> = Route<any>[]> {
    */
   private restoreScroll(path: string) {
     requestAnimationFrame(() => {
-      const savedPosition = this.scrollPositions.get(path);
+      const savedPosition = this.scrollPositions.get(path)
+      const target = this.scrollElement
       if (savedPosition) {
-        window.scrollTo(savedPosition.x, savedPosition.y);
+        if (target) target.scrollTo({ left: savedPosition.x, top: savedPosition.y })
+        else window.scrollTo(savedPosition.x, savedPosition.y)
         if (isDevEnv()) {
-          console.log(`[router] Restored scroll position for ${path}:`, savedPosition);
+          console.log(`[router] Restored scroll position for ${path}:`, savedPosition)
         }
       } else {
         // New page - scroll to top
-        window.scrollTo(0, 0);
+        if (target) target.scrollTo({ left: 0, top: 0 })
+        else window.scrollTo(0, 0)
       }
-    });
+    })
+  }
+
+  private getScrollPosition(): { x: number; y: number } {
+    const el = this.scrollElement
+    if (el) return { x: el.scrollLeft, y: el.scrollTop }
+    return { x: window.scrollX, y: window.scrollY }
   }
   
   /**
