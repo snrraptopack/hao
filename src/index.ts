@@ -50,5 +50,21 @@ export { createResource, normalizeError } from './resource'
 export type { FetchState } from './fetch'
 export type { Resource, AppError } from './resource'
 
+// Plugin system
+export { definePlugin, plugins, pushPluginContext, popPluginContext, getPluginContext, createPluginContext } from './plugin'
+export type { Plugin, InferPlugins } from './plugin'
+
+// Meta layer (page and layout definitions with plugin support)
+export { definePage, defineLayout } from './meta'
+export type { PageContext } from './meta'
+
+// Built-in plugins
+export { fullstackPlugin } from './plugins/fullstack'
+export { authPlugin } from './plugins/auth'
+export type { User } from './plugins/auth'
+export { i18nPlugin } from './plugins/i18n'
+export type { Translations } from './plugins/i18n'
+export { analyticsPlugin } from './plugins/analytics'
+
 // Optional integrations are available as separate imports:
 // import { ReactIsland, createReactIsland } from 'auwla/integrations/react'

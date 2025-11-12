@@ -184,6 +184,12 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
   const builder = el(tag); // Assuming `el` is from './createElement'
   const element = builder.element;
 
+  // Extract key prop for keyed reconciliation (don't set as DOM attribute)
+  if (props?.key !== undefined) {
+    (element as any).__key = props.key;
+    delete props.key;
+  }
+
   for (const key in props) {
     if (key === 'children') continue;
     const val = props[key];

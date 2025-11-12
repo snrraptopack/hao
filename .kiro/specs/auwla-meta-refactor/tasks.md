@@ -5,6 +5,8 @@
 
 
 
+
+
   - Rename `PageContext` to `LoaderContext` throughout the codebase
   - Remove caching-related types (`cacheTtl`, `revalidateOn`, etc.)
   - Update `PageDefinition` to use `loader` instead of `context`
@@ -14,7 +16,8 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 5.1, 5.2, 5.3, 5.4, 5.5_
 
 
-- [ ] 2. Implement plugin context provider system
+- [x] 2. Implement plugin context provider system
+
   - Create plugin context stack management functions (`pushPluginContext`, `popPluginContext`, `getCurrentPlugins`)
 
   - Implement stack-based plugin inheritance mechanism
@@ -32,6 +35,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5_
 
 
+
 - [ ] 4. Implement defineLayout function
   - Create `defineLayout` function that accepts `LayoutDefinition` and plugins
   - Implement plugin context pushing on layout mount
@@ -40,6 +44,7 @@
   - Run layout loader with inherited plugin context
   - Pass child element to layout component
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+
 
 
 - [ ] 5. Refactor definePage to remove caching and use plugin inheritance
@@ -54,6 +59,7 @@
   - Remove `revalidateOn` watch logic
   - Update loader execution to be simple async call without caching
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 5.4, 5.5, 6.1, 6.2, 6.3, 6.4, 6.5_
+
 
 
 - [ ] 6. Update exports in index.ts
@@ -71,14 +77,19 @@
 
 
 
+
 - [ ] 7. Update fullstackPlugin example
   - Remove router-state caching logic from fullstackPlugin
+
+
 
 
 
   - Simplify plugin to only inject `$api` into context
   - Update plugin to work with new `LoaderContext` type
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 8.3_
+
+
 
 - [ ] 8. Update context-extensions.d.ts
   - Remove `signal` property from `AuwlaMetaContext` (no longer needed)
@@ -88,6 +99,8 @@
 
 - [ ] 9. Update meta-test example to use new API
   - Update `UserPage.tsx` to use `loader` instead of `context`
+
+
 
 
   - Use `createResource` in loader for data fetching

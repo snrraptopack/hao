@@ -5,5 +5,5 @@ export const Counter = defineHook({
 
   before:async (ctx)=>{
     return {next: true}
-  }
+  },
 })

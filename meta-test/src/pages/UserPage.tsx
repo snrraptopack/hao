@@ -1,29 +1,36 @@
 /** @jsxImportSource auwla */
-import { definePage, fullstackPlugin } from 'auwla-meta'
+import { definePage, fullstackPlugin, plugins, If, ref, createResource, onRouted } from 'auwla'
 import { $api } from '../../server/app-hono'
-import { If, ref, createResource } from 'auwla'
 
-// Simple page that loads a user by id from query (?id=123)
-// Demonstrates using createResource for data fetching with caching
-export const UserPage = definePage({
-  loader: ({ $api, query }) => {
-    const id = String(query.id ?? '1')
+
+export const UserPage = definePage(
+  (ctx) => {
+    const id = String(ctx.query.id ?? '1')
     
     // Use createResource for caching and loading states
     const user = createResource(
       `user-${id}`,
-      (signal) => $api.getUser({ id }),
-      { staleTime: 5000 } // Cache for 5 seconds
+      () => ctx.$api.getUser({ id }),
+      { staleTime: 50000 } // Cache for 5 seconds
     )
     
-    return { user }
-  },
-  component: (_ctx, { user }) => {
+    // Refetch when route changes
+    onRouted(() => {
+      const newId = String(ctx.query.id ?? '1')
+      if (newId !== id) {
+        user.refetch({ force: true })
+      }
+    })
+    
+    // Local component state
     const counter = ref(0)
     
     return (
       <section>
-        <h2>User Page</h2>
+        <h2>User Page (New API)</h2>
+        <p style={{ fontSize: '0.9em', color: '#666' }}>
+          Using simplified plugin system with createResource
+        </p>
         
         {If(() => user.loading.value, () => (
           <p>Loading user...</p>
@@ -48,8 +55,13 @@ export const UserPage = definePage({
             Counter: {counter}
           </button>
         </div>
+        
+        <div style={{ marginTop: '20px', fontSize: '0.85em', color: '#888' }}>
+          <p>Current path: {ctx.path}</p>
+          <p>Query params: {JSON.stringify(ctx.query)}</p>
+        </div>
       </section>
     )
   },
-  meta: { title: 'User Page' },
-}, [fullstackPlugin($api)])
+  plugins(fullstackPlugin($api))
+)

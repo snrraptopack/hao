@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.json",
-  "compilerOptions": {
-    // Make path aliases resolve from the repo root
-    "baseUrl": "../../"
-  },
-  "include": ["src/**/*", "../../auwla-jsx.d.ts"],
-  "exclude": ["node_modules", "dist"]
-}
