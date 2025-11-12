@@ -1,15 +1,21 @@
-import { h, Fragment,ref,onMount,watch,For, flushSync } from '../../../src/index';
+import { h, Fragment,ref,onMount,watch,For, flushSync,derive } from '../../../src/index';
 
 // Plain numbers array wrapped in ref (like React/Vue)
 const items = ref(Array.from({ length: 800 }, (_, i) => i));
 const filterText = ref('');
 const tick = ref(0);
 
-// Derived list must depend on both items and filter text
-const filtered = watch([items, filterText], ([list, q]) => {
-  const needle = q.toLowerCase();
-  return needle ? list.filter((n) => String(n).includes(needle)) : list;
-});
+
+const filtered  = derive(()=>{
+  const needle = filterText.value.toLowerCase()
+
+  return needle ? items.value.filter(it=> String(it).includes(needle)) : items.value
+})
+
+// const filtered = watch([items, filterText], ([list, q]) => {
+//   const needle = q.toLowerCase();
+//   return needle ? list.filter((n) => String(n).includes(needle)) : list;
+// });
 
 function measure(name: string) {
   try {
@@ -65,7 +71,7 @@ function App() {
         <span class="small">filtered: {filtered.value.length}</span>
       </div>
       <div class="grid">
-        <For each={filtered}>
+        <For each={filtered} key={(it)=> `${it}`}>
         {(n)=> <div class="card">Row {n}</div>}
       </For>
       </div>

@@ -391,6 +391,13 @@ export function For<T>(props: ForProps<T>): HTMLElement {
     const newCache = new Map<string | number, CacheEntry>();
     const nodesToInsert: Node[] = [];
     
+    console.log('[For] renderList called', {
+      oldLen: cache.size,
+      newLen: newItems.length,
+      oldKeys: Array.from(cache.keys()).slice(0, 5),
+      newKeys: newItems.slice(0, 5)
+    });
+    
     // Detect item type on first non-empty render
     if (itemType === null && newItems.length > 0 && newItems[0] !== undefined) {
       itemType = isPrimitive(newItems[0]) ? 'primitive' : 'object';
@@ -437,6 +444,7 @@ export function For<T>(props: ForProps<T>): HTMLElement {
     for (const [oldKey, entry] of cache.entries()) {
       if (!newCache.has(oldKey)) {
         (entry.node as ChildNode).remove();
+        cache.delete(oldKey);  // Remove from cache immediately
       }
     }
     
@@ -475,11 +483,13 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       // Step 3: Common sequence = same → all nodes in right place
       if (i > oldEnd && i > newEnd) {
         // All matched, nothing to do
+        console.log('[For] Early exit: all matched');
         return;
       }
       
       // Step 4: Old sequence done, new items remain → append
       if (i > oldEnd) {
+        console.log('[For] Appending new items', { from: i, to: newEnd, count: newEnd - i + 1 });
         const anchor = newEnd + 1 < newLen ? newCache.get(newKeys[newEnd + 1]!)!.node : endMarker;
         for (let j = i; j <= newEnd; j++) {
           const node = newCache.get(newKeys[j]!)!.node;
@@ -490,6 +500,7 @@ export function For<T>(props: ForProps<T>): HTMLElement {
       
       // Step 5: New sequence done, old items remain → remove
       if (i > newEnd) {
+        console.log('[For] Removing old items', { from: i, to: oldEnd });
         for (let j = i; j <= oldEnd; j++) {
           // Already removed in Phase 2
         }
@@ -523,14 +534,22 @@ export function For<T>(props: ForProps<T>): HTMLElement {
         }
       }
       
+      console.log('[For] LIS path', { 
+        toBePatched, 
+        moved, 
+        hasAdditions: newIndexToOldIndexMap.includes(-1) 
+      });
+      
       // If nothing moved and no additions, we're done
       if (!moved && !newIndexToOldIndexMap.includes(-1)) {
+        console.log('[For] Early exit: nothing moved, no additions');
         return;
       }
       
       // Generate LIS only if nodes need to be moved
       const lisIndices = moved ? lis(newIndexToOldIndexMap) : [];
       const lisSet = new Set(lisIndices);
+      console.log('[For] Moving/inserting nodes', { lisLength: lisIndices.length });
       
       // Patch by moving/inserting from right to left
       for (let j = toBePatched - 1; j >= 0; j--) {

@@ -8,6 +8,7 @@
     "skipLibCheck": true
   },
   "include": [
+    "auwla-jsx.d.ts",
     "src/index.ts",
     "src/jsx-runtime.ts",
     "src/jsx-dev-runtime.ts",
