@@ -10,8 +10,8 @@ export const SettingsPage = AuthLayout.definePage(
     
     onMount(() => {
       console.log('Settings page mounted')
-      // ✅ ctx.auth is available (from AuthLayout)
-      // ✅ ctx.i18n is available (from AuthLayout)
+      //  ctx.auth is available (from AuthLayout)
+      //  ctx.i18n is available (from AuthLayout)
       console.log('User:', ctx.auth.user.value?.name)
       console.log('Locale:', ctx.i18n.locale.value)
     })

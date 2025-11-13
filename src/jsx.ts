@@ -278,7 +278,7 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
         const initial = String(val.value ?? '');
         element.className = initial;
         (element as any)[CLASS_TOKENS] = new Set(tokenizeClass(initial));
-        // ✅ subscribe -> watch with diff-based updates
+        //  subscribe -> watch with diff-based updates
         watch(val, (v) => applyClassTokens(element, v));
       } else {
         // Static set
@@ -293,7 +293,7 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
       if (isRef(val)) {
         // Ref<styles>: apply initial and subscribe to whole object/string changes
         applyStyle(element, val.value);
-        // ✅ subscribe -> watch
+        //  subscribe -> watch
         watch(val, (v) => applyStyle(element, v));
       } else if (val && typeof val === 'object') {
         // Plain style object. Support nested Ref values for individual properties.
@@ -350,7 +350,7 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
     if (commonProps.includes(key)) {
       if (isRef(val)) {
         setAttr(element, key, val.value);
-        // ✅ subscribe -> watch
+        //  subscribe -> watch
         watch(val, (v) => setAttr(element, key, v));
       } else {
         setAttr(element, key, val);
@@ -361,7 +361,7 @@ export function h(type: any, rawProps: any, ...rawChildren: any[]): Node {
     // Generic attribute/property with Ref support
     if (isRef(val)) {
       setAttr(element, key, val.value);
-      // ✅ subscribe -> watch
+      //  subscribe -> watch
       watch(val, (v) => setAttr(element, key, v));
     } else {
       setAttr(element, key, val);

@@ -1025,13 +1025,13 @@ export function Component(fn: (ui: LayoutBuilder) => void): HTMLElement {
   
   // Set lifecycle context AND watch context
   setCurrentComponent(context);
-  setWatchContext(context.cleanups); // ✅ Enable auto-cleanup for watch()
+  setWatchContext(context.cleanups); //  Enable auto-cleanup for watch()
   
   fn(builder);
   
   // Clear contexts after component setup
   setCurrentComponent(null);
-  setWatchContext(null); // ✅ Clear watch context
+  setWatchContext(null); //  Clear watch context
   
   const element = builder.build();
   

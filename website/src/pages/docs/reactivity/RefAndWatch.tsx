@@ -108,10 +108,10 @@ export function Demo() {
 
 const items = ref([1, 2])
 
-// ❌ No notification: in-place mutation
+//  No notification: in-place mutation
 items.value.push(3)
 
-// ✅ Notify watchers: replace the array reference
+//  Notify watchers: replace the array reference
 items.value = [...items.value, 3]
 
 // Derived ref only recomputes when shallowly unequal
@@ -140,10 +140,10 @@ export function Profile() {
   }
 
   function rename(next: string) {
-    // ❌ in-place property assignment DOES NOT notify watchers
+    //  in-place property assignment DOES NOT notify watchers
     // user.value.name = next
 
-    // ✅ replace the object reference
+    //  replace the object reference
     user.value = { ...user.value, name: next }
   }
 

@@ -183,7 +183,7 @@ export function ref<T>(initialValue: T): Ref<T> {
                     devHook('onRefUpdated', (target as any).__devtools_id, oldValue, newValue);
                 }
                 
-                scheduleNotify(); // ✅ Batched
+                scheduleNotify(); //  Batched
                 
                 return true;
             }
@@ -255,7 +255,7 @@ export function getWatchContext() {
  * const App = Component((ui) => {
  *   const todos = ref([])
  *   
- *   // ✅ Automatically cleaned up when component unmounts
+ *   //  Automatically cleaned up when component unmounts
  *   watch(todos, (newTodos) => {
  *     console.log('Todos changed:', newTodos)
  *   })
@@ -265,7 +265,7 @@ export function getWatchContext() {
  * // Side effect with manual cleanup (outside Component)
  * const cleanup = watch(source, (v) => console.log(v))
  * // Later...
- * cleanup() // ✅ Call to unsubscribe
+ * cleanup() //  Call to unsubscribe
  * 
  * @example
  * // JSX usage: use derived refs directly in templates

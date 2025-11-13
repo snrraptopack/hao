@@ -74,8 +74,8 @@ export function Items() {
   const items = ref([1, 2])
 
   function add() {
-    // ❌ no update: items.value.push(3)
-    // ✅ update: replace the array reference
+    //  no update: items.value.push(3)
+    //  update: replace the array reference
     items.value = [...items.value, 3]
   }
 

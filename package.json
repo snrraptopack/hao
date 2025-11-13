@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A lightweight, reactive UI framework with blazing-fast performance",
   "type": "module",
   "main": "./dist/auwla.umd.cjs",
