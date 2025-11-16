@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite'
 import { routeTypesPlugin } from './scripts/vite-plugin-route-types'
-// import react from '@vitejs/plugin-react'; // Commented out to use custom JSX runtime
 
 
 export default defineConfig({
@@ -10,17 +9,20 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'Auwla',
-      fileName: (format) => `auwla.${format === 'es' ? 'js' : 'umd.cjs'}`
+      fileName: (format) => `auwla.${format === 'es' ? 'js' : 'umd.cjs'}`,
+      formats: ['es']
     },
     rollupOptions: {
-      // Externalize deps that shouldn't be bundled
-      external: ['react', 'react-dom', 'react-dom/client'],
+      input: {
+        'auwla': resolve(__dirname, 'src/index.ts'),
+        'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
+        'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts'),
+        'transition/index': resolve(__dirname, 'src/transition/index.ts')
+      },
       output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-          'react-dom/client': 'ReactDOM'
-        }
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name].js',
+        inlineDynamicImports: false
       }
     }
   },
@@ -31,14 +33,14 @@ export default defineConfig({
   plugins: [
     routeTypesPlugin(), // Auto-generate route types for IDE autocomplete
     tailwindcss(),
-    // react(), // Commented out to use custom JSX runtime
     //templateCompiler({ verbose: false, emitDebugFiles: true })
   ],
   // Ensure .auwla files are treated as modules, not assets
   assetsInclude: [],
   // Configure Vite to handle .auwla files and JSX
   optimizeDeps: {
-    exclude: ['**/*.auwla', 'react', 'react-dom', 'react-dom/client'],
+    exclude: [],
+    include: [],
     esbuildOptions: {
       loader: {
         '.tsx': 'tsx',

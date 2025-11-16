@@ -27,8 +27,7 @@
     "src/devtools.ts",
     "src/devtools-ui.ts",
     "src/cli.ts",
-    "src/integrations/**/*.ts",
-    "src/integrations/**/*.tsx",
+    
     "src/types/**/*.ts",
     
   ],
