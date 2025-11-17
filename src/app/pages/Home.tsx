@@ -1,4 +1,7 @@
 
+import { h } from '../../jsx'
+import { Link } from '../../router'
+
 export function HomePage(){
   return (
     <div class="space-y-4">
@@ -11,6 +14,13 @@ export function HomePage(){
         <li>Search page reacts to query parameters</li>
         <li>Layout wrapping with shared navigation</li>
       </ul>
+      <div class="pt-4 space-y-2">
+        <p class="text-sm text-gray-600">Try directional transitions:</p>
+        <div class="flex gap-2">
+          <Link to="/app/posts" text="Posts (Left)" className="px-3 py-2 rounded border" transition={{ direction: 'left' }} />
+          <Link to="/app/users" text="Users (Right)" className="px-3 py-2 rounded border" transition={{ direction: 'right' }} />
+        </div>
+      </div>
     </div>
   )
 }

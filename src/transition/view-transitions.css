@@ -1,0 +1,30 @@
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important }
+}
+
+html:not([data-vt-dir]) ::view-transition-old(root) { animation: fade-out 240ms ease }
+html:not([data-vt-dir]) ::view-transition-new(root) { animation: fade-in  240ms ease }
+
+html[data-vt-dir="left"]  ::view-transition-old(root) { animation: slide-left-out  240ms ease }
+html[data-vt-dir="left"]  ::view-transition-new(root) { animation: slide-left-in   240ms ease }
+html[data-vt-dir="right"] ::view-transition-old(root) { animation: slide-right-out 240ms ease }
+html[data-vt-dir="right"] ::view-transition-new(root) { animation: slide-right-in  240ms ease }
+html[data-vt-dir="up"]    ::view-transition-old(root) { animation: slide-up-out    240ms ease }
+html[data-vt-dir="up"]    ::view-transition-new(root) { animation: slide-up-in     240ms ease }
+html[data-vt-dir="down"]  ::view-transition-old(root) { animation: slide-down-out  240ms ease }
+html[data-vt-dir="down"]  ::view-transition-new(root) { animation: slide-down-in   240ms ease }
+
+@keyframes fade-in    { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fade-out   { from { opacity: 1 } to { opacity: 0 } }
+
+@keyframes slide-left-in   { from { transform: translateX(12px);  opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes slide-left-out  { from { transform: none;              opacity: 1 } to { transform: translateX(-12px); opacity: 0 } }
+@keyframes slide-right-in  { from { transform: translateX(-12px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes slide-right-out { from { transform: none;              opacity: 1 } to { transform: translateX(12px);  opacity: 0 } }
+
+@keyframes slide-up-in     { from { transform: translateY(12px);  opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes slide-up-out    { from { transform: none;              opacity: 1 } to { transform: translateY(-12px); opacity: 0 } }
+@keyframes slide-down-in   { from { transform: translateY(-12px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes slide-down-out  { from { transform: none;              opacity: 1 } to { transform: translateY(12px);  opacity: 0 } }

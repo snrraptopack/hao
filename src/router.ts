@@ -1014,6 +1014,7 @@ export function Link<P extends RegisteredPaths = RegisteredPaths>(config: {
   className?: string | Ref<string>;
   activeClassName?: string;
   prefetch?: 'hover' | 'visible' | false; // Automatic prefetch strategy
+  transition?: boolean | { name?: string; direction?: 'left' | 'right' | 'up' | 'down' | 'auto'; waitPrefetch?: boolean; duration?: number; easing?: string };
 }) {
   return Component((ui) => {
     const stripQuery = (p: string) => p.split('?')[0] || p;
@@ -1085,12 +1086,36 @@ export function Link<P extends RegisteredPaths = RegisteredPaths>(config: {
       }
     };
 
+    let transitioning = false;
     const events: Record<string, (e: Event) => void> = {
-      click: (e) => {
+      click: async (e) => {
         e.preventDefault();
+        if (transitioning) return;
+        const t = config.transition;
+        const enabled = !!t;
+        const supportsVT = typeof (document as any).startViewTransition === 'function';
+        const reduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         try {
           const r = getRouter();
-          r.push(href);
+          const run = async () => { r.push(href); };
+          if (enabled && supportsVT && !reduced) {
+            transitioning = true;
+            let dir: any = 'left';
+            if (typeof t === 'object' && t.direction) {
+              dir = t.direction === 'auto' ? 'left' : t.direction;
+            }
+            (document.documentElement as any).dataset.vtDir = String(dir);
+            if (typeof t === 'object' && t.waitPrefetch) {
+              await doPrefetch();
+            }
+            const vt = (document as any).startViewTransition(async () => { await run(); });
+            Promise.resolve(vt && vt.finished).finally(() => {
+              transitioning = false;
+              try { delete (document.documentElement as any).dataset.vtDir; } catch {}
+            });
+          } else {
+            await run();
+          }
         } catch (err) {
           console.error('Router not available:', err);
         }

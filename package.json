@@ -26,6 +26,9 @@
     "./transition": {
       "types": "./dist/transition/index.d.ts",
       "import": "./dist/transition/index.js"
+    },
+    "./transition/view-transitions.css": {
+      "default": "./dist/transition/view-transitions.css"
     }
 
   },
@@ -72,7 +75,7 @@
     "dev": "vite",
     "build": "pnpm run build:lib && pnpm run build:cli",
     "build:cli": "tsc src/cli.ts --outDir dist --target ES2020 --module ESNext --moduleResolution node --esModuleInterop --allowJs --skipLibCheck",
-    "postbuild": "node -e \"require('fs').rmSync('dist/app', { recursive: true, force: true })\"",
+    "postbuild": "node -e \"require('fs').rmSync('dist/app', { recursive: true, force: true }); require('fs').mkdirSync('dist/transition', { recursive: true }); require('fs').copyFileSync('src/transition/view-transitions.css', 'dist/transition/view-transitions.css')\"",
     "build:lib": "vite build && tsc --project tsconfig.lib.json --emitDeclarationOnly --declaration --outDir dist",
     "build:app": "vite build --config vite.config.app.ts",
     "preview": "vite preview",
