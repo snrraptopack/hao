@@ -1,6 +1,6 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test } from 'vitest';
-import { createMemoApp, type MemoApp } from 'auwla';
+import { createMemoApp, memo, type MemoApp } from 'auwla';
 
 type Item = { id: number; value: number };
 
@@ -46,10 +46,10 @@ function createBench(root: HTMLElement) {
     return () => (
       <section>
         {items.map((item) => (
-          <div key={item.id} class={item.value > 100 ? 'hot' : 'cold'}>
+          memo(item.id, [item.value], () => <div key={item.id} class={item.value > 100 ? 'hot' : 'cold'}>
             <span>ID: {item.id}</span>
             <strong>{item.value}</strong>
-          </div>
+          </div>)
         ))}
       </section>
     );
@@ -108,4 +108,3 @@ describe('runtime performance smoke metrics', () => {
     expect(clear).toBeGreaterThan(0);
   });
 });
-

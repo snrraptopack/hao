@@ -1,4 +1,4 @@
-import { createMemoApp } from 'auwla';
+import { createMemoApp, memo } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 
 interface BenchmarkItem {
@@ -102,7 +102,7 @@ function PerfBenchmark() {
         gap: '8px' 
       }}>
         {items.map(item => (
-          <div key={item.id} style={{ 
+          memo(item.id, [item.value], () => <div key={item.id} style={{ 
             padding: '10px', 
             border: '1px solid #ddd', 
             borderRadius: '6px',
@@ -115,7 +115,7 @@ function PerfBenchmark() {
             <div style={{ fontSize: '18px', fontWeight: 'bold', marginTop: '4px' }}>
               {item.value}
             </div>
-          </div>
+          </div>)
         ))}
       </div>
     </div>

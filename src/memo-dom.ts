@@ -25,9 +25,14 @@ type ComponentInstance = {
 };
 type RenderState = {
   instances: Map<string, ComponentInstance>;
+  memos: Map<string, MemoBlock>;
   seen: Set<string>;
   stack: string[];
   counters: number[];
+};
+type MemoBlock = {
+  deps: readonly unknown[];
+  value: MemoChild;
 };
 
 let activeEventWrapper: EventWrapper | null = null;
@@ -216,6 +221,11 @@ function isElement(node: Node): node is MemoElement {
 
 function getKey(node: Node): unknown {
   return isElement(node) ? node.__memoKey : undefined;
+}
+
+function createScopedId(label: string, key: string | number): string | null {
+  if (!activeRenderState) return null;
+  return `${activeRenderState.stack.join('/')}/${label}:${String(key)}`;
 }
 
 function getRenderKey(value: unknown): unknown {
@@ -520,6 +530,23 @@ function createTemplateElement<K extends keyof HTMLElementTagNameMap>(
   };
 }
 
+export function memo(key: string | number, deps: readonly unknown[], render: () => MemoChild): MemoChild {
+  const id = createScopedId('memo', key);
+  const state = activeRenderState;
+  if (!id || !state) return render();
+
+  const cached = state.memos.get(id);
+  state.seen.add(id);
+
+  if (cached && sameDeps(cached.deps, deps)) {
+    return cached.value;
+  }
+
+  const value = render();
+  state.memos.set(id, { deps: [...deps], value });
+  return value;
+}
+
 /**
  * Creates an event-invalidated DOM app.
  *
@@ -544,6 +571,7 @@ export function createMemoApp<TModel>(
 ): MemoApp<TModel> {
   const cache = new Map<string | number, MemoEntry>();
   const componentInstances = new Map<string, ComponentInstance>();
+  const memoBlocks = new Map<string, MemoBlock>();
   let scheduled = false;
   let destroyed = false;
   const model = view ? modelOrApp as TModel : undefined;
@@ -556,6 +584,7 @@ export function createMemoApp<TModel>(
     const previousRenderState = activeRenderState;
     const renderState: RenderState = {
       instances: componentInstances,
+      memos: memoBlocks,
       seen: new Set(),
       stack: ['root'],
       counters: [0],
@@ -567,6 +596,9 @@ export function createMemoApp<TModel>(
       patchRoot(root, output);
       for (const id of componentInstances.keys()) {
         if (!renderState.seen.has(id)) componentInstances.delete(id);
+      }
+      for (const id of memoBlocks.keys()) {
+        if (!renderState.seen.has(id)) memoBlocks.delete(id);
       }
     } finally {
       activeEventWrapper = previousWrapper;
@@ -619,6 +651,7 @@ export function createMemoApp<TModel>(
       scheduled = false;
       cache.clear();
       componentInstances.clear();
+      memoBlocks.clear();
       root.replaceChildren();
     },
   };

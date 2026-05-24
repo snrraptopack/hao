@@ -3,6 +3,7 @@ export {
   createMemoApp,
   createMemoElement,
   h,
+  memo,
 } from './memo-dom';
 
 export type {
