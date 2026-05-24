@@ -206,6 +206,33 @@ function swapCompiledRows<TItem>(
   orderedRows[rightIndex] = left;
 }
 
+function clearCompiledRows<TItem>(rows: Map<unknown, Row<TItem>>, orderedRows: Row<TItem>[], anchor: Node) {
+  if (orderedRows.length === 0) return;
+
+  for (const row of orderedRows) {
+    if (row.block.destroy) row.block.destroy();
+  }
+
+  const first = orderedRows[0]!.block.node;
+  if (first.parentNode && first.parentNode === anchor.parentNode) {
+    const parent = first.parentNode;
+    if (parent.firstChild === first && anchor.nextSibling === null) {
+      parent.replaceChildren(anchor);
+    } else {
+      const range = document.createRange();
+      range.setStartBefore(first);
+      range.setEndBefore(anchor);
+      range.deleteContents();
+      range.detach();
+    }
+  } else {
+    for (const row of orderedRows) removeNode(row.block.node);
+  }
+
+  rows.clear();
+  orderedRows.length = 0;
+}
+
 export function __createBlock<TArgs extends readonly unknown[]>(
   factory: () => CompiledBlock<TArgs>,
 ): CompiledBlock<TArgs> {
@@ -334,14 +361,77 @@ export function __keyedMap<TItem, TKey>(
   const anchor = document.createComment('auwla:keyed-map');
   const rows = new Map<TKey, Row<TItem>>();
   const orderedRows: Row<TItem>[] = [];
+  let destroyableRows = 0;
 
   const block: CompiledBlock<[readonly TItem[]]> = {
     node: fragment,
     update(nextItems) {
       const parent = anchor.parentNode ?? fragment;
+
+      if (nextItems.length === 0) {
+        if (destroyableRows === 0 && orderedRows.length > 0) {
+          const first = orderedRows[0]!.block.node;
+          if (first.parentNode && first.parentNode === anchor.parentNode) {
+            const parentNode = first.parentNode;
+            parentNode.textContent = '';
+            parentNode.appendChild(anchor);
+          } else {
+            for (const row of orderedRows) removeNode(row.block.node);
+          }
+          rows.clear();
+          orderedRows.length = 0;
+        } else {
+          clearCompiledRows(rows, orderedRows, anchor);
+          destroyableRows = 0;
+        }
+        return;
+      }
+
       let mismatchA = -1;
       let mismatchB = -1;
       let needsPlacement = false;
+
+      if (orderedRows.length > 0 && nextItems.length > orderedRows.length) {
+        let canAppend = true;
+
+        for (let index = 0; index < orderedRows.length; index++) {
+          const item = nextItems[index]!;
+          const row = orderedRows[index]!;
+          const sameItem = Object.is(row.item, item);
+          const key = sameItem ? row.key : keyOf(item, index);
+
+          if (!Object.is(row.key, key)) {
+            canAppend = false;
+            break;
+          }
+
+          const deps = depsOf ? depsOf(item, index) : null;
+          if (!depsOf || !sameDeps(row.deps, deps)) {
+            updateRow(row.block, item, index);
+            row.deps = deps;
+          }
+          row.item = item;
+        }
+
+        if (canAppend) {
+          const batch = document.createDocumentFragment();
+
+          for (let index = orderedRows.length; index < nextItems.length; index++) {
+            const item = nextItems[index]!;
+            const key = keyOf(item, index);
+            const deps = depsOf ? depsOf(item, index) : null;
+            const row = { key, item, block: createRow(item, index), deps };
+            if (row.block.destroy) destroyableRows++;
+            if (updateCreatedRows) updateRow(row.block, item, index);
+            rows.set(key, row);
+            orderedRows.push(row);
+            batch.appendChild(row.block.node);
+          }
+
+          parent.insertBefore(batch, anchor);
+          return;
+        }
+      }
 
       if (orderedRows.length === nextItems.length) {
         for (let index = 0; index < nextItems.length; index++) {
@@ -420,6 +510,7 @@ export function __keyedMap<TItem, TKey>(
 
         if (!row) {
           row = { key, item, block: createRow(item, index), deps };
+          if (row.block.destroy) destroyableRows++;
           if (updateCreatedRows) updateRow(row.block, item, index);
         } else if (!depsOf || !sameDeps(row.deps, deps)) {
           updateRow(row.block, item, index);
@@ -436,6 +527,7 @@ export function __keyedMap<TItem, TKey>(
       for (const [key, row] of rows) {
         if (nextRows.has(key)) continue;
         row.block.destroy?.();
+        if (row.block.destroy) destroyableRows--;
         removeNode(row.block.node);
       }
 
@@ -453,6 +545,7 @@ export function __keyedMap<TItem, TKey>(
       }
       rows.clear();
       orderedRows.length = 0;
+      destroyableRows = 0;
       removeNode(anchor);
     },
   };

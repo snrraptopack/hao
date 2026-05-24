@@ -205,6 +205,42 @@ describe('Auwla compiler', () => {
     expect(rowUpdate).toContain('__setText(text1, item.value);');
   });
 
+  test('keeps closure variables in keyed row dependencies', () => {
+    const source = `
+      function List() {
+        let selected = 0;
+        const rows = [{ id: 1, label: 'A' }];
+        exports.select = () => { selected = 1; };
+        return () => (
+          <table>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} class={selected === row.id ? 'selected' : ''}>
+                  <td>{row.label}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+      }
+      exports.List = List;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain("(row) => [selected === row.id ? 'selected' : '', row.label]");
+
+    const evaluated = evaluateCompiled(compiled) as { List: () => unknown; select(): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.List as any));
+
+    expect(root.querySelector('tr')!.className).toBe('');
+
+    evaluated.select();
+    app.render();
+
+    expect(root.querySelector('tr')!.className).toBe('selected');
+  });
+
   test('lowers keyed map rows into reusable row blocks', () => {
     const source = `
       function List() {

@@ -109,10 +109,19 @@ function rowDependencies(expressions: string[], itemName: string): string[] {
   const deps: string[] = [];
   const seen = new Set<string>();
   const propertyPattern = new RegExp(`\\b${itemName}\\.[A-Za-z_$][\\w$]*`, 'g');
+  const identifierPattern = /\b[A-Za-z_$][\w$]*\b/;
 
   for (const expression of expressions) {
     const matches = expression.match(propertyPattern);
-    const nextDeps = matches && matches.length > 0 ? matches : [expression];
+    const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
+    const remaining = withoutStrings
+      .replace(propertyPattern, '')
+      .replace(/\b(true|false|null|undefined|NaN|Infinity)\b/g, '')
+      .replace(/[0-9]+(?:\.[0-9]+)?/g, '')
+      .replace(/[^A-Za-z_$]+/g, '');
+    const nextDeps = matches && matches.length > 0 && !identifierPattern.test(remaining)
+      ? matches
+      : [expression];
 
     for (const dep of nextDeps) {
       if (seen.has(dep)) continue;
@@ -369,7 +378,11 @@ function compileTemplateAttribute(
     return '';
   }
 
-  if (name.startsWith('on') && name.length > 2) return null;
+  if (name.startsWith('on') && name.length > 2) {
+    const eventName = name.slice(2).toLowerCase();
+    ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
+    return '';
+  }
 
   const setter = PROPERTY_PROPS.has(name) ? '__setProperty' : '__setAttribute';
   ctx.deps.push(value);
