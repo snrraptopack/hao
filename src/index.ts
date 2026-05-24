@@ -9,6 +9,7 @@ export {
 
 export {
   __componentBlock,
+  __cloneTemplate,
   __createBlock,
   __event,
   __keyedMap,

@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { describe, expect, test } from 'vitest';
 import {
   __componentBlock,
+  __cloneTemplate,
   __createBlock,
   __event,
   __keyedMap,
@@ -31,6 +32,7 @@ function evaluateCompiled(source: string) {
 
   Function('runtime', 'exports', js)({
     __componentBlock,
+    __cloneTemplate,
     __createBlock,
     __event,
     __keyedMap,
@@ -59,7 +61,7 @@ describe('Auwla compiler', () => {
     const compiled = compileAuwla(source);
     expect(compiled).toContain('__componentBlock');
     expect(compiled).toContain('__setClass');
-    expect(compiled).toContain('__setChild');
+    expect(compiled).toContain('__setText');
     expect(compiled).not.toContain('return () => <button');
 
     const { Counter } = evaluateCompiled(compiled) as { Counter: () => unknown };
@@ -176,6 +178,31 @@ describe('Auwla compiler', () => {
 
     const updateBody = compiled.slice(compiled.indexOf('update()'));
     expect(updateBody).not.toContain('__setAttribute(el0, "disabled", true);');
+  });
+
+  test('moves key-derived row patches into row creation', () => {
+    const source = `
+      function List() {
+        const items = [{ id: 1, value: 2 }];
+        return () => (
+          <div>
+            {items.map((item) => (
+              <div key={item.id}>
+                <span>{item.id}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        );
+      }
+    `;
+
+    const compiled = compileAuwla(source);
+    const rowUpdate = compiled.slice(compiled.indexOf('update(item, index)'));
+
+    expect(compiled).toContain('__setText(text0, item.id);');
+    expect(rowUpdate).not.toContain('__setText(text0, item.id);');
+    expect(rowUpdate).toContain('__setText(text1, item.value);');
   });
 
   test('lowers keyed map rows into reusable row blocks', () => {

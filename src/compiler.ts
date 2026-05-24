@@ -2,6 +2,7 @@ import ts from 'typescript';
 
 type DynamicPatch = {
   code: string;
+  deps: string[];
 };
 
 type CompileContext = {
@@ -19,8 +20,26 @@ type CompileResult = {
   root: string;
 };
 
+type TemplatePatch = DynamicPatch & {
+  initOnly?: boolean;
+};
+
+type TemplateContext = {
+  source: ts.SourceFile;
+  itemName: string;
+  keyText: string;
+  elementId: number;
+  textId: number;
+  elementSetup: string[];
+  textSetup: string[];
+  patches: TemplatePatch[];
+  deps: string[];
+  elementVars: Map<string, string>;
+};
+
 const COMPILER_IMPORT = [
   '__componentBlock',
+  '__cloneTemplate',
   '__createBlock',
   '__event',
   '__keyedMap',
@@ -47,6 +66,22 @@ function expressionText(source: ts.SourceFile, expression: ts.Expression): strin
 
 function stringLiteral(value: string): string {
   return JSON.stringify(value);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function pathExpression(root: string, path: number[]): string {
+  return path.reduce((expression, index) => `${expression}.childNodes[${index}]!`, root);
+}
+
+function staticAttributeHtml(name: string, value: string | true): string {
+  return value === true ? ` ${name}` : ` ${name}="${escapeHtml(value)}"`;
 }
 
 function decodeJsxText(value: string): string {
@@ -87,6 +122,18 @@ function rowDependencies(expressions: string[], itemName: string): string[] {
   }
 
   return deps;
+}
+
+function expressionDependencies(expression: string, itemName: string): string[] {
+  return rowDependencies([expression], itemName);
+}
+
+function isStaticExpression(expression: ts.Expression): boolean {
+  return ts.isStringLiteralLike(expression)
+    || ts.isNumericLiteral(expression)
+    || expression.kind === ts.SyntaxKind.TrueKeyword
+    || expression.kind === ts.SyntaxKind.FalseKeyword
+    || expression.kind === ts.SyntaxKind.NullKeyword;
 }
 
 function isWhitespaceJsxText(node: ts.JsxText): boolean {
@@ -155,14 +202,14 @@ function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentVar: str
       const childVar = `child${ctx.textId++}`;
       ctx.setup.push(`let ${childVar} = document.createComment("auwla:child");`);
       ctx.setup.push(`${parentVar}.append(${childVar});`);
-      ctx.patches.push({ code: `${childVar} = __setChild(${parentVar}, ${childVar}, ${value});` });
+      ctx.patches.push({ code: `${childVar} = __setChild(${parentVar}, ${childVar}, ${value});`, deps: [value] });
       return true;
     }
 
     const textVar = `text${ctx.textId++}`;
     ctx.setup.push(`const ${textVar} = document.createTextNode("");`);
     ctx.setup.push(`${parentVar}.append(${textVar});`);
-    ctx.patches.push({ code: `__setText(${textVar}, ${value});` });
+    ctx.patches.push({ code: `__setText(${textVar}, ${value});`, deps: [value] });
     return true;
   }
 
@@ -211,14 +258,44 @@ function compileAttribute(
 
   const value = expressionText(ctx.source, expression);
   if (name === 'style') {
+    if (ts.isObjectLiteralExpression(expression)) {
+      for (const property of expression.properties) {
+        const propertyName = ts.isShorthandPropertyAssignment(property)
+          ? property.name.text
+          : ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+            ? property.name.text
+            : null;
+        if (!propertyName) return false;
+
+        const initializer = ts.isPropertyAssignment(property) ? property.initializer : null;
+        const propertyValue = ts.isShorthandPropertyAssignment(property)
+          ? property.name.text
+          : initializer
+            ? expressionText(ctx.source, initializer)
+            : null;
+        if (!propertyValue) return false;
+
+        if (initializer && isStaticExpression(initializer)) {
+          ctx.setup.push(`__setStyle(${elementVar}, ${stringLiteral(propertyName)}, ${propertyValue});`);
+        } else {
+          ctx.deps.push(propertyValue);
+          ctx.patches.push({
+            code: `__setStyle(${elementVar}, ${stringLiteral(propertyName)}, ${propertyValue});`,
+            deps: [propertyValue],
+          });
+        }
+      }
+      return true;
+    }
+
     ctx.deps.push(value);
-    ctx.patches.push({ code: `__setStyle(${elementVar}, ${value});` });
+    ctx.patches.push({ code: `__setStyle(${elementVar}, ${value});`, deps: [value] });
     return true;
   }
 
   if (name === 'class' || name === 'className') {
     ctx.deps.push(value);
-    ctx.patches.push({ code: `__setClass(${elementVar}, ${value});` });
+    ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
     return true;
   }
 
@@ -230,7 +307,7 @@ function compileAttribute(
 
   const setter = PROPERTY_PROPS.has(name) ? '__setProperty' : '__setAttribute';
   ctx.deps.push(value);
-  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${value});` });
+  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${value});`, deps: [value] });
   return true;
 }
 
@@ -247,11 +324,184 @@ function keyAttribute(
   return null;
 }
 
+function templateElementVar(ctx: TemplateContext, path: number[]): string {
+  if (path.length === 0) return 'el0';
+
+  const key = path.join('.');
+  const existing = ctx.elementVars.get(key);
+  if (existing) return existing;
+
+  const name = `el${ctx.elementId++}`;
+  ctx.elementVars.set(key, name);
+  ctx.elementSetup.push(`const ${name} = ${pathExpression('el0', path)} as HTMLElement;`);
+  return name;
+}
+
+function compileTemplateAttribute(
+  ctx: TemplateContext,
+  attribute: ts.JsxAttributeLike,
+  elementVar: string,
+): string | null {
+  if (ts.isJsxSpreadAttribute(attribute)) return null;
+  if (!ts.isIdentifier(attribute.name)) return null;
+
+  const name = attribute.name.text;
+  const initializer = attribute.initializer;
+  if (name === 'key') return '';
+  if (!initializer) return staticAttributeHtml(name, true);
+
+  if (ts.isStringLiteral(initializer)) {
+    return name === 'className'
+      ? staticAttributeHtml('class', initializer.text)
+      : staticAttributeHtml(name, initializer.text);
+  }
+
+  if (!ts.isJsxExpression(initializer)) return null;
+  const expression = childExpression(initializer);
+  if (!expression) return '';
+
+  const value = expressionText(ctx.source, expression);
+  if (name === 'style') return null;
+
+  if (name === 'class' || name === 'className') {
+    ctx.deps.push(value);
+    ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
+    return '';
+  }
+
+  if (name.startsWith('on') && name.length > 2) return null;
+
+  const setter = PROPERTY_PROPS.has(name) ? '__setProperty' : '__setAttribute';
+  ctx.deps.push(value);
+  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${value});`, deps: [value] });
+  return '';
+}
+
+function compileTemplateChildren(ctx: TemplateContext, children: readonly ts.JsxChild[], parentPath: number[]): string | null {
+  let html = '';
+  let childIndex = 0;
+
+  for (const child of children) {
+    if (ts.isJsxText(child)) {
+      if (isWhitespaceJsxText(child)) continue;
+      html += escapeHtml(decodeJsxText(child.text));
+      childIndex++;
+      continue;
+    }
+
+    if (ts.isJsxExpression(child)) {
+      const expression = childExpression(child);
+      if (!expression) continue;
+      if (isMapCall(expression) || needsChildPatch(expression)) return null;
+
+      const parentVar = templateElementVar(ctx, parentPath);
+      const textVar = `text${ctx.textId++}`;
+      const value = expressionText(ctx.source, expression);
+      const deps = expressionDependencies(value, ctx.itemName);
+      const initOnly = deps.length === 1 && deps[0] === ctx.keyText;
+      ctx.textSetup.push(`const ${textVar} = document.createTextNode("");`);
+      ctx.textSetup.push(`${parentVar}.append(${textVar});`);
+      ctx.deps.push(value);
+      ctx.patches.push({ code: `__setText(${textVar}, ${value});`, deps: [value], initOnly });
+      continue;
+    }
+
+    if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+      const childHtml = compileTemplateNode(ctx, child, [...parentPath, childIndex]);
+      if (childHtml === null) return null;
+      html += childHtml;
+      childIndex++;
+      continue;
+    }
+
+    return null;
+  }
+
+  return html;
+}
+
+function compileTemplateNode(
+  ctx: TemplateContext,
+  node: ts.JsxElement | ts.JsxSelfClosingElement,
+  path: number[],
+): string | null {
+  const opening = ts.isJsxElement(node) ? node.openingElement : node;
+  const tag = intrinsicName(opening.tagName);
+  if (!tag) return null;
+
+  const elementVar = templateElementVar(ctx, path);
+  let attrs = '';
+  for (const attribute of opening.attributes.properties) {
+    const attr = compileTemplateAttribute(ctx, attribute, elementVar);
+    if (attr === null) return null;
+    attrs += attr;
+  }
+
+  if (ts.isJsxSelfClosingElement(node)) return `<${tag}${attrs}></${tag}>`;
+
+  const closingTag = intrinsicName(node.closingElement.tagName);
+  if (closingTag !== tag) return null;
+  const children = compileTemplateChildren(ctx, node.children, path);
+  if (children === null) return null;
+
+  return `<${tag}${attrs}>${children}</${tag}>`;
+}
+
+function compileTemplateRowBlock(
+  source: ts.SourceFile,
+  row: ts.JsxElement | ts.JsxSelfClosingElement,
+  itemName: string,
+  indexName: string,
+  keyText: string,
+): { block: string; deps: string[] } | null {
+  const ctx: TemplateContext = {
+    source,
+    itemName,
+    keyText,
+    elementId: 1,
+    textId: 0,
+    elementSetup: [],
+    textSetup: [],
+    patches: [],
+    deps: [],
+    elementVars: new Map(),
+  };
+
+  const html = compileTemplateNode(ctx, row, []);
+  if (html === null) return null;
+
+  const updatePatches = ctx.patches.filter((patch) => !patch.initOnly);
+  const init = ctx.patches.length
+    ? ctx.patches.map((patch) => `            ${patch.code}`).join('\n')
+    : '';
+  const update = updatePatches.length
+    ? updatePatches.map((patch) => `              ${patch.code}`).join('\n')
+    : '              // Static row; no dynamic fields to patch.';
+
+  return {
+    deps: rowDependencies(ctx.deps, itemName),
+    block: `__createBlock(() => {
+            const el0 = __cloneTemplate(${stringLiteral(html)});
+            ${ctx.elementSetup.join('\n            ')}
+            ${ctx.textSetup.join('\n            ')}
+${init ? `\n${init}\n` : ''}
+
+            return {
+              node: el0,
+              update(${itemName}, ${indexName}) {
+${update}
+              },
+            };
+          })`,
+  };
+}
+
 function compileRowBlock(
   source: ts.SourceFile,
   row: ts.JsxElement | ts.JsxSelfClosingElement,
   itemName: string,
   indexName: string,
+  keyText: string,
 ): { block: string; deps: string[] } | null {
   const ctx: CompileContext = {
     source,
@@ -265,14 +515,23 @@ function compileRowBlock(
   const result = compileJsxNode(ctx, row);
   if (!result) return null;
 
-  const update = ctx.patches.length
-    ? ctx.patches.map((patch) => `              ${patch.code}`).join('\n')
+  const updatePatches = ctx.patches.filter((patch) => {
+    const deps = patch.deps.flatMap((dep) => expressionDependencies(dep, itemName));
+    return deps.length !== 1 || deps[0] !== keyText;
+  });
+
+  const init = ctx.patches.length
+    ? ctx.patches.map((patch) => `            ${patch.code}`).join('\n')
+    : '';
+  const update = updatePatches.length
+    ? updatePatches.map((patch) => `              ${patch.code}`).join('\n')
     : '              // Static row; no dynamic fields to patch.';
 
   return {
     deps: rowDependencies(ctx.deps, itemName),
     block: `__createBlock(() => {
             ${ctx.setup.join('\n            ')}
+${init ? `\n${init}\n` : ''}
 
             return {
               node: ${result.root},
@@ -304,13 +563,14 @@ function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string
   const key = keyAttribute(row);
   if (!key) return null;
 
-  const rowBlock = compileRowBlock(ctx.source, row, itemParam.name.text, indexName);
+  const keyText = expressionText(ctx.source, key);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText);
   if (!rowBlock) return null;
 
   const mapVar = `map${ctx.mapId++}`;
   const items = expressionText(ctx.source, expression.expression.expression);
   const itemName = itemParam.name.text;
-  const keyText = expressionText(ctx.source, key);
   const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
   const deps = rowDeps.length === 0
     ? 'null'
@@ -324,8 +584,9 @@ function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string
           (${itemName}, ${indexName}) => ${rowBlock.block},
           (block, ${itemName}, index) => block.update(${itemName}, index),
           (${itemName}) => ${deps},
+          false,
         );`);
-  ctx.patches.push({ code: `${mapVar}.update(${items});` });
+  ctx.patches.push({ code: `${mapVar}.update(${items});`, deps: [items] });
   return mapVar;
 }
 

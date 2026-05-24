@@ -384,6 +384,7 @@ function canPatchTemplate(current: Node, next: unknown): boolean {
 
 export function patchNode(parent: Node, current: Node, next: unknown): Node {
   if (isRenderClosure(next)) return patchNode(parent, current, next());
+  if (current === next) return current;
 
   if (!canPatchTemplate(current, next)) {
     const replacement = toNode(next);

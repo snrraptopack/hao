@@ -10,6 +10,7 @@ const NO_INDEX = -1;
 
 type Row<TItem> = {
   key: unknown;
+  item: TItem;
   block: CompiledBlock<[TItem, number]>;
   deps: unknown;
 };
@@ -57,6 +58,18 @@ const UNITLESS_STYLES = new Set([
   'zIndex',
   'zoom',
 ]);
+const templateCache = new Map<string, HTMLTemplateElement>();
+
+export function __cloneTemplate(html: string): HTMLElement {
+  let template = templateCache.get(html);
+  if (!template) {
+    template = document.createElement('template');
+    template.innerHTML = html;
+    templateCache.set(html, template);
+  }
+
+  return template.content.firstElementChild!.cloneNode(true) as HTMLElement;
+}
 
 function removeNode(node: Node) {
   if (node.parentNode) node.parentNode.removeChild(node);
@@ -315,6 +328,7 @@ export function __keyedMap<TItem, TKey>(
   createRow: (item: TItem, index: number) => CompiledBlock<[TItem, number]>,
   updateRow: (block: CompiledBlock<[TItem, number]>, item: TItem, index: number) => void,
   depsOf?: (item: TItem, index: number) => unknown,
+  updateCreatedRows = true,
 ): CompiledBlock<[readonly TItem[]]> {
   const fragment = document.createDocumentFragment();
   const anchor = document.createComment('auwla:keyed-map');
@@ -332,8 +346,9 @@ export function __keyedMap<TItem, TKey>(
       if (orderedRows.length === nextItems.length) {
         for (let index = 0; index < nextItems.length; index++) {
           const item = nextItems[index]!;
-          const key = keyOf(item, index);
           const row = orderedRows[index]!;
+          const sameItem = Object.is(row.item, item);
+          const key = sameItem ? row.key : keyOf(item, index);
 
           if (Object.is(row.key, key)) {
             const deps = depsOf ? depsOf(item, index) : null;
@@ -341,7 +356,8 @@ export function __keyedMap<TItem, TKey>(
               updateRow(row.block, item, index);
               row.deps = deps;
             }
-          if (row.block.node.parentNode !== parent) needsPlacement = true;
+            row.item = item;
+            if (row.block.node.parentNode !== parent) needsPlacement = true;
             continue;
           }
 
@@ -377,11 +393,13 @@ export function __keyedMap<TItem, TKey>(
             updateRow(rightRow.block, leftItem, mismatchA);
             rightRow.deps = leftDeps;
           }
+          rightRow.item = leftItem;
 
           if (!depsOf || !sameDeps(leftRow.deps, rightDeps)) {
             updateRow(leftRow.block, rightItem, mismatchB);
             leftRow.deps = rightDeps;
           }
+          leftRow.item = rightItem;
 
           swapCompiledRows(parent, orderedRows, mismatchA, mismatchB, anchor);
           return;
@@ -401,13 +419,13 @@ export function __keyedMap<TItem, TKey>(
         let row = rows.get(key);
 
         if (!row) {
-          row = { key, block: createRow(item, index), deps: null };
-          updateRow(row.block, item, index);
+          row = { key, item, block: createRow(item, index), deps };
+          if (updateCreatedRows) updateRow(row.block, item, index);
         } else if (!depsOf || !sameDeps(row.deps, deps)) {
           updateRow(row.block, item, index);
+          row.deps = deps;
         }
-
-        row.deps = deps;
+        row.item = item;
         nextRows.set(key, row);
         orderedRows.push(row);
         orderedNodes.push(row.block.node);
