@@ -80,6 +80,8 @@ describe('typed JSX DOM runtime', () => {
     createMemoApp(root, <TodoApp />);
 
     expect(root.querySelectorAll('li')).toHaveLength(1);
+    const initialItem = root.querySelector('li')!;
+    const initialInput = root.querySelector('form input')!;
 
     const input = root.querySelector('input') as HTMLInputElement;
     input.value = 'Ship it';
@@ -91,12 +93,64 @@ describe('typed JSX DOM runtime', () => {
 
     expect(root.querySelectorAll('li')).toHaveLength(2);
     expect(root.textContent).toContain('Ship it');
+    expect(root.querySelector('li')).toBe(initialItem);
+    expect(root.querySelector('form input')).toBe(initialInput);
 
-    const checkbox = root.querySelector('li input[type="checkbox"]') as HTMLInputElement;
-    checkbox.click();
+    const checkbox = root.querySelector('ul input[type="checkbox"]') as HTMLInputElement;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise<void>((resolve) => queueMicrotask(resolve));
 
     expect(root.querySelector('li')!.className).toBe('completed');
+  });
+
+  test('keeps nested component setup state across parent rerenders', async () => {
+    const root = document.createElement('div');
+    let parentSetupCalls = 0;
+    let childSetupCalls = 0;
+
+    function Counter() {
+      childSetupCalls++;
+      let count = 0;
+
+      return () => (
+        <button class="child" onClick={() => count++}>
+          Child: {count}
+        </button>
+      );
+    }
+
+    function App() {
+      parentSetupCalls++;
+      let parentCount = 0;
+
+      return () => (
+        <section>
+          <button class="parent" onClick={() => parentCount++}>
+            Parent: {parentCount}
+          </button>
+          <Counter />
+        </section>
+      );
+    }
+
+    createMemoApp(root, <App />);
+
+    expect(parentSetupCalls).toBe(1);
+    expect(childSetupCalls).toBe(1);
+    expect(root.textContent).toContain('Child: 0');
+
+    root.querySelector<HTMLButtonElement>('.child')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.textContent).toContain('Child: 1');
+
+    root.querySelector<HTMLButtonElement>('.parent')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(parentSetupCalls).toBe(1);
+    expect(childSetupCalls).toBe(1);
+    expect(root.textContent).toContain('Parent: 1');
+    expect(root.textContent).toContain('Child: 1');
   });
 
   test('renders JSX with plain model values and event invalidation', async () => {

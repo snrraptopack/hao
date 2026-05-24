@@ -7,7 +7,6 @@
     "skipLibCheck": true
   },
   "include": [
-    "auwla-jsx.d.ts",
     "src/index.ts",
     "src/jsx.ts",
     "src/jsx-runtime.ts",
@@ -21,10 +20,6 @@
     "dist",
     "dist-app",
     "**/*.test.ts",
-    "tests",
-    "apps",
-    "website",
-    "docs",
-    "src/app"
+    "tests"
   ]
 }

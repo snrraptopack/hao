@@ -54,7 +54,7 @@ describe('memo-dom', () => {
     expect(root.querySelector('button')!.textContent).toBe('1');
   });
 
-  test('memo replaces DOM nodes when dependencies change', async () => {
+  test('memo patches stable DOM nodes when dependencies change', async () => {
     const root = document.createElement('div');
     const app = createMemoApp(root, { label: 'A' }, (ctx) =>
       ctx.el('section', null, ctx.memo('label', [ctx.model.label], () => ctx.el('span', null, ctx.model.label)))
@@ -65,8 +65,7 @@ describe('memo-dom', () => {
     app.model.label = 'B';
     app.render();
 
-    expect(root.querySelector('span')).not.toBe(initial);
+    expect(root.querySelector('span')).toBe(initial);
     expect(root.textContent).toBe('B');
   });
 });
-

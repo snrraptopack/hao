@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "A tiny typed DOM runtime with event-driven rerendering and memoized DOM reuse",
   "type": "module",
   "main": "./dist/auwla.js",
@@ -56,20 +56,16 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run build:lib",
-    "build:lib": "vite build && tsc --project tsconfig.lib.json --emitDeclarationOnly --declaration --outDir dist",
+    "build": "vite build && tsc --project tsconfig.lib.json --emitDeclarationOnly --declaration --outDir dist",
     "preview": "vite preview",
-    "prepublishOnly": "pnpm run build",
+    "prepublishOnly": "bun run build",
     "test": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.14",
     "@types/node": "^20",
     "@vitest/coverage-v8": "^1.6.1",
-    "c8": "^9.1.0",
     "jsdom": "^24.0.0",
-    "tailwindcss": "^4.1.14",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^1.5.0"

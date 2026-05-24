@@ -11,4 +11,5 @@ export type {
   MemoContext,
   MemoDeps,
   MemoProps,
+  RenderClosure,
 } from './memo-dom';

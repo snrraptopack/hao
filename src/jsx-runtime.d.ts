@@ -4,7 +4,8 @@ export declare const jsxs: typeof jsx;
 
 type DataAttr = `data-${string}`;
 type AriaAttr = `aria-${string}`;
-type Child = string | number | boolean | null | undefined | Node;
+type RenderClosure = () => Child | readonly Child[];
+type Child = string | number | boolean | null | undefined | Node | RenderClosure;
 type Children = Child | readonly Child[];
 
 type CSSProperties = Partial<{
