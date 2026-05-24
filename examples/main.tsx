@@ -3,7 +3,6 @@ import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
 function CounterExample() {
-
   let count = 0;
 
   return () => (
@@ -21,17 +20,19 @@ function TodoExample() {
   ];
   let newTodoText = '';
 
+  function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    const text = newTodoText.trim();
+    if (!text) return;
+    todos.push({ id: Date.now(), text, done: false });
+    newTodoText = '';
+  }
+
   return () => (
     <section class="panel">
       <h2>Todo List</h2>
 
-      <form class="row" onSubmit={(event) => {
-        event.preventDefault();
-        const text = newTodoText.trim();
-        if (!text) return;
-        todos.push({ id: Date.now(), text, done: false });
-        newTodoText = '';
-      }}>
+      <form class="row" onSubmit={handleSubmit}>
         <input
           value={newTodoText}
           placeholder="Add a task"

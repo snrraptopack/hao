@@ -29,7 +29,8 @@ function FetchOnLoad() {
 
   // 3. Render Phase
   return () => (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: '600px', margin: '40px auto' }}>
+    <div
+      style={{ fontFamily: 'sans-serif', maxWidth: '600px', margin: '40px auto' }}>
       <h1>Auwla Data Fetching Test</h1>
 
       <div style={{ padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
