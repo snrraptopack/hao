@@ -13,7 +13,9 @@
     "src/jsx-runtime.d.ts",
     "src/jsx-dev-runtime.ts",
     "src/jsx-dev-runtime.d.ts",
-    "src/memo-dom.ts"
+    "src/memo-dom.ts",
+    "src/compiler-runtime.ts",
+    "src/compiler.ts"
   ],
   "exclude": [
     "node_modules",

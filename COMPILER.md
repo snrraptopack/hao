@@ -263,7 +263,9 @@ __setAttribute(element, name, value)
 __setStyle(element, name, value)
 ```
 
-These helpers should be internal exports or compiler-only imports. They should not be the main public DX.
+These helpers now live in `src/compiler-runtime.ts` and are re-exported from `src/index.ts` for generated code and tests. They should not be the main public DX.
+
+`src/memo-dom.ts` remains the runtime-only correctness layer. The only bridge from compiler helpers back into that file is event wrapping, so compiled event handlers schedule rerenders exactly like ordinary JSX handlers.
 
 ## Safety Rules
 
@@ -290,10 +292,10 @@ The fallback matters. Auwla should remain correct even without compilation or wh
 
 ## Build Order
 
-1. Add internal block helpers.
-2. Compile simple static JSX into create/update blocks.
-3. Compile dynamic text and class/property patches.
-4. Compile keyed `.map()` into `__keyedMap`.
+1. Add internal block helpers. Done in `src/compiler-runtime.ts`.
+2. Compile simple static JSX into create/update blocks. Started in `src/compiler.ts` for intrinsic render closures.
+3. Compile dynamic text and class/property patches. Started in `src/compiler.ts` for direct children and static prop names.
+4. Compile keyed `.map()` into `__keyedMap`. Started in `src/compiler.ts` for keyed intrinsic row JSX.
 5. Add dependency inference for keyed rows.
 6. Add component block lowering.
 7. Add development warnings for slow patterns.

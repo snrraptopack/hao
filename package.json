@@ -18,6 +18,10 @@
     "./jsx-dev-runtime": {
       "types": "./dist/jsx-dev-runtime.d.ts",
       "import": "./dist/jsx-dev-runtime.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler.d.ts",
+      "import": "./dist/compiler.js"
     }
 
   },
@@ -28,6 +32,9 @@
       ],
       "jsx-dev-runtime": [
         "dist/jsx-dev-runtime.d.ts"
+      ],
+      "compiler": [
+        "dist/compiler.d.ts"
       ],
       "*": [
         "dist/index.d.ts"

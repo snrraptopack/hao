@@ -1,5 +1,19 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { compileAuwla } from './src/compiler';
+
+function auwlaCompiler() {
+  return {
+    name: 'auwla-compiler',
+    enforce: 'pre' as const,
+    transform(code: string, id: string) {
+      if (!/\.[tj]sx$/.test(id)) return null;
+      if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) return null;
+      const compiled = compileAuwla(code, id);
+      return compiled === code ? null : { code: compiled, map: null };
+    },
+  };
+}
 
 export default defineConfig({
   build: {
@@ -10,8 +24,10 @@ export default defineConfig({
       formats: ['es']
     },
     rollupOptions: {
+      external: ['typescript'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
+        'compiler': resolve(__dirname, 'src/compiler.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
       },
@@ -26,7 +42,7 @@ export default defineConfig({
     port: 5173,
     open: true
   },
-  plugins: [],
+  plugins: [auwlaCompiler()],
   assetsInclude: [],
   optimizeDeps: {
     exclude: [],
@@ -42,6 +58,7 @@ export default defineConfig({
     alias: [
       { find: 'auwla/jsx-runtime', replacement: resolve(__dirname, 'src/jsx-runtime.ts') },
       { find: 'auwla/jsx-dev-runtime', replacement: resolve(__dirname, 'src/jsx-dev-runtime.ts') },
+      { find: 'auwla/compiler', replacement: resolve(__dirname, 'src/compiler.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]
   },

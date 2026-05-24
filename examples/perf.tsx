@@ -1,4 +1,4 @@
-import { createMemoApp, memo } from 'auwla';
+import { createMemoApp } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
@@ -45,12 +45,30 @@ function PerfBenchmark() {
       <h1>Auwla Performance Benchmark</h1>
       <p>This benchmark forces one synchronous render per action and measures mutation, DOM patch, next paint, and total time separately.</p>
       <div class="perf-metrics">
-        <Metric label="Action" value={lastLabel} />
-        <Metric label="Items" value={String(items.length)} />
-        <Metric label="Mutation" value={`${mutationMs.toFixed(2)}ms`} />
-        <Metric label="Render/Patch" value={`${renderMs.toFixed(2)}ms`} />
-        <Metric label="Next Paint" value={`${paintMs.toFixed(2)}ms`} />
-        <Metric label="Total" value={`${totalMs.toFixed(2)}ms`} />
+        <div class="perf-metric">
+          <div>Action</div>
+          <strong>{lastLabel}</strong>
+        </div>
+        <div class="perf-metric">
+          <div>Items</div>
+          <strong>{String(items.length)}</strong>
+        </div>
+        <div class="perf-metric">
+          <div>Mutation</div>
+          <strong>{`${mutationMs.toFixed(2)}ms`}</strong>
+        </div>
+        <div class="perf-metric">
+          <div>Render/Patch</div>
+          <strong>{`${renderMs.toFixed(2)}ms`}</strong>
+        </div>
+        <div class="perf-metric">
+          <div>Next Paint</div>
+          <strong>{`${paintMs.toFixed(2)}ms`}</strong>
+        </div>
+        <div class="perf-metric">
+          <div>Total</div>
+          <strong>{`${totalMs.toFixed(2)}ms`}</strong>
+        </div>
       </div>
       
       {/* Control Panel */}
@@ -99,23 +117,14 @@ function PerfBenchmark() {
       {/* Grid of Items */}
       <div class="perf-grid">
         {items.map(item => (
-          memo(item.id, [item.value], () => <div key={item.id} class={item.value > 100 ? 'perf-card hot' : 'perf-card'}>
+          <div key={item.id} class={item.value > 100 ? 'perf-card hot' : 'perf-card'}>
             <div class="perf-id">ID: {item.id}</div>
             <div class="perf-value">
               {item.value}
             </div>
-          </div>)
+          </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Metric(props: { label: string; value: string }) {
-  return () => (
-    <div class="perf-metric">
-      <div>{props.label}</div>
-      <strong>{props.value}</strong>
     </div>
   );
 }

@@ -72,6 +72,10 @@ type MemoEntry = {
   node: Node;
 };
 
+export function __wrapCompilerEvent(handler: EventHandler): EventListener {
+  return (activeEventWrapper ?? ((eventHandler) => eventHandler))(handler);
+}
+
 function sameDeps(a: MemoDeps, b: MemoDeps): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -80,7 +84,7 @@ function sameDeps(a: MemoDeps, b: MemoDeps): boolean {
   return true;
 }
 
-function toNode(child: unknown): Node {
+export function toNode(child: unknown): Node {
   if (child instanceof Node) return child;
 
   if (isRenderClosure(child)) {
@@ -378,7 +382,7 @@ function canPatchTemplate(current: Node, next: unknown): boolean {
   return current.nodeType === Node.TEXT_NODE;
 }
 
-function patchNode(parent: Node, current: Node, next: unknown): Node {
+export function patchNode(parent: Node, current: Node, next: unknown): Node {
   if (isRenderClosure(next)) return patchNode(parent, current, next());
 
   if (!canPatchTemplate(current, next)) {

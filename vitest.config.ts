@@ -6,6 +6,7 @@ export default defineConfig({
     alias: [
       { find: 'auwla/jsx-runtime', replacement: fileURLToPath(new URL('./src/jsx-runtime.ts', import.meta.url)) },
       { find: 'auwla/jsx-dev-runtime', replacement: fileURLToPath(new URL('./src/jsx-dev-runtime.ts', import.meta.url)) },
+      { find: 'auwla/compiler', replacement: fileURLToPath(new URL('./src/compiler.ts', import.meta.url)) },
       { find: /^auwla$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
     ],
   },
@@ -16,7 +17,13 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['tests/memo-dom.test.ts', 'tests/jsx-dom.test.tsx', 'tests/perf.test.tsx'],
+    include: [
+      'tests/memo-dom.test.ts',
+      'tests/jsx-dom.test.tsx',
+      'tests/compiler-runtime.test.tsx',
+      'tests/compiler.test.ts',
+      'tests/perf.test.tsx',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
@@ -26,6 +33,8 @@ export default defineConfig({
         'src/jsx-runtime.ts',
         'src/jsx-dev-runtime.ts',
         'src/memo-dom.ts',
+        'src/compiler-runtime.ts',
+        'src/compiler.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

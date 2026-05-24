@@ -13,7 +13,8 @@
     "paths": {
       "auwla": ["src/index.ts"],
       "auwla/jsx-runtime": ["src/jsx-runtime.ts"],
-      "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"]
+      "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"],
+      "auwla/compiler": ["src/compiler.ts"]
     },
 
     // Bundler mode

@@ -145,3 +145,11 @@ The lower-level DOM helpers are exported for tests and advanced usage:
 ```ts
 import { h, Fragment, createMemoElement } from 'auwla';
 ```
+
+## Codebase Docs
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md) explains the runtime/compiler module boundaries and render flow.
+- [COMPILER.md](./COMPILER.md) describes the compiler strategy and generated helper targets.
+- [ROADMAP.md](./ROADMAP.md) tracks implementation priorities.
+
+The experimental compiler transform is available from `auwla/compiler` for tooling. Runtime apps do not need to import it.
