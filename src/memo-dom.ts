@@ -1,6 +1,6 @@
 export type RenderClosure = () => MemoChild;
-export type MemoChild = Node | string | number | boolean | null | undefined | RenderClosure | readonly unknown[];
-type EventHandler = (event: Event) => void;
+export type MemoChild = Node | string | number | boolean | null | undefined | RenderClosure | TemplateNode | readonly unknown[];
+type EventHandler = (event: Event) => unknown;
 export type MemoProps = Record<string, unknown> | null | undefined;
 type EventWrapper = (handler: EventHandler) => EventListener;
 type ComponentType = (props: Record<string, unknown>) => MemoChild | RenderClosure;
@@ -8,6 +8,14 @@ type MemoElement = HTMLElement & {
   __memoKey?: unknown;
   __memoProps?: Record<string, unknown>;
   __memoListeners?: Map<string, EventListener>;
+  __memoTemplate?: TemplateNode;
+};
+type TemplateNode = {
+  __auwlaTemplate: true;
+  tag: keyof HTMLElementTagNameMap;
+  props: Record<string, unknown>;
+  children: MemoChild[];
+  key: unknown;
 };
 type ComponentInstance = {
   type: ComponentType;
@@ -35,7 +43,7 @@ export interface MemoContext<TModel> {
     ...children: MemoChild[]
   ): HTMLElementTagNameMap[K];
   invalidate(): void;
-  event(handler: (event: Event, model: TModel) => void): EventListener;
+  event(handler: (event: Event, model: TModel) => unknown): EventListener;
   memo(key: string | number, deps: MemoDeps, render: () => MemoChild): Node;
 }
 
@@ -66,6 +74,10 @@ function toNode(child: unknown): Node {
     return toNode(child());
   }
 
+  if (isTemplateNode(child)) {
+    return createNodeFromTemplate(child);
+  }
+
   if (Array.isArray(child)) {
     const fragment = document.createDocumentFragment();
     for (const item of child.flat(Infinity)) {
@@ -80,6 +92,46 @@ function toNode(child: unknown): Node {
 
 function isRenderClosure(value: unknown): value is RenderClosure {
   return typeof value === 'function';
+}
+
+function isTemplateNode(value: unknown): value is TemplateNode {
+  return !!value && typeof value === 'object' && (value as TemplateNode).__auwlaTemplate === true;
+}
+
+function objectShallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const aKeys = Object.keys(a).filter((key) => key !== 'children');
+  const bKeys = Object.keys(b).filter((key) => key !== 'children');
+  if (aKeys.length !== bKeys.length) return false;
+
+  for (const key of aKeys) {
+    if (!(key in b)) return false;
+    const av = a[key];
+    const bv = b[key];
+    if (key === 'style' && av && bv && typeof av === 'object' && typeof bv === 'object') {
+      if (!objectShallowEqual(av as Record<string, unknown>, bv as Record<string, unknown>)) return false;
+      continue;
+    }
+    if (!Object.is(av, bv)) return false;
+  }
+
+  return true;
+}
+
+function templateEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (!isTemplateNode(a) || !isTemplateNode(b)) return false;
+  if (a.tag !== b.tag || !Object.is(a.key, b.key)) return false;
+  if (!objectShallowEqual(a.props, b.props)) return false;
+
+  const aChildren = normalizeChildren(a.children);
+  const bChildren = normalizeChildren(b.children);
+  if (aChildren.length !== bChildren.length) return false;
+
+  for (let i = 0; i < aChildren.length; i++) {
+    if (!templateEqual(aChildren[i], bChildren[i]) && !Object.is(aChildren[i], bChildren[i])) return false;
+  }
+
+  return true;
 }
 
 function componentLabel(type: ComponentType): string {
@@ -166,6 +218,12 @@ function getKey(node: Node): unknown {
   return isElement(node) ? node.__memoKey : undefined;
 }
 
+function getRenderKey(value: unknown): unknown {
+  if (isTemplateNode(value)) return value.key;
+  if (value instanceof Node) return getKey(value);
+  return undefined;
+}
+
 function eventNameForProp(key: string): string | null {
   return key.startsWith('on') && key.length > 2 ? key.slice(2).toLowerCase() : null;
 }
@@ -190,7 +248,22 @@ function setProp(
   }
 
   if (key === 'style' && value && typeof value === 'object') {
-    Object.assign(element.style, value);
+    const nextStyle = value as Record<string, string | number | null | undefined>;
+    const oldStyle = oldValue && typeof oldValue === 'object'
+      ? oldValue as Record<string, string | number | null | undefined>
+      : {};
+    const styleNames = new Set([...Object.keys(oldStyle), ...Object.keys(nextStyle)]);
+
+    for (const name of styleNames) {
+      const next = nextStyle[name];
+      const old = oldStyle[name];
+      if (Object.is(next, old)) continue;
+      try {
+        (element.style as any)[name] = next == null ? '' : String(next);
+      } catch {
+        // Ignore invalid/readonly style properties.
+      }
+    }
     return;
   }
 
@@ -263,7 +336,47 @@ function canPatch(current: Node, next: Node): boolean {
   return current.tagName === next.tagName && Object.is(getKey(current), getKey(next));
 }
 
-function patchNode(parent: Node, current: Node, next: Node): Node {
+function canPatchTemplate(current: Node, next: unknown): boolean {
+  if (isRenderClosure(next)) return canPatchTemplate(current, next());
+
+  if (isTemplateNode(next)) {
+    return isElement(current) && current.tagName.toLowerCase() === next.tag && Object.is(getKey(current), next.key);
+  }
+
+  if (next instanceof Node) return canPatch(current, next);
+
+  return current.nodeType === Node.TEXT_NODE;
+}
+
+function patchNode(parent: Node, current: Node, next: unknown): Node {
+  if (isRenderClosure(next)) return patchNode(parent, current, next());
+
+  if (!canPatchTemplate(current, next)) {
+    const replacement = toNode(next);
+    parent.replaceChild(replacement, current);
+    return replacement;
+  }
+
+  if (isTemplateNode(next)) {
+    const currentElement = current as MemoElement;
+    if (currentElement.__memoTemplate && templateEqual(currentElement.__memoTemplate, next)) {
+      currentElement.__memoTemplate = next;
+      return currentElement;
+    }
+
+    setProps(currentElement, next.props, activeEventWrapper ?? ((handler) => handler));
+    currentElement.__memoKey = next.key;
+    patchChildren(currentElement, next.children);
+    currentElement.__memoTemplate = next;
+    return currentElement;
+  }
+
+  if (!(next instanceof Node)) {
+    const text = next == null || typeof next === 'boolean' ? '' : String(next);
+    if (current.textContent !== text) current.textContent = text;
+    return current;
+  }
+
   if (!canPatch(current, next)) {
     parent.replaceChild(next, current);
     return next;
@@ -284,30 +397,54 @@ function patchNode(parent: Node, current: Node, next: Node): Node {
   return currentElement;
 }
 
-function patchChildren(parent: Node, nextChildren: Node[]) {
+function normalizeChildren(value: unknown): unknown[] {
+  if (isRenderClosure(value)) return normalizeChildren(value());
+  if (value instanceof DocumentFragment) return Array.from(value.childNodes);
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    for (const item of value.flat(Infinity)) {
+      if (item === null || item === undefined || item === false || item === true) continue;
+      out.push(item);
+    }
+    return out;
+  }
+  if (value === null || value === undefined || value === false || value === true) return [];
+  return [value];
+}
+
+function patchChildren(parent: Node, nextChildren: unknown[]) {
+  nextChildren = normalizeChildren(nextChildren);
   const oldChildren = Array.from(parent.childNodes);
   const keyedOld = new Map<unknown, Node>();
   const usedOld = new Set<Node>();
+  const patchedNodes: Node[] = [];
+  let oldCursor = 0;
 
   for (const child of oldChildren) {
     const key = getKey(child);
     if (key !== undefined) keyedOld.set(key, child);
   }
 
-  for (let index = 0; index < nextChildren.length; index++) {
-    const next = nextChildren[index]!;
-    const key = getKey(next);
-    const currentAtIndex = parent.childNodes[index] ?? null;
-    let match = key !== undefined ? keyedOld.get(key) : oldChildren[index];
+  for (const next of nextChildren) {
+    const key = getRenderKey(next);
+    let match: Node | undefined;
+
+    if (key !== undefined) {
+      match = keyedOld.get(key);
+    } else {
+      while (oldCursor < oldChildren.length) {
+        const candidate = oldChildren[oldCursor++];
+        if (!candidate || usedOld.has(candidate) || getKey(candidate) !== undefined) continue;
+        match = candidate;
+        break;
+      }
+    }
 
     if (match && usedOld.has(match)) match = undefined;
 
-    const patched = match ? patchNode(parent, match, next) : next;
+    const patched = match ? patchNode(parent, match, next) : toNode(next);
     usedOld.add(patched);
-
-    if (patched !== currentAtIndex) {
-      parent.insertBefore(patched, currentAtIndex);
-    }
+    patchedNodes.push(patched);
   }
 
   for (const child of oldChildren) {
@@ -315,11 +452,24 @@ function patchChildren(parent: Node, nextChildren: Node[]) {
       child.remove();
     }
   }
+
+  for (let i = patchedNodes.length - 1; i >= 0; i--) {
+    const node = patchedNodes[i]!;
+    const anchor = patchedNodes[i + 1] ?? null;
+    if (node.parentNode !== parent || node.nextSibling !== anchor) {
+      parent.insertBefore(node, anchor);
+    }
+  }
 }
 
-function patchRoot(root: Element, next: Node) {
-  const nextChildren = next instanceof DocumentFragment ? Array.from(next.childNodes) : [next];
-  patchChildren(root, nextChildren);
+function patchRoot(root: Element, next: unknown) {
+  patchChildren(root, normalizeChildren(next));
+}
+
+function createNodeFromTemplate(template: TemplateNode): Node {
+  const node = createMemoElement(template.tag, template.props, template.children) as MemoElement;
+  node.__memoTemplate = template;
+  return node;
 }
 
 export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
@@ -352,6 +502,22 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
   }
 
   return element as HTMLElementTagNameMap[K];
+}
+
+function createTemplateElement<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: MemoProps,
+  children: MemoChild[],
+): TemplateNode {
+  const normalizedProps = { ...(props ?? {}) };
+  const key = 'key' in normalizedProps ? normalizedProps.key : undefined;
+  return {
+    __auwlaTemplate: true,
+    tag,
+    props: normalizedProps,
+    children,
+    key,
+  };
 }
 
 /**
@@ -398,7 +564,7 @@ export function createMemoApp<TModel>(
     activeRenderState = renderState;
     try {
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
-      patchRoot(root, toNode(output));
+      patchRoot(root, output);
       for (const id of componentInstances.keys()) {
         if (!renderState.seen.has(id)) componentInstances.delete(id);
       }
@@ -420,10 +586,14 @@ export function createMemoApp<TModel>(
       return createMemoElement(tag, props, children, (handler) => ctx.event((event) => handler(event)));
     },
     invalidate,
-    event(handler) {
+  event(handler) {
       return (event) => {
-        handler(event, model as TModel);
-        invalidate();
+        const result = handler(event, model as TModel);
+        if (result && typeof (result as Promise<unknown>).then === 'function') {
+          void (result as Promise<unknown>).finally(invalidate);
+        } else {
+          invalidate();
+        }
       };
     },
     memo(key, deps, render) {
@@ -464,9 +634,13 @@ export function h<P extends Record<string, unknown>>(
   props?: P | null,
   ...children: MemoChild[]
 ): Node | RenderClosure;
-export function h(type: any, props?: MemoProps, ...children: MemoChild[]): Node | RenderClosure {
+export function h(type: any, props?: MemoProps, ...children: MemoChild[]): MemoChild {
   if (typeof type === 'function') {
     return createComponentClosure(type, props, children);
+  }
+
+  if (activeRenderState) {
+    return createTemplateElement(type, props, children);
   }
 
   return createMemoElement(type, props, children);

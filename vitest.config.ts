@@ -16,7 +16,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['tests/memo-dom.test.ts', 'tests/jsx-dom.test.tsx'],
+    include: ['tests/memo-dom.test.ts', 'tests/jsx-dom.test.tsx', 'tests/perf.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
