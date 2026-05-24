@@ -38,7 +38,7 @@ That is much cheaper than recreating DOM, but it still costs time for 1,000+ row
 
 ## Runtime Optimization First
 
-Before adding a compiler, the runtime should expose a tiny manual memo primitive:
+Before adding a compiler, the runtime should have a tiny memo primitive that can be used by tests, benchmarks, and future compiler output:
 
 ```tsx
 memo(todo.id, [todo.text, todo.done], () => (
@@ -47,6 +47,8 @@ memo(todo.id, [todo.text, todo.done], () => (
 ```
 
 If deps are unchanged, the render function is not called and the previous template is reused. This gives us a direct way to test the optimization strategy without committing to a compiler yet.
+
+This should not become the normal developer experience. Developers should write ordinary JSX and ordinary JavaScript lists. The memo primitive is a proof of the runtime contract and a target for generated code.
 
 ## Compiler Later
 
@@ -74,7 +76,6 @@ The compiler should be optional. The runtime must stay correct without it.
 ## Priority
 
 1. Keep runtime small and correct.
-2. Add explicit memoization for hot keyed subtrees.
+2. Use internal memoization to prove the hot keyed-list path.
 3. Benchmark real browser behavior.
-4. Only then design a compiler transform for keyed `.map()`.
-
+4. Add a compiler transform for keyed `.map()` so application code stays clean.

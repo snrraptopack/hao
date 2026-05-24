@@ -35,6 +35,8 @@ type MemoBlock = {
   value: MemoChild;
 };
 
+const NO_INDEX = -1;
+
 let activeEventWrapper: EventWrapper | null = null;
 let activeRenderState: RenderState | null = null;
 
@@ -329,14 +331,18 @@ function setProps(
   wrapEvent: EventWrapper,
 ) {
   const previousProps = element.__memoProps ?? {};
-  const propNames = new Set([...Object.keys(previousProps), ...Object.keys(nextProps)]);
 
-  for (const key of propNames) {
+  for (const key of Object.keys(previousProps)) {
+    if (key === 'children' || key === 'key') continue;
+    if (!(key in nextProps)) setProp(element, key, undefined, previousProps[key], wrapEvent);
+  }
+
+  for (const key of Object.keys(nextProps)) {
     if (key === 'children' || key === 'key') continue;
     setProp(element, key, nextProps[key], previousProps[key], wrapEvent);
   }
 
-  element.__memoProps = { ...nextProps };
+  element.__memoProps = nextProps;
 }
 
 function canPatch(current: Node, next: Node): boolean {
@@ -424,7 +430,23 @@ function normalizeChildren(value: unknown): unknown[] {
 
 function patchChildren(parent: Node, nextChildren: unknown[]) {
   nextChildren = normalizeChildren(nextChildren);
+
+  if (nextChildren.length === 0) {
+    if (parent.firstChild) parent.textContent = '';
+    return;
+  }
+
   const oldChildren = Array.from(parent.childNodes);
+
+  if (oldChildren.length === 0) {
+    const fragment = document.createDocumentFragment();
+    for (const next of nextChildren) {
+      fragment.appendChild(toNode(next));
+    }
+    parent.appendChild(fragment);
+    return;
+  }
+
   const keyedOld = new Map<unknown, Node>();
   const usedOld = new Set<Node>();
   const patchedNodes: Node[] = [];
@@ -463,13 +485,60 @@ function patchChildren(parent: Node, nextChildren: unknown[]) {
     }
   }
 
-  for (let i = patchedNodes.length - 1; i >= 0; i--) {
-    const node = patchedNodes[i]!;
-    const anchor = patchedNodes[i + 1] ?? null;
+  placePatchedNodes(parent, patchedNodes, oldChildren);
+}
+
+function placePatchedNodes(parent: Node, nodes: Node[], oldChildren: Node[]) {
+  const oldIndexes = new Map<Node, number>();
+  for (let i = 0; i < oldChildren.length; i++) oldIndexes.set(oldChildren[i]!, i);
+
+  const indexes = nodes.map((node) => oldIndexes.get(node) ?? NO_INDEX);
+  const stableIndexes = longestIncreasingSubsequence(indexes);
+  let stableCursor = stableIndexes.length - 1;
+
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const node = nodes[i]!;
+    const anchor = nodes[i + 1] ?? null;
+    const isStable = stableCursor >= 0 && stableIndexes[stableCursor] === i;
+
+    if (isStable && node.parentNode === parent) {
+      stableCursor--;
+      continue;
+    }
+
     if (node.parentNode !== parent || node.nextSibling !== anchor) {
       parent.insertBefore(node, anchor);
     }
   }
+}
+
+function longestIncreasingSubsequence(values: number[]): number[] {
+  const predecessors = new Array<number>(values.length);
+  const result: number[] = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i]!;
+    if (value === NO_INDEX) continue;
+
+    let low = 0;
+    let high = result.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (values[result[mid]!]! < value) low = mid + 1;
+      else high = mid;
+    }
+
+    if (low > 0) predecessors[i] = result[low - 1]!;
+    result[low] = i;
+  }
+
+  let cursor = result.length ? result[result.length - 1]! : NO_INDEX;
+  for (let i = result.length - 1; i >= 0; i--) {
+    result[i] = cursor;
+    cursor = predecessors[cursor] ?? NO_INDEX;
+  }
+
+  return result;
 }
 
 function patchRoot(root: Element, next: unknown) {
