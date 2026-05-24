@@ -1,7 +1,7 @@
 {
   "name": "auwla",
   "version": "0.2.5",
-  "description": "A lightweight, reactive UI framework with blazing-fast performance",
+  "description": "A tiny typed DOM runtime with event-driven rerendering and memoized DOM reuse",
   "type": "module",
   "main": "./dist/auwla.js",
   "module": "./dist/auwla.js",
@@ -18,17 +18,6 @@
     "./jsx-dev-runtime": {
       "types": "./dist/jsx-dev-runtime.d.ts",
       "import": "./dist/jsx-dev-runtime.js"
-    },
-    "./vite": {
-      "types": "./dist/vite.d.ts",
-      "import": "./dist/vite.js"
-    },
-    "./transition": {
-      "types": "./dist/transition/index.d.ts",
-      "import": "./dist/transition/index.js"
-    },
-    "./transition/view-transitions.css": {
-      "default": "./dist/transition/view-transitions.css"
     }
 
   },
@@ -40,26 +29,20 @@
       "jsx-dev-runtime": [
         "dist/jsx-dev-runtime.d.ts"
       ],
-      "transition": [
-        "dist/transition/index.d.ts"
-      ],
       "*": [
         "dist/index.d.ts"
       ]
     }
   },
   "files": [
-    "dist",
-    "scripts/vite-plugin-route-types.ts"
+    "dist"
   ],
   "keywords": [
-    "reactive",
     "ui",
-    "framework",
+    "dom",
+    "jsx",
     "typescript",
-    "lightweight",
-    "spa",
-    "router"
+    "lightweight"
   ],
   "author": "snrraptopack",
   "license": "MIT",
@@ -73,28 +56,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run build:lib && pnpm run build:cli",
-    "build:cli": "tsc src/cli.ts --outDir dist --target ES2020 --module ESNext --moduleResolution node --esModuleInterop --allowJs --skipLibCheck",
-    "postbuild": "node -e \"require('fs').rmSync('dist/app', { recursive: true, force: true }); require('fs').mkdirSync('dist/transition', { recursive: true }); require('fs').copyFileSync('src/transition/view-transitions.css', 'dist/transition/view-transitions.css')\"",
+    "build": "pnpm run build:lib",
     "build:lib": "vite build && tsc --project tsconfig.lib.json --emitDeclarationOnly --declaration --outDir dist",
-    "build:app": "vite build --config vite.config.app.ts",
     "preview": "vite preview",
-    "preview:app": "vite preview --outDir dist-app",
-    "template:parse": "bun run template/test/test-parser.ts",
-    "template:test": "bun run template/test/test-full.ts",
     "prepublishOnly": "pnpm run build",
     "test": "vitest run --coverage",
-    "test:watch": "vitest",
-    "dev:bench:auwla": "pnpm -F auwla-bench dev",
-    "dev:bench:react": "pnpm -F react-bench dev",
-    "dev:bench:vue": "pnpm -F vue-bench dev",
-    "preview:bench:auwla": "pnpm -F auwla-bench preview",
-    "preview:bench:react": "pnpm -F react-bench preview",
-    "preview:bench:vue": "pnpm -F vue-bench preview"
-  },
-  "bin": {
-    "auwla": "./dist/cli.js",
-    "auwla-routes": "./dist/cli.js"
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",

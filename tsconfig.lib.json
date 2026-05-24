@@ -1,5 +1,4 @@
 {
-  // Library-only TypeScript config: excludes sample app files
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "declaration": true,
@@ -10,26 +9,12 @@
   "include": [
     "auwla-jsx.d.ts",
     "src/index.ts",
-    "src/jsx-runtime.ts",
-    "src/jsx-dev-runtime.ts",
-    "src/state.ts",
     "src/jsx.ts",
-    "src/jsxutils.tsx",
-    "src/lifecycle.ts",
-    "src/context.ts",
-    "src/createElement.ts",
-    "src/dom-attrs.ts",
-    "src/router.ts",
-    "src/resource.ts",
-    "src/fetch.ts",
-    "src/store.ts",
-    "src/dsl.ts",
-    "src/devtools.ts",
-    "src/devtools-ui.ts",
-    "src/cli.ts",
-    
-    "src/types/**/*.ts",
-    
+    "src/jsx-runtime.ts",
+    "src/jsx-runtime.d.ts",
+    "src/jsx-dev-runtime.ts",
+    "src/jsx-dev-runtime.d.ts",
+    "src/memo-dom.ts"
   ],
   "exclude": [
     "node_modules",
@@ -37,13 +22,9 @@
     "dist-app",
     "**/*.test.ts",
     "tests",
-    "benchmark",
     "apps",
-    "src/app",
-    "src/app.ts",
-    "src/main-app.tsx",
-    "src/devtools-demo.tsx",
-    "src/routes.ts",
-    "src/style.css"
+    "website",
+    "docs",
+    "src/app"
   ]
 }

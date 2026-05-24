@@ -1,70 +1,14 @@
-// Note: Global JSX types are provided via auwla/jsx-runtime for automatic JSX.
+export {
+  Fragment,
+  createMemoApp,
+  createMemoElement,
+  h,
+} from './memo-dom';
 
-// Core reactive system
-export { ref, watch, watchEffect, derive, flushSync, flush, batch, untracked } from './state';
-export type { Ref } from './state';
-// Structured local state
-export { createStore } from './store';
-export type { Store, SubStore } from './store';
-
-// JSX runtime
-export { h, Fragment } from './jsx';
-
-// JSX utilities
-export { When, For, Portal, If } from './jsxutils';
-
-// Component system
-export { Component } from './dsl';
-export type { LayoutBuilder } from './dsl';
-
-// Lifecycle hooks
-export { onMount, onUnmount, onError,onRouted } from './lifecycle';
-
-// Context management
-export { createContext, Provider, useContext, useReactiveContext, setGlobalContext, type Context } from './context';
-
-// DevTools (development only)
-export { initDevTools, getDevTools } from './devtools';
-export { isDevEnv, devHook } from './devtools';
-export { enableDevToolsOverlay, disableDevToolsOverlay } from './devtools-ui';
-
-// Routing
-export { Router, Link, useRouter, useParams, useTypedParams, useQuery, setRouter, getRouter } from './router'
 export type {
-  Route,
-  RouteMatch,
-  RouteParams,
-  QueryParams,
-  PathParams,
-  RouteGuard,
-  RoutedContext,
-  ParamDecoder,
-} from './router'
-
-// Routing helpers
-export { defineRoutes, composeRoutes, group, pathFor } from './routes'
-
-// Data fetching helpers
-export { fetch, asyncOp } from './fetch'
-export { createResource, normalizeError } from './resource'
-export type { FetchState } from './fetch'
-export type { Resource, AppError } from './resource'
-
-// Plugin system
-export { definePlugin, plugins, pushPluginContext, popPluginContext, getPluginContext, createPluginContext } from './plugin'
-export type { Plugin, InferPlugins } from './plugin'
-
-// Meta layer (page and layout definitions with plugin support)
-export { definePage, defineLayout } from './meta'
-export type { PageContext } from './meta'
-
-// Built-in plugins
-export { fullstackPlugin } from './plugins/fullstack'
-export { authPlugin } from './plugins/auth'
-export type { User } from './plugins/auth'
-export { i18nPlugin } from './plugins/i18n'
-export type { Translations } from './plugins/i18n'
-export { analyticsPlugin } from './plugins/analytics'
-
-// Optional integrations are available as separate imports:
-// import { ReactIsland, createReactIsland } from 'auwla/integrations/react'
+  MemoApp,
+  MemoChild,
+  MemoContext,
+  MemoDeps,
+  MemoProps,
+} from './memo-dom';

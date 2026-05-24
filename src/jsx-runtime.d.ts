@@ -1,135 +1,128 @@
-// Runtime exports used by automatic JSX
-export declare const Fragment: any;
-export declare function jsx(type: any, props?: any, key?: any): any;
+export declare const Fragment: (props?: { children?: JSX.Children }) => DocumentFragment;
+export declare function jsx(type: any, props?: any, key?: any): JSX.Element;
 export declare const jsxs: typeof jsx;
 
-import type { Ref } from './state';
-
-type Reactive<T> = T | Ref<T>;
 type DataAttr = `data-${string}`;
 type AriaAttr = `aria-${string}`;
+type Child = string | number | boolean | null | undefined | Node;
+type Children = Child | readonly Child[];
 
-type Child = string | number | Node | Reactive<string | number | Node>;
-type Children = Child | Child[];
+type CSSProperties = Partial<{
+  [K in keyof CSSStyleDeclaration]: string | number;
+}>;
 
-// CSS properties that accept string or number values
-type CSSProperties = {
-  [K in keyof CSSStyleDeclaration]?: string | number;
-};
-
-
-
-interface EventProps {
+type EventProps = {
   onClick?: (e: MouseEvent) => void;
-  onDblclick?: (e: MouseEvent) => void;
-  onMouseenter?: (e: MouseEvent) => void;
-  onMouseleave?: (e: MouseEvent) => void;
-  onMousemove?: (e: MouseEvent) => void;
-  onMousedown?: (e: MouseEvent) => void;
-  onMouseup?: (e: MouseEvent) => void;
-  onKeydown?: (e: KeyboardEvent) => void;
-  onKeyup?: (e: KeyboardEvent) => void;
-  onKeypress?: (e: KeyboardEvent) => void;
+  onDblClick?: (e: MouseEvent) => void;
+  onMouseEnter?: (e: MouseEvent) => void;
+  onMouseLeave?: (e: MouseEvent) => void;
+  onMouseMove?: (e: MouseEvent) => void;
+  onMouseDown?: (e: MouseEvent) => void;
+  onMouseUp?: (e: MouseEvent) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  onKeyUp?: (e: KeyboardEvent) => void;
+  onKeyPress?: (e: KeyboardEvent) => void;
   onFocus?: (e: FocusEvent) => void;
   onBlur?: (e: FocusEvent) => void;
   onInput?: (e: InputEvent) => void;
   onChange?: (e: Event) => void;
   onSubmit?: (e: SubmitEvent) => void;
-  onPointerdown?: (e: PointerEvent) => void;
-  onPointerup?: (e: PointerEvent) => void;
-  onPointermove?: (e: PointerEvent) => void;
-  onPointerenter?: (e: PointerEvent) => void;
-  onPointerleave?: (e: PointerEvent) => void;
-  onTouchstart?: (e: TouchEvent) => void;
-  onTouchend?: (e: TouchEvent) => void;
-  onTouchmove?: (e: TouchEvent) => void;
-  onTouchcancel?: (e: TouchEvent) => void;
-}
+  onPointerDown?: (e: PointerEvent) => void;
+  onPointerUp?: (e: PointerEvent) => void;
+  onPointerMove?: (e: PointerEvent) => void;
+  onPointerEnter?: (e: PointerEvent) => void;
+  onPointerLeave?: (e: PointerEvent) => void;
+  onTouchStart?: (e: TouchEvent) => void;
+  onTouchEnd?: (e: TouchEvent) => void;
+  onTouchMove?: (e: TouchEvent) => void;
+  onTouchCancel?: (e: TouchEvent) => void;
+};
 
 type BaseProps<E extends HTMLElement> = EventProps & {
   children?: Children;
   key?: string | number;
   ref?: (el: E) => void;
-  class?: Reactive<string>;
-  className?: Reactive<string>;
-  id?: Reactive<string>;
-  title?: Reactive<string>;
-  hidden?: Reactive<boolean>;
-  style?: Reactive<string | Partial<CSSStyleDeclaration>>;
-  tabIndex?: Reactive<number>;
-  draggable?: Reactive<boolean>;
-  contentEditable?: Reactive<boolean>;
-  role?: Reactive<string>;
-} & { [K in DataAttr]?: Reactive<string | number | boolean> } & { [K in AriaAttr]?: Reactive<string | number | boolean> };
+  class?: string;
+  className?: string;
+  id?: string;
+  title?: string;
+  hidden?: boolean;
+  style?: string | CSSProperties;
+  tabIndex?: number;
+  draggable?: boolean;
+  contentEditable?: boolean | 'true' | 'false' | 'inherit' | 'plaintext-only';
+  role?: string;
+} & { [K in DataAttr]?: string | number | boolean } & { [K in AriaAttr]?: string | number | boolean };
 
 interface AnchorProps extends BaseProps<HTMLAnchorElement> {
-  href?: Reactive<string>;
-  target?: Reactive<string>;
-  rel?: Reactive<string>;
+  href?: string;
+  target?: string;
+  rel?: string;
 }
 
 interface ButtonProps extends BaseProps<HTMLButtonElement> {
-  disabled?: Reactive<boolean>;
-  type?: Reactive<'button' | 'submit' | 'reset'>;
-  name?: Reactive<string>;
-  value?: Reactive<string | number>;
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  name?: string;
+  value?: string | number;
 }
 
 interface InputProps extends BaseProps<HTMLInputElement> {
-  type?: Reactive<string>;
-  value?: Reactive<string | number>;
-  checked?: Reactive<boolean>;
-  placeholder?: Reactive<string>;
-  disabled?: Reactive<boolean>;
-  name?: Reactive<string>;
-  min?: Reactive<number | string>;
-  max?: Reactive<number | string>;
-  step?: Reactive<number | string>;
+  type?: string;
+  value?: string | number;
+  checked?: boolean;
+  placeholder?: string;
+  disabled?: boolean;
+  name?: string;
+  min?: number | string;
+  max?: number | string;
+  step?: number | string;
 }
 
 interface TextareaProps extends BaseProps<HTMLTextAreaElement> {
-  value?: Reactive<string>;
-  placeholder?: Reactive<string>;
-  disabled?: Reactive<boolean>;
-  rows?: Reactive<number>;
-  cols?: Reactive<number>;
-  name?: Reactive<string>;
+  value?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  rows?: number;
+  cols?: number;
+  name?: string;
 }
 
 interface SelectProps extends BaseProps<HTMLSelectElement> {
-  value?: Reactive<string | number>;
-  multiple?: Reactive<boolean>;
-  disabled?: Reactive<boolean>;
-  name?: Reactive<string>;
+  value?: string | number;
+  multiple?: boolean;
+  disabled?: boolean;
+  name?: string;
 }
 
 interface OptionProps extends BaseProps<HTMLOptionElement> {
   value?: string | number;
-  selected?: Reactive<boolean>;
-  disabled?: Reactive<boolean>;
-  label?: Reactive<string>;
+  selected?: boolean;
+  disabled?: boolean;
+  label?: string;
 }
 
 interface ImgProps extends BaseProps<HTMLImageElement> {
-  src?: Reactive<string>;
-  alt?: Reactive<string>;
-  width?: Reactive<number>;
-  height?: Reactive<number>;
+  src?: string;
+  alt?: string;
+  width?: number;
+  height?: number;
 }
 
 interface FormProps extends BaseProps<HTMLFormElement> {
-  action?: Reactive<string>;
-  method?: Reactive<string>;
+  action?: string;
+  method?: 'get' | 'post' | 'dialog';
 }
 
-// Global JSX types so consumers get intrinsic elements without React types
 declare global {
   namespace JSX {
+    type Children = Child | readonly Child[];
+    type Element = Node;
+    interface ElementChildrenAttribute { children: Children }
     interface IntrinsicElements {
       div: BaseProps<HTMLDivElement>;
       span: BaseProps<HTMLSpanElement>;
       p: BaseProps<HTMLParagraphElement>;
-      // Headings & text semantics
       h1: BaseProps<HTMLHeadingElement>;
       h2: BaseProps<HTMLHeadingElement>;
       h3: BaseProps<HTMLHeadingElement>;
@@ -167,7 +160,6 @@ declare global {
       summary: BaseProps<HTMLElement>;
       dialog: BaseProps<HTMLDialogElement>;
       label: BaseProps<HTMLLabelElement>;
-
       a: AnchorProps;
       button: ButtonProps;
       input: InputProps;
@@ -177,7 +169,6 @@ declare global {
       form: FormProps;
       fieldset: BaseProps<HTMLFieldSetElement>;
       legend: BaseProps<HTMLLegendElement>;
-
       img: ImgProps;
       audio: BaseProps<HTMLAudioElement>;
       video: BaseProps<HTMLVideoElement>;
@@ -185,7 +176,6 @@ declare global {
       track: BaseProps<HTMLTrackElement>;
       canvas: BaseProps<HTMLCanvasElement>;
       iframe: BaseProps<HTMLIFrameElement>;
-
       table: BaseProps<HTMLTableElement>;
       thead: BaseProps<HTMLTableSectionElement>;
       tbody: BaseProps<HTMLTableSectionElement>;
@@ -195,7 +185,6 @@ declare global {
       td: BaseProps<HTMLTableCellElement>;
       col: BaseProps<HTMLTableColElement>;
       colgroup: BaseProps<HTMLTableColElement>;
-
       hr: BaseProps<HTMLHRElement>;
       br: BaseProps<HTMLBRElement>;
       address: BaseProps<HTMLElement>;
@@ -204,10 +193,6 @@ declare global {
       meter: BaseProps<HTMLMeterElement>;
       template: BaseProps<HTMLTemplateElement>;
     }
-    // Children property name for JSX elements
-    interface ElementChildrenAttribute { children: Children }
-    // Shape of an element produced by Auwla JSX
-    type Element = HTMLElement;
   }
 }
 
