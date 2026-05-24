@@ -3,6 +3,7 @@ import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
 function CounterExample() {
+
   let count = 0;
 
   return () => (

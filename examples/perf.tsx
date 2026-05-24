@@ -1,5 +1,6 @@
 import { createMemoApp, memo } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
+import './styles.css';
 
 interface BenchmarkItem {
   id: number;
@@ -40,10 +41,10 @@ function PerfBenchmark() {
 
   // 2. Render Scope: Runs on every event re-render.
   return () => (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+    <div class="perf-page">
       <h1>Auwla Performance Benchmark</h1>
       <p>This benchmark forces one synchronous render per action and measures mutation, DOM patch, next paint, and total time separately.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '20px' }}>
+      <div class="perf-metrics">
         <Metric label="Action" value={lastLabel} />
         <Metric label="Items" value={String(items.length)} />
         <Metric label="Mutation" value={`${mutationMs.toFixed(2)}ms`} />
@@ -53,7 +54,7 @@ function PerfBenchmark() {
       </div>
       
       {/* Control Panel */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+      <div class="perf-controls">
         <button onClick={() => measure('Create 1,000 Items', () => {
           items = [];
           for (let i = 0; i < 1000; i++) {
@@ -96,23 +97,11 @@ function PerfBenchmark() {
       </div>
 
       {/* Grid of Items */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
-        gap: '8px' 
-      }}>
+      <div class="perf-grid">
         {items.map(item => (
-          memo(item.id, [item.value], () => <div key={item.id} style={{ 
-            padding: '10px', 
-            border: '1px solid #ddd', 
-            borderRadius: '6px',
-            textAlign: 'center',
-            backgroundColor: item.value > 100 ? '#e6ffed' : '#f9f9f9',
-            borderColor: item.value > 100 ? '#28a745' : '#ddd',
-            transition: 'background-color 0.2s'
-          }}>
-            <div style={{ fontSize: '12px', color: '#666' }}>ID: {item.id}</div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', marginTop: '4px' }}>
+          memo(item.id, [item.value], () => <div key={item.id} class={item.value > 100 ? 'perf-card hot' : 'perf-card'}>
+            <div class="perf-id">ID: {item.id}</div>
+            <div class="perf-value">
               {item.value}
             </div>
           </div>)
@@ -124,8 +113,8 @@ function PerfBenchmark() {
 
 function Metric(props: { label: string; value: string }) {
   return () => (
-    <div style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '6px', background: '#f9f9f9' }}>
-      <div style={{ fontSize: '12px', color: '#666' }}>{props.label}</div>
+    <div class="perf-metric">
+      <div>{props.label}</div>
       <strong>{props.value}</strong>
     </div>
   );

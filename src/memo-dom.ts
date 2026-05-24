@@ -12,6 +12,7 @@ type MemoElement = HTMLElement & {
 };
 type TemplateNode = {
   __auwlaTemplate: true;
+  __auwlaDirty?: boolean;
   tag: keyof HTMLElementTagNameMap;
   props: Record<string, unknown>;
   children: MemoChild[];
@@ -39,6 +40,7 @@ const NO_INDEX = -1;
 
 let activeEventWrapper: EventWrapper | null = null;
 let activeRenderState: RenderState | null = null;
+const mountedApps = new Set<MountedApp>();
 
 export type MemoDeps = readonly unknown[];
 
@@ -60,6 +62,10 @@ export interface MemoApp<TModel> {
   render(): void;
   destroy(): void;
 }
+
+type MountedApp = {
+  invalidate(): void;
+};
 
 type MemoEntry = {
   deps: MemoDeps;
@@ -126,7 +132,7 @@ function objectShallowEqual(a: Record<string, unknown>, b: Record<string, unknow
 
 function templateEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
-  if (!isTemplateNode(a) || !isTemplateNode(b)) return false;
+  if (!isTemplateNode(a) || !isTemplateNode(b) || b.__auwlaDirty) return false;
   if (a.tag !== b.tag || !Object.is(a.key, b.key)) return false;
   if (!objectShallowEqual(a.props, b.props)) return false;
 
@@ -264,9 +270,17 @@ function setProp(
     const oldStyle = oldValue && typeof oldValue === 'object'
       ? oldValue as Record<string, string | number | null | undefined>
       : {};
-    const styleNames = new Set([...Object.keys(oldStyle), ...Object.keys(nextStyle)]);
 
-    for (const name of styleNames) {
+    for (const name of Object.keys(oldStyle)) {
+      if (name in nextStyle) continue;
+      try {
+        (element.style as any)[name] = '';
+      } catch {
+        // Ignore invalid/readonly style properties.
+      }
+    }
+
+    for (const name of Object.keys(nextStyle)) {
       const next = nextStyle[name];
       const old = oldStyle[name];
       if (Object.is(next, old)) continue;
@@ -383,6 +397,7 @@ function patchNode(parent: Node, current: Node, next: unknown): Node {
     setProps(currentElement, next.props, activeEventWrapper ?? ((handler) => handler));
     currentElement.__memoKey = next.key;
     patchChildren(currentElement, next.children);
+    next.__auwlaDirty = false;
     currentElement.__memoTemplate = next;
     return currentElement;
   }
@@ -547,6 +562,7 @@ function patchRoot(root: Element, next: unknown) {
 
 function createNodeFromTemplate(template: TemplateNode): Node {
   const node = createMemoElement(template.tag, template.props, template.children) as MemoElement;
+  template.__auwlaDirty = false;
   node.__memoTemplate = template;
   return node;
 }
@@ -588,7 +604,7 @@ function createTemplateElement<K extends keyof HTMLElementTagNameMap>(
   props: MemoProps,
   children: MemoChild[],
 ): TemplateNode {
-  const normalizedProps = { ...(props ?? {}) };
+  const normalizedProps = props ?? {};
   const key = 'key' in normalizedProps ? normalizedProps.key : undefined;
   return {
     __auwlaTemplate: true,
@@ -612,8 +628,15 @@ export function memo(key: string | number, deps: readonly unknown[], render: () 
   }
 
   const value = render();
+  if (isTemplateNode(value)) value.__auwlaDirty = true;
   state.memos.set(id, { deps: [...deps], value });
   return value;
+}
+
+export function commit(): void {
+  for (const app of mountedApps) {
+    app.invalidate();
+  }
 }
 
 /**
@@ -680,6 +703,7 @@ export function createMemoApp<TModel>(
     scheduled = true;
     queueMicrotask(renderNow);
   };
+  const mountedApp: MountedApp = { invalidate };
 
   const ctx: MemoContext<TModel> = {
     model: model as TModel,
@@ -710,6 +734,7 @@ export function createMemoApp<TModel>(
   };
 
   renderNow();
+  mountedApps.add(mountedApp);
 
   return {
     ...(view ? { model: model as TModel } : {}),
@@ -721,6 +746,7 @@ export function createMemoApp<TModel>(
       cache.clear();
       componentInstances.clear();
       memoBlocks.clear();
+      mountedApps.delete(mountedApp);
       root.replaceChildren();
     },
   };

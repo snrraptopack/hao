@@ -36,6 +36,8 @@ For large keyed lists, the runtime still reruns the parent render closure and ex
 
 That is much cheaper than recreating DOM, but it still costs time for 1,000+ rows.
 
+Create and update-all are the real ceiling. Creating 1,000 visible rows means creating thousands of DOM/text nodes and forcing browser layout/paint. Updating every row means touching every changed text/class/prop. A runtime patcher can reduce overhead, but it cannot make those browser costs disappear while still rendering all 1,000 rows.
+
 ## Runtime Optimization First
 
 Before adding a compiler, the runtime should have a tiny memo primitive that can be used by tests, benchmarks, and future compiler output:
@@ -72,6 +74,15 @@ __keyedMap(
 ```
 
 The compiler should be optional. The runtime must stay correct without it.
+
+See [COMPILER.md](./COMPILER.md) for the concrete compiler strategy.
+
+The compiler is also where create/update-all can become much faster:
+
+- Hoist static props, static style objects, and static child shapes.
+- Generate direct text/class patch operations for dynamic values.
+- Lower keyed `.map()` into an internal keyed block without exposing `memo()`.
+- Avoid rebuilding row templates when only known dynamic fields changed.
 
 ## Priority
 

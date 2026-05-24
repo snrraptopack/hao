@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { createMemoApp } from '../src/memo-dom';
+import { commit, createMemoApp } from '../src/memo-dom';
 
 const tick = () => new Promise<void>((resolve) => queueMicrotask(resolve));
 
@@ -68,4 +68,43 @@ describe('memo-dom', () => {
     expect(root.querySelector('span')).toBe(initial);
     expect(root.textContent).toBe('B');
   });
+
+  test('commit rerenders mounted apps after external async data changes', async () => {
+    const root = document.createElement('div');
+    let label = 'Loading';
+
+    createMemoApp(root, () => ctxEl('span', label));
+
+    expect(root.textContent).toBe('Loading');
+
+    label = 'Loaded';
+    commit();
+    await tick();
+
+    expect(root.textContent).toBe('Loaded');
+  });
+
+  test('commit skips destroyed apps', async () => {
+    const root = document.createElement('div');
+    let label = 'Before';
+    const app = createMemoApp(root, () => ctxEl('span', label));
+
+    app.destroy();
+    label = 'After';
+    commit();
+    await tick();
+
+    expect(root.textContent).toBe('');
+  });
 });
+
+function ctxEl<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  ...children: unknown[]
+): HTMLElementTagNameMap[K] {
+  const element = document.createElement(tag);
+  for (const child of children) {
+    element.append(String(child));
+  }
+  return element;
+}

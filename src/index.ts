@@ -1,5 +1,6 @@
 export {
   Fragment,
+  commit,
   createMemoApp,
   createMemoElement,
   h,

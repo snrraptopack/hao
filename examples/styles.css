@@ -121,9 +121,67 @@ input {
   border-radius: 6px;
 }
 
+.perf-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: sans-serif;
+}
+
+.perf-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.perf-metric {
+  padding: 10px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.perf-metric div,
+.perf-id {
+  color: #666;
+  font-size: 12px;
+}
+
+.perf-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.perf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.perf-card {
+  padding: 10px;
+  text-align: center;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.perf-card.hot {
+  background: #e6ffed;
+  border-color: #28a745;
+}
+
+.perf-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   main {
     padding: 18px;
   }
 }
-

@@ -68,6 +68,47 @@ function TodoApp() {
 createMemoApp(document.getElementById('app')!, <TodoApp />);
 ```
 
+## External Async Data
+
+For data that resolves outside an Auwla event handler, mutate plain variables and call `commit()`.
+
+```tsx
+import { commit, createMemoApp } from 'auwla';
+
+function UserProfile() {
+  let user: { name: string; email: string } | null = null;
+  let error = '';
+
+  fetch('/api/user')
+    .then((res) => res.json())
+    .then((data) => {
+      user = data;
+      commit();
+    })
+    .catch((err) => {
+      error = String(err);
+      commit();
+    });
+
+  return () => (
+    <section>
+      {error && <p>{error}</p>}
+      {!user && !error && <p>Loading...</p>}
+      {user && (
+        <div>
+          <h2>{user.name}</h2>
+          <p>{user.email}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+createMemoApp(document.getElementById('app')!, <UserProfile />);
+```
+
+`commit()` is a global invalidation event. It schedules one rerender for every mounted Auwla app.
+
 ## How It Works
 
 - Component functions run once for setup.
@@ -96,6 +137,7 @@ Use the automatic JSX runtime:
 
 ```ts
 createMemoApp(root, <App />);
+commit();
 ```
 
 The lower-level DOM helpers are exported for tests and advanced usage:
@@ -103,4 +145,3 @@ The lower-level DOM helpers are exported for tests and advanced usage:
 ```ts
 import { h, Fragment, createMemoElement } from 'auwla';
 ```
-
