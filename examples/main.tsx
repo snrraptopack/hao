@@ -2,14 +2,15 @@ import { createMemoApp } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
-function CounterExample() {
-  let count = 0;
+let count = 0;
 
+function CounterExample() {
   return () => (
     <section class="panel">
       <h2>Counter</h2>
       <p>State is a local variable in setup.</p>
       <button onClick={() => count++}>Count: {count}</button>
+      <p>double {count * 2}</p>
     </section>
   );
 }
@@ -65,7 +66,7 @@ function TodoExample() {
 
 function ChildCounter(props: { label: string }) {
   let count = 0;
-
+  console.log("run again")
   return () => (
     <button class="secondary" onClick={() => count++}>
       {props.label}: {count}
