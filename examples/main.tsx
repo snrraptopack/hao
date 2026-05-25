@@ -3,16 +3,20 @@ import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
 let count = 0;
+const double = () => {
+  console.log("logged")
+   return count * 2
+}
 
 function CounterExample() {
-  return () => (
-    <section class="panel">
-      <h2>Counter</h2>
-      <p>State is a local variable in setup.</p>
-      <button onClick={() => count++}>Count: {count}</button>
-      <p>double {count * 2}</p>
-    </section>
-  );
+    return () => (
+      <section class="panel">
+        <h2>Counter</h2>
+        <p>State is a local variable in setup.</p>
+        <button onClick={() => count++}>Count: {count}</button>
+        <p>double {double()}</p>
+      </section>
+    );
 }
 
 function TodoExample() {

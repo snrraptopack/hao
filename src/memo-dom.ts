@@ -2,7 +2,7 @@ export type RenderClosure = () => MemoChild;
 export type MemoChild = Node | string | number | boolean | null | undefined | RenderClosure | TemplateNode | readonly unknown[];
 type EventHandler = (event: Event) => unknown;
 export type MemoProps = Record<string, unknown> | null | undefined;
-type EventWrapper = (handler: EventHandler) => EventListener;
+type EventWrapper = (handler: EventHandler, ownerId?: string | null) => EventListener;
 type ComponentType = (props: Record<string, unknown>) => MemoChild | RenderClosure;
 type MemoElement = HTMLElement & {
   __memoKey?: unknown;
@@ -13,6 +13,7 @@ type MemoElement = HTMLElement & {
 type TemplateNode = {
   __auwlaTemplate: true;
   __auwlaDirty?: boolean;
+  ownerId: string | null;
   tag: keyof HTMLElementTagNameMap;
   props: Record<string, unknown>;
   children: MemoChild[];
@@ -23,13 +24,16 @@ type ComponentInstance = {
   key: unknown;
   props: Record<string, unknown>;
   render: RenderClosure;
+  value?: MemoChild;
 };
 type RenderState = {
   instances: Map<string, ComponentInstance>;
   memos: Map<string, MemoBlock>;
   seen: Set<string>;
+  rendered: Set<string>;
   stack: string[];
   counters: number[];
+  dirty: Set<string> | null;
 };
 type MemoBlock = {
   deps: readonly unknown[];
@@ -74,6 +78,12 @@ type MemoEntry = {
 
 export function __wrapCompilerEvent(handler: EventHandler): EventListener {
   return (activeEventWrapper ?? ((eventHandler) => eventHandler))(handler);
+}
+
+function currentComponentId(): string | null {
+  if (!activeRenderState) return null;
+  const id = activeRenderState.stack[activeRenderState.stack.length - 1];
+  return id && id !== 'root' ? id : null;
 }
 
 function sameDeps(a: MemoDeps, b: MemoDeps): boolean {
@@ -136,12 +146,13 @@ function objectShallowEqual(a: Record<string, unknown>, b: Record<string, unknow
 
 function templateEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
+  if (isRenderClosure(a) || isRenderClosure(b)) return false;
   if (!isTemplateNode(a) || !isTemplateNode(b) || b.__auwlaDirty) return false;
   if (a.tag !== b.tag || !Object.is(a.key, b.key)) return false;
   if (!objectShallowEqual(a.props, b.props)) return false;
 
-  const aChildren = normalizeChildren(a.children);
-  const bChildren = normalizeChildren(b.children);
+  const aChildren = normalizeTemplateChildren(a.children);
+  const bChildren = normalizeTemplateChildren(b.children);
   if (aChildren.length !== bChildren.length) return false;
 
   for (let i = 0; i < aChildren.length; i++) {
@@ -149,6 +160,20 @@ function templateEqual(a: unknown, b: unknown): boolean {
   }
 
   return true;
+}
+
+function normalizeTemplateChildren(value: unknown): unknown[] {
+  if (value instanceof DocumentFragment) return Array.from(value.childNodes);
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    for (const item of value.flat(Infinity)) {
+      if (item === null || item === undefined || item === false || item === true) continue;
+      out.push(item);
+    }
+    return out;
+  }
+  if (value === null || value === undefined || value === false || value === true) return [];
+  return [value];
 }
 
 function componentLabel(type: ComponentType): string {
@@ -162,7 +187,8 @@ function createComponentId(type: ComponentType, props: MemoProps): string | null
   const slot = activeRenderState.counters[depth] ?? 0;
   activeRenderState.counters[depth] = slot + 1;
   const key = props && 'key' in props ? props.key : slot;
-  return `${activeRenderState.stack.join('/')}/${componentLabel(type)}:${String(key)}`;
+  const parent = activeRenderState.stack[activeRenderState.stack.length - 1];
+  return `${parent}/${componentLabel(type)}:${String(key)}`;
 }
 
 function runInComponent<T>(id: string, render: () => T): T {
@@ -219,11 +245,20 @@ function createComponentClosure(
       };
       state.instances.set(id, instance);
     } else {
+      const propsChanged = !objectShallowEqual(instance.props, nextProps);
       updateProps(instance.props, nextProps);
+      if (propsChanged) state.dirty?.add(id);
     }
 
     state.seen.add(id);
-    return runInComponent(id, instance.render);
+    if (state.dirty && !state.dirty.has(id) && 'value' in instance) {
+      return instance.value;
+    }
+
+    state.rendered.add(id);
+    const value = runInComponent(id, instance.render);
+    instance.value = value;
+    return value;
   };
 }
 
@@ -237,7 +272,8 @@ function getKey(node: Node): unknown {
 
 function createScopedId(label: string, key: string | number): string | null {
   if (!activeRenderState) return null;
-  return `${activeRenderState.stack.join('/')}/${label}:${String(key)}`;
+  const parent = activeRenderState.stack[activeRenderState.stack.length - 1];
+  return `${parent}/${label}:${String(key)}`;
 }
 
 function getRenderKey(value: unknown): unknown {
@@ -347,6 +383,7 @@ function setProps(
   element: MemoElement,
   nextProps: Record<string, unknown>,
   wrapEvent: EventWrapper,
+  ownerId: string | null = null,
 ) {
   const previousProps = element.__memoProps ?? {};
 
@@ -357,7 +394,7 @@ function setProps(
 
   for (const key of Object.keys(nextProps)) {
     if (key === 'children' || key === 'key') continue;
-    setProp(element, key, nextProps[key], previousProps[key], wrapEvent);
+    setProp(element, key, nextProps[key], previousProps[key], (handler) => wrapEvent(handler, ownerId));
   }
 
   element.__memoProps = nextProps;
@@ -399,7 +436,7 @@ export function patchNode(parent: Node, current: Node, next: unknown): Node {
       return currentElement;
     }
 
-    setProps(currentElement, next.props, activeEventWrapper ?? ((handler) => handler));
+    setProps(currentElement, next.props, activeEventWrapper ?? ((handler) => handler), next.ownerId);
     currentElement.__memoKey = next.key;
     patchChildren(currentElement, next.children);
     next.__auwlaDirty = false;
@@ -566,7 +603,7 @@ function patchRoot(root: Element, next: unknown) {
 }
 
 function createNodeFromTemplate(template: TemplateNode): Node {
-  const node = createMemoElement(template.tag, template.props, template.children) as MemoElement;
+  const node = createMemoElement(template.tag, template.props, template.children, activeEventWrapper ?? ((handler) => handler), template.ownerId) as MemoElement;
   template.__auwlaDirty = false;
   node.__memoTemplate = template;
   return node;
@@ -576,7 +613,8 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   props: MemoProps,
   children: MemoChild[],
-  wrapEvent: EventWrapper = activeEventWrapper ?? ((handler) => handler)
+  wrapEvent: EventWrapper = activeEventWrapper ?? ((handler) => handler),
+  ownerId: string | null = currentComponentId(),
 ): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag) as MemoElement;
   const appliedProps: Record<string, unknown> = {};
@@ -590,7 +628,7 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
       }
 
       appliedProps[key] = value;
-      setProp(element, key, value, undefined, wrapEvent);
+      setProp(element, key, value, undefined, (handler) => wrapEvent(handler, ownerId));
     }
   }
 
@@ -613,6 +651,7 @@ function createTemplateElement<K extends keyof HTMLElementTagNameMap>(
   const key = 'key' in normalizedProps ? normalizedProps.key : undefined;
   return {
     __auwlaTemplate: true,
+    ownerId: currentComponentId(),
     tag,
     props: normalizedProps,
     children,
@@ -669,6 +708,7 @@ export function createMemoApp<TModel>(
   const cache = new Map<string | number, MemoEntry>();
   const componentInstances = new Map<string, ComponentInstance>();
   const memoBlocks = new Map<string, MemoBlock>();
+  let dirtyComponents: Set<string> | null = null;
   let scheduled = false;
   let destroyed = false;
   const model = view ? modelOrApp as TModel : undefined;
@@ -683,19 +723,36 @@ export function createMemoApp<TModel>(
       instances: componentInstances,
       memos: memoBlocks,
       seen: new Set(),
+      rendered: new Set(),
       stack: ['root'],
       counters: [0],
+      dirty: dirtyComponents,
     };
-    activeEventWrapper = (handler) => ctx.event((event) => handler(event));
+    dirtyComponents = new Set();
+    activeEventWrapper = (handler, ownerId) => createEventListener((event) => handler(event), ownerId);
     activeRenderState = renderState;
     try {
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
       patchRoot(root, output);
+
+      // Only delete instances whose parent actually re-rendered.
+      // If a parent was skipped (returned cached value), its children
+      // were never visited but should be preserved.
       for (const id of componentInstances.keys()) {
-        if (!renderState.seen.has(id)) componentInstances.delete(id);
+        if (renderState.seen.has(id)) continue;
+        const sep = id.lastIndexOf('/');
+        const parentId = sep >= 0 ? id.slice(0, sep) : null;
+        if (!parentId || parentId === 'root' || renderState.rendered.has(parentId)) {
+          componentInstances.delete(id);
+        }
       }
       for (const id of memoBlocks.keys()) {
-        if (!renderState.seen.has(id)) memoBlocks.delete(id);
+        if (renderState.seen.has(id)) continue;
+        const sep = id.lastIndexOf('/');
+        const parentId = sep >= 0 ? id.slice(0, sep) : null;
+        if (!parentId || parentId === 'root' || renderState.rendered.has(parentId)) {
+          memoBlocks.delete(id);
+        }
       }
     } finally {
       activeEventWrapper = previousWrapper;
@@ -703,12 +760,45 @@ export function createMemoApp<TModel>(
     }
   };
 
-  const invalidate = () => {
-    if (destroyed || scheduled) return;
+  const markDirty = (ownerId: string | null | undefined) => {
+    if (!ownerId) {
+      dirtyComponents = null;
+      return;
+    }
+
+    if (dirtyComponents === null) return;
+
+    let id = ownerId;
+    while (id && id !== 'root') {
+      dirtyComponents.add(id);
+      const separator = id.lastIndexOf('/');
+      if (separator < 0) break;
+      id = id.slice(0, separator);
+    }
+  };
+
+  const invalidate = (ownerId?: string | null) => {
+    if (destroyed) return;
+    markDirty(ownerId);
+    if (scheduled) return;
     scheduled = true;
     queueMicrotask(renderNow);
   };
   const mountedApp: MountedApp = { invalidate };
+
+  const createEventListener = (
+    handler: (event: Event, model: TModel) => unknown,
+    ownerId: string | null = currentComponentId(),
+  ): EventListener => {
+    return (event) => {
+      const result = handler(event, model as TModel);
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        void (result as Promise<unknown>).finally(() => invalidate(ownerId));
+      } else {
+        invalidate(ownerId);
+      }
+    };
+  };
 
   const ctx: MemoContext<TModel> = {
     model: model as TModel,
@@ -716,15 +806,8 @@ export function createMemoApp<TModel>(
       return createMemoElement(tag, props, children, (handler) => ctx.event((event) => handler(event)));
     },
     invalidate,
-  event(handler) {
-      return (event) => {
-        const result = handler(event, model as TModel);
-        if (result && typeof (result as Promise<unknown>).then === 'function') {
-          void (result as Promise<unknown>).finally(invalidate);
-        } else {
-          invalidate();
-        }
-      };
+    event(handler) {
+      return createEventListener(handler);
     },
     memo(key, deps, render) {
       const cached = cache.get(key);
