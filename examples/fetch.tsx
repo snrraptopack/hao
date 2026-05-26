@@ -1,4 +1,4 @@
-import { createMemoApp,commit,component } from '../src/index';
+import { createMemoApp,commit,component } from 'auwla';
 
 interface User {
   id: number;

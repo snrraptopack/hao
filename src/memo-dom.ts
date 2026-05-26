@@ -850,12 +850,30 @@ export function createMemoApp<TModel>(
       // were never visited but should be preserved.
       // Collect removable instances, run cleanups depth-first, then delete
       const toDelete: [string, ComponentInstance][] = [];
+      const deletedIds = new Set<string>();
+      // First pass: instances whose parent was rendered but didn't include them
       for (const [id, inst] of componentInstances.entries()) {
         if (renderState.seen.has(id)) continue;
         const sep = id.lastIndexOf('/');
         const parentId = sep >= 0 ? id.slice(0, sep) : null;
         if (!parentId || parentId === 'root' || renderState.rendered.has(parentId)) {
           toDelete.push([id, inst]);
+          deletedIds.add(id);
+        }
+      }
+      // Second pass: collect orphaned children whose parent is being deleted
+      let foundMore = true;
+      while (foundMore) {
+        foundMore = false;
+        for (const [id, inst] of componentInstances.entries()) {
+          if (renderState.seen.has(id) || deletedIds.has(id)) continue;
+          const sep = id.lastIndexOf('/');
+          const parentId = sep >= 0 ? id.slice(0, sep) : null;
+          if (parentId && deletedIds.has(parentId)) {
+            toDelete.push([id, inst]);
+            deletedIds.add(id);
+            foundMore = true;
+          }
         }
       }
       runInstanceCleanups(toDelete);
