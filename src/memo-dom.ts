@@ -25,6 +25,7 @@ type ComponentInstance = {
   props: Record<string, unknown>;
   render: RenderClosure;
   value?: MemoChild;
+  cleanups?: (() => void)[];
 };
 type RenderState = {
   instances: Map<string, ComponentInstance>;
@@ -34,16 +35,30 @@ type RenderState = {
   stack: string[];
   counters: number[];
   dirty: Set<string> | null;
+  invalidate: (ownerId?: string | null) => void;
 };
 type MemoBlock = {
   deps: readonly unknown[];
   value: MemoChild;
 };
 
+/**
+ * Opaque handle to a component instance, captured during setup.
+ * Pass to `commit()` to re-render only that component's subtree.
+ */
+export type ComponentHandle = {
+  /** @internal */
+  readonly _id: string;
+  /** @internal */
+  readonly _invalidate: (ownerId?: string | null) => void;
+};
+
 const NO_INDEX = -1;
 
 let activeEventWrapper: EventWrapper | null = null;
 let activeRenderState: RenderState | null = null;
+let activeSetupComponentId: string | null = null;
+let pendingCleanups: (() => void)[] | null = null;
 const mountedApps = new Set<MountedApp>();
 
 export type MemoDeps = readonly unknown[];
@@ -84,6 +99,67 @@ function currentComponentId(): string | null {
   if (!activeRenderState) return null;
   const id = activeRenderState.stack[activeRenderState.stack.length - 1];
   return id && id !== 'root' ? id : null;
+}
+
+/**
+ * Captures a handle to the current component during setup.
+ * The returned handle can be passed to `commit()` to trigger a
+ * scoped re-render of only this component and its ancestors.
+ *
+ * Must be called during component setup (the outer function body),
+ * not inside the render callback.
+ */
+export function component(): ComponentHandle {
+  // Nested component — has render context and a known component ID
+  if (activeRenderState && activeSetupComponentId) {
+    return { _id: activeSetupComponentId, _invalidate: activeRenderState.invalidate };
+  }
+
+  // Top-level component (e.g. createMemoApp(root, <App />)) — no render context yet.
+  // Return a handle that falls back to full invalidation via commit().
+  return {
+    _id: '',
+    _invalidate() {
+      for (const app of mountedApps) {
+        app.invalidate();
+      }
+    },
+  };
+}
+
+/**
+ * Registers a callback that runs when the component is removed from the tree,
+ * replaced by a different component type, or the app is destroyed.
+ *
+ * Multiple calls are allowed — each resource can register its own cleanup.
+ * Cleanups run children-before-parents to respect dependency ordering.
+ *
+ * Must be called during component setup (the outer function body).
+ */
+export function cleanup(fn: () => void): void {
+  if (!pendingCleanups) {
+    throw new Error('cleanup() must be called during component setup');
+  }
+  pendingCleanups.push(fn);
+}
+
+/**
+ * Runs cleanup callbacks for a list of component entries.
+ * Sorts deepest-first so children clean up before parents.
+ */
+function runInstanceCleanups(entries: [string, ComponentInstance][]): void {
+  entries.sort((a, b) => {
+    let depthA = 0;
+    let depthB = 0;
+    for (const c of a[0]) if (c === '/') depthA++;
+    for (const c of b[0]) if (c === '/') depthB++;
+    return depthB - depthA;
+  });
+  for (const [, inst] of entries) {
+    if (inst.cleanups) {
+      for (const fn of inst.cleanups) fn();
+    }
+  }
 }
 
 function sameDeps(a: MemoDeps, b: MemoDeps): boolean {
@@ -222,7 +298,13 @@ function createComponentClosure(
   const id = createComponentId(type, props);
 
   if (!id || !activeRenderState) {
+    const prevCleanups = pendingCleanups;
+    pendingCleanups = [];
     const output = type(nextProps);
+    const cleanups = pendingCleanups.length > 0 ? pendingCleanups : undefined;
+    pendingCleanups = prevCleanups;
+    // Top-level cleanups stored via __pendingCleanups for createMemoApp to collect
+    if (cleanups) (output as any).__pendingCleanups = cleanups;
     return isRenderClosure(output) ? output : () => output;
   }
 
@@ -235,13 +317,25 @@ function createComponentClosure(
 
     let instance = state.instances.get(id);
     if (!instance || instance.type !== type) {
+      // Run old instance's cleanups before replacing (type change)
+      if (instance?.cleanups) {
+        for (const fn of instance.cleanups) fn();
+      }
       const stableProps = { ...nextProps };
+      const prevSetupId = activeSetupComponentId;
+      const prevCleanups = pendingCleanups;
+      activeSetupComponentId = id;
+      pendingCleanups = [];
       const output = type(stableProps);
+      activeSetupComponentId = prevSetupId;
+      const cleanups = pendingCleanups.length > 0 ? pendingCleanups : undefined;
+      pendingCleanups = prevCleanups;
       instance = {
         type,
         key: props && 'key' in props ? props.key : undefined,
         props: stableProps,
         render: isRenderClosure(output) ? output : () => output,
+        cleanups,
       };
       state.instances.set(id, instance);
     } else {
@@ -677,9 +771,24 @@ export function memo(key: string | number, deps: readonly unknown[], render: () 
   return value;
 }
 
-export function commit(): void {
-  for (const app of mountedApps) {
-    app.invalidate();
+/**
+ * Triggers a re-render.
+ *
+ * - `commit()` — re-renders all mounted apps (full invalidation).
+ * - `commit(handle)` — re-renders only the component subtree captured by `component()`.
+ * - `commit(h1, h2)` — re-renders multiple specific component subtrees.
+ */
+export function commit(...handles: ComponentHandle[]): void {
+  if (handles.length === 0) {
+    // Full re-render across all mounted apps
+    for (const app of mountedApps) {
+      app.invalidate();
+    }
+  } else {
+    // Scoped re-render for each specified component
+    for (const handle of handles) {
+      handle._invalidate(handle._id);
+    }
   }
 }
 
@@ -727,6 +836,7 @@ export function createMemoApp<TModel>(
       stack: ['root'],
       counters: [0],
       dirty: dirtyComponents,
+      invalidate,
     };
     dirtyComponents = new Set();
     activeEventWrapper = (handler, ownerId) => createEventListener((event) => handler(event), ownerId);
@@ -738,13 +848,19 @@ export function createMemoApp<TModel>(
       // Only delete instances whose parent actually re-rendered.
       // If a parent was skipped (returned cached value), its children
       // were never visited but should be preserved.
-      for (const id of componentInstances.keys()) {
+      // Collect removable instances, run cleanups depth-first, then delete
+      const toDelete: [string, ComponentInstance][] = [];
+      for (const [id, inst] of componentInstances.entries()) {
         if (renderState.seen.has(id)) continue;
         const sep = id.lastIndexOf('/');
         const parentId = sep >= 0 ? id.slice(0, sep) : null;
         if (!parentId || parentId === 'root' || renderState.rendered.has(parentId)) {
-          componentInstances.delete(id);
+          toDelete.push([id, inst]);
         }
+      }
+      runInstanceCleanups(toDelete);
+      for (const [id] of toDelete) {
+        componentInstances.delete(id);
       }
       for (const id of memoBlocks.keys()) {
         if (renderState.seen.has(id)) continue;
@@ -824,6 +940,13 @@ export function createMemoApp<TModel>(
   renderNow();
   mountedApps.add(mountedApp);
 
+  // Collect any cleanup callbacks registered by the top-level component during setup
+  let topLevelCleanups: (() => void)[] | undefined;
+  if (isRenderClosure(app) && (app as any).__pendingCleanups) {
+    topLevelCleanups = (app as any).__pendingCleanups;
+    delete (app as any).__pendingCleanups;
+  }
+
   return {
     ...(view ? { model: model as TModel } : {}),
     root,
@@ -831,6 +954,13 @@ export function createMemoApp<TModel>(
     destroy() {
       destroyed = true;
       scheduled = false;
+      // Run all instance cleanups depth-first (children before parents)
+      const allInstances: [string, ComponentInstance][] = Array.from(componentInstances.entries());
+      runInstanceCleanups(allInstances);
+      // Run top-level component cleanups last (root is the shallowest)
+      if (topLevelCleanups) {
+        for (const fn of topLevelCleanups) fn();
+      }
       cache.clear();
       componentInstances.clear();
       memoBlocks.clear();

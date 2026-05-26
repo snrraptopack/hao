@@ -1,6 +1,8 @@
 export {
   Fragment,
+  cleanup,
   commit,
+  component,
   createMemoApp,
   createMemoElement,
   h,
@@ -22,6 +24,7 @@ export {
 } from './compiler-runtime';
 
 export type {
+  ComponentHandle,
   MemoApp,
   MemoChild,
   MemoContext,

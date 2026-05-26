@@ -1,6 +1,6 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test } from 'vitest';
-import { createMemoApp } from 'auwla';
+import { createMemoApp, component, commit } from 'auwla';
 
 describe('typed JSX DOM runtime', () => {
   test('supports setup-once components with local closure state', async () => {
@@ -340,6 +340,110 @@ describe('typed JSX DOM runtime', () => {
 
     expect(childSetupCalls).toBe(1);
     expect(root.querySelector('.child')!.textContent).toBe('Child: 2');
+  });
+
+  test('commit(handle) re-renders the target component without affecting siblings', async () => {
+    const root = document.createElement('div');
+    let siblingRenderCalls = 0;
+    let childRenderCalls = 0;
+
+    function Child() {
+      const self = component();
+      let count = 0;
+
+      // Simulate async data fetch on mount
+      queueMicrotask(() => {
+        count = 42;
+        commit(self);
+      });
+
+      return () => {
+        childRenderCalls++;
+        return <span class="child-val">{count}</span>;
+      };
+    }
+
+    function Sibling() {
+      return () => {
+        siblingRenderCalls++;
+        return <span class="sibling-val">Sibling</span>;
+      };
+    }
+
+    function App() {
+      return () => (
+        <div>
+          <Child />
+          <Sibling />
+        </div>
+      );
+    }
+
+    createMemoApp(root, <App />);
+
+    expect(childRenderCalls).toBe(1);
+    expect(siblingRenderCalls).toBe(1);
+    expect(root.querySelector('.child-val')!.textContent).toBe('0');
+
+    // Wait for the microtask (simulated async) to fire
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    // Child re-rendered with new data
+    expect(childRenderCalls).toBe(2);
+    expect(root.querySelector('.child-val')!.textContent).toBe('42');
+
+    // Sibling was NOT re-rendered — commit(self) only affected the target path
+    expect(siblingRenderCalls).toBe(1);
+  });
+
+  test('commit(h1, h2) re-renders multiple specific components', async () => {
+    const root = document.createElement('div');
+    let aRenderCalls = 0;
+    let bRenderCalls = 0;
+    let cRenderCalls = 0;
+
+    let handleA: ReturnType<typeof component>;
+    let handleB: ReturnType<typeof component>;
+
+    function CompA() {
+      handleA = component();
+      let val = 'a0';
+      return () => { aRenderCalls++; return <span class="a">{val}</span>; };
+    }
+
+    function CompB() {
+      handleB = component();
+      let val = 'b0';
+      return () => { bRenderCalls++; return <span class="b">{val}</span>; };
+    }
+
+    function CompC() {
+      return () => { cRenderCalls++; return <span class="c">c</span>; };
+    }
+
+    function App() {
+      return () => (
+        <div>
+          <CompA />
+          <CompB />
+          <CompC />
+        </div>
+      );
+    }
+
+    createMemoApp(root, <App />);
+
+    expect(aRenderCalls).toBe(1);
+    expect(bRenderCalls).toBe(1);
+    expect(cRenderCalls).toBe(1);
+
+    // Commit only A and B — C should not re-render
+    commit(handleA!, handleB!);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(aRenderCalls).toBe(2);
+    expect(bRenderCalls).toBe(2);
+    expect(cRenderCalls).toBe(1); // untouched
   });
 
   test('swaps keyed nodes without replacing unchanged nodes', () => {
