@@ -112,6 +112,48 @@ function LiveClock() {
   );
 }
 
+function CopyButton() {
+  let state: "idle" | "copied" = "idle"
+  return () => (
+    <button onClick={async () => {
+      await navigator.clipboard.writeText("google.com")
+      state = "copied"
+    }}>
+      {state === "copied" ? "Copied" : "Copy"}
+    </button>
+  )
+}
+
+function KeyedInputList() {
+  const items = [
+    { id: 'a', label: 'Alpha' },
+    { id: 'b', label: 'Beta' },
+    { id: 'c', label: 'Gamma' },
+  ];
+
+  return () => (
+    <section>
+      <h2>Keyed Input Reconciliation</h2>
+
+      <div style={{ marginBottom: '12px', display: 'flex', gap: '8px' }}>
+        <button onClick={() => items.reverse()}>Reverse</button>
+        <button onClick={() => items.sort(() => Math.random() - 0.5)}>Shuffle</button>
+        <button onClick={() => items.splice(0, 1)}>Remove First</button>
+        <button onClick={() => items.unshift({ id: Date.now().toString(), label: 'New' })}>
+          Prepend
+        </button>
+      </div>
+
+      {items.map(item => (
+        <div key={item.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+          <span style={{ width: '60px' }}>{item.label}</span>
+          <input placeholder={`type in ${item.label}`} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /**
  * App — demonstrates conditional rendering with cleanup.
  * Toggle the clock on/off to see cleanup fire in the console.
@@ -137,6 +179,8 @@ function App() {
       <p style={{ color: '#888', fontSize: '12px', marginTop: '32px' }}>
         Open the console to see cleanup logs when toggling the clock.
       </p>
+      <CopyButton />
+      <KeyedInputList/>
     </div>
   );
 }

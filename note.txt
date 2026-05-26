@@ -1,0 +1,19 @@
+Composability — The Nice Side Effect
+Because pendingCleanups is module-level and set during the entire setup execution, any function called during setup can register cleanups:
+
+typescript
+
+
+// utils/websocket.ts
+function createSocket(url: string) {
+  const ws = new WebSocket(url);
+  cleanup(() => ws.close());
+  return ws;
+}
+// components/Chat.tsx
+function Chat() {
+  const ws = createSocket('ws://chat.app');  // cleanup registered automatically
+  const timer = setInterval(poll, 5000);
+  cleanup(() => clearInterval(timer));
+  return () => <div>Chat</div>;
+}
