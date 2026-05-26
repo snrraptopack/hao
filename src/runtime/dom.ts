@@ -19,7 +19,7 @@ import type {
 import { isRenderClosure, isTemplateNode } from './types';
 import { createTemplateElement } from './template';
 import { createComponentClosure } from './component';
-import { normalizeChildren } from '../shared/normalize';
+
 
 /**
  * Convert any Auwla child value into a real DOM `Node`.

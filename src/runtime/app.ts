@@ -6,7 +6,7 @@
  * re-renders across mounted apps.
  */
 
-import { runtimeState, __wrapCompilerEvent } from './state';
+import { runtimeState } from './state';
 import type {
   ComponentHandle,
   ComponentInstance,

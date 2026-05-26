@@ -60,4 +60,119 @@ describe('basic render closure compilation', () => {
     expect(compiled).toContain('return () => <Label text="Hello" />');
     expect(compiled).not.toContain('document.createElement("Label")');
   });
+
+  test('compiles text-only ternary expressions as text nodes', () => {
+    const source = `
+      function App() {
+        let active = false;
+        exports.toggle = () => { active = !active; };
+        return () => <span>{active ? 'On' : 'Off'}</span>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__setText');
+    // Slice after the import line to avoid matching __setChild in the import list
+    const importEnd = compiled.indexOf('\nfunction App');
+    const bodyAfterImport = compiled.slice(importEnd);
+    expect(bodyAfterImport).not.toContain('__setChild');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; toggle(): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.textContent).toBe('Off');
+
+    evaluated.toggle();
+    app.render();
+
+    expect(root.textContent).toBe('On');
+  });
+
+  test('compiles text-only logical expressions as text nodes', () => {
+    const source = `
+      function App() {
+        let name = '';
+        exports.setName = (n: string) => { name = n; };
+        return () => <span>{name || 'Anonymous'}</span>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__setText');
+    // Slice after the import line to avoid matching __setChild in the import list
+    const importEnd = compiled.indexOf('\nfunction App');
+    const bodyAfterImport = compiled.slice(importEnd);
+    expect(bodyAfterImport).not.toContain('__setChild');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; setName(n: string): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.textContent).toBe('Anonymous');
+
+    evaluated.setName('Ada');
+    app.render();
+
+    expect(root.textContent).toBe('Ada');
+  });
+
+  test('keeps JSX ternary expressions on __setChild path', () => {
+    const source = `
+      function App() {
+        let show = false;
+        exports.toggle = () => { show = !show; };
+        return () => <div>{show ? <span>Yes</span> : <span>No</span>}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__setChild');
+  });
+
+  test('keeps JSX logical expressions on __setChild path', () => {
+    const source = `
+      function App() {
+        let show = false;
+        exports.toggle = () => { show = !show; };
+        return () => <div>{show && <span>Visible</span>}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__setChild');
+  });
+
+  test('preserves pre-return statements in block-bodied render closures', () => {
+    const source = `
+      function App() {
+        let count = 0;
+        exports.bump = () => { count++; };
+        return () => {
+          count = count * 2;
+          return <span>{count}</span>;
+        };
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('count = count * 2');
+    expect(compiled).toContain('__setText');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; bump(): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.textContent).toBe('0');
+
+    evaluated.bump();
+    app.render();
+
+    expect(root.textContent).toBe('2');
+  });
 });

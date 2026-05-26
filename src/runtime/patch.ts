@@ -9,7 +9,7 @@
 import { runtimeState } from './state';
 import type { MemoElement, MemoChild, TemplateNode } from './types';
 import { isRenderClosure, isTemplateNode } from './types';
-import { toNode, setProp, setProps } from './dom';
+import { toNode, setProps } from './dom';
 import { templateEqual } from './template';
 import { placePatchedNodes } from './reconcile';
 import { normalizeChildren } from '../shared/normalize';

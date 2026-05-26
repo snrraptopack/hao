@@ -65,7 +65,7 @@ function TableBenchmark() {
       <p>Table-shaped benchmark matching the common JS framework benchmark operations.</p>
 
       <div class="table-controls">
-        <button onClick={() => measure('Create 1,000 rows', () => {
+        <button  onClick={() => measure('Create 1,000 rows', () => {
           selected = 0;
           rows = buildRows(1000);
         })}>Create 1k</button>

@@ -21,10 +21,14 @@ export const runtimeState = {
 
 /**
  * Wrap a compiler-generated event handler with the active runtime wrapper.
+ *
+ * Uses the current render-stack component ID so compiled event handlers
+ * schedule scoped invalidation just like runtime JSX handlers.
  * @internal
  */
 export function __wrapCompilerEvent(handler: (event: Event) => unknown): EventListener {
-  return (runtimeState.activeEventWrapper ?? ((eventHandler) => eventHandler))(handler);
+  const wrap = runtimeState.activeEventWrapper ?? ((eventHandler) => eventHandler);
+  return wrap(handler, currentComponentId());
 }
 
 /** Return the ID of the component at the top of the render stack. */

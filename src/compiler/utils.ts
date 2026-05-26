@@ -30,11 +30,6 @@ export function pathExpression(root: string, path: number[]): string {
   return path.reduce((expression, index) => `${expression}.childNodes[${index}]!`, root);
 }
 
-/** Render a static HTML attribute string. */
-export function staticAttributeHtml(name: string, value: string | true): string {
-  return value === true ? ` ${name}` : ` ${name}="${escapeHtml(value)}"`;
-}
-
 /** Decode JSX entity escapes into literal characters. */
 export function decodeJsxText(value: string): string {
   return value.replace(/&(#x[\da-fA-F]+|#\d+|amp|lt|gt|quot|apos|nbsp);/g, (entity, body: string) => {
@@ -136,6 +131,24 @@ export function containsJsx(node: ts.Node): boolean {
 }
 
 /**
+ * Return true if an expression is a literal that renders safely as text.
+ *
+ * String literals, number literals, booleans, null, and undefined all
+ * stringify predictably and never produce DOM nodes or arrays.
+ */
+function isTextLiteral(expression: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(expression)) {
+    return isTextLiteral(expression.expression);
+  }
+  return ts.isStringLiteralLike(expression)
+    || ts.isNumericLiteral(expression)
+    || expression.kind === ts.SyntaxKind.TrueKeyword
+    || expression.kind === ts.SyntaxKind.FalseKeyword
+    || expression.kind === ts.SyntaxKind.NullKeyword
+    || expression.kind === ts.SyntaxKind.UndefinedKeyword;
+}
+
+/**
  * Return true if a child expression cannot be rendered as a simple text node.
  *
  * Conditional expressions, binary expressions with JSX, and arrays all need
@@ -143,12 +156,21 @@ export function containsJsx(node: ts.Node): boolean {
  */
 export function needsChildPatch(expression: ts.Expression): boolean {
   if (containsJsx(expression) || ts.isArrayLiteralExpression(expression)) return true;
-  if (ts.isConditionalExpression(expression)) return true;
-  if (ts.isBinaryExpression(expression)) {
-    return expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
-      || expression.operatorToken.kind === ts.SyntaxKind.BarBarToken
-      || containsJsx(expression);
+
+  if (ts.isConditionalExpression(expression)) {
+    // Only avoid __setChild when BOTH branches are text literals.
+    return !isTextLiteral(expression.whenTrue) || !isTextLiteral(expression.whenFalse);
   }
+
+  if (ts.isBinaryExpression(expression)) {
+    if (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      || expression.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      // For && and ||, only avoid __setChild when the right side is a text literal.
+      return !isTextLiteral(expression.right);
+    }
+    return containsJsx(expression);
+  }
+
   return false;
 }
 
@@ -236,6 +258,31 @@ export function isInlinableComponent(
   if (!body) return false;
   const jsx = ts.isBlock(body) ? unwrapJsxReturn(body) : unwrapJsxExpression(body);
   if (!jsx) return false;
+
+  // Reject block bodies with control flow — only a single return statement is allowed.
+  if (ts.isBlock(body)) {
+    let returnCount = 0;
+    let hasControlFlow = false;
+    function scan(node: ts.Node) {
+      if (ts.isReturnStatement(node)) returnCount++;
+      if (
+        ts.isIfStatement(node) ||
+        ts.isSwitchStatement(node) ||
+        ts.isForStatement(node) ||
+        ts.isForInStatement(node) ||
+        ts.isForOfStatement(node) ||
+        ts.isWhileStatement(node) ||
+        ts.isDoStatement(node) ||
+        ts.isTryStatement(node)
+      ) {
+        hasControlFlow = true;
+      }
+      ts.forEachChild(node, scan);
+    }
+    scan(body);
+    if (returnCount > 1 || hasControlFlow) return false;
+  }
+
   return true;
 }
 

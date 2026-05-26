@@ -177,4 +177,70 @@ describe('attribute compilation', () => {
     expect(div.getAttribute('data-test-id')).toBe('123');
     expect(div.getAttribute('aria-label')).toBe('Hello');
   });
+
+  test('normalizes React camelCase attributes to HTML equivalents', () => {
+    const cases = [
+      { jsx: 'srcSet="a.jpg"', normalized: 'srcset', original: 'srcSet' },
+      { jsx: 'spellCheck={true}', normalized: 'spellcheck', original: 'spellCheck' },
+      { jsx: 'useMap="#map"', normalized: 'usemap', original: 'useMap' },
+      { jsx: 'frameBorder="0"', normalized: 'frameborder', original: 'frameBorder' },
+      { jsx: 'cellPadding="4"', normalized: 'cellpadding', original: 'cellPadding' },
+      { jsx: 'cellSpacing="2"', normalized: 'cellspacing', original: 'cellSpacing' },
+      { jsx: 'colSpan={2}', normalized: 'colspan', original: 'colSpan' },
+      { jsx: 'rowSpan={3}', normalized: 'rowspan', original: 'rowSpan' },
+      { jsx: 'charSet="utf-8"', normalized: 'charset', original: 'charSet' },
+      { jsx: 'referrerPolicy="no-referrer"', normalized: 'referrerpolicy', original: 'referrerPolicy' },
+    ];
+
+    for (const { jsx, normalized, original } of cases) {
+      const source = `
+        function App() {
+          return () => <div ${jsx}>X</div>;
+        }
+      `;
+      const compiled = compileAuwla(source);
+      expect(compiled, `for ${jsx}`).toContain(normalized);
+      expect(compiled, `for ${jsx}`).not.toContain(original);
+    }
+  });
+
+  test('converts static style objects to CSS strings in templates', () => {
+    const source = `
+      function App() {
+        return () => (
+          <div style={{ padding: '16px', borderRadius: 8, opacity: 0.5 }}>Hello</div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__cloneTemplate');
+    expect(compiled).toContain('padding: 16px');
+    expect(compiled).toContain('border-radius: 8px');
+    expect(compiled).toContain('opacity: 0.5');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(evaluated.App as any));
+    const div = root.querySelector('div')!;
+
+    expect(div.style.padding).toBe('16px');
+    expect(div.style.borderRadius).toBe('8px');
+    expect(div.style.opacity).toBe('0.5');
+  });
+
+  test('bails from template path for dynamic style objects', () => {
+    const source = `
+      function App() {
+        let color = 'red';
+        return () => <div style={{ color, padding: 8 }}>Hello</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    // Dynamic style causes template bail; uses non-template path with __setStyle
+    expect(compiled).toContain('__setStyle');
+  });
 });

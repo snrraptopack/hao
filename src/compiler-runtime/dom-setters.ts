@@ -181,15 +181,35 @@ export function __setAttribute(element: HTMLElement, name: string, value: unknow
  * @internal
  */
 export function __spreadProps(element: HTMLElement, props: Record<string, unknown>): void {
+  const spreadListeners = ((element as any).__auwlaSpreadListeners ??= new Map()) as Map<string, EventListener>;
+
+  // Remove listeners for events no longer present in the new props
+  for (const [key, listener] of spreadListeners) {
+    if (key.startsWith('on') && key.length > 2 && !(key in props)) {
+      const eventName = key.slice(2).toLowerCase();
+      element.removeEventListener(eventName, listener);
+      spreadListeners.delete(key);
+    }
+  }
+
   for (const [key, value] of Object.entries(props)) {
     if (key === 'children' || key === 'key') continue;
     if (key === 'class' || key === 'className') {
       __setClass(element, value);
     } else if (key === 'style') {
       __setStyle(element, value as Record<string, string | number | null | undefined>);
-    } else if (key.startsWith('on') && key.length > 2 && typeof value === 'function') {
+    } else if (key.startsWith('on') && key.length > 2) {
       const eventName = key.slice(2).toLowerCase();
-      element.addEventListener(eventName, value as EventListener);
+      const previous = spreadListeners.get(key);
+      if (previous) {
+        element.removeEventListener(eventName, previous);
+        spreadListeners.delete(key);
+      }
+      if (typeof value === 'function') {
+        const listener = value as EventListener;
+        spreadListeners.set(key, listener);
+        element.addEventListener(eventName, listener);
+      }
     } else if (key === 'ref' && typeof value === 'function') {
       (value as (el: HTMLElement) => void)(element);
     } else {

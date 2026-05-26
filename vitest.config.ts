@@ -22,6 +22,9 @@ export default defineConfig({
       'tests/jsx-dom.test.tsx',
       'tests/compiler-runtime.test.tsx',
       'tests/compiler/**/*.test.ts',
+      'tests/compiler-runtime/**/*.test.ts',
+      'tests/shared/**/*.test.ts',
+      'tests/runtime/**/*.test.ts',
       'tests/perf.test.tsx',
     ],
     coverage: {

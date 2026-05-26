@@ -12,7 +12,10 @@ import {
   __setStyle,
   __setText,
   __spreadProps,
+  commit,
+  component,
   createMemoApp,
+  Fragment,
   h,
 } from '../../src';
 import { compileAuwla } from '../../src/compiler';
@@ -36,7 +39,10 @@ export function evaluateCompiled(source: string) {
   }).outputText;
   const exports: Record<string, unknown> = {};
 
-  Function('runtime', 'exports', js)({
+  // Inject h, Fragment, component, commit into scope so transpiled JSX and runtime calls work
+  const jsWithGlobals = `const h = runtime.h; const Fragment = runtime.Fragment; const component = runtime.component; const commit = runtime.commit;\n${js}`;
+
+  Function('runtime', 'exports', jsWithGlobals)({
     __componentBlock,
     __cloneTemplate,
     __createBlock,
@@ -49,7 +55,11 @@ export function evaluateCompiled(source: string) {
     __setStyle,
     __setText,
     __spreadProps,
+    commit,
+    component,
     createMemoApp,
+    h,
+    Fragment,
   }, exports);
 
   return exports;

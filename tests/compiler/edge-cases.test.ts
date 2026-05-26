@@ -224,3 +224,41 @@ describe('boolean attributes', () => {
     expect(input.checked).toBe(true);
   });
 });
+
+describe('known compiler limitations', () => {
+  test('leaves dynamic tags untouched', () => {
+    const source = `
+      function App(props) {
+        return () => <props.tag>Hello</props.tag>;
+      }
+    `;
+    expect(compileAuwla(source)).toBe(source);
+  });
+
+  test('leaves components with children untouched', () => {
+    const source = `
+      function Card(props) {
+        return <div class="card">{props.children}</div>;
+      }
+      function App() {
+        return () => <Card><span>Hello</span></Card>;
+      }
+    `;
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('<Card>');
+  });
+
+  test('leaves components with conditional returns untouched', () => {
+    const source = `
+      function Card(props) {
+        if (props.highlighted) return <div class="highlight" />;
+        return <div class="card" />;
+      }
+      function App() {
+        return () => <Card highlighted={true} />;
+      }
+    `;
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('<Card');
+  });
+});
