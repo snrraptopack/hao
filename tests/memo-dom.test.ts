@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { commit, createMemoApp } from '../src/memo-dom';
+import { commit, createMemoApp } from '../src/runtime/index';
 
 const tick = () => new Promise<void>((resolve) => queueMicrotask(resolve));
 

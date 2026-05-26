@@ -174,7 +174,8 @@ describe('Auwla compiler', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('__setAttribute(el0, "disabled", true);');
+    // With template cloning, boolean attributes are baked into the HTML string
+    expect(compiled).toContain('__cloneTemplate("<button disabled></button>"');
 
     const updateBody = compiled.slice(compiled.indexOf('update()'));
     expect(updateBody).not.toContain('__setAttribute(el0, "disabled", true);');
@@ -321,5 +322,69 @@ describe('Auwla compiler', () => {
     `;
 
     expect(compileAuwla(source)).toBe(source);
+  });
+
+  test('compiles fragments as transparent child containers', () => {
+    const source = `
+      function App() {
+        let show = false;
+        exports.toggle = () => { show = !show; };
+        return () => (
+          <div>
+            <>{show ? 'Yes' : 'No'}</>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__setText');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; toggle(): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.textContent).toBe('No');
+
+    evaluated.toggle();
+    app.render();
+
+    expect(root.textContent).toBe('Yes');
+  });
+
+  test('compiles ref callbacks in template-cloned root blocks', () => {
+    const source = `
+      function App() {
+        let refEl = null;
+        exports.getRef = () => refEl;
+        return () => <div ref={(el) => { refEl = el; }}>Hello</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__cloneTemplate');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; getRef(): HTMLElement | null };
+    const root = document.createElement('div');
+    createMemoApp(root, h(evaluated.App as any));
+
+    expect(evaluated.getRef()).toBe(root.querySelector('div'));
+  });
+
+  test('uses template cloning for root blocks when possible', () => {
+    const source = `
+      function App() {
+        let label = 'Hello';
+        return () => <section class="page"><h1>{label}</h1></section>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__cloneTemplate');
+    expect(compiled).toContain('<h1></h1></section>');
+    expect(compiled).not.toContain('document.createElement("section")');
   });
 });

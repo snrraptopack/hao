@@ -9,6 +9,7 @@ function auwlaCompiler() {
     transform(code: string, id: string) {
       if (!/\.[tj]sx$/.test(id)) return null;
       if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) return null;
+      if (id.includes('-runtime')) return null;
       const compiled = compileAuwla(code, id);
       return compiled === code ? null : { code: compiled, map: null };
     },

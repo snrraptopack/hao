@@ -7,7 +7,7 @@ export {
   createMemoElement,
   h,
   memo,
-} from './memo-dom';
+} from './runtime/index';
 
 export {
   __componentBlock,
@@ -21,7 +21,7 @@ export {
   __setProperty,
   __setStyle,
   __setText,
-} from './compiler-runtime';
+} from './compiler-runtime/index';
 
 export type {
   ComponentHandle,
@@ -31,6 +31,6 @@ export type {
   MemoDeps,
   MemoProps,
   RenderClosure,
-} from './memo-dom';
+} from './runtime/index';
 
-export type { CompiledBlock } from './compiler-runtime';
+export type { CompiledBlock } from './compiler-runtime/index';
