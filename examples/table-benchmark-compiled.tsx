@@ -61,7 +61,7 @@ function TableBenchmark() {
 
   return () => (
     <main class="table-page">
-      <h1>Auwla Table Benchmark — COMPILED PATH</h1>
+      <h1>Auwla Table Benchmark</h1>
       <p>Table-shaped benchmark matching the common JS framework benchmark operations.</p>
 
       <div class="table-controls">

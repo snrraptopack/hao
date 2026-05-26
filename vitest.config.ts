@@ -21,7 +21,7 @@ export default defineConfig({
       'tests/memo-dom.test.ts',
       'tests/jsx-dom.test.tsx',
       'tests/compiler-runtime.test.tsx',
-      'tests/compiler.test.ts',
+      'tests/compiler/**/*.test.ts',
       'tests/perf.test.tsx',
     ],
     coverage: {

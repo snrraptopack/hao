@@ -182,3 +182,83 @@ export function unwrapJsxBody(body: ts.ConciseBody): ts.JsxElement | ts.JsxSelfC
   }
   return null;
 }
+
+/** Extract a JSX return statement from a block body. */
+export function unwrapJsxReturn(body: ts.Block): ts.JsxElement | ts.JsxSelfClosingElement | null {
+  for (const statement of body.statements) {
+    if (!ts.isReturnStatement(statement)) continue;
+    const expression = statement.expression;
+    if (!expression) continue;
+    return unwrapJsxExpression(expression);
+  }
+  return null;
+}
+
+/** Find a function/arrow/component definition by name in a source file. */
+export function findComponentDefinition(
+  source: ts.SourceFile,
+  name: string,
+): ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null {
+  let result: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null = null;
+
+  function visit(node: ts.Node) {
+    if (result) return;
+
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) {
+      result = node;
+      return;
+    }
+
+    if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.name.text === name && decl.initializer) {
+          if (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer)) {
+            result = decl.initializer;
+            return;
+          }
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(source);
+  return result;
+}
+
+/** Check whether a function is a simple inlinable component (returns JSX, no setup state). */
+export function isInlinableComponent(
+  node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
+): boolean {
+  if (node.parameters.length > 1) return false;
+  const body = node.body;
+  if (!body) return false;
+  const jsx = ts.isBlock(body) ? unwrapJsxReturn(body) : unwrapJsxExpression(body);
+  if (!jsx) return false;
+  return true;
+}
+
+/** Extract the returned JSX from an inlinable component. */
+export function extractComponentJsx(
+  node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
+): ts.JsxElement | ts.JsxSelfClosingElement | null {
+  const body = node.body;
+  if (!body) return null;
+  return ts.isBlock(body) ? unwrapJsxReturn(body) : unwrapJsxExpression(body);
+}
+
+/** Check if a node subtree references `props.children` or a bare `children` identifier. */
+export function referencesChildren(node: ts.Node): boolean {
+  if (ts.isIdentifier(node) && node.text === 'children') return true;
+  if (
+    ts.isPropertyAccessExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === 'props' &&
+    ts.isIdentifier(node.name) &&
+    node.name.text === 'children'
+  ) {
+    return true;
+  }
+  return ts.forEachChild(node, referencesChildren) ?? false;
+}

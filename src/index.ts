@@ -21,6 +21,7 @@ export {
   __setProperty,
   __setStyle,
   __setText,
+  __spreadProps,
 } from './compiler-runtime/index';
 
 export type {

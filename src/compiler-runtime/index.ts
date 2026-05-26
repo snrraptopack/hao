@@ -15,6 +15,7 @@ export {
   __setProperty,
   __setAttribute,
   __setStyle,
+  __spreadProps,
 } from './dom-setters';
 
 export { __event } from './events';

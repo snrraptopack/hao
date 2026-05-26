@@ -81,13 +81,14 @@ function ChildCounter(props: { label: string }) {
 
 function Another(props: { label: string,counter:number }) {
   let count = 0;
+  let self = component()
   console.log("run again")
   return () => (
     <div>
-    <button class="secondary" onClick={() => state.count++}>
+      <button class="secondary" onClick={() => { state.count++;  commit(self)}}>
       {props.label}: {state.count}
       </button>
-      <p>double{ props.counter}</p>
+      <p>double..{ props.counter}</p>
       <ChildCounter label='Another child' />
     </div>
   );
@@ -134,9 +135,10 @@ function KeyedReorderExample() {
 function InputPatchExample() {
   let text = 'Edit me';
   let rerenders = 0;
-
+  console.log("render main",rerenders)
   return () => {
     rerenders++;
+    console.log("render",rerenders)
     return (
       <section class="panel">
         <h2>Input Patching</h2>

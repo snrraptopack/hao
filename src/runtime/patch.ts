@@ -132,7 +132,12 @@ export function patchChildren(parent: Node, nextChildren: unknown[]) {
     return;
   }
 
-  const oldChildren = Array.from(parent.childNodes);
+  const oldChildren = Array.from(parent.childNodes).filter((child) => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      return child.textContent?.trim() !== '';
+    }
+    return true;
+  });
 
   if (oldChildren.length === 0) {
     const fragment = document.createDocumentFragment();

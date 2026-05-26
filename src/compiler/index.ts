@@ -12,17 +12,22 @@ import {
   escapeHtml,
   expressionDependencies,
   expressionText,
+  extractComponentJsx,
+  findComponentDefinition,
   intrinsicName,
+  isInlinableComponent,
   isMapCall,
   isStaticExpression,
   isWhitespaceJsxText,
   keyAttribute,
   needsChildPatch,
   pathExpression,
+  referencesChildren,
   rowDependencies,
   stringLiteral,
   unwrapJsxBody,
   unwrapJsxExpression,
+  unwrapJsxReturn,
 } from './utils';
 
 type DynamicPatch = {
@@ -74,6 +79,7 @@ const COMPILER_IMPORT = [
   '__setProperty',
   '__setStyle',
   '__setText',
+  '__spreadProps',
 ].join(', ');
 
 const PROPERTY_PROPS = new Set([
@@ -84,6 +90,34 @@ const PROPERTY_PROPS = new Set([
   'selected',
   'value',
 ]);
+
+const SVG_TAGS = new Set([
+  'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+  'text', 'tspan', 'defs', 'use', 'clipPath', 'mask', 'pattern', 'linearGradient',
+  'radialGradient', 'stop', 'image', 'foreignObject',
+]);
+
+function isSvgTag(tag: string): boolean {
+  return SVG_TAGS.has(tag);
+}
+
+/** Map React camelCase attribute names to their HTML equivalents. */
+function normalizeAttributeName(name: string): string {
+  switch (name) {
+    case 'className': return 'class';
+    case 'htmlFor': return 'for';
+    case 'tabIndex': return 'tabindex';
+    case 'readOnly': return 'readonly';
+    case 'maxLength': return 'maxlength';
+    case 'autoComplete': return 'autocomplete';
+    case 'autoFocus': return 'autofocus';
+    case 'contentEditable': return 'contenteditable';
+    case 'crossOrigin': return 'crossorigin';
+    case 'dateTime': return 'datetime';
+    case 'encType': return 'enctype';
+    default: return name;
+  }
+}
 
 function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentVar: string): boolean {
   if (ts.isJsxText(child)) {
@@ -143,10 +177,15 @@ function compileAttribute(
   elementVar: string,
   attribute: ts.JsxAttributeLike,
 ): boolean {
-  if (ts.isJsxSpreadAttribute(attribute)) return false;
+  if (ts.isJsxSpreadAttribute(attribute)) {
+    const value = expressionText(ctx.source, attribute.expression);
+    ctx.deps.push(value);
+    ctx.patches.push({ code: `__spreadProps(${elementVar}, ${value});`, deps: [value] });
+    return true;
+  }
 
   if (!ts.isIdentifier(attribute.name)) return false;
-  const name = attribute.name.text;
+  const name = normalizeAttributeName(attribute.name.text);
   const initializer = attribute.initializer;
 
   if (name === 'key') return true;
@@ -167,7 +206,7 @@ function compileAttribute(
   }
 
   if (ts.isStringLiteral(initializer)) {
-    if (name === 'class' || name === 'className') {
+    if (name === 'class') {
       ctx.setup.push(`${elementVar}.className = ${stringLiteral(initializer.text)};`);
       return true;
     }
@@ -217,7 +256,7 @@ function compileAttribute(
     return true;
   }
 
-  if (name === 'class' || name === 'className') {
+  if (name === 'class') {
     ctx.deps.push(value);
     ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
     return true;
@@ -253,10 +292,15 @@ function compileTemplateAttribute(
   attribute: ts.JsxAttributeLike,
   elementVar: string,
 ): string | null {
-  if (ts.isJsxSpreadAttribute(attribute)) return null;
+  if (ts.isJsxSpreadAttribute(attribute)) {
+    const value = expressionText(ctx.source, attribute.expression);
+    ctx.deps.push(value);
+    ctx.patches.push({ code: `__spreadProps(${elementVar}, ${value});`, deps: [value] });
+    return '';
+  }
   if (!ts.isIdentifier(attribute.name)) return null;
 
-  const name = attribute.name.text;
+  const name = normalizeAttributeName(attribute.name.text);
   const initializer = attribute.initializer;
   if (name === 'key') return '';
 
@@ -272,7 +316,7 @@ function compileTemplateAttribute(
   if (!initializer) return ` ${name}`;
 
   if (ts.isStringLiteral(initializer)) {
-    return name === 'className'
+    return name === 'class'
       ? ` class="${escapeHtml(initializer.text)}"`
       : ` ${name}="${escapeHtml(initializer.text)}"`;
   }
@@ -284,7 +328,7 @@ function compileTemplateAttribute(
   const value = expressionText(ctx.source, expression);
   if (name === 'style') return null;
 
-  if (name === 'class' || name === 'className') {
+  if (name === 'class') {
     ctx.deps.push(value);
     ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
     return '';
@@ -360,6 +404,10 @@ function compileTemplateNode(
   const opening = ts.isJsxElement(node) ? node.openingElement : node;
   const tag = intrinsicName(opening.tagName);
   if (!tag) return null;
+
+  // Standalone SVG roots (other than <svg>) cannot be correctly created via innerHTML
+  // without an SVG parent context. Bail out to the non-template path.
+  if (path.length === 0 && tag !== 'svg' && isSvgTag(tag)) return null;
 
   const elementVar = templateElementVar(ctx, path);
   let attrs = '';
@@ -482,20 +530,20 @@ function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string
   if (expression.arguments.length !== 1) return null;
 
   const callback = expression.arguments[0]!;
-  if (!ts.isArrowFunction(callback)) return null;
+  if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) return null;
   const itemParam = callback.parameters[0];
   if (!itemParam || !ts.isIdentifier(itemParam.name)) return null;
   const indexParam = callback.parameters[1];
   const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
 
-  if (ts.isBlock(callback.body)) return null;
-  const row = unwrapJsxExpression(callback.body);
+  const row = ts.isBlock(callback.body)
+    ? unwrapJsxReturn(callback.body)
+    : unwrapJsxExpression(callback.body);
   if (!row) return null;
 
   const key = keyAttribute(row);
-  if (!key) return null;
-
-  const keyText = expressionText(ctx.source, key);
+  const isUnkeyed = !key;
+  const keyText = key ? expressionText(ctx.source, key) : indexName;
   const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText)
     ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText);
   if (!rowBlock) return null;
@@ -510,9 +558,13 @@ function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string
       ? rowDeps[0]!
       : `[${rowDeps.join(', ')}]`;
 
+  const keyOf = isUnkeyed
+    ? `(${itemName}, ${indexName}) => ${indexName}`
+    : `(${itemName}) => ${keyText}`;
+
   ctx.setup.push(`const ${mapVar} = __keyedMap(
           ${items},
-          (${itemName}) => ${keyText},
+          ${keyOf},
           (${itemName}, ${indexName}) => ${rowBlock.block},
           (block, ${itemName}, index) => block.update(${itemName}, index),
           (${itemName}) => ${deps},
@@ -522,16 +574,113 @@ function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string
   return mapVar;
 }
 
+function remapIds(code: string, elementOffset: number, textOffset: number, mapOffset: number): string {
+  return code
+    .replace(/\bel(\d+)\b/g, (_, n) => `el${Number(n) + elementOffset}`)
+    .replace(/\btext(\d+)\b/g, (_, n) => `text${Number(n) + textOffset}`)
+    .replace(/\bmap(\d+)\b/g, (_, n) => `map${Number(n) + mapOffset}`)
+    .replace(/\bchild(\d+)\b/g, (_, n) => `child${Number(n) + textOffset}`);
+}
+
+function substituteProps(code: string, props: Map<string, string>): string {
+  return code.replace(/\bprops\.([A-Za-z_$][\w$]*)\b/g, (match, name) => {
+    return props.get(name) ?? 'undefined';
+  });
+}
+
+function tryInlineComponent(
+  ctx: CompileContext,
+  node: ts.JsxElement | ts.JsxSelfClosingElement,
+): CompileResult | null {
+  const opening = ts.isJsxElement(node) ? node.openingElement : node;
+  if (!ts.isIdentifier(opening.tagName)) return null;
+
+  const tagName = opening.tagName.text;
+  const def = findComponentDefinition(ctx.source, tagName);
+  if (!def || !isInlinableComponent(def)) return null;
+
+  const componentJsx = extractComponentJsx(def);
+  if (!componentJsx) return null;
+
+  const hasCallSiteChildren = ts.isJsxElement(node) && node.children.some((c) => !isWhitespaceJsxText(c));
+  if (hasCallSiteChildren && referencesChildren(componentJsx)) return null;
+
+  const props = new Map<string, string>();
+  for (const attribute of opening.attributes.properties) {
+    if (ts.isJsxSpreadAttribute(attribute)) return null;
+    if (!ts.isIdentifier(attribute.name)) continue;
+    const name = attribute.name.text;
+    if (name === 'key') continue;
+    if (!attribute.initializer) {
+      props.set(name, 'true');
+      continue;
+    }
+    if (ts.isStringLiteral(attribute.initializer)) {
+      props.set(name, stringLiteral(attribute.initializer.text));
+      continue;
+    }
+    if (ts.isJsxExpression(attribute.initializer)) {
+      const expression = childExpression(attribute.initializer);
+      if (expression) {
+        props.set(name, expressionText(ctx.source, expression));
+      }
+      continue;
+    }
+    return null;
+  }
+
+  const childCtx: CompileContext = {
+    source: ctx.source,
+    elementId: 0,
+    mapId: 0,
+    textId: 0,
+    patches: [],
+    deps: [],
+    setup: [],
+  };
+
+  const result = compileJsxNode(childCtx, componentJsx);
+  if (!result) return null;
+
+  const elOffset = ctx.elementId;
+  const textOffset = ctx.textId;
+  const mapOffset = ctx.mapId;
+
+  const remap = (code: string) => substituteProps(remapIds(code, elOffset, textOffset, mapOffset), props);
+
+  for (const line of childCtx.setup) {
+    ctx.setup.push(remap(line));
+  }
+  for (const patch of childCtx.patches) {
+    ctx.patches.push({ code: remap(patch.code), deps: [...patch.deps] });
+  }
+  for (const dep of childCtx.deps) {
+    ctx.deps.push(remap(dep));
+  }
+
+  ctx.elementId += childCtx.elementId;
+  ctx.textId += childCtx.textId;
+  ctx.mapId += childCtx.mapId;
+
+  return { code: '', root: remap(result.root) };
+}
+
 function compileJsxNode(
   ctx: CompileContext,
   node: ts.JsxElement | ts.JsxSelfClosingElement,
 ): CompileResult | null {
   const opening = ts.isJsxElement(node) ? node.openingElement : node;
   const tag = intrinsicName(opening.tagName);
-  if (!tag) return null;
+  if (!tag) {
+    return tryInlineComponent(ctx, node);
+  }
 
   const elementVar = `el${ctx.elementId++}`;
-  ctx.setup.push(`const ${elementVar} = document.createElement(${stringLiteral(tag)});`);
+  if (isSvgTag(tag)) {
+    ctx.setup.push(`const ${elementVar} = document.createElementNS("http://www.w3.org/2000/svg", ${stringLiteral(tag)});`);
+  } else {
+    ctx.setup.push(`const ${elementVar} = document.createElement(${stringLiteral(tag)});`);
+  }
 
   for (const attribute of opening.attributes.properties) {
     if (!compileAttribute(ctx, elementVar, attribute)) return null;
@@ -628,7 +777,12 @@ function transformReturn(source: ts.SourceFile, node: ts.ReturnStatement): strin
   const expression = node.expression;
   if (!expression || !ts.isArrowFunction(expression)) return null;
 
-  const body = unwrapJsxBody(expression.body);
+  let body: ts.JsxElement | ts.JsxSelfClosingElement | null = null;
+  if (ts.isBlock(expression.body)) {
+    body = unwrapJsxReturn(expression.body);
+  } else {
+    body = unwrapJsxBody(expression.body);
+  }
   if (!body) return null;
 
   const compiled = compileRenderClosure(source, body);
