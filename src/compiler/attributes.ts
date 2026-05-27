@@ -225,17 +225,17 @@ export function compileAttribute(
     return true;
   }
 
-  if (name.startsWith('on') && name.length > 2) {
-    if (name.startsWith('on:')) {
-      if (!initializer || !ts.isJsxExpression(initializer)) return false;
-      const expression = childExpression(initializer);
-      if (!expression) return true;
-      const value = expressionText(ctx.source, expression);
-      const eventName = name.slice(3);
-      ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
-      return true;
-    }
+  if (name.startsWith('emit:')) {
+    if (!initializer || !ts.isJsxExpression(initializer)) return false;
+    const expression = childExpression(initializer);
+    if (!expression) return true;
+    const value = expressionText(ctx.source, expression);
+    const eventName = name.slice(5);
+    ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
+    return true;
+  }
 
+  if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
     ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
     return true;
@@ -300,17 +300,17 @@ export function compileTemplateAttribute(
     return '';
   }
 
-  if (name.startsWith('on') && name.length > 2) {
-    if (name.startsWith('on:')) {
-      if (!initializer || !ts.isJsxExpression(initializer)) return null;
-      const expression = childExpression(initializer);
-      if (!expression) return '';
-      const value = expressionText(ctx.source, expression);
-      const eventName = name.slice(3);
-      ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
-      return '';
-    }
+  if (name.startsWith('emit:')) {
+    if (!initializer || !ts.isJsxExpression(initializer)) return null;
+    const expression = childExpression(initializer);
+    if (!expression) return '';
+    const value = expressionText(ctx.source, expression);
+    const eventName = name.slice(5);
+    ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
+    return '';
+  }
 
+  if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
     ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
     return '';

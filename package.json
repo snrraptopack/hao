@@ -22,6 +22,10 @@
     "./compiler": {
       "types": "./dist/compiler.d.ts",
       "import": "./dist/compiler.js"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js"
     }
   },
   "typesVersions": {
@@ -34,6 +38,9 @@
       ],
       "compiler": [
         "dist/compiler.d.ts"
+      ],
+      "events": [
+        "dist/events/index.d.ts"
       ],
       "*": [
         "dist/index.d.ts"

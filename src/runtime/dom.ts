@@ -166,19 +166,19 @@ export function setProp(
     return;
   }
 
-  const customEventName = key.startsWith('on:') && key.length > 3 ? key.slice(3) : null;
-  if (customEventName) {
+  const emittedEventName = key.startsWith('emit:') && key.length > 5 ? key.slice(5) : null;
+  if (emittedEventName) {
     const listeners = element.__memoListeners ??= new Map();
     const previous = listeners.get(key);
     if (previous) {
-      element.removeEventListener(customEventName, previous);
+      element.removeEventListener(emittedEventName, previous);
       listeners.delete(key);
     }
 
     if (typeof value === 'function') {
       const listener = wrapEvent((event) => (value as (payload: unknown) => unknown)((event as CustomEvent).detail));
       listeners.set(key, listener);
-      element.addEventListener(customEventName, listener);
+      element.addEventListener(emittedEventName, listener);
     }
     return;
   }

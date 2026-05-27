@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auwla — emit() Example</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f12;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 { color: #0af; margin: 0 0 8px; }
+    .subtitle { color: #888; margin-bottom: 24px; }
+    .layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; max-width: 900px; margin: 0 auto; }
+    @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+
+    .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+    .card {
+      background: #1a1a20;
+      border: 1px solid #2a2a35;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card h3 { margin: 0; font-size: 16px; color: #fff; }
+    .card .price { color: #0f8; font-weight: 600; font-size: 18px; }
+    .card button {
+      background: #0af;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: auto;
+    }
+    .card button:hover { background: #3cf; }
+    .card button:active { transform: translateY(1px); }
+
+    .cart {
+      background: #1a1a20;
+      border: 1px solid #2a2a35;
+      border-radius: 10px;
+      padding: 16px;
+      height: fit-content;
+      position: sticky;
+      top: 24px;
+    }
+    .cart h2 { margin: 0 0 12px; font-size: 18px; }
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #2a2a35;
+      font-size: 14px;
+    }
+    .cart-item:last-child { border-bottom: none; }
+    .cart-total {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 2px solid #0af;
+      display: flex;
+      justify-content: space-between;
+      font-weight: 700;
+      color: #0f8;
+    }
+    .empty { color: #666; font-style: italic; text-align: center; padding: 16px 0; }
+
+    .code-hint {
+      max-width: 900px;
+      margin: 24px auto 0;
+      background: #141418;
+      border: 1px dashed #333;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      color: #aaa;
+    }
+    .code-hint code {
+      background: #1e1e24;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #0af;
+      font-family: ui-monospace, monospace;
+    }
+    .code-hint pre {
+      background: #1e1e24;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 8px 0 0;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="./emit.tsx"></script>
+</body>
+</html>

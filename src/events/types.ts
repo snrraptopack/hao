@@ -1,0 +1,54 @@
+import type { ComponentHandle } from '../runtime/types';
+
+export type RuntimeEventHandler<TEvent = any> = (event: TEvent) => unknown;
+
+export type WrappedEventHandler<THandler extends RuntimeEventHandler> = (
+  event: Parameters<THandler>[0],
+) => void;
+
+export type EventModifier = (handler: RuntimeEventHandler) => RuntimeEventHandler;
+
+export type TimedEventChain<TEvent = Event> = EventChain<TEvent> & {
+  (milliseconds?: number): EventChain<TEvent>;
+};
+
+export type LogEventChain<TEvent = Event> = EventChain<TEvent> & {
+  (label?: string): EventChain<TEvent>;
+};
+
+export type EventChain<TEvent = Event> = {
+  readonly prevent: EventChain<TEvent>;
+  readonly stop: EventChain<TEvent>;
+  readonly once: EventChain<TEvent>;
+  readonly self: EventChain<TEvent>;
+  readonly debounce: TimedEventChain<TEvent>;
+  readonly throttle: TimedEventChain<TEvent>;
+  readonly cooldown: TimedEventChain<TEvent>;
+  readonly log: LogEventChain<TEvent>;
+  readonly click: EventChain<MouseEvent>;
+  readonly dblClick: EventChain<MouseEvent>;
+  readonly mouseEnter: EventChain<MouseEvent>;
+  readonly mouseLeave: EventChain<MouseEvent>;
+  readonly mouseMove: EventChain<MouseEvent>;
+  readonly mouseDown: EventChain<MouseEvent>;
+  readonly mouseUp: EventChain<MouseEvent>;
+  readonly keyDown: EventChain<KeyboardEvent>;
+  readonly keyUp: EventChain<KeyboardEvent>;
+  readonly keyPress: EventChain<KeyboardEvent>;
+  readonly focus: EventChain<FocusEvent>;
+  readonly blur: EventChain<FocusEvent>;
+  readonly input: EventChain<InputEvent>;
+  readonly change: EventChain<Event>;
+  readonly submit: EventChain<SubmitEvent>;
+  readonly pointerDown: EventChain<PointerEvent>;
+  readonly pointerUp: EventChain<PointerEvent>;
+  readonly pointerMove: EventChain<PointerEvent>;
+  readonly pointerEnter: EventChain<PointerEvent>;
+  readonly pointerLeave: EventChain<PointerEvent>;
+  readonly touchStart: EventChain<TouchEvent>;
+  readonly touchEnd: EventChain<TouchEvent>;
+  readonly touchMove: EventChain<TouchEvent>;
+  readonly touchCancel: EventChain<TouchEvent>;
+  emit(handle: ComponentHandle, name: string, payload?: unknown): boolean;
+  handler<TResult>(handler: (event: TEvent) => TResult): (event: TEvent) => void;
+};

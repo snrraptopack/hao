@@ -1,6 +1,7 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test } from 'vitest';
 import { createMemoApp, component, commit, emit } from 'auwla';
+import { event } from 'auwla/events';
 
 describe('component communication', () => {
   test('emit bubbles payload to parent custom listener', async () => {
@@ -23,7 +24,7 @@ describe('component communication', () => {
       let message = 'Waiting';
 
       return () => (
-        <main on:userDeleted={(data: { id: string; status: string }) => {
+        <main emit:userDeleted={(data: { id: string; status: string }) => {
           received = data;
           message = `Deleted ${data.id}: ${data.status}`;
         }}>
@@ -39,6 +40,75 @@ describe('component communication', () => {
 
     expect(received).toEqual({ id: '123', status: 'success' });
     expect(root.querySelector('.message')!.textContent).toBe('Deleted 123: success');
+  });
+
+  test('emit reaches ancestors but not sibling listeners', async () => {
+    const root = document.createElement('div');
+    const received: string[] = [];
+
+    function Sender() {
+      const self = component();
+
+      return () => (
+        <button onClick={() => {
+          emit(self, 'sent', 'payload');
+        }}>
+          Send
+        </button>
+      );
+    }
+
+    function App() {
+      return () => (
+        <main emit:sent={(value: string) => received.push(`main:${value}`)}>
+          <section>
+            <Sender />
+          </section>
+          <aside emit:sent={(value: string) => received.push(`aside:${value}`)}>
+            Sibling listener
+          </aside>
+        </main>
+      );
+    }
+
+    createMemoApp(root, <App />);
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(received).toEqual(['main:payload']);
+  });
+
+  test('event.emit dispatches component payloads from the events subpath', async () => {
+    const root = document.createElement('div');
+    let received: string | null = null;
+
+    function Sender() {
+      const self = component();
+
+      return () => (
+        <button onClick={() => {
+          event.emit(self, 'sent', 'from-events');
+        }}>
+          Send
+        </button>
+      );
+    }
+
+    function App() {
+      return () => (
+        <main emit:sent={(value: string) => {
+          received = value;
+        }}>
+          <Sender />
+        </main>
+      );
+    }
+
+    createMemoApp(root, <App />);
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(received).toBe('from-events');
   });
 
   test('commit(handle) re-renders only the target component path', async () => {

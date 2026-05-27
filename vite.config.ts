@@ -32,6 +32,7 @@ export default defineConfig({
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
+        'events/index': resolve(__dirname, 'src/events/index.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
       },
@@ -63,6 +64,7 @@ export default defineConfig({
       { find: 'auwla/jsx-runtime', replacement: resolve(__dirname, 'src/jsx-runtime.ts') },
       { find: 'auwla/jsx-dev-runtime', replacement: resolve(__dirname, 'src/jsx-dev-runtime.ts') },
       { find: 'auwla/compiler', replacement: resolve(__dirname, 'src/compiler.ts') },
+      { find: 'auwla/events', replacement: resolve(__dirname, 'src/events/index.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]
   },

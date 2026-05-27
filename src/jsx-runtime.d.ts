@@ -40,7 +40,7 @@ type EventProps = {
 };
 
 type CustomEventProps = {
-  [K in `on:${string}`]?: (payload: any) => void;
+  [K in `emit:${string}`]?: (payload: any) => void;
 };
 
 type BaseProps<E extends HTMLElement> = EventProps & {

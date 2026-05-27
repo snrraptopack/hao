@@ -86,7 +86,7 @@ function ChildCounter(props: { label: string }) {
 
 function Another(props: { label: string,counter:number }) {
   return () => (
-    <div on:counter={(data:{count:number})=> console.log(data)}>
+    <div emit:counter={(data:{count:number})=> console.log(data)}>
       <button class="secondary" onClick={() => { state.count++;}}>
       {props.label}: {state.count}
       </button>

@@ -51,7 +51,7 @@ describe('component inlining', () => {
     expect(compiled).not.toContain('__componentBlock');
   });
 
-  test('supports bubbling emit payloads through on:custom listeners', async () => {
+  test('supports bubbling emit payloads through emit:custom listeners', async () => {
     const source = `
       function DeleteButton(props: { userId: string }) {
         const self = component();
@@ -68,7 +68,7 @@ describe('component inlining', () => {
         let message = 'Waiting';
         exports.received = null;
         return () => (
-          <main on:userDeleted={(data: { id: string; status: string }) => {
+          <main emit:userDeleted={(data: { id: string; status: string }) => {
             exports.received = data;
             message = 'Deleted ' + data.id + ': ' + data.status;
           }}>

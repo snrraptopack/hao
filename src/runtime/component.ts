@@ -49,7 +49,7 @@ export function component(): ComponentHandle {
 /**
  * Dispatch a bubbling component event with a plain payload.
  *
- * Parent elements can listen with `on:eventName={payload => ...}`. The listener
+ * Parent elements can listen with `emit:eventName={payload => ...}`. The listener
  * receives `payload` directly instead of a browser `CustomEvent`.
  */
 export function emit(handle: ComponentHandle, name: string, payload?: unknown): boolean {
