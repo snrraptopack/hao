@@ -146,6 +146,7 @@ export function createMemoApp<TModel>(
       runInstanceCleanups(toDelete);
       for (const [id] of toDelete) {
         componentInstances.delete(id);
+        runtimeState.componentHosts.delete(id);
       }
       for (const id of memoBlocks.keys()) {
         if (renderState.seen.has(id)) continue;
@@ -241,6 +242,7 @@ export function createMemoApp<TModel>(
         for (const fn of topLevelCleanups) fn();
       }
       cache.clear();
+      for (const [id] of allInstances) runtimeState.componentHosts.delete(id);
       componentInstances.clear();
       memoBlocks.clear();
       runtimeState.mountedApps.delete(mountedApp);

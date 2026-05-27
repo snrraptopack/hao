@@ -47,6 +47,23 @@ export function component(): ComponentHandle {
 }
 
 /**
+ * Dispatch a bubbling component event with a plain payload.
+ *
+ * Parent elements can listen with `on:eventName={payload => ...}`. The listener
+ * receives `payload` directly instead of a browser `CustomEvent`.
+ */
+export function emit(handle: ComponentHandle, name: string, payload?: unknown): boolean {
+  const node = runtimeState.componentHosts.get(handle._id);
+  if (!node) return false;
+
+  return node.dispatchEvent(new CustomEvent(name, {
+    detail: payload,
+    bubbles: true,
+    composed: true,
+  }));
+}
+
+/**
  * Registers a callback that runs when the component is removed from the tree,
  * replaced by a different component type, or the app is destroyed.
  *

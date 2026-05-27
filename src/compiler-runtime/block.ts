@@ -7,6 +7,7 @@
  */
 
 import type { RenderClosure } from '../runtime/types';
+import { currentComponentId, registerComponentHost } from '../runtime/state';
 
 export type CompiledBlock<TArgs extends readonly unknown[] = readonly unknown[]> = {
   readonly node: Node;
@@ -36,6 +37,7 @@ export function __componentBlock(factory: () => CompiledBlock<[]>): RenderClosur
 
   return () => {
     block ??= factory();
+    registerComponentHost(currentComponentId(), block.node);
     block.update();
     return block.node;
   };

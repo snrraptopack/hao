@@ -7,6 +7,7 @@
 
 import { toNode } from '../runtime/dom';
 import { patchNode } from '../runtime/patch';
+import { __event } from './events';
 
 /** @internal */
 export type StyledElement = HTMLElement & {
@@ -236,6 +237,18 @@ export function __spreadProps(element: HTMLElement, props: Record<string, unknow
       __setClass(element, value);
     } else if (key === 'style') {
       __setStyle(element, value as Record<string, string | number | null | undefined>);
+    } else if (key.startsWith('on:') && key.length > 3) {
+      const eventName = key.slice(3);
+      const previous = spreadListeners.get(key);
+      if (previous) {
+        element.removeEventListener(eventName, previous);
+        spreadListeners.delete(key);
+      }
+      if (typeof value === 'function') {
+        const listener = __event((event) => (value as (payload: unknown) => unknown)((event as CustomEvent).detail));
+        spreadListeners.set(key, listener);
+        element.addEventListener(eventName, listener);
+      }
     } else if (key.startsWith('on') && key.length > 2) {
       const eventName = key.slice(2).toLowerCase();
       const previous = spreadListeners.get(key);
@@ -244,7 +257,7 @@ export function __spreadProps(element: HTMLElement, props: Record<string, unknow
         spreadListeners.delete(key);
       }
       if (typeof value === 'function') {
-        const listener = value as EventListener;
+        const listener = __event(value as (event: Event) => unknown);
         spreadListeners.set(key, listener);
         element.addEventListener(eventName, listener);
       }

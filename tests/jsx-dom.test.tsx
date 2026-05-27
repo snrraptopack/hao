@@ -1,6 +1,6 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test } from 'vitest';
-import { createMemoApp, component, commit, cleanup } from 'auwla';
+import { createMemoApp, component, commit, cleanup, emit } from 'auwla';
 
 describe('typed JSX DOM runtime', () => {
   test('supports setup-once components with local closure state', async () => {
@@ -137,6 +137,44 @@ describe('typed JSX DOM runtime', () => {
     expect(input.selectionStart).toBe(8);
     expect(input.value).toBe('Edit me!');
     root.remove();
+  });
+
+  test('component emit bubbles payload to parent custom listener', async () => {
+    const root = document.createElement('div');
+    let received: { id: string; status: string } | null = null;
+
+    function DeleteButton(props: { userId: string }) {
+      const self = component();
+
+      return () => (
+        <button onClick={() => {
+          emit(self, 'userDeleted', { id: props.userId, status: 'success' });
+        }}>
+          Delete User
+        </button>
+      );
+    }
+
+    function Dashboard() {
+      let message = 'Waiting';
+
+      return () => (
+        <main on:userDeleted={(data: { id: string; status: string }) => {
+          received = data;
+          message = `Deleted ${data.id}: ${data.status}`;
+        }}>
+          <span class="message">{message}</span>
+          <DeleteButton userId="123" />
+        </main>
+      );
+    }
+
+    createMemoApp(root, <Dashboard />);
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(received).toEqual({ id: '123', status: 'success' });
+    expect(root.querySelector('.message')!.textContent).toBe('Deleted 123: success');
   });
 
   test('keeps nested component setup state across parent rerenders', async () => {

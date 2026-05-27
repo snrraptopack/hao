@@ -19,6 +19,7 @@ export {
   component,
   createComponentClosure,
   createComponentId,
+  emit,
   runInComponent,
   runInstanceCleanups,
   updateProps,

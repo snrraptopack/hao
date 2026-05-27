@@ -39,6 +39,10 @@ type EventProps = {
   onTouchCancel?: (e: TouchEvent) => void;
 };
 
+type CustomEventProps = {
+  [K in `on:${string}`]?: (payload: any) => void;
+};
+
 type BaseProps<E extends HTMLElement> = EventProps & {
   children?: Children;
   key?: string | number;
@@ -53,7 +57,7 @@ type BaseProps<E extends HTMLElement> = EventProps & {
   draggable?: boolean;
   contentEditable?: boolean | 'true' | 'false' | 'inherit' | 'plaintext-only';
   role?: string;
-} & { [K in DataAttr]?: string | number | boolean } & { [K in AriaAttr]?: string | number | boolean };
+} & CustomEventProps & { [K in DataAttr]?: string | number | boolean } & { [K in AriaAttr]?: string | number | boolean };
 
 interface AnchorProps extends BaseProps<HTMLAnchorElement> {
   href?: string;

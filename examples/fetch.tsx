@@ -6,6 +6,7 @@ interface User {
   email: string;
 }
 
+
 function FetchOnLoad() {
   // 1. Setup Phase: Plain JS variables.
   let users: User[] = [];

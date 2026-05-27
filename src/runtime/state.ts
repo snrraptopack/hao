@@ -17,6 +17,7 @@ export const runtimeState = {
   activeSetupComponentId: null as string | null,
   pendingCleanups: null as (() => void)[] | null,
   mountedApps: new Set<MountedApp>(),
+  componentHosts: new Map<string, Node>(),
 };
 
 /**
@@ -36,4 +37,10 @@ export function currentComponentId(): string | null {
   if (!runtimeState.activeRenderState) return null;
   const id = runtimeState.activeRenderState.stack[runtimeState.activeRenderState.stack.length - 1];
   return id && id !== 'root' ? id : null;
+}
+
+/** @internal */
+export function registerComponentHost(ownerId: string | null | undefined, node: Node): void {
+  if (!ownerId) return;
+  runtimeState.componentHosts.set(ownerId, node);
 }

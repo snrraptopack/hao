@@ -5,6 +5,7 @@ export {
   component,
   createMemoApp,
   createMemoElement,
+  emit,
   h,
   memo,
 } from './runtime/index';

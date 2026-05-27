@@ -6,7 +6,7 @@
  * factory used by the JSX runtime.
  */
 
-import { runtimeState, currentComponentId } from './state';
+import { runtimeState, currentComponentId, registerComponentHost } from './state';
 import type {
   EventHandler,
   EventWrapper,
@@ -65,6 +65,7 @@ function createNodeFromTemplate(template: TemplateNode): Node {
     runtimeState.activeEventWrapper ?? ((handler) => handler),
     template.ownerId,
   ) as MemoElement;
+  registerComponentHost(template.ownerId, node);
   template.__auwlaDirty = false;
   node.__memoTemplate = template;
   return node;
@@ -85,6 +86,7 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag) as MemoElement;
   const appliedProps: Record<string, unknown> = {};
+  registerComponentHost(ownerId, element);
 
   if (props) {
     for (const [key, value] of Object.entries(props)) {
@@ -160,6 +162,23 @@ export function setProp(
       } catch {
         // Ignore invalid/readonly style properties.
       }
+    }
+    return;
+  }
+
+  const customEventName = key.startsWith('on:') && key.length > 3 ? key.slice(3) : null;
+  if (customEventName) {
+    const listeners = element.__memoListeners ??= new Map();
+    const previous = listeners.get(key);
+    if (previous) {
+      element.removeEventListener(customEventName, previous);
+      listeners.delete(key);
+    }
+
+    if (typeof value === 'function') {
+      const listener = wrapEvent((event) => (value as (payload: unknown) => unknown)((event as CustomEvent).detail));
+      listeners.set(key, listener);
+      element.addEventListener(customEventName, listener);
     }
     return;
   }

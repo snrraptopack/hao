@@ -1,4 +1,4 @@
-import { commit, createMemoApp,component } from 'auwla';
+import { commit, createMemoApp,component, emit, ComponentHandle } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
@@ -8,8 +8,9 @@ const state:any = {
   double() { return this.count * 2 }
 }
 
+
 function CounterExample() {
-    const self = component()
+  const self = component()
     return () => (
       <section class="panel">
         <h2>Counter</h2>
@@ -70,22 +71,23 @@ function TodoExample() {
 }
 
 function ChildCounter(props: { label: string }) {
+  const self = component()
   let count = 0;
   console.log("run again")
   return () => (
-    <button class="secondary" onClick={() => count++}>
+    <button class="secondary" onClick={() => {
+      count++;
+      emit(self, "counter",{count})
+    }}>
       {props.label}: {count}
     </button>
   );
 }
 
 function Another(props: { label: string,counter:number }) {
-  let count = 0;
-  let self = component()
-  console.log("run again")
   return () => (
-    <div>
-      <button class="secondary" onClick={() => { state.count++;  commit(self)}}>
+    <div on:counter={(data:{count:number})=> console.log(data)}>
+      <button class="secondary" onClick={() => { state.count++;}}>
       {props.label}: {state.count}
       </button>
       <p>double..{ props.counter}</p>
@@ -157,10 +159,11 @@ function InputPatchExample() {
 }
 
 function ExampleApp() {
+  let child = 0
   return () => (
     <main>
       <header>
-        <h1>Auwla Examples</h1>
+        <h1>Auwla Examples  child</h1>
         <p>Plain variables, standard JSX, event-driven rerendering, DOM patching.</p>
       </header>
 

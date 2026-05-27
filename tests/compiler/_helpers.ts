@@ -16,6 +16,7 @@ import {
   commit,
   component,
   createMemoApp,
+  emit,
   Fragment,
   h,
 } from '../../src';
@@ -41,7 +42,7 @@ export function evaluateCompiled(source: string) {
   const exports: Record<string, unknown> = {};
 
   // Inject h, Fragment, component, commit into scope so transpiled JSX and runtime calls work
-  const jsWithGlobals = `const h = runtime.h; const Fragment = runtime.Fragment; const component = runtime.component; const commit = runtime.commit;\n${js}`;
+  const jsWithGlobals = `const h = runtime.h; const Fragment = runtime.Fragment; const component = runtime.component; const commit = runtime.commit; const emit = runtime.emit;\n${js}`;
 
   Function('runtime', 'exports', jsWithGlobals)({
     __componentBlock,
@@ -60,6 +61,7 @@ export function evaluateCompiled(source: string) {
     commit,
     component,
     createMemoApp,
+    emit,
     h,
     Fragment,
   }, exports);

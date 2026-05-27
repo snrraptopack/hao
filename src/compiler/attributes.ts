@@ -129,6 +129,12 @@ function normalizeAttributeName(name: string): string {
   }
 }
 
+function jsxAttributeName(name: ts.JsxAttributeName): string | null {
+  if (ts.isIdentifier(name)) return normalizeAttributeName(name.text);
+  if (ts.isJsxNamespacedName(name)) return `${name.namespace.text}:${name.name.text}`;
+  return null;
+}
+
 export function compileAttribute(
   ctx: CompileContext,
   elementVar: string,
@@ -141,8 +147,8 @@ export function compileAttribute(
     return true;
   }
 
-  if (!ts.isIdentifier(attribute.name)) return false;
-  const name = normalizeAttributeName(attribute.name.text);
+  const name = jsxAttributeName(attribute.name);
+  if (!name) return false;
   const initializer = attribute.initializer;
 
   if (name === 'key') return true;
@@ -220,6 +226,16 @@ export function compileAttribute(
   }
 
   if (name.startsWith('on') && name.length > 2) {
+    if (name.startsWith('on:')) {
+      if (!initializer || !ts.isJsxExpression(initializer)) return false;
+      const expression = childExpression(initializer);
+      if (!expression) return true;
+      const value = expressionText(ctx.source, expression);
+      const eventName = name.slice(3);
+      ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
+      return true;
+    }
+
     const eventName = name.slice(2).toLowerCase();
     ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
     return true;
@@ -242,9 +258,9 @@ export function compileTemplateAttribute(
     ctx.patches.push({ code: `__spreadProps(${elementVar}, ${value});`, deps: [value] });
     return '';
   }
-  if (!ts.isIdentifier(attribute.name)) return null;
+  const name = jsxAttributeName(attribute.name);
+  if (!name) return null;
 
-  const name = normalizeAttributeName(attribute.name.text);
   const initializer = attribute.initializer;
   if (name === 'key') return '';
 
@@ -285,6 +301,16 @@ export function compileTemplateAttribute(
   }
 
   if (name.startsWith('on') && name.length > 2) {
+    if (name.startsWith('on:')) {
+      if (!initializer || !ts.isJsxExpression(initializer)) return null;
+      const expression = childExpression(initializer);
+      if (!expression) return '';
+      const value = expressionText(ctx.source, expression);
+      const eventName = name.slice(3);
+      ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
+      return '';
+    }
+
     const eventName = name.slice(2).toLowerCase();
     ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
     return '';
