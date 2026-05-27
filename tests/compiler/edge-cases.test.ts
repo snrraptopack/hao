@@ -261,4 +261,61 @@ describe('known compiler limitations', () => {
     const compiled = compileAuwla(source);
     expect(compiled).toContain('<Card');
   });
+
+  test('bails template path when table has implicit tbody children', () => {
+    const source = `
+      function App() {
+        const rows = [{ id: 1, name: 'A' }];
+        return () => (
+          <table>
+            {rows.map((row) => (
+              <tr key={row.id}><td>{row.name}</td></tr>
+            ))}
+          </table>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    // Table with direct <tr> should NOT use template cloning for the TABLE,
+    // because the browser inserts an implicit <tbody>, breaking childNodes paths.
+    // However, the <tr> row template itself is safe (it's a root template).
+    expect(compiled).toContain('document.createElement("table")');
+    expect(compiled).toContain('__keyedMap');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('table')).not.toBeNull();
+    expect(root.querySelector('tr')).not.toBeNull();
+    expect(root.querySelector('td')!.textContent).toBe('A');
+  });
+
+  test('allows template path for table with explicit tbody', () => {
+    const source = `
+      function App() {
+        let label = 'Cell';
+        return () => (
+          <table>
+            <tbody>
+              <tr><td>{label}</td></tr>
+            </tbody>
+          </table>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    // Explicit <tbody> means no implicit insertion; template path is safe.
+    expect(compiled).toContain('__cloneTemplate');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('td')!.textContent).toBe('Cell');
+  });
 });

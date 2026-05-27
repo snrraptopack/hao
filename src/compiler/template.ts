@@ -100,6 +100,20 @@ export function compileTemplateNode(
   // without an SVG parent context. Bail out to the non-template path.
   if (path.length === 0 && tag !== 'svg' && isSvgTag(tag)) return null;
 
+  // Tables with direct <tr>, <td>, <th>, or <col> children cause the browser to
+  // implicitly insert <tbody> or <colgroup> wrappers, breaking childNodes paths.
+  if (tag === 'table' && ts.isJsxElement(node)) {
+    for (const child of node.children) {
+      if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+        const childOpening = ts.isJsxElement(child) ? child.openingElement : child;
+        const childTag = intrinsicName(childOpening.tagName);
+        if (childTag === 'tr' || childTag === 'td' || childTag === 'th' || childTag === 'col') {
+          return null;
+        }
+      }
+    }
+  }
+
   const elementVar = templateElementVar(ctx, path);
   let attrs = '';
   for (const attribute of opening.attributes.properties) {
