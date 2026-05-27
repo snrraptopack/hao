@@ -9,6 +9,7 @@ export type { CompiledBlock } from './block';
 export { __createBlock, __componentBlock } from './block';
 
 export {
+  __setElementText,
   __setText,
   __setChild,
   __setClass,

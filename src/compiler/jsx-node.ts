@@ -90,6 +90,24 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
   return false;
 }
 
+function singleDynamicTextChild(
+  source: ts.SourceFile,
+  node: ts.JsxElement,
+): { expression: ts.Expression; value: string } | null {
+  const meaningful = node.children.filter((child) => {
+    return !ts.isJsxText(child) || !isWhitespaceJsxText(child);
+  });
+  if (meaningful.length !== 1) return null;
+
+  const only = meaningful[0]!;
+  if (!ts.isJsxExpression(only)) return null;
+
+  const expression = childExpression(only);
+  if (!expression || isMapCall(expression) || needsChildPatch(expression)) return null;
+
+  return { expression, value: expressionText(source, expression) };
+}
+
 /**
  * Compile a conditional JSX expression (ternary or &&) into direct DOM blocks.
  *
@@ -264,8 +282,14 @@ export function compileJsxNode(
     const closingTag = intrinsicName(node.closingElement.tagName);
     if (closingTag !== tag) return null;
 
-    for (const child of node.children) {
-      if (!compileJsxChild(ctx, child, elementVar)) return null;
+    const textOnly = singleDynamicTextChild(ctx.source, node);
+    if (textOnly) {
+      ctx.deps.push(textOnly.value);
+      ctx.patches.push({ code: `__setElementText(${elementVar}, ${textOnly.value});`, deps: [textOnly.value] });
+    } else {
+      for (const child of node.children) {
+        if (!compileJsxChild(ctx, child, elementVar)) return null;
+      }
     }
   }
 

@@ -65,11 +65,18 @@ function swapCompiledRows<TItem>(
 }
 
 /** @internal */
-function clearCompiledRows<TItem>(rows: Map<unknown, Row<TItem>>, orderedRows: Row<TItem>[], anchor: Node) {
+function clearCompiledRows<TItem>(
+  rows: Map<unknown, Row<TItem>>,
+  orderedRows: Row<TItem>[],
+  anchor: Node,
+  hasDestroyableRows: boolean,
+) {
   if (orderedRows.length === 0) return;
 
-  for (const row of orderedRows) {
-    if (row.block.destroy) row.block.destroy();
+  if (hasDestroyableRows) {
+    for (const row of orderedRows) {
+      if (row.block.destroy) row.block.destroy();
+    }
   }
 
   const first = orderedRows[0]!.block.node;
@@ -119,7 +126,7 @@ export function __keyedMap<TItem, TKey>(
       if (nextItems.length === 0) {
         // Only delete the row range owned by this map. Calling replaceChildren()
         // on the parent can remove unrelated siblings around an embedded list.
-        clearCompiledRows(rows, orderedRows, anchor);
+        clearCompiledRows(rows, orderedRows, anchor, destroyableRows > 0);
         destroyableRows = 0;
         return;
       }
@@ -127,6 +134,25 @@ export function __keyedMap<TItem, TKey>(
       let mismatchA = -1;
       let mismatchB = -1;
       let needsPlacement = false;
+
+      if (orderedRows.length === 0) {
+        const batch = document.createDocumentFragment();
+
+        for (let index = 0; index < nextItems.length; index++) {
+          const item = nextItems[index]!;
+          const key = keyOf(item, index);
+          const deps = depsOf ? depsOf(item, index) : null;
+          const row = { key, item, block: createRow(item, index), deps };
+          if (row.block.destroy) destroyableRows++;
+          if (updateCreatedRows) updateRow(row.block, item, index);
+          rows.set(key, row);
+          orderedRows.push(row);
+          batch.appendChild(row.block.node);
+        }
+
+        parent.insertBefore(batch, anchor);
+        return;
+      }
 
       if (orderedRows.length > 0 && nextItems.length > orderedRows.length) {
         let canAppend = true;

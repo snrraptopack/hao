@@ -108,10 +108,37 @@ export function compileTemplateNode(
 
   const closingTag = intrinsicName(node.closingElement.tagName);
   if (closingTag !== tag) return null;
+
+  const textOnly = singleDynamicTextChild(ctx, node, path);
+  if (textOnly) {
+    return `<${tag}${attrs}></${tag}>`;
+  }
+
   const children = compileTemplateChildren(ctx, node.children, path);
   if (children === null) return null;
 
   return `<${tag}${attrs}>${children}</${tag}>`;
+}
+
+function singleDynamicTextChild(ctx: TemplateContext, node: ts.JsxElement, path: number[]): boolean {
+  const meaningful = node.children.filter((child) => {
+    return !ts.isJsxText(child) || !isWhitespaceJsxText(child);
+  });
+  if (meaningful.length !== 1) return false;
+
+  const only = meaningful[0]!;
+  if (!ts.isJsxExpression(only)) return false;
+
+  const expression = childExpression(only);
+  if (!expression || isMapCall(expression) || needsChildPatch(expression)) return false;
+
+  const elementVar = templateElementVar(ctx, path);
+  const value = expressionText(ctx.source, expression);
+  const deps = expressionDependencies(value, ctx.itemName);
+  const initOnly = deps.length === 1 && deps[0] === ctx.keyText;
+  ctx.deps.push(value);
+  ctx.patches.push({ code: `__setElementText(${elementVar}, ${value});`, deps: [value], initOnly });
+  return true;
 }
 
 export function compileTemplateRowBlock(

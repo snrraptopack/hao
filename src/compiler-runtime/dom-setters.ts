@@ -131,6 +131,16 @@ export function __setText(node: CharacterData, value: unknown): void {
 }
 
 /**
+ * Update an element whose content is a single dynamic text expression.
+ * Avoids allocating and appending a separate Text node for table/list cells.
+ * @internal
+ */
+export function __setElementText(element: Element, value: unknown): void {
+  const next = compiledValue(value);
+  if (element.textContent !== next) element.textContent = next;
+}
+
+/**
  * Replace the content at a comment-marker child position.
  * @internal
  */

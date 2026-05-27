@@ -50,6 +50,7 @@ export const COMPILER_IMPORT = [
   '__setAttribute',
   '__setChild',
   '__setClass',
+  '__setElementText',
   '__setProperty',
   '__setStyle',
   '__setText',

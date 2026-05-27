@@ -84,6 +84,37 @@ describe('__keyedMap fast paths', () => {
     expect(lis[1]!.textContent).toBe('B');
   });
 
+  test('empty-to-populated insert batches rows in one fragment', () => {
+    const map = __keyedMap(
+      [] as { id: string; label: string }[],
+      (item) => item.id,
+      (item) => createRow(item.label),
+      (block, item) => block.update(item),
+      null,
+    );
+
+    const parent = document.createElement('ul');
+    parent.appendChild(map.node);
+    const originalInsertBefore = parent.insertBefore.bind(parent);
+    let inserts = 0;
+    let insertedFragment = false;
+    parent.insertBefore = ((node: Node, child: Node | null) => {
+      inserts++;
+      insertedFragment ||= node instanceof DocumentFragment;
+      return originalInsertBefore(node, child);
+    }) as typeof parent.insertBefore;
+
+    map.update([
+      { id: 'a', label: 'A' },
+      { id: 'b', label: 'B' },
+      { id: 'c', label: 'C' },
+    ]);
+
+    expect(inserts).toBe(1);
+    expect(insertedFragment).toBe(true);
+    expect(Array.from(parent.querySelectorAll('li')).map((node) => node.textContent)).toEqual(['A', 'B', 'C']);
+  });
+
   test('same-length in-place update', () => {
     let items = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }];
     const map = __keyedMap(

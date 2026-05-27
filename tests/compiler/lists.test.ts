@@ -22,9 +22,9 @@ describe('keyed list compilation', () => {
     const compiled = compileAuwla(source);
     const rowUpdate = compiled.slice(compiled.indexOf('update(item, index)'));
 
-    expect(compiled).toContain('__setText(text0, item.id);');
-    expect(rowUpdate).not.toContain('__setText(text0, item.id);');
-    expect(rowUpdate).toContain('__setText(text1, item.value);');
+    expect(compiled).toContain('__setElementText(el1, item.id);');
+    expect(rowUpdate).not.toContain('__setElementText(el1, item.id);');
+    expect(rowUpdate).toContain('__setElementText(el2, item.value);');
   });
 
   test('keeps closure variables in keyed row dependencies', () => {

@@ -18,6 +18,7 @@ export {
   __setAttribute,
   __setChild,
   __setClass,
+  __setElementText,
   __setProperty,
   __setStyle,
   __setText,
