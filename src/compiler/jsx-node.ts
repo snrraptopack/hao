@@ -171,22 +171,19 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
     setup: string[];
     patches: { code: string; deps: string[] }[];
     deps: string[];
-    elOffset: number;
-    textOffset: number;
-    mapOffset: number;
   }[] = [];
 
   for (const branch of branches) {
     if (!branch.jsx) {
-      compiledBranches.push({ root: '', setup: [], patches: [], deps: [], elOffset: 0, textOffset: 0, mapOffset: 0 });
+      compiledBranches.push({ root: '', setup: [], patches: [], deps: [] });
       continue;
     }
 
     const branchCtx: CompileContext = {
       source: ctx.source,
-      elementId: 0,
-      mapId: 0,
-      textId: 0,
+      elementId: ctx.elementId,
+      mapId: ctx.mapId,
+      textId: ctx.textId,
       patches: [],
       deps: [],
       setup: [],
@@ -200,14 +197,11 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
       setup: branchCtx.setup,
       patches: branchCtx.patches,
       deps: branchCtx.deps,
-      elOffset: ctx.elementId,
-      textOffset: ctx.textId,
-      mapOffset: ctx.mapId,
     });
 
-    ctx.elementId += branchCtx.elementId;
-    ctx.textId += branchCtx.textId;
-    ctx.mapId += branchCtx.mapId;
+    ctx.elementId = branchCtx.elementId;
+    ctx.textId = branchCtx.textId;
+    ctx.mapId = branchCtx.mapId;
   }
 
   // Allocate marker and active-branch tracker.
@@ -217,11 +211,9 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
   ctx.setup.push(`${parentVar}.append(${childVar});`);
   ctx.setup.push(`let ${activeVar}: number | null = null;`);
 
-  // Merge branch setup / patches / deps into parent with remapped IDs.
+  // Merge branch setup / patches / deps into parent.
   for (const cb of compiledBranches) {
-    if (!cb.setup.length) continue;
-    const remap = (code: string) => remapIds(code, cb.elOffset, cb.textOffset, cb.mapOffset);
-    for (const line of cb.setup) ctx.setup.push(remap(line));
+    for (const line of cb.setup) ctx.setup.push(line);
     // Branch patches run inside the active branch guard below. Emitting them
     // at the parent level would also patch detached/inactive branch nodes.
     for (const dep of cb.deps) ctx.deps.push(dep);
@@ -246,10 +238,9 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
     }
 
     if (isJsx) {
-      const root = remapIds(cb.root, cb.elOffset, cb.textOffset, cb.mapOffset);
-      lines.push(`  if (${activeVar} !== ${i}) { ${childVar} = __setChild(${parentVar}, ${childVar}, ${root}); ${activeVar} = ${i}; }`);
+      lines.push(`  if (${activeVar} !== ${i}) { ${childVar} = __setChild(${parentVar}, ${childVar}, ${cb.root}); ${activeVar} = ${i}; }`);
       for (const patch of cb.patches) {
-        lines.push(`  ${remapIds(patch.code, cb.elOffset, cb.textOffset, cb.mapOffset)}`);
+        lines.push(`  ${patch.code}`);
         for (const dep of patch.deps) allDeps.add(dep);
       }
     } else {
@@ -409,14 +400,6 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   return mapVar;
 }
 
-export function remapIds(code: string, elementOffset: number, textOffset: number, mapOffset: number): string {
-  return code
-    .replace(/\bel(\d+)\b/g, (_, n) => `el${Number(n) + elementOffset}`)
-    .replace(/\btext(\d+)\b/g, (_, n) => `text${Number(n) + textOffset}`)
-    .replace(/\bmap(\d+)\b/g, (_, n) => `map${Number(n) + mapOffset}`)
-    .replace(/\bchild(\d+)\b/g, (_, n) => `child${Number(n) + textOffset}`);
-}
-
 export function substituteProps(code: string, props: Map<string, string>): string {
   return code.replace(/\bprops\.([A-Za-z_$][\w$]*)\b/g, (match, name) => {
     return props.get(name) ?? 'undefined';
@@ -469,9 +452,9 @@ export function tryInlineComponent(
 
   const childCtx: CompileContext = {
     source: ctx.source,
-    elementId: 0,
-    mapId: 0,
-    textId: 0,
+    elementId: ctx.elementId,
+    mapId: ctx.mapId,
+    textId: ctx.textId,
     patches: [],
     deps: [],
     setup: [],
@@ -480,11 +463,7 @@ export function tryInlineComponent(
   const result = compileJsxNode(childCtx, componentJsx);
   if (!result) return null;
 
-  const elOffset = ctx.elementId;
-  const textOffset = ctx.textId;
-  const mapOffset = ctx.mapId;
-
-  const remap = (code: string) => substituteProps(remapIds(code, elOffset, textOffset, mapOffset), props);
+  const remap = (code: string) => substituteProps(code, props);
 
   for (const line of childCtx.setup) {
     ctx.setup.push(remap(line));
@@ -496,9 +475,9 @@ export function tryInlineComponent(
     ctx.deps.push(remap(dep));
   }
 
-  ctx.elementId += childCtx.elementId;
-  ctx.textId += childCtx.textId;
-  ctx.mapId += childCtx.mapId;
+  ctx.elementId = childCtx.elementId;
+  ctx.textId = childCtx.textId;
+  ctx.mapId = childCtx.mapId;
 
   return { code: '', root: remap(result.root) };
 }
