@@ -233,6 +233,9 @@ Inlining is **blocked** when:
 | `return () => <div class="x">{text}</div>` | `__componentBlock` with `__createBlock` + `__setText` |
 | `return () => { count++; return <div>{count}</div>; }` | Leading statements preserved, JSX compiled to block |
 | `{items.map(item => <li key={item.id}>{item.text}</li>)}` | `__keyedMap` with dependency inference |
+| `{items.map((item, i) => <li>{item}</li>)}` | `__keyedMap` with positional index keys |
+| `{show ? <A/> : <B/>}` and `{show && <A/>}` | `activeBranch` direct DOM swapping |
+| `{a ? <A/> : b ? <B/> : <C/>}` | Nested ternaries flattened to `if / else if / else` |
 | `onClick={() => count++}` | `addEventListener('click', __event(...))` |
 | `style={{ color: 'red', padding: 8 }}` (all static) | Inline CSS in template HTML |
 | `<svg>`, `<circle>`, `<path>`, etc. | `createElementNS("http://www.w3.org/2000/svg", ...)` |
@@ -247,9 +250,8 @@ Inlining is **blocked** when:
 | Components referencing `props.children` when call site passes children | Would break children insertion |
 | `return () => { if (x) return <A/>; return <B/>; }` | Compiler only handles single JSX return |
 | `<props.tag>Hello</props.tag>` | Dynamic tag — not known at compile time |
-| `{condition ? <JSX/> : <JSX/>}` inside children | Conditional JSX uses `__setChild` |
-| `{show && <JSX/>}` inside children | Logical expression with JSX uses `__setChild` |
-| `{items.map(x => x)}` without `key` | Keyed map requires stable keys for reconciliation |
+| `{items.map(x => x)}` without `key` | Unkeyed map compiles with index fallback |
+| Mixed JSX and non-nullish text branches (`show ? <A/> : 'text'`) | Would need runtime text/JSX interleaving |
 | `style={{ color: dynamic }}` (mixed static/dynamic) | Falls to non-template `__setStyle` patches |
 
 ### ✅ Compiled Parent + Runtime Child
@@ -322,7 +324,7 @@ This means you can mix compiled and runtime components freely in the same app. A
 ## Known Limitations
 
 1. **Block-bodied closures with multiple returns** — Only the first `return <jsx>` is compiled. Others are ignored.
-2. **Conditional JSX in children** — `{show && <span/>}` and `{a ? <A/> : <B/>}` always use `__setChild` fallback. Each branch's JSX is not individually compiled.
+2. **Nested ternary inlining limits** — Deeply nested ternaries in the `whenTrue` position (e.g., `a ? (b ? c : d) : e`) are not yet flattened; only `whenFalse` chains are expanded.
 3. **Spread attributes on unknown objects** — `__spreadProps` handles them at runtime, but the template path bails because it can't know which keys will exist.
 4. **SVG standalone roots** — A root-level `<circle>` or `<path>` (not inside `<svg>`) bails from template path because `innerHTML` can't create SVG elements without an SVG parent context.
 

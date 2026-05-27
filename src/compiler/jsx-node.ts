@@ -114,45 +114,56 @@ function singleDynamicTextChild(
  * Instead of falling back to `__setChild` with the raw expression, each JSX branch
  * is compiled inline. An `activeBranch` tracker avoids unnecessary DOM swaps when
  * the condition value doesn't change.
+ *
+ * Nested ternaries like `a ? <A/> : b ? <B/> : <C/>` are flattened into an
+ * `if / else if / else` chain so every branch compiles individually.
  */
 function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, parentVar: string): boolean {
   type Branch = {
     condition: string | null; // null means "else" (last branch)
     jsx: ts.JsxElement | ts.JsxSelfClosingElement | null;
+    raw: ts.Expression;
   };
 
-  const branches: Branch[] = [];
-  let conditionSource: ts.Expression | null = null;
+  function flattenConditional(expr: ts.Expression): Branch[] | null {
+    if (ts.isConditionalExpression(expr)) {
+      const trueJsx = unwrapJsxExpression(expr.whenTrue);
+      const branches: Branch[] = [];
+      branches.push({ condition: expressionText(ctx.source, expr.condition), jsx: trueJsx, raw: expr.whenTrue });
 
-  if (ts.isConditionalExpression(expression)) {
-    conditionSource = expression.condition;
-    const trueJsx = unwrapJsxExpression(expression.whenTrue);
-    const falseJsx = unwrapJsxExpression(expression.whenFalse);
+      const nested = flattenConditional(expr.whenFalse);
+      if (nested) {
+        branches.push(...nested);
+      } else {
+        const falseJsx = unwrapJsxExpression(expr.whenFalse);
+        branches.push({ condition: null, jsx: falseJsx, raw: expr.whenFalse });
+      }
 
-    // Only handle when at least one branch is JSX
-    if (!trueJsx && !falseJsx) return false;
+      const hasJsx = branches.some((b) => b.jsx !== null);
+      if (!hasJsx) return null;
+      for (const branch of branches) {
+        if (!branch.jsx && !isNullishBranch(branch.raw)) return null;
+      }
+      return branches;
+    }
 
-    // If a non-JSX branch isn't nullish, fall back to runtime __setChild
-    if (trueJsx && !isNullishBranch(expression.whenFalse) && !falseJsx) return false;
-    if (falseJsx && !isNullishBranch(expression.whenTrue) && !trueJsx) return false;
+    if (
+      ts.isBinaryExpression(expr) &&
+      expr.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+    ) {
+      const rightJsx = unwrapJsxExpression(expr.right);
+      if (!rightJsx) return null;
+      return [
+        { condition: expressionText(ctx.source, expr.left), jsx: rightJsx, raw: expr.right },
+        { condition: null, jsx: null, raw: expr.left },
+      ];
+    }
 
-    branches.push({ condition: null, jsx: trueJsx });
-    branches.push({ condition: null, jsx: falseJsx });
-  } else if (
-    ts.isBinaryExpression(expression) &&
-    expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
-  ) {
-    conditionSource = expression.left;
-    const rightJsx = unwrapJsxExpression(expression.right);
-    if (!rightJsx) return false;
-
-    branches.push({ condition: null, jsx: rightJsx });
-    branches.push({ condition: null, jsx: null });
-  } else {
-    return false;
+    return null;
   }
 
-  const conditionText = expressionText(ctx.source, conditionSource);
+  const branches = flattenConditional(expression);
+  if (!branches) return false;
 
   // Compile each JSX branch into a fresh context.
   const compiledBranches: {
@@ -217,7 +228,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
   }
 
   // Build conditional update code.
-  const allDeps = new Set<string>([conditionText]);
+  const allDeps = new Set<string>();
   const lines: string[] = [];
 
   for (let i = 0; i < branches.length; i++) {
@@ -227,7 +238,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
     const isJsx = !!cb.root;
 
     if (isFirst) {
-      lines.push(`if (${conditionText}) {`);
+      lines.push(`if (${branch.condition}) {`);
     } else if (i === branches.length - 1 && !branch.condition) {
       lines.push(`} else {`);
     } else {
@@ -246,6 +257,10 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
     }
   }
   lines.push('}');
+
+  for (const branch of branches) {
+    if (branch.condition) allDeps.add(branch.condition);
+  }
 
   ctx.patches.push({ code: lines.join('\n'), deps: Array.from(allDeps) });
   return true;

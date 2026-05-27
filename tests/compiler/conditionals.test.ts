@@ -240,4 +240,77 @@ describe('conditional JSX compilation', () => {
     expect(bodyAfterImport).not.toContain('activeBranch');
     expect(bodyAfterImport).toContain('__setChild');
   });
+
+  test('compiles nested ternaries into flattened if/else if/else', () => {
+    const source = `
+      function App() {
+        let phase = 'loading';
+        exports.setPhase = (p: string) => { phase = p; };
+        return () => <div>{
+          phase === 'loading' ? <span class="a">Loading</span> :
+          phase === 'error'   ? <span class="b">Error</span> :
+                                <span class="c">Done</span>
+        }</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    const bodyAfterImport = compiled.replace(/^import \{[^}]+\} from 'auwla';\s*/m, '');
+    expect(bodyAfterImport).toContain('activeBranch');
+    expect(bodyAfterImport).toContain('} else if (');
+
+    const evaluated = evaluateCompiled(compiled) as {
+      App: () => unknown;
+      setPhase(p: string): void;
+    };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.querySelector('span')!.className).toBe('a');
+
+    evaluated.setPhase('error');
+    app.render();
+    expect(root.querySelector('span')!.className).toBe('b');
+
+    evaluated.setPhase('done');
+    app.render();
+    expect(root.querySelector('span')!.className).toBe('c');
+  });
+
+  test('compiles keyed map inside nested ternary branches', () => {
+    const source = `
+      function App() {
+        let items: string[] = [];
+        let loading = true;
+        exports.load = () => { loading = false; items = ['a', 'b']; };
+        return () => <div>{
+          loading ? <p>Loading</p> :
+          items.length === 0 ? <p>Empty</p> :
+          <ul>{items.map((item) => <li>{item}</li>)}</ul>
+        }</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    const bodyAfterImport = compiled.replace(/^import \{[^}]+\} from 'auwla';\s*/m, '');
+    expect(bodyAfterImport).toContain('activeBranch');
+    expect(bodyAfterImport).toContain('__keyedMap');
+    expect(bodyAfterImport).not.toMatch(/__setChild.*items\.map/);
+
+    const evaluated = evaluateCompiled(compiled) as {
+      App: () => unknown;
+      load(): void;
+    };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.querySelector('p')!.textContent).toBe('Loading');
+
+    evaluated.load();
+    app.render();
+    expect(root.querySelectorAll('li').length).toBe(2);
+    expect(root.querySelector('li')!.textContent).toBe('a');
+  });
 });

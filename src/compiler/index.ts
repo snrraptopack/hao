@@ -109,11 +109,10 @@ function applyReplacements(source: string, replacements: Array<{ start: number; 
   return output;
 }
 
-function addCompilerImport(code: string): string {
-  if (code.includes('__componentBlock') && !code.includes(COMPILER_IMPORT)) {
+function addCompilerImport(code: string, didCompile: boolean): string {
+  if (didCompile) {
     return `import { ${COMPILER_IMPORT} } from 'auwla';\n${code}`;
   }
-
   return code;
 }
 
@@ -129,5 +128,5 @@ export function compileAuwla(sourceText: string, fileName = 'input.tsx'): string
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const replacements = findReplacements(source);
   if (replacements.length === 0) return sourceText;
-  return addCompilerImport(applyReplacements(sourceText, replacements));
+  return addCompilerImport(applyReplacements(sourceText, replacements), true);
 }

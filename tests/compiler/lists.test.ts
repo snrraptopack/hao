@@ -216,4 +216,37 @@ describe('keyed list compilation', () => {
 
     expect(root.querySelector('li')!.textContent).toBe('A');
   });
+
+  test('interleaved dynamic text and static text in list rows', () => {
+    const source = `
+      function List() {
+        const users = [
+          { id: 1, name: 'Alice', email: 'a@example.com' },
+          { id: 2, name: 'Bob', email: 'b@example.com' },
+        ];
+        return () => (
+          <ul>
+            {users.map((user) => (
+              <li key={user.id}>{user.name} ({user.email})</li>
+            ))}
+          </ul>
+        );
+      }
+      exports.List = List;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__keyedMap');
+    // Row should use direct element creation, not template cloning,
+    // because dynamic text is followed by static text.
+    expect(compiled).toContain('document.createElement("li")');
+
+    const { List } = evaluateCompiled(compiled) as { List: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(List as any));
+
+    const items = root.querySelectorAll('li');
+    expect(items[0]!.textContent).toBe('Alice (a@example.com)');
+    expect(items[1]!.textContent).toBe('Bob (b@example.com)');
+  });
 });

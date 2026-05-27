@@ -36,10 +36,12 @@ export function templateElementVar(ctx: TemplateContext, path: number[]): string
 export function compileTemplateChildren(ctx: TemplateContext, children: readonly ts.JsxChild[], parentPath: number[]): string | null {
   let html = '';
   let childIndex = 0;
+  let hasDynamicText = false;
 
   for (const child of children) {
     if (ts.isJsxText(child)) {
       if (isWhitespaceJsxText(child)) continue;
+      if (hasDynamicText) return null;
       html += escapeHtml(decodeJsxText(child.text));
       childIndex++;
       continue;
@@ -59,10 +61,12 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
       ctx.textSetup.push(`${parentVar}.append(${textVar});`);
       ctx.deps.push(value);
       ctx.patches.push({ code: `__setText(${textVar}, ${value});`, deps: [value], initOnly });
+      hasDynamicText = true;
       continue;
     }
 
     if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+      if (hasDynamicText) return null;
       const childHtml = compileTemplateNode(ctx, child, [...parentPath, childIndex]);
       if (childHtml === null) return null;
       html += childHtml;
