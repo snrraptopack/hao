@@ -184,7 +184,12 @@ export function setProp(
   if (value === false || value === null || value === undefined) {
     if (key in element) {
       try {
-        (element as any)[key] = typeof oldValue === 'boolean' ? false : '';
+        const target = typeof (element as any)[key] === 'boolean' ? false : '';
+        // DOM property setters can affect live editing state; avoid them when
+        // the property already has the value we need.
+        if (!Object.is((element as any)[key], target)) {
+          (element as any)[key] = target;
+        }
       } catch {
         // Ignore readonly DOM properties.
       }
@@ -195,12 +200,23 @@ export function setProp(
 
   if (value === true) {
     element.setAttribute(key, '');
+    if (key in element) {
+      try {
+        if (!Object.is((element as any)[key], true)) {
+          (element as any)[key] = true;
+        }
+      } catch {
+        // Ignore readonly DOM properties.
+      }
+    }
     return;
   }
 
   if (key in element) {
     try {
-      (element as any)[key] = value;
+      if (!Object.is((element as any)[key], value)) {
+        (element as any)[key] = value;
+      }
       return;
     } catch {
       // Fall through to attribute assignment for readonly DOM properties.

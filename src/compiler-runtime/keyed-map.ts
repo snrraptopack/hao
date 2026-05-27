@@ -117,19 +117,10 @@ export function __keyedMap<TItem, TKey>(
       const parent = anchor.parentNode ?? fragment;
 
       if (nextItems.length === 0) {
-        if (destroyableRows === 0 && orderedRows.length > 0) {
-          const first = orderedRows[0]!.block.node;
-          if (first.parentNode && first.parentNode === anchor.parentNode) {
-            first.parentNode.replaceChildren(anchor);
-          } else {
-            for (const row of orderedRows) removeNode(row.block.node);
-          }
-          rows.clear();
-          orderedRows.length = 0;
-        } else {
-          clearCompiledRows(rows, orderedRows, anchor);
-          destroyableRows = 0;
-        }
+        // Only delete the row range owned by this map. Calling replaceChildren()
+        // on the parent can remove unrelated siblings around an embedded list.
+        clearCompiledRows(rows, orderedRows, anchor);
+        destroyableRows = 0;
         return;
       }
 

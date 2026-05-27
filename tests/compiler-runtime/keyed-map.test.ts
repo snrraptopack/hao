@@ -33,6 +33,33 @@ describe('__keyedMap fast paths', () => {
     expect(parent.querySelectorAll('li').length).toBe(0);
   });
 
+  test('empty list clearing preserves siblings around embedded map', () => {
+    const items = [{ id: 'a', label: 'A' }];
+    const map = __keyedMap(
+      items,
+      (item) => item.id,
+      (item) => createRow(item.label),
+      (block, item) => block.update(item),
+      null,
+    );
+
+    const parent = document.createElement('div');
+    const before = document.createElement('input');
+    const after = document.createElement('button');
+    after.textContent = 'Save';
+    parent.append(before, map.node, after);
+    document.body.append(parent);
+
+    before.focus();
+    map.update([]);
+
+    expect(parent.querySelector('input')).toBe(before);
+    expect(parent.querySelector('button')).toBe(after);
+    expect(parent.querySelectorAll('li')).toHaveLength(0);
+    expect(document.activeElement).toBe(before);
+    parent.remove();
+  });
+
   test('append-only adds new rows at end', () => {
     let items = [{ id: 'a', label: 'A' }];
     const map = __keyedMap(

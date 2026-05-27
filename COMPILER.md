@@ -1,177 +1,12 @@
-# Auwla Compiler Strategy
+# Auwla Compiler
 
-## Purpose
+> Build-time TSX transform that lowers component render closures into imperative DOM blocks.
 
-The compiler should preserve Auwla's developer experience while removing runtime work that can be known ahead of time.
+## Overview
 
-Developers should keep writing ordinary TSX:
+The compiler is an **optional** build-time transform. The runtime is always correct without it. When the compiler can analyze a pattern safely, it replaces JSX with direct DOM operations. When it cannot, the code falls back to runtime JSX patching.
 
-```tsx
-function TodoApp() {
-  const todos = [{ id: 1, text: 'Learn Auwla', done: false }];
-
-  return () => (
-    <ul>
-      {todos.map((todo) => (
-        <li key={todo.id} class={todo.done ? 'done' : ''}>
-          <input
-            type="checkbox"
-            checked={todo.done}
-            onChange={() => { todo.done = !todo.done; }}
-          />
-          <span>{todo.text}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-```
-
-The compiler can lower this into more direct runtime instructions. Application authors should not need `memo()`, signals, refs, setters, or custom list components.
-
-## What The Runtime Does Today
-
-The current runtime is a correctness layer:
-
-- JSX creates lightweight template nodes during render.
-- The DOM patcher compares those templates against real DOM.
-- Keyed elements reuse existing DOM nodes.
-- Event handlers invalidate the app after mutation.
-- Nested component setup closures are cached.
-- Internal memo blocks can skip unchanged keyed subtrees.
-
-This is good enough for the clean DX and for localized updates. It is still too much work for large create/update-all paths because the runtime discovers everything dynamically.
-
-## Compiler Goal
-
-The compiler should turn declarative JSX into small imperative DOM programs:
-
-- Create static DOM once from known element shapes.
-- Store direct references to dynamic text nodes, attributes, classes, booleans, and event handlers.
-- Patch only the dynamic fields that can change.
-- Lower keyed `.map()` into an internal keyed block.
-- Keep the source-level DX as normal JavaScript and TSX.
-
-The compiled output can be less pretty. The source code must stay simple.
-
-## Transform 1: Static Shape Hoisting
-
-Input:
-
-```tsx
-<div class="card">
-  <span>ID: {item.id}</span>
-  <strong>{item.value}</strong>
-</div>
-```
-
-Compiler insight:
-
-- `div`, `span`, and `strong` are static element shapes.
-- `"card"` and `"ID: "` are static.
-- `item.id` and `item.value` are dynamic text parts.
-
-Runtime target:
-
-```ts
-const block = __createBlock(() => {
-  const div = document.createElement('div');
-  div.className = 'card';
-
-  const span = document.createElement('span');
-  const idPrefix = document.createTextNode('ID: ');
-  const idText = document.createTextNode('');
-  span.append(idPrefix, idText);
-
-  const strong = document.createElement('strong');
-  const valueText = document.createTextNode('');
-  strong.append(valueText);
-
-  div.append(span, strong);
-
-  return {
-    node: div,
-    update(item) {
-      __setText(idText, item.id);
-      __setText(valueText, item.value);
-    },
-  };
-});
-```
-
-The runtime no longer needs to allocate a full template tree and then compare it.
-
-## Transform 2: Direct Dynamic Patches
-
-Input:
-
-```tsx
-<li class={todo.done ? 'done' : ''}>
-  <input type="checkbox" checked={todo.done} />
-  <span>{todo.text}</span>
-</li>
-```
-
-Compiler output should know the exact mutation sites:
-
-- `li.className`
-- `input.checked`
-- text node content inside `span`
-
-Runtime target:
-
-```ts
-update(todo) {
-  __setClass(li, todo.done ? 'done' : '');
-  __setProperty(input, 'checked', todo.done);
-  __setText(text, todo.text);
-}
-```
-
-This is the path that makes update-all faster. Instead of patching an entire row template, Auwla patches only known fields.
-
-## Transform 3: Keyed Map Lowering
-
-Input:
-
-```tsx
-{todos.map((todo) => (
-  <li key={todo.id}>{todo.text}</li>
-))}
-```
-
-Compiler target:
-
-```ts
-__keyedMap(
-  todos,
-  (todo) => todo.id,
-  createTodoRow,
-  updateTodoRow,
-)
-```
-
-The keyed map runtime should:
-
-- Reuse row blocks by key.
-- Create blocks only for new keys.
-- Move existing DOM nodes with the LIS reorder strategy.
-- Remove blocks for deleted keys.
-- Run row updates only when row dependencies changed.
-
-The compiler can initially infer row dependencies conservatively from expressions inside the row.
-
-Example inferred deps:
-
-```tsx
-todo => [todo.text, todo.done]
-```
-
-Later, compiled row updates can avoid dependency arrays and directly run cheap field setters.
-
-## Transform 4: Component Instance Lowering
-
-Current components already have setup and render phases:
+Developers write ordinary TSX:
 
 ```tsx
 function Counter() {
@@ -180,7 +15,7 @@ function Counter() {
 }
 ```
 
-The compiler should keep that mental model. It can lower the returned render closure into a compiled block:
+The compiler transforms the render closure into:
 
 ```ts
 function Counter() {
@@ -203,127 +38,302 @@ function Counter() {
 
 Setup still runs once. Events still mutate plain closure variables.
 
-## Transform 5: Event Handler Wrapping
+---
 
-The compiler can wrap event handlers at build time:
+## Architecture
+
+The compiler is organized into focused modules under `src/compiler/`:
+
+| Module | Lines | Responsibility |
+|--------|-------|----------------|
+| `types.ts` | 76 | Shared type definitions (`CompileContext`, `TemplateContext`) and constants (`SVG_TAGS`, `PROPERTY_PROPS`, `COMPILER_IMPORT`) |
+| `utils.ts` | 311 | Pure AST helpers — dependency inference, component inlining analysis, JSX unwrapping |
+| `attributes.ts` | 297 | Attribute compilation for **both** template and non-template paths. Includes React camelCase normalization and static style-to-CSS conversion |
+| `template.ts` | 206 | Template cloning path — generates `__cloneTemplate(...)` + `el.childNodes[N]` path patches |
+| `jsx-node.ts` | 305 | Non-template JSX lowering — `compileJsxNode`, `compileJsxChild`, `compileKeyedMap`, `tryInlineComponent` |
+| `index.ts` | 133 | Public API (`compileAuwla`) + transform orchestration (`findReplacements`, `transformReturn`) |
+
+The compiled output calls into `src/compiler-runtime/` helpers:
+
+| Module | Responsibility |
+|--------|----------------|
+| `block.ts` | `__createBlock`, `__componentBlock` — block factory wrappers |
+| `dom-setters.ts` | Direct DOM mutation helpers (`__setText`, `__setClass`, `__setProperty`, `__setAttribute`, `__setStyle`, `__spreadProps`) |
+| `events.ts` | `__event` — bridges compiled handlers to runtime invalidation |
+| `template.ts` | `__cloneTemplate` — inflates HTML strings into DOM trees |
+| `keyed-map.ts` | `__keyedMap` — keyed list reconciliation with LIS reordering |
+
+---
+
+## Compilation Pipeline
+
+### 1. Find Render Closures
+
+`findReplacements()` walks the AST looking for `return` statements whose expression is an arrow function returning JSX:
 
 ```tsx
-<button onClick={() => count++}>Increment</button>
-```
-
-Target:
-
-```ts
-button.addEventListener('click', __event(() => {
+return () => <div>...</div>;
+return () => {           // ← also supported
   count++;
-}));
+  return <div>...</div>; // ← leading statements are preserved
+};
 ```
 
-The runtime `__event` wrapper invalidates after the handler completes. If the handler returns a promise, invalidate after it settles.
+### 2. Try Template Path First
 
-## Transform 6: Static Style And Class Optimization
+`compileRenderClosure()` first attempts `compileTemplateRootBlock()`. This works when:
 
-Inline style objects are expensive in hot lists because each render creates and diffs objects.
+- The root element is an intrinsic HTML tag (lowercase)
+- All attributes are static strings or simple dynamic values
+- No `style` object is present (unless **entirely static** — then converted to inline CSS)
+- No JSX children inside expressions (e.g., no `{condition && <span/>}`)
 
-The compiler should:
-
-- Hoist static style objects.
-- Prefer direct style setters for dynamic style fields.
-- Leave class strings as direct `className` assignments.
-- Optionally warn in development when a hot keyed row creates large inline style objects.
-
-Input:
-
-```tsx
-<div style={{ color: done ? 'green' : 'gray', padding: 8 }} />
-```
-
-Target:
+Template path output:
 
 ```ts
-div.style.padding = '8px';
-update(done) {
-  __setStyle(div, 'color', done ? 'green' : 'gray');
+__componentBlock(() => {
+  const el0 = __cloneTemplate("<div class=\"card\"><span>ID: </span><strong></strong></div>");
+  const el1 = el0.childNodes[0] as HTMLElement;
+  const text0 = el0.childNodes[1] as Text;
+
+  return __createBlock(() => ({
+    node: el0,
+    update() {
+      __setText(text0, item.id);
+    },
+  }));
+});
+```
+
+**Why templates are faster:** `__cloneTemplate` uses `innerHTML` once, then grabs child references. No per-element `document.createElement` calls.
+
+### 3. Fall Back to Non-Template Path
+
+If the template path fails (dynamic tags, spread attributes with unknown keys, JSX inside expressions, etc.), the compiler uses `compileJsxNode()` which generates `document.createElement` calls.
+
+Non-template output for the same shape:
+
+```ts
+__componentBlock(() => {
+  const div = document.createElement('div');
+  div.className = 'card';
+  const span = document.createElement('span');
+  span.textContent = 'ID: ';
+  const strong = document.createElement('strong');
+  const text0 = document.createTextNode('');
+  strong.append(text0);
+  div.append(span, strong);
+
+  return __createBlock(() => ({
+    node: div,
+    update() {
+      __setText(text0, item.id);
+    },
+  }));
+});
+```
+
+### 4. Attribute Compilation
+
+Both paths share `normalizeAttributeName()` which maps React camelCase to HTML:
+
+| JSX Attribute | Compiled To |
+|---------------|-------------|
+| `className` | `"class"` |
+| `htmlFor` | `"for"` |
+| `srcSet` | `"srcset"` |
+| `spellCheck` | `"spellcheck"` |
+| `readOnly` | `"readonly"` |
+| `tabIndex` | `"tabindex"` |
+| `colSpan` / `rowSpan` | `"colspan"` / `"rowspan"` |
+| `charSet` | `"charset"` |
+| `referrerPolicy` | `"referrerpolicy"` |
+| `formAction` / `formMethod` / etc. | `"formaction"` / `"formmethod"` / etc. |
+
+**Static style objects in templates:**
+
+```tsx
+<div style={{ padding: '16px', borderRadius: 8, opacity: 0.5 }} />
+```
+
+→ Template HTML: `<div style="padding: 16px; border-radius: 8px; opacity: 0.5"></div>`
+
+Numeric values automatically get `px` appended (except unitless properties like `opacity`, `zIndex`, `lineHeight`).
+
+**Dynamic style objects** fall back to the non-template path and generate per-property `__setStyle(el, name, value)` patches.
+
+### 5. Keyed List Lowering
+
+`.map()` calls with a `key` attribute are transformed into `__keyedMap()`:
+
+```tsx
+{todos.map((todo) => (
+  <li key={todo.id} class={todo.done ? 'done' : ''}>
+    {todo.text}
+  </li>
+))}
+```
+
+→
+
+```ts
+__keyedMap(
+  todos,
+  (todo) => todo.id,
+  (todo) => __createBlock(() => {
+    const li = document.createElement('li');
+    const text0 = document.createTextNode('');
+    li.append(text0);
+
+    return {
+      node: li,
+      update(todo) {
+        __setClass(li, todo.done ? 'done' : '');
+        __setText(text0, todo.text);
+      },
+    };
+  }),
+  (block, todo) => block.update(todo),
+  (todo) => [todo.text, todo.done],
+  false,
+);
+```
+
+The compiler infers row dependencies from expressions referencing the item parameter. If every free identifier is a property access on the item (e.g., `todo.text`), the dependency array is narrowed to just those properties. Otherwise it falls back to the full expression.
+
+### 6. Component Inlining
+
+Simple components that just return JSX and have no setup state can be inlined into their parent:
+
+```tsx
+function Label(props) {
+  return () => <span>{props.text}</span>;
+}
+
+function App() {
+  return () => <Label text="Hello" />;
 }
 ```
 
-## Runtime Helpers Needed
+→ `App` compiles as if it contained `<span>Hello</span>` directly. No component instance is created at runtime.
 
-The compiler should target a small internal helper layer:
+Inlining is **blocked** when:
+- The component has more than 1 parameter
+- The component body has conditional returns or loops
+- The call site passes children and the component references `props.children`
 
-```ts
-__createBlock(factory)
-__componentBlock(factory)
-__keyedMap(items, keyOf, createRow, updateRow)
-__event(handler)
-__setText(node, value)
-__setClass(element, value)
-__setProperty(element, name, value)
-__setAttribute(element, name, value)
-__setStyle(element, name, value)
+---
+
+## What Compiles vs. What Falls Back
+
+### ✅ Compiled
+
+| Pattern | Output |
+|---------|--------|
+| `return () => <div class="x">{text}</div>` | `__componentBlock` with `__createBlock` + `__setText` |
+| `return () => { count++; return <div>{count}</div>; }` | Leading statements preserved, JSX compiled to block |
+| `{items.map(item => <li key={item.id}>{item.text}</li>)}` | `__keyedMap` with dependency inference |
+| `onClick={() => count++}` | `addEventListener('click', __event(...))` |
+| `style={{ color: 'red', padding: 8 }}` (all static) | Inline CSS in template HTML |
+| `<svg>`, `<circle>`, `<path>`, etc. | `createElementNS("http://www.w3.org/2000/svg", ...)` |
+| Spread on known objects `{...props}` | `__spreadProps(element, props)` |
+| Simple child components (no setup, no children refs) | Inlined into parent block |
+| Parent with non-inlinable children | Parent compiles; children use `__setChild` fallback |
+
+### ❌ Falls Back to Runtime JSX
+
+| Pattern | Why |
+|---------|-----|
+| Components referencing `props.children` when call site passes children | Would break children insertion |
+| `return () => { if (x) return <A/>; return <B/>; }` | Compiler only handles single JSX return |
+| `<props.tag>Hello</props.tag>` | Dynamic tag — not known at compile time |
+| `{condition ? <JSX/> : <JSX/>}` inside children | Conditional JSX uses `__setChild` |
+| `{show && <JSX/>}` inside children | Logical expression with JSX uses `__setChild` |
+| `{items.map(x => x)}` without `key` | Keyed map requires stable keys for reconciliation |
+| `style={{ color: dynamic }}` (mixed static/dynamic) | Falls to non-template `__setStyle` patches |
+
+### ✅ Compiled Parent + Runtime Child
+
+A parent component with non-inlinable children is **now compiled**. The child components fall back to runtime `__setChild` at their specific positions:
+
+```tsx
+function Parent() {
+  return () => (
+    <div>
+      <p>Static text</p>
+      <Child />  {/* ← runtime fallback via __setChild */}
+    </div>
+  );
+}
 ```
 
-These helpers now live in `src/compiler-runtime.ts` and are re-exported from `src/index.ts` for generated code and tests. They should not be the main public DX.
+→ Parent compiles to direct DOM creation. `<Child />` is preserved as original JSX and rendered via `__setChild(commentMarker, <Child />)`.
 
-`src/memo-dom.ts` remains the runtime-only correctness layer. The only bridge from compiler helpers back into that file is event wrapping, so compiled event handlers schedule rerenders exactly like ordinary JSX handlers.
+---
 
-## Safety Rules
+## Bundle Size Analysis
 
-The compiler should only optimize when it can preserve behavior.
+Current build outputs:
 
-Safe:
+| File | Raw | Gzipped | Ships to Browser? |
+|------|-----|---------|-------------------|
+| `auwla.js` | 16 KB | **5 KB** | ✅ Yes — main runtime |
+| `compiler.js` | 23 KB | 6 KB | ❌ No — build-time only |
+| `dom.js` | 8 KB | 2.5 KB | ✅ Yes — if imported directly |
+| `jsx-runtime.js` | 324 B | 239 B | ✅ Yes — JSX transform entry |
+| `jsx-dev-runtime.js` | 195 B | 176 B | ✅ Yes — dev JSX entry |
 
-- Static JSX element names.
-- Static prop names.
-- Keyed `.map()` with a stable `key`.
-- Text interpolation.
-- Boolean/property bindings like `checked`, `value`, `disabled`.
-- Event handlers.
+**`compiler.js` does NOT ship to browsers.** It depends on TypeScript and runs inside the Vite plugin at build time.
 
-Fallback to runtime template patching:
+**`auwla.js` (~5 KB gzip)** is the browser bundle. It includes:
+- Runtime: app lifecycle, DOM patching, component instances, event wrapping
+- Compiler-runtime: `__setText`, `__setClass`, `__keyedMap`, `__event`, etc.
 
-- Dynamic element type.
-- Spreads with unknown keys.
-- Complex children that cannot be statically shaped.
-- Unkeyed list reorder.
-- Code patterns the compiler cannot safely analyze.
+### Tree-Shaking
 
-The fallback matters. Auwla should remain correct even without compilation or when a file cannot be optimized.
+The compiler adds imports like `import { __componentBlock, __setText } from 'auwla'` to compiled files. Your bundler (Vite/Rollup/Webpack) tree-shakes unused helpers. If your app uses no compiled components, the compiler-runtime helpers are excluded entirely.
 
-## Build Order
+### Potential Reductions
 
-1. Add internal block helpers. Done in `src/compiler-runtime.ts`.
-2. Compile simple static JSX into create/update blocks. Started in `src/compiler.ts` for intrinsic render closures.
-3. Compile dynamic text and class/property patches. Started in `src/compiler.ts` for direct children and static prop names.
-4. Compile keyed `.map()` into `__keyedMap`. Started in `src/compiler.ts` for keyed intrinsic row JSX.
-5. Add dependency inference for keyed rows.
-6. Add component block lowering.
-7. Add development warnings for slow patterns.
-8. Add benchmark suite against runtime-only Auwla, React, Preact, and Solid.
+There is intentional duplication between `runtime/dom.ts` (`setProp`, `setProps`, `createMemoElement`) and `compiler-runtime/dom-setters.ts` (`__setProperty`, `__setClass`, `__setStyle`). The compiler-runtime versions are smaller and faster because they skip:
+- Old-value comparison (the compiler knows what changed)
+- Event wrapping at patch time (events are wired once in setup)
+- Full template equality checks
 
-## Performance Targets
+**Unifying them** would save ~1-2 KB but would make the compiler-runtime slower and more complex. The current tradeoff favors performance over bytes.
 
-The compiler should improve the current weak points:
+**Estimated minimum runtime size:** If every component in an app is compiled and only uses text + class patching, the shipped runtime could be as small as **~2.5 KB gzip** (just `__componentBlock`, `__createBlock`, `__setText`, `__setClass`, and the app loop).
 
-- Create 1,000 rows: reduce runtime render/patch overhead by creating DOM from precompiled shapes.
-- Update all 1,000 rows: patch direct text/class/property fields instead of rebuilding row templates.
-- Update one row: keep current memo-level performance or improve it.
-- Swap rows: keep the current keyed LIS movement behavior.
-- Clear list: keep the current fast clear path.
+---
 
-## Non-Goals
+## Safety Model
 
-- Do not introduce hooks.
-- Do not require signals or `.value`.
-- Do not require `<For>` or `<Show>`.
-- Do not make the compiler mandatory for correctness.
-- Do not expose generated helper APIs as the normal way to write apps.
+The compiler has a **strict opt-in, safe fallback** model:
 
-## Final Direction
+1. It only transforms when it can prove behavior is preserved.
+2. If any sub-pattern is unrecognized, the entire render closure falls back to runtime JSX.
+3. A file with no compilable closures passes through unchanged.
+4. The runtime must remain correct even if the compiler is disabled entirely.
 
-Auwla should have two layers:
+This means you can mix compiled and runtime components freely in the same app. A compiled parent with a runtime child works correctly — the child uses `__setChild` (comment marker + runtime patching) inside the compiled parent's DOM tree.
 
-1. Runtime-only mode: simple, correct, good enough, useful for development and unsupported patterns.
-2. Compiled mode: same source DX, but lowered into direct DOM operations for serious performance.
+---
 
-The product promise is not "developers write memoized code." The promise is "developers write plain JavaScript and TSX, and Auwla makes the obvious parts fast."
+## Known Limitations
+
+1. **Block-bodied closures with multiple returns** — Only the first `return <jsx>` is compiled. Others are ignored.
+2. **Conditional JSX in children** — `{show && <span/>}` and `{a ? <A/> : <B/>}` always use `__setChild` fallback. Each branch's JSX is not individually compiled.
+3. **Spread attributes on unknown objects** — `__spreadProps` handles them at runtime, but the template path bails because it can't know which keys will exist.
+4. **SVG standalone roots** — A root-level `<circle>` or `<path>` (not inside `<svg>`) bails from template path because `innerHTML` can't create SVG elements without an SVG parent context.
+
+---
+
+## Debugging
+
+The Vite plugin sets a global flag so you can check if a file was compiled:
+
+```js
+window.__AUWLA_COMPILED__ // true if compiled, false if runtime-only
+```
+
+You can also inspect the compiled output in the browser's Sources panel. The compiler adds an `import { ... } from 'auwla'` line only when transforms apply.

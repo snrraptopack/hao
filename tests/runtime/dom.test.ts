@@ -149,6 +149,31 @@ describe('setProp', () => {
     expect(el.value).toBe('hello');
   });
 
+  test('does not invoke DOM property setters when the live value is unchanged', () => {
+    const el = document.createElement('input') as MemoElement;
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!;
+    let setterCalls = 0;
+
+    el.value = 'hello';
+    Object.defineProperty(el, 'value', {
+      configurable: true,
+      get() {
+        return descriptor.get!.call(this);
+      },
+      set(value) {
+        setterCalls++;
+        descriptor.set!.call(this, value);
+      },
+    });
+
+    setProp(el, 'value', 'hello', undefined, wrapEvent);
+    expect(setterCalls).toBe(0);
+
+    setProp(el, 'value', 'world', 'hello', wrapEvent);
+    expect(setterCalls).toBe(1);
+    expect(el.value).toBe('world');
+  });
+
   test('falls back to setAttribute for unknown attributes', () => {
     const el = document.createElement('div') as MemoElement;
     setProp(el, 'data-custom', 'xyz', undefined, wrapEvent);

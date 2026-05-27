@@ -103,6 +103,42 @@ describe('typed JSX DOM runtime', () => {
     expect(root.querySelector('li')!.className).toBe('completed');
   });
 
+  test('controlled runtime input keeps focus and caret across event rerender', async () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+
+    function App() {
+      let text = 'Edit me';
+
+      return () => (
+        <section>
+          <input
+            value={text}
+            onInput={(event) => {
+              text = (event.target as HTMLInputElement).value;
+            }}
+          />
+          <p>{text}</p>
+        </section>
+      );
+    }
+
+    createMemoApp(root, <App />);
+
+    const input = root.querySelector('input')! as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(7, 7);
+    input.value = 'Edit me!';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('input')).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(8);
+    expect(input.value).toBe('Edit me!');
+    root.remove();
+  });
+
   test('keeps nested component setup state across parent rerenders', async () => {
     const root = document.createElement('div');
     let parentSetupCalls = 0;

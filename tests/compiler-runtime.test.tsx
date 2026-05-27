@@ -74,6 +74,27 @@ describe('compiler runtime helpers', () => {
     expect(input.hasAttribute('checked')).toBe(false);
   });
 
+  test('__setProperty skips unchanged values to avoid side effects', () => {
+    const input = document.createElement('input');
+
+    // Setting a new value works
+    __setProperty(input, 'value', 'hello');
+    expect(input.value).toBe('hello');
+
+    // Track whether the value setter was conceptually invoked by checking
+    // that setting the same value does not mutate the element. We do this
+    // by observing a side-effect-free marker: selectionStart resets when
+    // value is assigned, so we set a known selection and verify it survives.
+    input.value = 'hello';
+    input.setSelectionRange(2, 2);
+    __setProperty(input, 'value', 'hello');
+    expect(input.selectionStart).toBe(2);
+
+    // Changing to a different value should still work
+    __setProperty(input, 'value', 'world');
+    expect(input.value).toBe('world');
+  });
+
   test('keyed map reuses, moves, removes, and dependency-skips row blocks', () => {
     type Item = { id: string; label: string; done: boolean };
     const root = document.createElement('ul');

@@ -6,6 +6,7 @@
  */
 
 import { toNode } from '../runtime/dom';
+import { patchNode } from '../runtime/patch';
 
 /** @internal */
 export type StyledElement = HTMLElement & {
@@ -72,7 +73,10 @@ export function setCompiledProp(element: HTMLElement, name: string, value: unkno
   if (value === false || value === null || value === undefined) {
     if (name in element) {
       try {
-        (element as any)[name] = typeof (element as any)[name] === 'boolean' ? false : '';
+        const target = typeof (element as any)[name] === 'boolean' ? false : '';
+        if (!Object.is((element as any)[name], target)) {
+          (element as any)[name] = target;
+        }
       } catch {
         // Ignore readonly DOM properties.
       }
@@ -85,7 +89,9 @@ export function setCompiledProp(element: HTMLElement, name: string, value: unkno
     element.setAttribute(name, '');
     if (name in element) {
       try {
-        (element as any)[name] = true;
+        if (!Object.is((element as any)[name], true)) {
+          (element as any)[name] = true;
+        }
       } catch {
         // Ignore readonly DOM properties.
       }
@@ -95,14 +101,19 @@ export function setCompiledProp(element: HTMLElement, name: string, value: unkno
 
   if (name in element) {
     try {
-      (element as any)[name] = value;
+      if (!Object.is((element as any)[name], value)) {
+        (element as any)[name] = value;
+      }
       return;
     } catch {
       // Fall through to attribute assignment for readonly DOM properties.
     }
   }
 
-  element.setAttribute(name, String(value));
+  const next = String(value);
+  if (element.getAttribute(name) !== next) {
+    element.setAttribute(name, next);
+  }
 }
 
 /** Remove a node from its parent, if attached. */
@@ -127,17 +138,34 @@ export function __setChild(parent: Node, current: Node, value: unknown): Node {
   const marker = current as ChildMarker;
   const previous = marker.__auwlaChildNodes;
 
-  if (previous) {
-    for (const node of previous) removeNode(node);
-  }
-
   if (value === null || value === undefined || value === false || value === true) {
+    if (previous) {
+      for (const node of previous) removeNode(node);
+    }
     marker.__auwlaChildNodes = [];
     return marker;
   }
 
   const next = toNode(value);
   const nodes = next instanceof DocumentFragment ? Array.from(next.childNodes) : [next];
+
+  if (
+    previous?.length === 1
+    && previous[0]!.parentNode === parent
+    && !(value instanceof Node)
+    && !(next instanceof DocumentFragment)
+  ) {
+    // Fallback dynamic children often contain interactive elements. Patch a
+    // single existing child in place so focus, selection, and listeners survive.
+    const patched = patchNode(parent, previous[0]!, next);
+    marker.__auwlaChildNodes = [patched];
+    return marker;
+  }
+
+  if (previous) {
+    for (const node of previous) removeNode(node);
+  }
+
   parent.insertBefore(next, marker);
   marker.__auwlaChildNodes = nodes;
   return marker;
