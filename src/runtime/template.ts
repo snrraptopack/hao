@@ -101,9 +101,10 @@ export function createTemplateElement<K extends keyof HTMLElementTagNameMap>(
 ): TemplateNode {
   const normalizedProps = props ?? {};
   const key = 'key' in normalizedProps ? normalizedProps.key : undefined;
+  const ownerId = currentComponentId();
   return {
     __auwlaTemplate: true,
-    ownerId: currentComponentId(),
+    ownerId,
     tag,
     props: normalizedProps,
     children,

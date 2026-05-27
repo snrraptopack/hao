@@ -19,12 +19,12 @@ export default defineConfig({
     globals: true,
     include: [
       'tests/memo-dom.test.ts',
-      'tests/jsx-dom.test.tsx',
       'tests/compiler-runtime.test.tsx',
       'tests/compiler/**/*.test.ts',
       'tests/compiler-runtime/**/*.test.ts',
       'tests/shared/**/*.test.ts',
       'tests/runtime/**/*.test.ts',
+      'tests/runtime/**/*.test.tsx',
       'tests/perf.test.tsx',
     ],
     coverage: {

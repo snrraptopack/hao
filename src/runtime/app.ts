@@ -23,6 +23,24 @@ import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
 
+/** Events that fire rapidly and should be throttled to one render per frame. */
+const HIGH_FREQUENCY_EVENTS = new Set([
+  'input',
+  'mousemove',
+  'scroll',
+  'touchmove',
+  'wheel',
+  'pointermove',
+]);
+
+/** Schedule a callback for the next animation frame, falling back to setTimeout in test environments. */
+function scheduleFrame(callback: () => void): number {
+  if (typeof requestAnimationFrame !== 'undefined') {
+    return requestAnimationFrame(callback);
+  }
+  return setTimeout(callback, 16) as unknown as number;
+}
+
 /**
  * Memoize a stable subtree inside a component.
  *
@@ -190,10 +208,22 @@ export function createMemoApp<TModel>(
     handler: (event: Event, model: TModel) => unknown,
     ownerId: string | null = runtimeState.activeSetupComponentId,
   ): EventListener => {
+    let frameId: number | null = null;
+
+    const throttledInvalidate = () => {
+      if (frameId !== null || scheduled || destroyed) return;
+      frameId = scheduleFrame(() => {
+        frameId = null;
+        if (!destroyed) invalidate(ownerId);
+      });
+    };
+
     return (event) => {
       const result = handler(event, model as TModel);
       if (result && typeof (result as Promise<unknown>).then === 'function') {
         void (result as Promise<unknown>).finally(() => invalidate(ownerId));
+      } else if (HIGH_FREQUENCY_EVENTS.has(event.type)) {
+        throttledInvalidate();
       } else {
         invalidate(ownerId);
       }
