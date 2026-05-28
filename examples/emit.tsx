@@ -47,6 +47,7 @@ function ProductCard(props: { product: typeof PRODUCTS[number] }) {
       >
         Add to Cart
       </button>
+
     </div>
   );
 }
@@ -61,7 +62,6 @@ function ProductCard(props: { product: typeof PRODUCTS[number] }) {
  */
 function CartApp() {
   const cart: CartItem[] = [];
-
   return () => (
     <div>
       <h1>emit() Example</h1>

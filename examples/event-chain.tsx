@@ -19,8 +19,8 @@ function SearchPanel() {
     <section class="panel">
       <form
         class="search"
-        onSubmit={event.prevent.handler(() => {
-          submitted = query || 'empty';
+        onSubmit={event.if(query !== "wow").prevent.handler(() => {
+          submitted = query
         })}
         onKeyDown={event.mod.key('k').prevent.handler(() => {
           query = '';
@@ -72,6 +72,7 @@ function EventChainExample() {
     <main
       class="shell"
       emit:saved={(payload: SavedPayload) => {
+        console.log("emited",payload.at)
         saved.unshift(payload);
       }}
     >

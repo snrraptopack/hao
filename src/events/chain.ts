@@ -1,6 +1,7 @@
 import {
   altModifier,
   ctrlModifier,
+  ifModifier,
   keyModifier,
   logModifier,
   metaModifier,
@@ -39,6 +40,11 @@ function defineChainAccessors<TTarget extends object>(
   modifiers: readonly EventModifier[],
 ): TTarget & EventChain<any> {
   return Object.defineProperties(target, {
+    if: {
+      value: (condition: boolean | ((event: unknown) => boolean)) => (
+        createEventChain(appendModifier(modifiers, ifModifier(condition)))
+      ),
+    },
     prevent: {
       get: () => createEventChain(appendModifier(modifiers, preventModifier)),
     },

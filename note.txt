@@ -1,19 +1,17 @@
-Composability — The Nice Side Effect
-Because pendingCleanups is module-level and set during the entire setup execution, any function called during setup can register cleanups:
 
-typescript
+// the routed will take two optional params the state that can be served as cahcing layer that will
+// survive
+// dont know if we can inject the types automatically in dev mode so that user dont get to do or
+// maybe generate the types of the params segment and make the user import
+/
 
-
-// utils/websocket.ts
-function createSocket(url: string) {
-  const ws = new WebSocket(url);
-  cleanup(() => ws.close());
-  return ws;
+export function routed(params, state) {
+ // if this is mark as an async the return value aside from the original data
+ // say return {data} the user will get another thing $status which will be pending,completed,error
+ // this can help us suspend this component if the user want in the component
 }
-// components/Chat.tsx
-function Chat() {
-  const ws = createSocket('ws://chat.app');  // cleanup registered automatically
-  const timer = setInterval(poll, 5000);
-  cleanup(() => clearInterval(timer));
-  return () => <div>Chat</div>;
+
+
+function Hello() {
+
 }

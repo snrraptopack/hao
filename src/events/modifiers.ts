@@ -1,4 +1,4 @@
-import type { EventModifier, RuntimeEventHandler } from './types';
+import type { EventCondition, EventModifier, RuntimeEventHandler } from './types';
 
 function isEvent(value: unknown): value is Event {
   return !!value && typeof value === 'object';
@@ -41,6 +41,20 @@ export function logModifier(label?: string): EventModifier {
     } else {
       console.log(label, event);
     }
+    return handler(event);
+  };
+}
+
+/**
+ * Continue to the wrapped handler only when `condition` allows the event.
+ *
+ * Boolean conditions are useful for closure state captured during render.
+ * Predicate conditions are evaluated for each event and can inspect the event.
+ */
+export function ifModifier(condition: EventCondition<any>): EventModifier {
+  return (handler) => (event) => {
+    const allowed = typeof condition === 'function' ? condition(event) : condition;
+    if (!allowed) return;
     return handler(event);
   };
 }
