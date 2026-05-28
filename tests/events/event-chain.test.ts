@@ -63,7 +63,52 @@ describe('event chain utilities', () => {
     expect(typeof submitHandler).toBe('function');
   });
 
-  test('debounce waits for quiet time and uses the latest event', async () => {
+  test('key filters keyboard events by key name', () => {
+    const handler = vi.fn();
+    const wrapped = event.key('Enter').handler(handler);
+    const enter = new KeyboardEvent('keydown', { key: 'Enter' });
+    const escape = new KeyboardEvent('keydown', { key: 'Escape' });
+
+    wrapped(escape);
+    wrapped(enter);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(enter);
+  });
+
+  test('key accepts multiple key names and composes with prevent', () => {
+    const handler = vi.fn();
+    const wrapped = event.key(['Enter', 'NumpadEnter']).prevent.handler(handler);
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+    const numpadEnter = new KeyboardEvent('keydown', { key: 'NumpadEnter', cancelable: true });
+
+    wrapped(tab);
+    wrapped(numpadEnter);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(numpadEnter);
+    expect(tab.defaultPrevented).toBe(false);
+    expect(numpadEnter.defaultPrevented).toBe(true);
+  });
+
+  test('mod and modifier-key filters compose with key filters', () => {
+    const modHandler = vi.fn();
+    const ctrlShiftHandler = vi.fn();
+    const modK = event.mod.key('k').handler(modHandler);
+    const ctrlShiftK = event.ctrl.shift.key('k').handler(ctrlShiftHandler);
+
+    modK(new KeyboardEvent('keydown', { key: 'k' }));
+    modK(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+    modK(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+
+    ctrlShiftK(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+    ctrlShiftK(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, shiftKey: true }));
+
+    expect(modHandler).toHaveBeenCalledTimes(2);
+    expect(ctrlShiftHandler).toHaveBeenCalledTimes(1);
+  });
+
+  test('debounce runs handlers immediately but delays the commit signal', async () => {
     vi.useFakeTimers();
     const handler = vi.fn();
     const wrapped = event.debounce(100).handler(handler);
@@ -71,18 +116,29 @@ describe('event chain utilities', () => {
     const second = new Event('input');
 
     const firstPending = wrapped(first) as unknown as Promise<void>;
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenLastCalledWith(first);
+
     vi.advanceTimersByTime(50);
     const secondPending = wrapped(second) as unknown as Promise<void>;
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenLastCalledWith(second);
+
     vi.advanceTimersByTime(99);
 
     expect(secondPending).toBe(firstPending);
-    expect(handler).not.toHaveBeenCalled();
+
+    let settled = false;
+    void secondPending.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
 
     vi.advanceTimersByTime(1);
     await secondPending;
 
-    expect(handler).toHaveBeenCalledTimes(1);
-    expect(handler).toHaveBeenCalledWith(second);
+    expect(settled).toBe(true);
   });
 
   test('throttle runs immediately and then trails with the latest event', () => {

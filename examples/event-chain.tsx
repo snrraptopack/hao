@@ -22,6 +22,10 @@ function SearchPanel() {
         onSubmit={event.prevent.handler(() => {
           submitted = query || 'empty';
         })}
+        onKeyDown={event.mod.key('k').prevent.handler(() => {
+          query = '';
+          submitted = '';
+        })}
       >
         <input
           value={query}

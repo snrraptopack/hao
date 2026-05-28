@@ -1,7 +1,26 @@
-import { logModifier, onceModifier, preventModifier, selfModifier, stopModifier } from './modifiers';
+import {
+  altModifier,
+  ctrlModifier,
+  keyModifier,
+  logModifier,
+  metaModifier,
+  modModifier,
+  onceModifier,
+  preventModifier,
+  selfModifier,
+  shiftModifier,
+  stopModifier,
+} from './modifiers';
 import { cooldownModifier, debounceModifier, throttleModifier } from './timing';
 import { emit } from './emit';
-import type { EventChain, EventModifier, LogEventChain, RuntimeEventHandler, TimedEventChain } from './types';
+import type {
+  EventChain,
+  EventModifier,
+  KeyEventChain,
+  LogEventChain,
+  RuntimeEventHandler,
+  TimedEventChain,
+} from './types';
 
 function applyModifiers(handler: RuntimeEventHandler, modifiers: readonly EventModifier[]): RuntimeEventHandler {
   let wrapped = handler;
@@ -43,6 +62,24 @@ function defineChainAccessors<TTarget extends object>(
     },
     log: {
       get: () => logChain(modifiers),
+    },
+    mod: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, modModifier)),
+    },
+    ctrl: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, ctrlModifier)),
+    },
+    meta: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, metaModifier)),
+    },
+    shift: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, shiftModifier)),
+    },
+    alt: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, altModifier)),
+    },
+    key: {
+      get: () => keyChain(modifiers),
     },
     click: {
       get: () => createEventChain<MouseEvent>(modifiers),
@@ -140,6 +177,13 @@ function logChain<TEvent>(modifiers: readonly EventModifier[]): LogEventChain<TE
     createEventChain<TEvent>(appendModifier(modifiers, logModifier(label)))
   )) as LogEventChain<TEvent>;
   return defineChainAccessors(callable, appendModifier(modifiers, logModifier()));
+}
+
+function keyChain(modifiers: readonly EventModifier[]): KeyEventChain {
+  const callable = ((key: string | readonly string[]) => (
+    createEventChain<KeyboardEvent>(appendModifier(modifiers, keyModifier(key)))
+  )) as KeyEventChain;
+  return defineChainAccessors(callable, modifiers) as KeyEventChain;
 }
 
 export function createEventChain<TEvent = Event>(modifiers: readonly EventModifier[] = []): EventChain<TEvent> {

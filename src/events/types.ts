@@ -16,6 +16,10 @@ export type LogEventChain<TEvent = Event> = EventChain<TEvent> & {
   (label?: string): EventChain<TEvent>;
 };
 
+export type KeyEventChain = EventChain<KeyboardEvent> & {
+  (key: string | readonly string[]): EventChain<KeyboardEvent>;
+};
+
 export type EventChain<TEvent = Event> = {
   readonly prevent: EventChain<TEvent>;
   readonly stop: EventChain<TEvent>;
@@ -25,6 +29,12 @@ export type EventChain<TEvent = Event> = {
   readonly throttle: TimedEventChain<TEvent>;
   readonly cooldown: TimedEventChain<TEvent>;
   readonly log: LogEventChain<TEvent>;
+  readonly mod: EventChain<KeyboardEvent>;
+  readonly ctrl: EventChain<KeyboardEvent>;
+  readonly meta: EventChain<KeyboardEvent>;
+  readonly shift: EventChain<KeyboardEvent>;
+  readonly alt: EventChain<KeyboardEvent>;
+  readonly key: KeyEventChain;
   readonly click: EventChain<MouseEvent>;
   readonly dblClick: EventChain<MouseEvent>;
   readonly mouseEnter: EventChain<MouseEvent>;

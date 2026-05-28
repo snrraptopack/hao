@@ -13,12 +13,12 @@ export function debounceModifier(milliseconds?: number) {
 
   return (handler: RuntimeEventHandler): RuntimeEventHandler => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let latestEvent: unknown;
     let pending: Promise<void> | null = null;
     let resolvePending: (() => void) | null = null;
+    let latestResult: unknown;
 
     return (event) => {
-      latestEvent = event;
+      latestResult = handler(event);
       if (timer !== null) clearTimeout(timer);
       pending ??= new Promise<void>((resolve) => {
         resolvePending = resolve;
@@ -28,7 +28,7 @@ export function debounceModifier(milliseconds?: number) {
         const resolve = resolvePending;
         pending = null;
         resolvePending = null;
-        Promise.resolve(handler(latestEvent)).finally(resolve);
+        Promise.resolve(latestResult).finally(resolve);
       }, delay);
       return pending;
     };
