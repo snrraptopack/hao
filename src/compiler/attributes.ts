@@ -135,6 +135,21 @@ function jsxAttributeName(name: ts.JsxAttributeName): string | null {
   return null;
 }
 
+function compileEventHandler(
+  setup: string[],
+  patches: DynamicPatch[],
+  textId: number,
+  elementVar: string,
+  eventName: string,
+  value: string,
+): number {
+  const handlerVar = `eventHandler${textId}`;
+  setup.push(`let ${handlerVar} = ${value};`);
+  setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
+  patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
+  return textId + 1;
+}
+
 export function compileAttribute(
   ctx: CompileContext,
   elementVar: string,
@@ -231,13 +246,16 @@ export function compileAttribute(
     if (!expression) return true;
     const value = expressionText(ctx.source, expression);
     const eventName = name.slice(5);
-    ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
+    const handlerVar = `eventHandler${ctx.textId++}`;
+    ctx.setup.push(`let ${handlerVar} = ${value};`);
+    ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}((event as CustomEvent).detail)));`);
+    ctx.patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
     return true;
   }
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    ctx.setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
+    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value);
     return true;
   }
 
@@ -306,13 +324,16 @@ export function compileTemplateAttribute(
     if (!expression) return '';
     const value = expressionText(ctx.source, expression);
     const eventName = name.slice(5);
-    ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => (${value})((event as CustomEvent).detail)));`);
+    const handlerVar = `eventHandler${ctx.textId++}`;
+    ctx.elementSetup.push(`let ${handlerVar} = ${value};`);
+    ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}((event as CustomEvent).detail)));`);
+    ctx.patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
     return '';
   }
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event(${value}));`);
+    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value);
     return '';
   }
 

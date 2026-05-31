@@ -7,6 +7,7 @@ export default defineConfig({
       { find: 'auwla/jsx-runtime', replacement: fileURLToPath(new URL('./src/jsx-runtime.ts', import.meta.url)) },
       { find: 'auwla/jsx-dev-runtime', replacement: fileURLToPath(new URL('./src/jsx-dev-runtime.ts', import.meta.url)) },
       { find: 'auwla/compiler', replacement: fileURLToPath(new URL('./src/compiler.ts', import.meta.url)) },
+      { find: 'auwla/vite', replacement: fileURLToPath(new URL('./src/vite.ts', import.meta.url)) },
       { find: 'auwla/events', replacement: fileURLToPath(new URL('./src/events/index.ts', import.meta.url)) },
       { find: /^auwla$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
     ],
@@ -40,6 +41,7 @@ export default defineConfig({
         'src/memo-dom.ts',
         'src/compiler-runtime.ts',
         'src/compiler.ts',
+        'src/vite.ts',
         'src/events/**/*.ts',
       ],
       exclude: [

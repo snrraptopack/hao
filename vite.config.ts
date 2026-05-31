@@ -1,23 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { compileAuwla } from './src/compiler';
-
-function auwlaCompiler() {
-  return {
-    name: 'auwla-compiler',
-    enforce: 'pre' as const,
-    transform(code: string, id: string) {
-      if (!/\.[tj]sx$/.test(id)) return null;
-      if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) return null;
-      if (id.includes('-runtime')) {
-        return { code: `window.__AUWLA_COMPILED__ = false;\n${code}`, map: null };
-      }
-      const compiled = compileAuwla(code, id);
-      if (compiled === code) return null;
-      return { code: `window.__AUWLA_COMPILED__ = true;\n${compiled}`, map: null };
-    },
-  };
-}
+import { auwla } from 'auwla/vite';
 
 export default defineConfig({
   build: {
@@ -32,6 +15,7 @@ export default defineConfig({
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
+        'vite': resolve(__dirname, 'src/vite.ts'),
         'events/index': resolve(__dirname, 'src/events/index.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
@@ -47,7 +31,7 @@ export default defineConfig({
     port: 5173,
     open: true
   },
-  plugins: [auwlaCompiler()],
+  plugins: [auwla({ debugFlag: true })],
   assetsInclude: [],
   optimizeDeps: {
     exclude: [],
@@ -64,6 +48,7 @@ export default defineConfig({
       { find: 'auwla/jsx-runtime', replacement: resolve(__dirname, 'src/jsx-runtime.ts') },
       { find: 'auwla/jsx-dev-runtime', replacement: resolve(__dirname, 'src/jsx-dev-runtime.ts') },
       { find: 'auwla/compiler', replacement: resolve(__dirname, 'src/compiler.ts') },
+      { find: 'auwla/vite', replacement: resolve(__dirname, 'src/vite.ts') },
       { find: 'auwla/events', replacement: resolve(__dirname, 'src/events/index.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]

@@ -53,6 +53,58 @@ describe('event chain utilities', () => {
     expect(handler).toHaveBeenCalledWith(click);
   });
 
+  test('self uses the composed event origin', () => {
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const child = document.createElement('button');
+    const handler = vi.fn();
+
+    shadow.append(child);
+    host.addEventListener('click', event.self.handler(handler));
+
+    child.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    host.dispatchEvent(new MouseEvent('click'));
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  test('stopImmediate prevents later listeners on the same target', () => {
+    const button = document.createElement('button');
+    const first = vi.fn();
+    const second = vi.fn();
+
+    button.addEventListener('click', event.stopImmediate.handler(first));
+    button.addEventListener('click', second);
+    button.dispatchEvent(new MouseEvent('click'));
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  test('target and mouse button filters gate handlers', () => {
+    const parent = document.createElement('div');
+    const save = document.createElement('button');
+    const cancel = document.createElement('button');
+    const targetHandler = vi.fn();
+    const leftHandler = vi.fn();
+    const rightHandler = vi.fn();
+
+    save.className = 'save';
+    parent.append(save, cancel);
+    parent.addEventListener('click', event.target('.save').handler(targetHandler));
+
+    cancel.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    save.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    event.left.handler(leftHandler)(new MouseEvent('mousedown', { button: 0 }));
+    event.left.handler(leftHandler)(new MouseEvent('mousedown', { button: 2 }));
+    event.right.handler(rightHandler)(new MouseEvent('mousedown', { button: 2 }));
+
+    expect(targetHandler).toHaveBeenCalledTimes(1);
+    expect(leftHandler).toHaveBeenCalledTimes(1);
+    expect(rightHandler).toHaveBeenCalledTimes(1);
+  });
+
   test('typed event entry points infer handler event parameters', () => {
     const inputHandler = event.input.handler((inputEvent) => inputEvent.data);
     const pointerHandler = event.pointerMove.handler((pointerEvent) => pointerEvent.clientX);

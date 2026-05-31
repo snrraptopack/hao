@@ -133,6 +133,89 @@ Use the automatic JSX runtime:
 }
 ```
 
+## Vite Plugin
+
+Use the optional compiler plugin when you want Auwla render closures lowered to direct DOM blocks at build time:
+
+```ts
+import { defineConfig } from 'vite';
+import { auwla } from 'auwla/vite';
+
+export default defineConfig({
+  plugins: [auwla()],
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'auwla',
+  },
+});
+```
+
+## Event Modifiers
+
+Import `event` from `auwla/events` when you want chainable event helpers instead of writing the same event boilerplate inside every handler:
+
+```tsx
+import { event } from 'auwla/events';
+
+function SearchForm() {
+  let query = '';
+  let submitted = '';
+
+  return () => (
+    <form
+      onSubmit={event.prevent.if(() => query.trim() !== '').handler(() => {
+        submitted = query;
+      })}
+    >
+      <input
+        value={query}
+        onInput={event.input.debounce(250).handler((inputEvent) => {
+          query = (inputEvent.target as HTMLInputElement).value;
+        })}
+      />
+      <button type="submit">Search</button>
+    </form>
+  );
+}
+```
+
+Modifiers run left-to-right as a chain around the final handler. For mutable component state, pass a predicate to `if`: `event.if(() => canSave)`. A plain boolean such as `event.if(canSave)` is a snapshot from the render where the chain was created.
+
+| Modifier | Use |
+| --- | --- |
+| `prevent` | Calls `event.preventDefault()` before the handler. |
+| `stop` | Calls `event.stopPropagation()` before the handler. |
+| `stopImmediate` | Calls `event.stopImmediatePropagation()` before the handler. |
+| `once` | Runs the handler only once for that chain instance. |
+| `self` | Runs only when the composed event origin is the current target. |
+| `trusted` | Runs only for browser-trusted user events. |
+| `if(condition)` | Runs only when a boolean or predicate condition allows it. |
+| `target(selectorOrPredicate)` | Runs only when the event origin matches a selector or predicate. |
+| `key(key)` | Runs only for matching keyboard keys. Accepts a string or array. |
+| `mod`, `ctrl`, `meta`, `shift`, `alt` | Keyboard modifier filters. |
+| `left`, `middle`, `right` | Mouse button filters for mouse/pointer-style events with a `button` value. |
+| `debounce(ms)`, `throttle(ms)`, `cooldown(ms)` | Timing modifiers. Defaults use the built-in event delay. |
+| `log(label?)` | Logs the event, optionally with a label, then continues. |
+
+Common chains:
+
+```tsx
+<button onClick={event.once.prevent.handler(save)}>Save once</button>
+
+<div onClick={event.target('button[data-action]').handler((clickEvent) => {
+  const action = (clickEvent.target as HTMLElement).dataset.action;
+})}>
+  <button data-action="archive">Archive</button>
+  <button data-action="delete">Delete</button>
+</div>
+
+<input onKeyDown={event.key('Enter').prevent.handler(submit)} />
+
+<button onMouseDown={event.left.handler(select)}>Primary click only</button>
+
+<div onPointerMove={event.pointerMove.throttle(80).handler(trackPointer)} />
+```
+
 ## API
 
 ```ts

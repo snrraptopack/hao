@@ -15,10 +15,10 @@
       padding: 32px;
     }
     .shell {
-      width: min(980px, 100%);
+      width: min(1120px, 100%);
       margin: 0 auto;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-columns: minmax(0, 1fr) 300px;
       gap: 24px;
       align-items: start;
     }
@@ -55,9 +55,21 @@
       font-weight: 650;
     }
     button:hover { background: #0f5c66; }
+    button.secondary {
+      background: #fff;
+      color: #1d2329;
+      border: 1px solid #c7d3dc;
+    }
+    button.secondary:hover {
+      background: #eef5f7;
+    }
+    button.wide {
+      width: 100%;
+      margin-top: 8px;
+    }
     .tracker {
       margin-top: 16px;
-      height: 180px;
+      height: 150px;
       border: 1px dashed #9badb9;
       border-radius: 8px;
       background:
@@ -81,6 +93,61 @@
     .status {
       margin: 14px 0 0;
       color: #5e707c;
+    }
+    .note {
+      margin: 8px 0 0;
+      color: #6d7c86;
+      font-size: 13px;
+    }
+    .reference-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .tile {
+      min-height: 152px;
+      border: 1px solid #e0e8ed;
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfdfe;
+    }
+    .tile h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+    .tile p {
+      margin: 10px 0 0;
+      color: #61727d;
+      font-size: 13px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .self-box {
+      min-height: 72px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed #9badb9;
+      border-radius: 8px;
+      background: #f6fafb;
+    }
+    .keyboard {
+      margin-top: 16px;
+      min-height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #c7d3dc;
+      border-radius: 8px;
+      background: #fbfdfe;
+      color: #40515b;
+      outline: none;
+    }
+    .keyboard:focus {
+      border-color: #126c77;
+      box-shadow: 0 0 0 3px rgba(18, 108, 119, 0.16);
     }
     .activity h2 {
       margin: 0 0 12px;
@@ -106,6 +173,8 @@
     @media (max-width: 760px) {
       body { padding: 18px; }
       .shell { grid-template-columns: 1fr; }
+      .reference-grid { grid-template-columns: 1fr; }
+      .search { grid-template-columns: 1fr; }
     }
   </style>
 </head>

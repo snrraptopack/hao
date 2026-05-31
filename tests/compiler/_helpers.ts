@@ -20,15 +20,15 @@ import {
   Fragment,
   h,
 } from '../../src';
+import { event } from '../../src/events';
 import { compileAuwla } from '../../src/compiler';
 
 export { compileAuwla };
 
 export function evaluateCompiled(source: string) {
-  const withoutImport = source.replace(
-    /import \{([^}]+)\} from 'auwla';/,
-    'const {$1} = runtime;',
-  );
+  const withoutImport = source
+    .replace(/import \{([^}]+)\} from 'auwla';/, 'const {$1} = runtime;')
+    .replace(/import \{([^}]+)\} from 'auwla\/events';/, 'const {$1} = runtime;');
   const js = ts.transpileModule(withoutImport, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -62,6 +62,7 @@ export function evaluateCompiled(source: string) {
     component,
     createMemoApp,
     emit,
+    event,
     h,
     Fragment,
   }, exports);

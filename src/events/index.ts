@@ -4,9 +4,12 @@ export const event = createEventChain();
 
 export type {
   EventChain,
+  EventCondition,
   EventModifier,
+  EventTargetFilter,
   LogEventChain,
   RuntimeEventHandler,
+  TargetEventChain,
   TimedEventChain,
   WrappedEventHandler,
 } from './types';

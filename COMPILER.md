@@ -330,12 +330,33 @@ This means you can mix compiled and runtime components freely in the same app. A
 
 ---
 
+## Vite Plugin
+
+Install the optional compiler through Vite:
+
+```ts
+import { defineConfig } from 'vite';
+import { auwla } from 'auwla/vite';
+
+export default defineConfig({
+  plugins: [auwla()],
+});
+```
+
+The plugin skips `node_modules` and only transforms `.jsx` and `.tsx` files by default.
+
+---
+
 ## Debugging
 
-The Vite plugin sets a global flag so you can check if a file was compiled:
+Enable `debugFlag` if you want a global marker showing whether a file was compiled:
+
+```ts
+auwla({ debugFlag: true });
+```
 
 ```js
-window.__AUWLA_COMPILED__ // true if compiled, false if runtime-only
+globalThis.__AUWLA_COMPILED__; // true if compiled, false if runtime-only
 ```
 
 You can also inspect the compiled output in the browser's Sources panel. The compiler adds an `import { ... } from 'auwla'` line only when transforms apply.

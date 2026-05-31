@@ -23,6 +23,10 @@
       "types": "./dist/compiler.d.ts",
       "import": "./dist/compiler.js"
     },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
     "./events": {
       "types": "./dist/events/index.d.ts",
       "import": "./dist/events/index.js"
@@ -38,6 +42,9 @@
       ],
       "compiler": [
         "dist/compiler.d.ts"
+      ],
+      "vite": [
+        "dist/vite.d.ts"
       ],
       "events": [
         "dist/events/index.d.ts"

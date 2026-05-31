@@ -3,23 +3,31 @@ import {
   ctrlModifier,
   ifModifier,
   keyModifier,
+  leftModifier,
   logModifier,
   metaModifier,
+  middleModifier,
   modModifier,
   onceModifier,
   preventModifier,
+  rightModifier,
   selfModifier,
   shiftModifier,
+  stopImmediateModifier,
   stopModifier,
+  targetModifier,
+  trustedModifier,
 } from './modifiers';
 import { cooldownModifier, debounceModifier, throttleModifier } from './timing';
 import { emit } from './emit';
 import type {
   EventChain,
+  EventTargetFilter,
   EventModifier,
   KeyEventChain,
   LogEventChain,
   RuntimeEventHandler,
+  TargetEventChain,
   TimedEventChain,
 } from './types';
 
@@ -51,11 +59,29 @@ function defineChainAccessors<TTarget extends object>(
     stop: {
       get: () => createEventChain(appendModifier(modifiers, stopModifier)),
     },
+    stopImmediate: {
+      get: () => createEventChain(appendModifier(modifiers, stopImmediateModifier)),
+    },
     once: {
       get: () => createEventChain(appendModifier(modifiers, onceModifier)),
     },
     self: {
       get: () => createEventChain(appendModifier(modifiers, selfModifier)),
+    },
+    trusted: {
+      get: () => createEventChain(appendModifier(modifiers, trustedModifier)),
+    },
+    left: {
+      get: () => createEventChain<MouseEvent>(appendModifier(modifiers, leftModifier)),
+    },
+    middle: {
+      get: () => createEventChain<MouseEvent>(appendModifier(modifiers, middleModifier)),
+    },
+    right: {
+      get: () => createEventChain<MouseEvent>(appendModifier(modifiers, rightModifier)),
+    },
+    target: {
+      get: () => targetChain(modifiers),
     },
     debounce: {
       get: () => timedChain(modifiers, debounceModifier),
@@ -190,6 +216,13 @@ function keyChain(modifiers: readonly EventModifier[]): KeyEventChain {
     createEventChain<KeyboardEvent>(appendModifier(modifiers, keyModifier(key)))
   )) as KeyEventChain;
   return defineChainAccessors(callable, modifiers) as KeyEventChain;
+}
+
+function targetChain<TEvent>(modifiers: readonly EventModifier[]): TargetEventChain<TEvent> {
+  const callable = ((filter: EventTargetFilter<TEvent>) => (
+    createEventChain<TEvent>(appendModifier(modifiers, targetModifier(filter)))
+  )) as TargetEventChain<TEvent>;
+  return defineChainAccessors(callable, modifiers) as TargetEventChain<TEvent>;
 }
 
 export function createEventChain<TEvent = Event>(modifiers: readonly EventModifier[] = []): EventChain<TEvent> {

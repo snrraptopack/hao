@@ -129,6 +129,86 @@ describe('attribute compilation', () => {
     expect(div.id).toBe('y');
   });
 
+  test('compiled event modifiers can read current closure state with predicates', async () => {
+    const source = `
+      import { event } from 'auwla/events';
+
+      function App() {
+        let query = '';
+        let submitted = '';
+        exports.setQuery = (next: string) => { query = next; };
+        exports.submitted = () => submitted;
+        return () => (
+          <form onSubmit={event.if(() => query !== 'wow').prevent.handler(() => {
+            submitted = query;
+          })}>
+            <button type="submit">Submit</button>
+          </form>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('let eventHandler');
+
+    const evaluated = evaluateCompiled(compiled) as {
+      App: () => unknown;
+      setQuery(next: string): void;
+      submitted(): string;
+    };
+    const root = document.createElement('div');
+    createMemoApp(root, h(evaluated.App as any));
+    const form = root.querySelector('form')!;
+
+    evaluated.setQuery('hello');
+    form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(evaluated.submitted()).toBe('hello');
+
+    evaluated.setQuery('wow');
+    const blockedSubmit = new SubmitEvent('submit', { bubbles: true, cancelable: true });
+    form.dispatchEvent(blockedSubmit);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(evaluated.submitted()).toBe('hello');
+    expect(blockedSubmit.defaultPrevented).toBe(false);
+  });
+
+  test('compiled event handler expressions refresh on rerender', async () => {
+    const source = `
+      function App() {
+        let enabled = false;
+        let clicks = 0;
+        exports.enable = () => { enabled = true; };
+        exports.clicks = () => clicks;
+        return () => <button onClick={enabled ? () => { clicks += 10; } : () => { clicks += 1; }}>Click</button>;
+      }
+      exports.App = App;
+    `;
+
+    const evaluated = evaluateCompiled(compileAuwla(source)) as {
+      App: () => unknown;
+      enable(): void;
+      clicks(): number;
+    };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+    const button = root.querySelector('button')!;
+
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.clicks()).toBe(1);
+
+    evaluated.enable();
+    app.render();
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(evaluated.clicks()).toBe(11);
+  });
+
   test('normalizes htmlFor to for attribute', () => {
     const source = `
       function App() {

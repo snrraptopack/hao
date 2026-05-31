@@ -11,11 +11,15 @@ export type EventModifier = (handler: RuntimeEventHandler) => RuntimeEventHandle
 /**
  * Gate for `event.if(...)`.
  *
- * A boolean snapshots ordinary closure state at render time. A predicate runs
- * at event time and can inspect the event before deciding whether the rest of
- * the chain should continue.
+ * Use predicates for mutable closure state so the condition is evaluated at
+ * event time. Plain booleans are snapshots and are only appropriate for values
+ * that are intentionally fixed when the chain is created.
  */
 export type EventCondition<TEvent = Event> = boolean | ((event: TEvent) => boolean);
+
+export type EventTargetFilter<TEvent = Event> =
+  | string
+  | ((target: EventTarget | null, event: TEvent) => boolean);
 
 export type TimedEventChain<TEvent = Event> = EventChain<TEvent> & {
   (milliseconds?: number): EventChain<TEvent>;
@@ -29,19 +33,29 @@ export type KeyEventChain = EventChain<KeyboardEvent> & {
   (key: string | readonly string[]): EventChain<KeyboardEvent>;
 };
 
+export type TargetEventChain<TEvent = Event> = EventChain<TEvent> & {
+  (filter: EventTargetFilter<TEvent>): EventChain<TEvent>;
+};
+
 export type EventChain<TEvent = Event> = {
   /**
    * Continue the chain only when the condition is true.
    *
    * @example
-   * onClick={event.if(canSave).prevent.handler(save)}
+   * onClick={event.if(() => canSave).prevent.handler(save)}
    * onKeyDown={event.key('Enter').if((e) => !e.repeat).handler(submit)}
    */
   if(condition: EventCondition<TEvent>): EventChain<TEvent>;
   readonly prevent: EventChain<TEvent>;
   readonly stop: EventChain<TEvent>;
+  readonly stopImmediate: EventChain<TEvent>;
   readonly once: EventChain<TEvent>;
   readonly self: EventChain<TEvent>;
+  readonly trusted: EventChain<TEvent>;
+  readonly left: EventChain<MouseEvent>;
+  readonly middle: EventChain<MouseEvent>;
+  readonly right: EventChain<MouseEvent>;
+  readonly target: TargetEventChain<TEvent>;
   readonly debounce: TimedEventChain<TEvent>;
   readonly throttle: TimedEventChain<TEvent>;
   readonly cooldown: TimedEventChain<TEvent>;

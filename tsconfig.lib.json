@@ -16,6 +16,7 @@
     "src/memo-dom.ts",
     "src/compiler-runtime.ts",
     "src/compiler.ts",
+    "src/vite.ts",
     "src/events/**/*.ts"
   ],
   "exclude": [
