@@ -20,6 +20,7 @@ import {
   stringLiteral,
   unwrapJsxExpression,
   unwrapJsxReturn,
+  unwrapMapCall,
   findComponentDefinition,
   isInlinableComponent,
   extractComponentJsx,
@@ -122,27 +123,68 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
   type Branch = {
     condition: string | null; // null means "else" (last branch)
     jsx: ts.JsxElement | ts.JsxSelfClosingElement | null;
+    map: ts.CallExpression | null;
+    fragment: ts.JsxFragment | null;
     raw: ts.Expression;
   };
+
+  function isBooleanLikeExpression(expression: ts.Expression): boolean {
+    if (
+      expression.kind === ts.SyntaxKind.TrueKeyword ||
+      expression.kind === ts.SyntaxKind.FalseKeyword ||
+      expression.kind === ts.SyntaxKind.NullKeyword ||
+      expression.kind === ts.SyntaxKind.UndefinedKeyword
+    ) {
+      return true;
+    }
+    if (ts.isIdentifier(expression)) {
+      return true;
+    }
+    if (ts.isBinaryExpression(expression)) {
+      const op = expression.operatorToken.kind;
+      if (
+        op === ts.SyntaxKind.EqualsEqualsToken ||
+        op === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        op === ts.SyntaxKind.ExclamationEqualsToken ||
+        op === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanToken ||
+        op === ts.SyntaxKind.GreaterThanEqualsToken ||
+        op === ts.SyntaxKind.LessThanToken ||
+        op === ts.SyntaxKind.LessThanEqualsToken ||
+        op === ts.SyntaxKind.InstanceOfKeyword ||
+        op === ts.SyntaxKind.InKeyword
+      ) {
+        return true;
+      }
+    }
+    if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.ExclamationToken) {
+      return true;
+    }
+    return false;
+  }
 
   function flattenConditional(expr: ts.Expression): Branch[] | null {
     if (ts.isConditionalExpression(expr)) {
       const trueJsx = unwrapJsxExpression(expr.whenTrue);
+      const trueMap = unwrapMapCall(expr.whenTrue);
+      const trueFrag = ts.isJsxFragment(expr.whenTrue) ? expr.whenTrue : null;
       const branches: Branch[] = [];
-      branches.push({ condition: expressionText(ctx.source, expr.condition), jsx: trueJsx, raw: expr.whenTrue });
+      branches.push({ condition: expressionText(ctx.source, expr.condition), jsx: trueJsx, map: trueMap, fragment: trueFrag, raw: expr.whenTrue });
 
       const nested = flattenConditional(expr.whenFalse);
       if (nested) {
         branches.push(...nested);
       } else {
         const falseJsx = unwrapJsxExpression(expr.whenFalse);
-        branches.push({ condition: null, jsx: falseJsx, raw: expr.whenFalse });
+        const falseMap = unwrapMapCall(expr.whenFalse);
+        const falseFrag = ts.isJsxFragment(expr.whenFalse) ? expr.whenFalse : null;
+        branches.push({ condition: null, jsx: falseJsx, map: falseMap, fragment: falseFrag, raw: expr.whenFalse });
       }
 
-      const hasJsx = branches.some((b) => b.jsx !== null);
-      if (!hasJsx) return null;
+      const hasContent = branches.some((b) => b.jsx !== null || b.map !== null || b.fragment !== null);
+      if (!hasContent) return null;
       for (const branch of branches) {
-        if (!branch.jsx && !isNullishBranch(branch.raw)) return null;
+        if (!branch.jsx && !branch.map && !branch.fragment && !isNullishBranch(branch.raw)) return null;
       }
       return branches;
     }
@@ -152,10 +194,29 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
       expr.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
     ) {
       const rightJsx = unwrapJsxExpression(expr.right);
-      if (!rightJsx) return null;
+      const rightMap = unwrapMapCall(expr.right);
+      const rightFrag = ts.isJsxFragment(expr.right) ? expr.right : null;
+      if (!rightJsx && !rightMap && !rightFrag) return null;
       return [
-        { condition: expressionText(ctx.source, expr.left), jsx: rightJsx, raw: expr.right },
-        { condition: null, jsx: null, raw: expr.left },
+        { condition: expressionText(ctx.source, expr.left), jsx: rightJsx, map: rightMap, fragment: rightFrag, raw: expr.right },
+        { condition: null, jsx: null, map: null, fragment: null, raw: expr.left },
+      ];
+    }
+
+    if (
+      ts.isBinaryExpression(expr) &&
+      expr.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    ) {
+      const rightJsx = unwrapJsxExpression(expr.right);
+      const rightMap = unwrapMapCall(expr.right);
+      const rightFrag = ts.isJsxFragment(expr.right) ? expr.right : null;
+      if (!rightJsx && !rightMap && !rightFrag) return null;
+      // Only compile || when the left side renders as empty text when truthy.
+      // This covers booleans, null, undefined, and comparisons.
+      if (!isBooleanLikeExpression(expr.left)) return null;
+      return [
+        { condition: `!(${expressionText(ctx.source, expr.left)})`, jsx: rightJsx, map: rightMap, fragment: rightFrag, raw: expr.right },
+        { condition: null, jsx: null, map: null, fragment: null, raw: expr.left },
       ];
     }
 
@@ -174,7 +235,8 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
   }[] = [];
 
   for (const branch of branches) {
-    if (!branch.jsx) {
+    const hasContent = branch.jsx || branch.map || branch.fragment;
+    if (!hasContent) {
       compiledBranches.push({ root: '', setup: [], patches: [], deps: [] });
       continue;
     }
@@ -189,11 +251,26 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
       setup: [],
     };
 
-    const result = compileJsxNode(branchCtx, branch.jsx);
-    if (!result) return false;
-
+    let root: string;
+    if (branch.jsx) {
+      const result = compileJsxNode(branchCtx, branch.jsx);
+      if (!result) return false;
+      root = result.root;
+    } else if (branch.map) {
+      const mapVar = compileKeyedMap(branchCtx, branch.map);
+      if (!mapVar) return false;
+      root = `${mapVar}.node`;
+    } else if (branch.fragment) {
+      root = `el${branchCtx.elementId++}`;
+      branchCtx.setup.push(`const ${root} = document.createElement("span");`);
+      for (const fragmentChild of branch.fragment.children) {
+        if (!compileJsxChild(branchCtx, fragmentChild, root)) return false;
+      }
+    } else {
+      return false;
+    }
     compiledBranches.push({
-      root: result.root,
+      root,
       setup: branchCtx.setup,
       patches: branchCtx.patches,
       deps: branchCtx.deps,
@@ -350,6 +427,9 @@ ${update}
 }
 
 export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string | null {
+  while (ts.isParenthesizedExpression(expression)) {
+    expression = expression.expression;
+  }
   if (!ts.isCallExpression(expression)) return null;
   if (!ts.isPropertyAccessExpression(expression.expression)) return null;
   if (expression.expression.name.text !== 'map') return null;

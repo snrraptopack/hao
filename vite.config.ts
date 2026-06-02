@@ -31,6 +31,7 @@ export default defineConfig({
     port: 5173,
     open: true
   },
+  appType: "spa" ,
   plugins: [auwla({ debugFlag: true })],
   assetsInclude: [],
   optimizeDeps: {

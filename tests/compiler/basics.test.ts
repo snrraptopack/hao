@@ -43,7 +43,7 @@ describe('basic render closure compilation', () => {
     expect(compileAuwla(source)).toBe(source);
   });
 
-  test('leaves component JSX untouched for runtime fallback', () => {
+  test('inlines closure-returning components with no setup state', () => {
     const source = `
       function Label(props) {
         return () => <span>{props.text}</span>;
@@ -57,8 +57,28 @@ describe('basic render closure compilation', () => {
     const compiled = compileAuwla(source);
 
     expect(compiled).toContain('__componentBlock');
-    expect(compiled).toContain('return () => <Label text="Hello" />');
-    expect(compiled).not.toContain('document.createElement("Label")');
+    // Label JSX is inlined — App directly creates the span
+    expect(compiled).not.toContain('<Label');
+    expect(compiled).toContain('document.createElement("span")');
+    expect(compiled).toContain('__setElementText(el0, "Hello")');
+  });
+
+  test('leaves components with setup state for runtime fallback', () => {
+    const source = `
+      function Label(props) {
+        const self = component();
+        return () => <span>{props.text}</span>;
+      }
+
+      function App() {
+        return () => <Label text="Hello" />;
+      }
+    `;
+
+    const compiled = compileAuwla(source);
+
+    // Label has setup code (component() call), so it cannot be inlined
+    expect(compiled).toContain('<Label text="Hello" />');
   });
 
   test('compiles text-only ternary expressions as text nodes', () => {

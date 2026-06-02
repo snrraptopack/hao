@@ -10,6 +10,8 @@ interface NavigateEvent extends Event {
 interface Navigation extends EventTarget {
   navigate(url: string): void
   addEventListener(type: "navigate", listener: (e: NavigateEvent) => void): void
+  back(): void
+  forward():void
 }
 
 interface Window {

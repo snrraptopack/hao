@@ -16,7 +16,7 @@ export type StyledElement = HTMLElement & {
 
 /** @internal */
 export type ChildMarker = Node & {
-  __auwlaChildNodes?: Node[];
+  __auwlaChildNodes?: Node[] | (() => Node[]);
 };
 
 const UNITLESS_STYLES = new Set([
@@ -148,37 +148,43 @@ export function __setElementText(element: Element, value: unknown): void {
 export function __setChild(parent: Node, current: Node, value: unknown): Node {
   const marker = current as ChildMarker;
   const previous = marker.__auwlaChildNodes;
+  const previousNodes = typeof previous === 'function' ? previous() : previous;
 
   if (value === null || value === undefined || value === false || value === true) {
-    if (previous) {
-      for (const node of previous) removeNode(node);
+    if (previousNodes) {
+      for (const node of previousNodes) removeNode(node);
     }
     marker.__auwlaChildNodes = [];
     return marker;
   }
 
   const next = toNode(value);
-  const nodes = next instanceof DocumentFragment ? Array.from(next.childNodes) : [next];
+  const nodeProvider = (value as any).__auwlaGetNodes as (() => Node[]) | undefined;
+  const nodes = next instanceof DocumentFragment
+    ? (nodeProvider ? nodeProvider() : Array.from(next.childNodes))
+    : nodeProvider
+      ? nodeProvider()
+      : [next];
 
   if (
-    previous?.length === 1
-    && previous[0]!.parentNode === parent
+    previousNodes?.length === 1
+    && previousNodes[0]!.parentNode === parent
     && !(value instanceof Node)
     && !(next instanceof DocumentFragment)
   ) {
     // Fallback dynamic children often contain interactive elements. Patch a
     // single existing child in place so focus, selection, and listeners survive.
-    const patched = patchNode(parent, previous[0]!, next);
+    const patched = patchNode(parent, previousNodes[0]!, next);
     marker.__auwlaChildNodes = [patched];
     return marker;
   }
 
-  if (previous) {
-    for (const node of previous) removeNode(node);
+  if (previousNodes) {
+    for (const node of previousNodes) removeNode(node);
   }
 
   parent.insertBefore(next, marker);
-  marker.__auwlaChildNodes = nodes;
+  marker.__auwlaChildNodes = nodeProvider ?? nodes;
   return marker;
 }
 
