@@ -15,6 +15,7 @@ export const runtimeState = {
   activeEventWrapper: null as EventWrapper | null,
   activeRenderState: null as RenderState | null,
   activeSetupComponentId: null as string | null,
+  activeHandlerComponentId: null as string | null,
   pendingCleanups: null as (() => void)[] | null,
   mountedApps: new Set<MountedApp>(),
   componentHosts: new Map<string, Node>(),

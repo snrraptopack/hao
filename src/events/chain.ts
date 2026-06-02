@@ -20,6 +20,7 @@ import {
 } from './modifiers';
 import { cooldownModifier, debounceModifier, throttleModifier } from './timing';
 import { emit } from './emit';
+import { track as trackFn, pending, resolved, rejected, value, reason, cancel } from './track';
 import type {
   EventChain,
   EventTargetFilter,
@@ -191,6 +192,15 @@ function defineChainAccessors<TTarget extends object>(
     emit: {
       value: emit,
     },
+    track: {
+      value: trackFn,
+    },
+    pending: { value: pending },
+    resolved: { value: resolved },
+    rejected: { value: rejected },
+    value: { value: value },
+    reason: { value: reason },
+    cancel: { value: cancel },
   }) as TTarget & EventChain<any>;
 }
 

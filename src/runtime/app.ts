@@ -22,6 +22,7 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
+import { cleanupComponentTracks } from '../events/track';
 
 /** Events that fire rapidly and should be throttled to one render per frame. */
 const HIGH_FREQUENCY_EVENTS = new Set([
@@ -165,6 +166,7 @@ export function createMemoApp<TModel>(
       for (const [id] of toDelete) {
         componentInstances.delete(id);
         runtimeState.componentHosts.delete(id);
+        cleanupComponentTracks(id);
       }
       for (const id of memoBlocks.keys()) {
         if (renderState.seen.has(id)) continue;
@@ -218,11 +220,22 @@ export function createMemoApp<TModel>(
       });
     };
 
-    return (event) => {
-      const result = handler(event, model as TModel);
-      if (result && typeof (result as Promise<unknown>).then === 'function') {
-        void (result as Promise<unknown>).finally(() => invalidate(ownerId));
-      } else if (HIGH_FREQUENCY_EVENTS.has(event.type)) {
+    return (evt) => {
+      const prevHandlerId = runtimeState.activeHandlerComponentId;
+      runtimeState.activeHandlerComponentId = ownerId;
+      try {
+        const result = handler(evt, model as TModel);
+        if (result && typeof (result as Promise<unknown>).then === 'function') {
+          void (result as Promise<unknown>).finally(() => {
+            runtimeState.activeHandlerComponentId = prevHandlerId;
+            invalidate(ownerId);
+          });
+          return;
+        }
+      } finally {
+        runtimeState.activeHandlerComponentId = prevHandlerId;
+      }
+      if (HIGH_FREQUENCY_EVENTS.has(evt.type)) {
         throttledInvalidate();
       } else {
         invalidate(ownerId);

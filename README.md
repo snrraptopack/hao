@@ -68,46 +68,105 @@ function TodoApp() {
 createMemoApp(document.getElementById('app')!, <TodoApp />);
 ```
 
-## External Async Data
+## Async Lifecycle Tracking
 
-For data that resolves outside an Auwla event handler, mutate plain variables and call `commit()`.
+Wrap any promise or async function with `event.track()` and the framework observes its lifecycle, auto-committing renders on every transition.
 
 ```tsx
-import { commit, createMemoApp } from 'auwla';
+import { event } from 'auwla/events';
 
 function UserProfile() {
   let user: { name: string; email: string } | null = null;
-  let error = '';
 
-  fetch('/api/user')
-    .then((res) => res.json())
-    .then((data) => {
-      user = data;
-      commit();
-    })
-    .catch((err) => {
-      error = String(err);
-      commit();
-    });
+  const loadUser = event.track('user', fetch('/api/user').then((r) => r.json()));
+  loadUser.then((data) => {
+    user = data;
+  });
 
   return () => (
     <section>
-      {error && <p>{error}</p>}
-      {!user && !error && <p>Loading...</p>}
-      {user && (
+      {loadUser.pending && <p>Loading...</p>}
+      {loadUser.rejected && <p>Error: {String(loadUser.reason)}</p>}
+      {loadUser.resolved && (
         <div>
-          <h2>{user.name}</h2>
-          <p>{user.email}</p>
+          <h2>{user!.name}</h2>
+          <p>{user!.email}</p>
         </div>
       )}
     </section>
   );
 }
-
-createMemoApp(document.getElementById('app')!, <UserProfile />);
 ```
 
-`commit()` is a global invalidation event. It schedules one rerender for every mounted Auwla app.
+The returned handle is **thenable** — you can chain `.then()` and `.catch()` just like a normal promise — and has reactive state getters that can be read directly in render closures.
+
+| Handle Property | Meaning |
+|---|---|
+| `.pending` | The operation is in-flight |
+| `.resolved` | The operation succeeded |
+| `.rejected` | The operation failed |
+| `.value` | The resolved value |
+| `.reason` | The rejection reason |
+| `.status` | `'idle'` \| `'pending'` \| `'resolved'` \| `'rejected'` |
+| `.cancel()` | Abort an in-flight operation |
+
+### Async Functions (Auto-Cancel)
+
+Pass an async function and it starts immediately. Calling `event.track()` again with the same name auto-cancels the previous run:
+
+```tsx
+function Search() {
+  let results: string[] = [];
+  let query = '';
+
+  const searchPosts = () => {
+    event.track('posts', async (signal) => {
+      const res = await fetch(`/api/search?q=${query}`, { signal });
+      results = await res.json();
+    });
+  };
+
+  return () => (
+    <div>
+      <input
+        value={query}
+        onInput={(e) => {
+          query = (e.target as HTMLInputElement).value;
+          searchPosts();
+        }}
+      />
+      {event.pending('posts') && <span>Searching...</span>}
+      {results.map((r) => <div key={r}>{r}</div>)}
+    </div>
+  );
+}
+```
+
+No manual `AbortController` management — race conditions are handled automatically.
+
+### Global Queries
+
+Query or cancel tracks from anywhere:
+
+```tsx
+event.pending('user');       // is this specific track pending?
+event.pending();             // is ANY track pending in this component?
+event.cancel('upload');      // cancel by name
+event.value<{ name: string }>('user')?.name;  // get resolved value
+```
+
+### Manual commit (fallback)
+
+For truly external async work that you don't want to track, mutate plain variables and call `commit()`:
+
+```tsx
+import { commit } from 'auwla';
+
+fetch('/api/config').then((data) => {
+  config = data;
+  commit();
+});
+```
 
 ## How It Works
 
