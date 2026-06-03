@@ -1,4 +1,4 @@
-export { defineRoutes } from "./routes"
+export { defineRoutes, resetRoutes } from "./routes"
 export { navigate, back, forward } from "./navigation"
 export { Router, useParams, useQuery, useLocation } from "./Router"
-export type { Route, RouteContext } from "./types"
+export type { Route, ResolvedRoute, RouteContext } from "./types"

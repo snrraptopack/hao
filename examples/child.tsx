@@ -18,7 +18,10 @@ const fakeDb = {
 
 defineRoutes([
   { path: "/", component: Home },
-  { path: "/users", component: UserList },
+  {
+    path: "/users", component: UserList, beforeEnter: (ctx) => {
+      return true
+  } },
   { path: "/user/:id", component: UserDetail },
   { path: "/user/:id/posts", component: UserPosts },
   { path: "*", component: NotFound },

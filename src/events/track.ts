@@ -270,7 +270,7 @@ export function pending(name?: string): boolean {
     return false;
   }
   const state = registry.get(makeKey(name));
-  return state?.status === 'pending' ?? false;
+  return state?.status === 'pending';
 }
 
 /** Return whether a named track (or any track if no name given) has resolved. */
@@ -283,7 +283,7 @@ export function resolved(name?: string): boolean {
     return false;
   }
   const state = registry.get(makeKey(name));
-  return state?.status === 'resolved' ?? false;
+  return state?.status === 'resolved';
 }
 
 /** Return whether a named track (or any track if no name given) has rejected. */
@@ -296,7 +296,7 @@ export function rejected(name?: string): boolean {
     return false;
   }
   const state = registry.get(makeKey(name));
-  return state?.status === 'rejected' ?? false;
+  return state?.status === 'rejected';
 }
 
 /** Return the resolved value of a named track. */
