@@ -1,21 +1,11 @@
 // navigation.tsx
 // Demonstrates: Link (active/exact-active classes), isActive, isExactActive,
 // navigate with replace, route meta, getParams, getQuery, getRouteMeta.
-//
-// Routes:
-//   /              → Home
-//   /users         → UserList
-//   /users/:id     → UserDetail  (reads getParams in setup)
-//   /admin         → Admin       (protected via beforeEnter + meta)
-//   /login         → Login       (uses navigate with replace on success)
-//   *              → NotFound
 
 import {} from "auwla/jsx-runtime"
-import { createMemoApp } from "auwla"
 import {
   Router,
   Link,
-  defineRoutes,
   navigate,
   back,
   getParams,
@@ -23,6 +13,7 @@ import {
   getRouteMeta,
   isActive,
 } from "auwla/router"
+import type { Route } from "auwla/router"
 
 // ---------------------------------------------------------------------------
 // Fake session — in a real app this would be real auth state
@@ -40,25 +31,19 @@ const USERS = [
   { id: "3", name: "Kofi Boateng",  role: "viewer", color: "#2d2a1f", text: "#d29922", bio: "Product manager from Takoradi."   },
 ]
 
-// ---------------------------------------------------------------------------
-// Routes
-// ---------------------------------------------------------------------------
-
-defineRoutes([
-  { path: "/",         component: Home      },
-  { path: "/users",    component: UserList  },
+const navigationRoutes: Route[] = [
+  { path: "/", component: Home },
+  { path: "/users", component: UserList },
   { path: "/users/:id", component: UserDetail },
   {
     path: "/admin",
-    // meta is just data — the router never inspects it.
-    // beforeEnter reads it here for the auth check pattern.
     meta: { requiresAuth: true, title: "Admin Panel" },
-    beforeEnter: () => loggedIn || "/login",
+    beforeEnter: () => loggedIn || "/navigation/login",
     component: Admin,
   },
-  { path: "/login",    component: Login     },
-  { path: "*",         component: NotFound  },
-])
+  { path: "/login", component: Login },
+  { path: "*", component: NotFound },
+]
 
 // ---------------------------------------------------------------------------
 // Components
@@ -77,8 +62,8 @@ function Home() {
         <h2>What to try</h2>
         <ul style={{ paddingLeft: "18px", color: "#8b949e", fontSize: "14px", lineHeight: "2" }}>
           <li>Click the nav links and watch the active/exact-active border update.</li>
-          <li>Open <strong>/users</strong> and drill into a user detail page.</li>
-          <li>Try <strong>/admin</strong> — you'll be redirected to login.</li>
+          <li>Open <strong>/navigation/users</strong> and drill into a user detail page.</li>
+          <li>Try <strong>/navigation/admin</strong> — you'll be redirected to login.</li>
           <li>On the login page, submit the form and notice the URL <em>replaces</em> (no extra back entry).</li>
           <li>Add <code>?highlight=true</code> to a user URL and see it read in setup.</li>
         </ul>
@@ -87,15 +72,15 @@ function Home() {
       <div class="card">
         <h2>isActive check (live)</h2>
         <p>
-          <code>isActive("/")</code> right now:{" "}
-          <strong style={{ color: isActive("/") ? "#3fb950" : "#f85149" }}>
-            {String(isActive("/"))}
+          <code>isActive("/navigation")</code> right now:{" "}
+          <strong style={{ color: isActive("/navigation") ? "#3fb950" : "#f85149" }}>
+            {String(isActive("/navigation"))}
           </strong>
         </p>
         <p style={{ marginTop: "6px" }}>
-          <code>isActive("/users")</code> right now:{" "}
-          <strong style={{ color: isActive("/users") ? "#3fb950" : "#f85149" }}>
-            {String(isActive("/users"))}
+          <code>isActive("/navigation/users")</code> right now:{" "}
+          <strong style={{ color: isActive("/navigation/users") ? "#3fb950" : "#f85149" }}>
+            {String(isActive("/navigation/users"))}
           </strong>
         </p>
       </div>
@@ -114,8 +99,7 @@ function UserList() {
               <div class="avatar" style={{ background: u.color, color: u.text }}>
                 {u.name[0]}
               </div>
-              {/* Link auto-applies active/exact-active when on /users/:id */}
-              <Link href={`/users/${u.id}`}>{u.name}</Link>
+              <Link href={`/navigation/users/${u.id}`}>{u.name}</Link>
               <span class={`role-badge role-${u.role}`}>{u.role}</span>
             </li>
           ))}
@@ -126,15 +110,9 @@ function UserList() {
 }
 
 function UserDetail() {
-  // getParams is safe in setup — the router creates a new component instance
-  // every time the path changes, so params are always fresh here.
   const { id } = getParams()
-
-  // getQuery is also safe in setup for the same reason.
-  // /users/1?highlight=true → { highlight: 'true' }
   const query = getQuery()
   const highlight = query.highlight === "true"
-
   const user = USERS.find((u) => u.id === id)
 
   if (!user) {
@@ -174,7 +152,7 @@ function UserDetail() {
                 <div class="avatar" style={{ background: u.color, color: u.text }}>
                   {u.name[0]}
                 </div>
-                <Link href={`/users/${u.id}`}>{u.name}</Link>
+                <Link href={`/navigation/users/${u.id}`}>{u.name}</Link>
               </li>
             ))}
           </ul>
@@ -184,8 +162,6 @@ function UserDetail() {
 }
 
 function Admin() {
-  // getRouteMeta reads the meta object of the currently matched route.
-  // Generic param narrows the type at the call site.
   const { title } = getRouteMeta<{ requiresAuth: boolean; title: string }>()
 
   return () => (
@@ -203,8 +179,7 @@ function Admin() {
             style={{ width: "auto", padding: "8px 16px", background: "#b62324" }}
             onClick={() => {
               loggedIn = false
-              // replace so the admin page is not in the back stack after logout
-              navigate("/", { replace: true })
+              navigate("/navigation", { replace: true })
             }}
           >
             Log out
@@ -224,9 +199,7 @@ function Login() {
     e.preventDefault()
     if (username === "admin" && password === "1234") {
       loggedIn = true
-      // replace — the login page should not be in the back stack once
-      // the user is authenticated and redirected to the protected area.
-      navigate("/admin", { replace: true })
+      navigate("/navigation/admin", { replace: true })
     } else {
       error = "Wrong credentials. Try admin / 1234."
     }
@@ -283,24 +256,25 @@ function NotFound() {
 }
 
 // ---------------------------------------------------------------------------
-// App shell — the nav uses <Link> so active classes are applied automatically
+// App shell
 // ---------------------------------------------------------------------------
 
 function App() {
   return () => (
-    <div>
+    <div class="navigation-example">
       <nav>
         <span class="brand">auwla</span>
-        {/* exact-active fires only on "/", active would fire on every route */}
-        <Link href="/" exactActiveClass="exact-active" activeClass="">Home</Link>
-        <Link href="/users">Users</Link>
-        <Link href="/admin">Admin</Link>
+        <Link href="/navigation" exactActiveClass="exact-active" activeClass="">Home</Link>
+        <Link href="/navigation/users">Users</Link>
+        <Link href="/navigation/admin">Admin</Link>
       </nav>
       <main>
-        <Router />
+        <Router routes={navigationRoutes} base="/navigation" />
       </main>
     </div>
   )
 }
 
-createMemoApp(document.getElementById("app")!, <App />)
+export function NavigationExample() {
+  return () => <App />;
+}

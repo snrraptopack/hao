@@ -73,12 +73,12 @@ function pathToRegex(path: string): { regex: RegExp; keys: string[] } {
 // Returns the first route that matches `pathname` and has a component.
 // Routes without a component (grouping/prefix-only routes) are skipped.
 // Wildcard routes are always evaluated last.
-export function matchRoute(pathname: string): MatchedRoute | null {
+export function matchRoutes(routes: Route[], pathname: string): MatchedRoute | null {
   const [pathOnly, queryString] = pathname.split("?")
   const query = parseQuery(queryString ?? "")
 
   // Sort so wildcard catch-alls are always tried last.
-  const sorted = [...registry].sort((a, b) =>
+  const sorted = [...routes].sort((a, b) =>
     a.path === "*" ? 1 : b.path === "*" ? -1 : 0
   )
 
@@ -97,6 +97,10 @@ export function matchRoute(pathname: string): MatchedRoute | null {
   }
 
   return null
+}
+
+export function matchRoute(pathname: string): MatchedRoute | null {
+  return matchRoutes(registry, pathname)
 }
 
 // ---------------------------------------------------------------------------

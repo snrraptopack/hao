@@ -10,6 +10,7 @@ export {
   isActive,
   isExactActive,
 } from "./Router"
+export type { RouterProps } from "./Router"
 export { Link } from "./Link"
 export { afterEach, resetHooks } from "./hooks"
 export type { LinkProps } from "./Link"

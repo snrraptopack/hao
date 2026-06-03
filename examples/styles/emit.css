@@ -1,0 +1,94 @@
+.emit-example {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f0f12;
+  color: #e0e0e0;
+  margin: 0;
+  padding: 24px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.emit-example h1 { color: #0af; margin: 0 0 8px; }
+.emit-example .subtitle { color: #888; margin-bottom: 24px; }
+.emit-example .layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; max-width: 900px; margin: 0 auto; }
+@media (max-width: 720px) { .emit-example .layout { grid-template-columns: 1fr; } }
+
+.emit-example .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.emit-example .card {
+  background: #1a1a20;
+  border: 1px solid #2a2a35;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.emit-example .card h3 { margin: 0; font-size: 16px; color: #fff; }
+.emit-example .card .price { color: #0f8; font-weight: 600; font-size: 18px; }
+.emit-example .card button {
+  background: #0af;
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: auto;
+}
+.emit-example .card button:hover { background: #3cf; }
+.emit-example .card button:active { transform: translateY(1px); }
+
+.emit-example .cart {
+  background: #1a1a20;
+  border: 1px solid #2a2a35;
+  border-radius: 10px;
+  padding: 16px;
+  height: fit-content;
+  position: sticky;
+  top: 24px;
+}
+.emit-example .cart h2 { margin: 0 0 12px; font-size: 18px; }
+.emit-example .cart-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #2a2a35;
+  font-size: 14px;
+}
+.emit-example .cart-item:last-child { border-bottom: none; }
+.emit-example .cart-total {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid #0af;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  color: #0f8;
+}
+.emit-example .empty { color: #666; font-style: italic; text-align: center; padding: 16px 0; }
+
+.emit-example .code-hint {
+  max-width: 900px;
+  margin: 24px auto 0;
+  background: #141418;
+  border: 1px dashed #333;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 13px;
+  color: #aaa;
+}
+.emit-example .code-hint code {
+  background: #1e1e24;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #0af;
+  font-family: ui-monospace, monospace;
+}
+.emit-example .code-hint pre {
+  background: #1e1e24;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0 0;
+  color: #ccc;
+}

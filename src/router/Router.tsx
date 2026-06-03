@@ -4,34 +4,22 @@ import { component } from "auwla"
 import { event } from "auwla/events"
 import type { TrackHandle } from "auwla/events"
 import { registerRouter, initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
-import { matchRoute, normalizePath } from "./routes"
+import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { fireAfterEach } from "./hooks"
-import type { RouteContext, TypedTrackHandle } from "./types"
+import type { Route, RouteContext, TypedTrackHandle } from "./types"
 
 // ---------------------------------------------------------------------------
 // Module-level state
+//
+// These are read by the route context accessors so any component in the tree
+// can call getParams/getQuery/getLoaderHandle/getRouteMeta without passing
+// props. When nested routers are used, the innermost router wins — which is
+// the desired behaviour because its match is the one currently rendering.
 // ---------------------------------------------------------------------------
 
-// Holds the context of the last matched route so getParams/getQuery/getLocation
-// can be called from any component rendered inside the Router.
 let _currentContext: RouteContext | null = null
-
-// The track handle for the currently active route's loader, or null if the
-// matched route has no loader. Reactive: its getters always read from the live
-// track registry, so reading handle.pending / handle.value in any render
-// closure — including setup scope — reflects the real-time async state.
 let _currentLoader: TrackHandle | null = null
-
-// Holds the meta object of the last matched route, or null if the route
-// defines no meta. Read via getRouteMeta().
 let _currentMeta: Record<string, unknown> | null = null
-
-// Simple render cache: avoid re-creating the component closure when the path
-// has not changed. Note that this is path-keyed, so a route whose component
-// identity changes without a path change (e.g. HMR) still gets the old
-// closure until the user navigates away and back.
-let cachedPath: string | null = null
-let cachedRender: (() => any) | null = null
 
 // ---------------------------------------------------------------------------
 // Route context accessors
@@ -52,33 +40,20 @@ export function getLocation(): string {
   return getCurrentPath()
 }
 
-// Returns the TrackHandle for the current route's loader, typed to T so
-// .value is T | undefined instead of unknown. The handle is reactive:
-// reading .pending / .resolved / .value inside a render closure reflects
-// the loader's live state on every render pass without any extra wiring.
-// Returns null if the matched route defines no loader.
 export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
   return _currentLoader as TypedTrackHandle<T> | null
 }
 
-// Returns the meta object of the currently matched route cast to T.
-// T defaults to Record<string, unknown> — narrow it at the call site when
-// you know the shape: getRouteMeta<{ requiresAuth: boolean }>()
 export function getRouteMeta<T extends Record<string, unknown> = Record<string, unknown>>(): T {
   return (_currentMeta ?? {}) as T
 }
 
-// Returns true when the current location matches `path` exactly OR when the
-// current path starts with `path` at a segment boundary.
-// Example: isActive('/posts') is true on /posts and /posts/42, but not on /posts-archive.
 export function isActive(path: string): boolean {
   const current = normalizePath(getCurrentPath().split('?')[0]!)
   const target  = normalizePath(path)
   return current === target || current.startsWith(target + '/')
 }
 
-// Returns true only when the current location matches `path` exactly
-// (query string is ignored).
 export function isExactActive(path: string): boolean {
   return normalizePath(getCurrentPath().split('?')[0]!) === normalizePath(path)
 }
@@ -87,15 +62,42 @@ export function isExactActive(path: string): boolean {
 // Router component
 // ---------------------------------------------------------------------------
 
-export function Router() {
+export type RouterProps = {
+  // Optional local route set. When provided the Router matches against these
+  // routes instead of the global registry. Useful for nested / namespaced
+  // routing inside a parent Router.
+  routes?: Route[]
+  // Optional base path stripped from the current location before matching.
+  // Example: base="/child" with location "/child/users" matches against "/users".
+  base?: string
+}
+
+export function Router(props: RouterProps = {}) {
   const self = component()
   // Both calls are idempotent — safe even if Router() were ever called again.
   registerRouter(self)
   initNavigation()
 
+  // Instance-local render cache so nested Routers don't clobber each other.
+  let cachedPath: string | null = null
+  let cachedRender: (() => any) | null = null
+
+  const { routes, base } = props
+
   return () => {
-    const currentPath = getCurrentPath()
-    const matched = matchRoute(currentPath)
+    let currentPath = getCurrentPath()
+
+    // Strip base prefix (if any) while preserving query string.
+    if (base) {
+      const baseNormalized = normalizePath(base)
+      const [pathOnly, queryString] = currentPath.split('?')
+      if (pathOnly!.startsWith(baseNormalized)) {
+        const relativePath = pathOnly!.slice(baseNormalized.length) || '/'
+        currentPath = relativePath + (queryString ? '?' + queryString : '')
+      }
+    }
+
+    const matched = routes ? matchRoutes(routes, currentPath) : matchRoute(currentPath)
 
     if (!matched) return <div>404 — page not found</div>
 

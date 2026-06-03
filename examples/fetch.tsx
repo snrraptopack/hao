@@ -57,8 +57,6 @@ function FetchOnLoad() {
   );
 }
 
-// Bootstrap the app
-const root = document.getElementById('app');
-if (root) {
-  createMemoApp(root, <FetchOnLoad />);
+export function FetchExample() {
+  return () => <FetchOnLoad />;
 }

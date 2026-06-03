@@ -185,9 +185,6 @@ function App() {
   );
 }
 
-// ─── Mount ───────────────────────────────────────────────────────────────────
-
-const root = document.getElementById('app');
-if (root) {
-  createMemoApp(root, <App />);
+export function PatternsExample() {
+  return () => <App />;
 }

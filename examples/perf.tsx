@@ -1,4 +1,4 @@
-import { createMemoApp } from 'auwla';
+import { createMemoApp, component, commit } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
@@ -7,10 +7,10 @@ interface BenchmarkItem {
   value: number;
 }
 
-let app: any = null;
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 function PerfBenchmark() {
+  const self = component();
   // 1. Setup Scope: Runs once. Stores state in standard array/variables.
   let items: BenchmarkItem[] = [];
   let nextId = 1;
@@ -25,8 +25,9 @@ function PerfBenchmark() {
     fn();
     mutationMs = performance.now() - start;
 
+    // Let Auwla's automatic re-render flush, then measure next frame for paint
     const renderStart = performance.now();
-    app.render();
+    await new Promise<void>((r) => queueMicrotask(r));
     renderMs = performance.now() - renderStart;
 
     const paintStart = performance.now();
@@ -36,14 +37,14 @@ function PerfBenchmark() {
     totalMs = performance.now() - start;
     lastLabel = label;
     console.table({ label, items: items.length, mutationMs, renderMs, paintMs, totalMs });
-    app.render();
+    commit(self);
   };
 
   // 2. Render Scope: Runs on every event re-render.
   return () => (
     <div class="perf-page">
       <h1>Auwla Performance Benchmark</h1>
-      <p>This benchmark forces one synchronous render per action and measures mutation, DOM patch, next paint, and total time separately.</p>
+      <p>This benchmark measures mutation, async render, next paint, and total time.</p>
       <div class="perf-metrics">
         <div class="perf-metric">
           <div>Action</div>
@@ -129,8 +130,6 @@ function PerfBenchmark() {
   );
 }
 
-// Bootstrap the app and assign it to the app reference
-const root = document.getElementById('app');
-if (root) {
-  app = createMemoApp(root, <PerfBenchmark />);
+export function PerfExample() {
+  return () => <PerfBenchmark />;
 }

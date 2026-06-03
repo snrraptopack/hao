@@ -16,8 +16,8 @@ function TrackDemo() {
     fetch('https://jsonplaceholder.typicode.com/users?_limit=5').then((r) => r.json()),
   );
 
-  loadUsers.then((data: User[]) => {
-    users = data;
+  loadUsers.then((data) => {
+    users = data as User[];
   });
 
   // --- Track 2: Async function (starts immediately, auto-cancels on re-track) ---
@@ -118,7 +118,6 @@ function TrackDemo() {
   );
 }
 
-const root = document.getElementById('app');
-if (root) {
-  createMemoApp(root, <TrackDemo />);
+export function TrackExample() {
+  return () => <TrackDemo />;
 }

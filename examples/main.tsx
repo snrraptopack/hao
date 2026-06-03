@@ -158,7 +158,7 @@ function InputPatchExample() {
   };
 }
 
-function ExampleApp() {
+export function ExampleApp() {
   let child = 0
   return () => (
     <main>
@@ -177,5 +177,3 @@ function ExampleApp() {
     </main>
   );
 }
-
-createMemoApp(document.getElementById('app')!, <ExampleApp />);

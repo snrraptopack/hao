@@ -1,4 +1,4 @@
-import { createMemoApp } from 'auwla';
+import { createMemoApp, component, commit } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
@@ -7,7 +7,6 @@ type Row = {
   label: string;
 };
 
-let app: any = null;
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 const ADJECTIVES = ['pretty', 'large', 'big', 'small', 'tall', 'short', 'long', 'handsome', 'plain', 'quaint', 'clean', 'elegant', 'easy', 'angry', 'crazy', 'helpful', 'mushy', 'odd', 'unsightly', 'adorable', 'important', 'inexpensive', 'cheap', 'expensive', 'fancy'];
@@ -23,14 +22,15 @@ function label() {
 }
 
 function TableBenchmark() {
+  const self = component();
   let rows: Row[] = [];
   let nextId = 1;
   let selected = 0;
-  let actionMetric: HTMLSpanElement | null = null;
-  let rowsMetric: HTMLSpanElement | null = null;
-  let mutationRenderMetric: HTMLSpanElement | null = null;
-  let paintMetric: HTMLSpanElement | null = null;
-  let totalMetric: HTMLSpanElement | null = null;
+  let actionMetric = 'No run yet';
+  let rowsMetric = '0 rows';
+  let mutationRenderMetric = 'Mutation+Render 0.00ms';
+  let paintMetric = 'Paint 0.00ms';
+  let totalMetric = 'Total 0.00ms';
 
   const buildRows = (count: number) => {
     const next: Row[] = [];
@@ -43,33 +43,20 @@ function TableBenchmark() {
   const measure = async (action: string, mutate: () => void) => {
     const start = performance.now();
     mutate();
-    // Benchmark-only: force the synchronous DOM flush here so this measures
-    // the same "mutation + render" phase as Solid's signal update benchmark.
-    // Normal Auwla app code should use onClick and let events auto-rerender.
-    app.render();
-    const afterFlush = performance.now();
+    const mutationRenderMs = performance.now() - start;
 
     await nextFrame();
-    const afterPaint = performance.now();
+    const paintMs = performance.now() - start - mutationRenderMs;
+    const totalMs = performance.now() - start;
 
-    const mutationRenderMs = afterFlush - start;
-    const paintMs = afterPaint - afterFlush;
-    const totalMs = afterPaint - start;
-
-    if (actionMetric) actionMetric.textContent = action;
-    if (rowsMetric) rowsMetric.textContent = `${rows.length} rows`;
-    if (mutationRenderMetric) mutationRenderMetric.textContent = `Mutation+Render ${mutationRenderMs.toFixed(2)}ms`;
-    if (paintMetric) paintMetric.textContent = `Paint ${paintMs.toFixed(2)}ms`;
-    if (totalMetric) totalMetric.textContent = `Total ${totalMs.toFixed(2)}ms`;
+    actionMetric = action;
+    rowsMetric = `${rows.length} rows`;
+    mutationRenderMetric = `Mutation+Render ${mutationRenderMs.toFixed(2)}ms`;
+    paintMetric = `Paint ${paintMs.toFixed(2)}ms`;
+    totalMetric = `Total ${totalMs.toFixed(2)}ms`;
 
     console.table({ action, rows: rows.length, mutationRenderMs, paintMs, totalMs });
-  };
-
-  // Benchmark-only: raw DOM handlers avoid Auwla's automatic event invalidation.
-  // `measure()` already calls app.render(), so using onClick here would add a
-  // second framework-scheduled render that Solid's benchmark does not perform.
-  const run = (action: string, mutate: () => void) => () => {
-    void measure(action, mutate);
+    commit(self);
   };
 
   return () => (
@@ -78,44 +65,44 @@ function TableBenchmark() {
       <p>Table-shaped benchmark matching the common JS framework benchmark operations.</p>
 
       <div class="table-controls">
-        <button ref={(button) => { button.onclick = run('Create 1,000 rows', () => {
+        <button onClick={() => measure('Create 1,000 rows', () => {
           selected = 0;
           rows = buildRows(1000);
-        }); }}>Create 1k</button>
-        <button ref={(button) => { button.onclick = run('Create 10,000 rows', () => {
+        })}>Create 1k</button>
+        <button onClick={() => measure('Create 10,000 rows', () => {
           selected = 0;
           rows = buildRows(10000);
-        }); }}>Create 10k</button>
-        <button ref={(button) => { button.onclick = run('Append 1,000 rows', () => {
+        })}>Create 10k</button>
+        <button onClick={() => measure('Append 1,000 rows', () => {
           rows = rows.concat(buildRows(1000));
-        }); }}>Append 1k</button>
-        <button ref={(button) => { button.onclick = run('Update every 10th row', () => {
+        })}>Append 1k</button>
+        <button onClick={() => measure('Update every 10th row', () => {
           for (let i = 0; i < rows.length; i += 10) {
             rows[i]!.label += ' !!!';
           }
-        }); }}>Partial</button>
-        <button ref={(button) => { button.onclick = run('Update all rows', () => {
+        })}>Partial</button>
+        <button onClick={() => measure('Update all rows', () => {
           for (const row of rows) row.label += ' !';
-        }); }}>Update all</button>
-        <button ref={(button) => { button.onclick = run('Swap rows 2 and 999', () => {
+        })}>Update all</button>
+        <button onClick={() => measure('Swap rows 2 and 999', () => {
           if (rows.length > 998) {
             const second = rows[1]!;
             rows[1] = rows[998]!;
             rows[998] = second;
           }
-        }); }}>Swap</button>
-        <button ref={(button) => { button.onclick = run('Clear rows', () => {
+        })}>Swap</button>
+        <button onClick={() => measure('Clear rows', () => {
           selected = 0;
           rows = [];
-        }); }}>Clear</button>
+        })}>Clear</button>
       </div>
 
       <div class="table-metrics">
-        <span ref={(span) => { actionMetric = span; }}>No run yet</span>
-        <span ref={(span) => { rowsMetric = span; }}>0 rows</span>
-        <span ref={(span) => { mutationRenderMetric = span; }}>Mutation+Render 0.00ms</span>
-        <span ref={(span) => { paintMetric = span; }}>Paint 0.00ms</span>
-        <span ref={(span) => { totalMetric = span; }}>Total 0.00ms</span>
+        <span>{actionMetric}</span>
+        <span>{rowsMetric}</span>
+        <span>{mutationRenderMetric}</span>
+        <span>{paintMetric}</span>
+        <span>{totalMetric}</span>
       </div>
 
       <table class="benchmark-table">
@@ -124,13 +111,13 @@ function TableBenchmark() {
             <tr key={row.id} class={selected === row.id ? 'selected' : ''}>
               <td class="col-id">{row.id}</td>
               <td class="col-label">
-                <a ref={(link) => { link.onclick = run('Select row', () => { selected = row.id; }); }}>{row.label}</a>
+                <a onClick={() => measure('Select row', () => { selected = row.id; })}>{row.label}</a>
               </td>
               <td class="col-remove">
-                <button class="remove" ref={(button) => { button.onclick = run('Remove row', () => {
+                <button class="remove" onClick={() => measure('Remove row', () => {
                   rows = rows.filter((candidate) => candidate.id !== row.id);
                   if (selected === row.id) selected = 0;
-                }); }}>x</button>
+                })}>x</button>
               </td>
               <td class="col-empty"></td>
             </tr>
@@ -141,7 +128,6 @@ function TableBenchmark() {
   );
 }
 
-const root = document.getElementById('app');
-if (root) {
-  app = createMemoApp(root, <TableBenchmark />);
+export function TableBenchmarkExample() {
+  return () => <TableBenchmark />;
 }

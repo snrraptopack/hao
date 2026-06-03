@@ -46,4 +46,6 @@ function ExampleApp() {
   )
 }
 
-createMemoApp(document.getElementById('app')!, <ExampleApp />);
+export function JsxPatternsExample() {
+  return () => <ExampleApp />;
+}

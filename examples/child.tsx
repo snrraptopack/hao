@@ -1,7 +1,8 @@
-// main.tsx
-import { Router, defineRoutes, back, getParams } from "auwla/router"
-import { createMemoApp, commit, component } from "auwla"
+import { Router, back, getParams } from "auwla/router"
+import type { Route } from "auwla/router"
+import { commit, component } from "auwla"
 import {} from "auwla/jsx-runtime"
+import './styles/event-chain.css';
 
 const fakeDb = {
   users: [
@@ -16,22 +17,19 @@ const fakeDb = {
   ],
 }
 
-defineRoutes([
+const childRoutes: Route[] = [
   { path: "/", component: Home },
-  {
-    path: "/users", component: UserList, beforeEnter: (ctx) => {
-      return true
-  } },
+  { path: "/users", component: UserList },
   { path: "/user/:id", component: UserDetail },
   { path: "/user/:id/posts", component: UserPosts },
   { path: "*", component: NotFound },
-])
+]
 
 function Home() {
   return () => (
     <section>
       <h1>Data fetching examples</h1>
-      <a href="/users">View all users</a>
+      <a href="/child/users">View all users</a>
     </section>
   )
 }
@@ -57,7 +55,6 @@ function UserList() {
   })
 
   return () => {
-    console.log("3.......")
     if (state.status === "loading") return <p>Loading users...</p>
     if (state.status === "error") return <p>Error: {state.message}</p>
     return (
@@ -65,7 +62,7 @@ function UserList() {
         <h1>Users</h1>
         {state.users.map(u => (
           <div key={u.id}>
-            <a href={`/user/${u.id}`}>{u.name}</a>
+            <a href={`/child/user/${u.id}`}>{u.name}</a>
             <span> — {u.role}</span>
           </div>
         ))}
@@ -103,7 +100,6 @@ function UserDetail() {
   load()
 
   return () => {
-    console.log("2......")
     if (state.status === "loading") return <p>Loading user {params.id}...</p>
     if (state.status === "error") return <p>Error: {state.message}</p>
     const u = state.user
@@ -113,7 +109,7 @@ function UserDetail() {
         <h1>{u.name}</h1>
         <p>{u.bio}</p>
         <p>Role: {u.role}</p>
-        <a href={`/user/${u.id}/posts`}>View posts</a>
+        <a href={`/child/user/${u.id}/posts`}>View posts</a>
         <br />
         <button onClick={load}>Refetch</button>
       </section>
@@ -149,7 +145,6 @@ function UserPosts() {
   })
 
   return () => {
-    console.log("1 .....")
     if (state.status === "loading") return <p>Loading...</p>
     if (state.status === "error") return <p>Error: {state.message}</p>
     const { user, posts } = state
@@ -175,14 +170,16 @@ function NotFound() {
 
 function App() {
   return () => (
-    <main>
+    <main class="event-chain-example">
       <nav>
-        <a href="/">Home</a>
-        <a href="/users">Users</a>
+        <a href="/child">Home</a>
+        <a href="/child/users">Users</a>
       </nav>
-      <Router />
+      <Router routes={childRoutes} base="/child" />
     </main>
   )
 }
 
-createMemoApp(document.getElementById("app")!, <App/>)
+export function ChildExample() {
+  return () => <App />;
+}

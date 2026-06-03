@@ -1,27 +1,13 @@
 // loader.tsx — demonstrates the router loader API with typed getLoaderHandle<T>()
-//
-// Routes:
-//   /           → Home (no loader, instant render)
-//   /posts      → PostList (loader fetches all posts)
-//   /posts/:id  → PostDetail (loader fetches a single post by id)
-//   *           → NotFound
-//
-// Key things to notice:
-//   1. The route definition owns the fetch — the component only reads results.
-//   2. getLoaderHandle<Post[]>() gives a fully typed handle, .value is Post[] | undefined.
-//   3. Navigating while a load is in-flight auto-cancels the previous request
-//      because event.track uses the same '__loader' name each time.
-//   4. The handle is reactive in setup scope — no commit(), no local state.
 
 import {} from "auwla/jsx-runtime"
-import { createMemoApp } from "auwla"
 import {
   Router,
-  defineRoutes,
   getLoaderHandle,
   getParams,
   back,
 } from "auwla/router"
+import type { Route } from "auwla/router"
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -38,15 +24,13 @@ interface Post {
 // Routes
 // ---------------------------------------------------------------------------
 
-defineRoutes([
+const loaderRoutes: Route[] = [
   {
     path: "/",
     component: Home,
   },
   {
     path: "/posts",
-    // The loader runs before the component renders. The signal is wired to an
-    // AbortController so navigating away cancels the in-flight request.
     loader: (_, signal) =>
       fetch("https://jsonplaceholder.typicode.com/posts?_limit=15", { signal })
         .then((r) => r.json()),
@@ -63,7 +47,7 @@ defineRoutes([
     path: "*",
     component: NotFound,
   },
-])
+]
 
 // ---------------------------------------------------------------------------
 // Components
@@ -78,15 +62,13 @@ function Home() {
         Navigate away while loading — the previous request cancels automatically.
       </p>
       <div class="card">
-        <a href="/posts">Browse posts →</a>
+        <a href="/loader/posts">Browse posts →</a>
       </div>
     </div>
   )
 }
 
 function PostList() {
-  // Type parameter tells TypeScript that .value is Post[] | undefined.
-  // No runtime cost — it's purely a type-level assertion about what the loader returns.
   const loader = getLoaderHandle<Post[]>()
 
   return () => {
@@ -107,7 +89,6 @@ function PostList() {
       )
     }
 
-    // .value is Post[] | undefined — the ?? [] ensures the list is always an array
     const posts = loader?.value ?? []
 
     return (
@@ -118,7 +99,7 @@ function PostList() {
           <ul class="post-list">
             {posts.map((post) => (
               <li key={post.id}>
-                <a href={`/posts/${post.id}`}>{post.title}</a>
+                <a href={`/loader/posts/${post.id}`}>{post.title}</a>
                 <p class="meta">Post #{post.id} · User {post.userId}</p>
               </li>
             ))}
@@ -130,7 +111,6 @@ function PostList() {
 }
 
 function PostDetail() {
-  // Single post — the loader returns one Post object
   const loader = getLoaderHandle<Post>()
   const { id } = getParams()
 
@@ -152,14 +132,13 @@ function PostDetail() {
       )
     }
 
-    // .value is Post | undefined after the load resolves
     const post = loader?.value
 
     if (!post) return <div class="status-badge error">Post not found</div>
 
     return (
       <div>
-        <a class="back-btn" href="/posts">← Back to posts</a>
+        <a class="back-btn" href="/loader/posts">← Back to posts</a>
         <div class="card">
           <h1 class="detail-title">{post.title}</h1>
           <p class="detail-body">{post.body}</p>
@@ -187,17 +166,21 @@ function NotFound() {
 
 function App() {
   return () => (
-    <div class="shell">
-      <nav>
-        <span class="brand">auwla</span>
-        <a href="/">Home</a>
-        <a href="/posts">Posts</a>
-      </nav>
-      <main>
-        <Router />
-      </main>
+    <div class="loader-example">
+      <div class="shell">
+        <nav>
+          <span class="brand">auwla</span>
+          <a href="/loader">Home</a>
+          <a href="/loader/posts">Posts</a>
+        </nav>
+        <main>
+          <Router routes={loaderRoutes} base="/loader" />
+        </main>
+      </div>
     </div>
   )
 }
 
-createMemoApp(document.getElementById("app")!, <App />)
+export function LoaderExample() {
+  return () => <App />;
+}

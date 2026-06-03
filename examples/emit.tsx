@@ -1,5 +1,6 @@
 import { createMemoApp, component, emit } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
+import './styles/emit.css';
 
 // ─── Data ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ function ProductCard(props: { product: typeof PRODUCTS[number] }) {
 function CartApp() {
   const cart: CartItem[] = [];
   return () => (
-    <div>
+    <div class="emit-example">
       <h1>emit() Example</h1>
       <p class="subtitle">
         Click "Add to Cart" on any product. The ProductCard child emits
@@ -110,7 +111,7 @@ function CartApp() {
 
       <div class="code-hint">
         <strong>How it works:</strong>
-        <ul style="margin: 8px 0; padding-left: 18px;">
+        <ul style={{ margin: '8px 0', paddingLeft: '18px' }}>
           <li>
             Child calls <code>emit(self, 'addToCart', payload)</code> —
             <code>self</code> comes from <code>component()</code>.
@@ -136,9 +137,6 @@ emit(self, 'addToCart', { id, name, price });
   );
 }
 
-// ─── Mount ──────────────────────────────────────────────────────────────────
-
-const root = document.getElementById('app');
-if (root) {
-  createMemoApp(root, <CartApp />);
+export function EmitExample() {
+  return () => <CartApp />;
 }

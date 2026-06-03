@@ -1,6 +1,7 @@
 import { createMemoApp, component } from 'auwla';
 import { event } from 'auwla/events';
 import type {} from 'auwla/jsx-runtime';
+import './styles/event-chain.css';
 
 type SavedPayload = {
   query: string;
@@ -181,7 +182,7 @@ function EventChainExample() {
 
   return () => (
     <main
-      class="shell"
+      class="shell event-chain-example"
       emit:saved={(payload: SavedPayload) => {
         saved.unshift(payload);
       }}
@@ -205,7 +206,6 @@ function EventChainExample() {
   );
 }
 
-const root = document.getElementById('app');
-if (root) {
-  createMemoApp(root, <EventChainExample />);
+export function EventChainExampleApp() {
+  return () => <EventChainExample />;
 }
