@@ -314,10 +314,6 @@ import { auwla } from 'auwla/vite';
 
 export default defineConfig({
   plugins: [auwla()],
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'auwla',
-  },
 });
 ```
 
