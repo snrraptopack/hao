@@ -2,9 +2,15 @@
 
 A tiny typed DOM runtime for JSX apps with event-driven rerendering and DOM reuse.
 
-There are no hooks, refs, signals, stores, routers, or framework-specific list/conditional components. State is plain JavaScript held in component closures.
+There are no hooks, refs, signals, stores, or framework-specific list/conditional components. State is plain JavaScript held in component closures.
 
-## DX
+## Install
+
+```bash
+npm install auwla
+```
+
+## Quick Start
 
 ```tsx
 import { createMemoApp } from 'auwla';
@@ -22,6 +28,67 @@ function Counter() {
 createMemoApp(document.getElementById('app')!, <Counter />);
 ```
 
+That's it. Event handlers automatically trigger re-renders
+
+## How It Works
+
+- **Component functions run once for setup.**
+- **A component returns a render closure** that runs on every re-render.
+- **Local variables in setup are stable state.**
+- **JSX event handlers mutate those variables directly.**
+- **After an event, Auwla schedules one re-render.**
+- **The re-render output is patched into the existing DOM.**
+- **Elements with the same tag and `key` are reused,** so `.map()` lists preserve DOM nodes.
+
+## Manual Commit
+
+Events auto-commit, but external async work (fetch, setTimeout, WebSocket) needs an explicit `commit()`:
+
+```tsx
+import { commit } from 'auwla';
+
+function FetchUsers() {
+  let users: User[] = [];
+  let loading = true;
+
+  fetch('/api/users')
+    .then((r) => r.json())
+    .then((data) => { users = data; })
+    .finally(() => {
+      loading = false;
+      commit(); // trigger re-render
+    });
+
+  return () => (
+    <div>
+      {loading ? <p>Loading...</p> : (
+        <ul>{users.map((u) => <li key={u.id}>{u.name}</li>)}</ul>
+      )}
+    </div>
+  );
+}
+```
+
+## Scoped Re-rendering with `component()`
+
+Call `component()` in setup to get a handle. Pass it to `commit()` to re-render only that component instead of the whole app:
+
+```tsx
+import { component, commit } from 'auwla';
+
+function LiveClock() {
+  const self = component();
+  let time = new Date().toLocaleTimeString();
+
+  setInterval(() => {
+    time = new Date().toLocaleTimeString();
+    commit(self); // only this component re-renders
+  }, 1000);
+
+  return () => <p>{time}</p>;
+}
+```
+
 ## Todo Example
 
 ```tsx
@@ -29,35 +96,40 @@ function TodoApp() {
   const todos = [{ id: 1, text: 'Learn Auwla', done: false }];
   let newTodoText = '';
 
+  function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    const text = newTodoText.trim();
+    if (!text) return;
+    todos.push({ id: Date.now(), text, done: false });
+    newTodoText = '';
+  }
+
   return () => (
     <div class="todo-container">
-      <form onSubmit={(event) => {
-        event.preventDefault();
-        const text = newTodoText.trim();
-        if (!text) return;
-        todos.push({ id: Date.now(), text, done: false });
-        newTodoText = '';
-      }}>
+      <form class="row" onSubmit={handleSubmit}>
         <input
           value={newTodoText}
+          placeholder="Add a task"
           onInput={(event) => {
             newTodoText = (event.target as HTMLInputElement).value;
           }}
         />
-        <button type="submit">Add Task</button>
+        <button type="submit">Add</button>
       </form>
 
       {todos.length === 0 && <p>All tasks completed!</p>}
 
-      <ul>
+      <ul class="todo-list">
         {todos.map((todo) => (
           <li key={todo.id} class={todo.done ? 'completed' : ''}>
-            <input
-              type="checkbox"
-              checked={todo.done}
-              onChange={() => { todo.done = !todo.done; }}
-            />
-            <span>{todo.text}</span>
+            <label>
+              <input
+                type="checkbox"
+                checked={todo.done}
+                onChange={() => { todo.done = !todo.done; }}
+              />
+              <span>{todo.text}</span>
+            </label>
           </li>
         ))}
       </ul>
@@ -70,7 +142,7 @@ createMemoApp(document.getElementById('app')!, <TodoApp />);
 
 ## Async Lifecycle Tracking
 
-Wrap any promise or async function with `event.track()` and the framework observes its lifecycle, auto-committing renders on every transition.
+You can use `commit()` for data loading stuff but we have `event.track` which abstract the manual `commit` for you and it something you can watch or react to gloabaly making it ideal for things like global loading .
 
 ```tsx
 import { event } from 'auwla/events';
@@ -79,9 +151,7 @@ function UserProfile() {
   let user: { name: string; email: string } | null = null;
 
   const loadUser = event.track('user', fetch('/api/user').then((r) => r.json()));
-  loadUser.then((data) => {
-    user = data;
-  });
+  loadUser.then((data) => { user = data; });
 
   return () => (
     <section>
@@ -98,9 +168,9 @@ function UserProfile() {
 }
 ```
 
-The returned handle is **thenable** — you can chain `.then()` and `.catch()` just like a normal promise — and has reactive state getters that can be read directly in render closures.
+The returned handle is **thenable** — you can chain `.then()` and `.catch()` — and has reactive state getters that can be read directly in render closures:
 
-| Handle Property | Meaning |
+| Property | Meaning |
 |---|---|
 | `.pending` | The operation is in-flight |
 | `.resolved` | The operation succeeded |
@@ -155,63 +225,9 @@ event.cancel('upload');      // cancel by name
 event.value<{ name: string }>('user')?.name;  // get resolved value
 ```
 
-### Manual commit (fallback)
-
-For truly external async work that you don't want to track, mutate plain variables and call `commit()`:
-
-```tsx
-import { commit } from 'auwla';
-
-fetch('/api/config').then((data) => {
-  config = data;
-  commit();
-});
-```
-
-## How It Works
-
-- Component functions run once for setup.
-- A component returns a render closure.
-- Local variables in setup are stable state.
-- JSX event handlers mutate those variables directly.
-- After an event, Auwla schedules one rerender.
-- The rerender output is patched into the existing DOM.
-- Elements with the same tag and `key` are reused, so `.map()` lists preserve DOM nodes.
-- Props, text, event listeners, and children are patched in place.
-
-## TypeScript Setup
-
-Use the automatic JSX runtime:
-
-```json
-{
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "auwla"
-  }
-}
-```
-
-## Vite Plugin
-
-Use the optional compiler plugin when you want Auwla render closures lowered to direct DOM blocks at build time:
-
-```ts
-import { defineConfig } from 'vite';
-import { auwla } from 'auwla/vite';
-
-export default defineConfig({
-  plugins: [auwla()],
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'auwla',
-  },
-});
-```
-
 ## Event Modifiers
 
-Import `event` from `auwla/events` when you want chainable event helpers instead of writing the same event boilerplate inside every handler:
+Import `event` from `auwla/events` when you want chainable event helpers instead of writing the same boilerplate inside every handler:
 
 ```tsx
 import { event } from 'auwla/events';
@@ -275,11 +291,43 @@ Common chains:
 <div onPointerMove={event.pointerMove.throttle(80).handler(trackPointer)} />
 ```
 
+## TypeScript Setup
+
+Use the automatic JSX runtime:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "auwla"
+  }
+}
+```
+
+## Vite Plugin
+
+Use the  compiler plugin when you want Auwla render closures lowered to direct DOM blocks at build time:
+
+```ts
+import { defineConfig } from 'vite';
+import { auwla } from 'auwla/vite';
+
+export default defineConfig({
+  plugins: [auwla()],
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'auwla',
+  },
+});
+```
+
 ## API
 
 ```ts
 createMemoApp(root, <App />);
-commit();
+commit();        // re-render all mounted apps
+commit(handle);  // re-render only one component subtree
+component();     // get a component handle for scoped commit / emit
 ```
 
 The lower-level DOM helpers are exported for tests and advanced usage:
