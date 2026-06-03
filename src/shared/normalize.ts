@@ -31,13 +31,18 @@ export function normalizeChildren(value: unknown, resolveClosures = false): unkn
   if (Array.isArray(value)) {
     const out: unknown[] = [];
     for (const item of value.flat(Infinity)) {
-      if (item === null || item === undefined || item === false || item === true) continue;
+      // Filter out all values that should produce no DOM node.
+      // Includes '' (empty string) because patchChildren already strips
+      // whitespace-only text nodes from oldChildren — keeping '' here would
+      // misalign the two sides and cause adjacent elements to grab the wrong
+      // existing DOM node during reconciliation.
+      if (item === null || item === undefined || item === false || item === true || item === '') continue;
       out.push(item);
     }
     return out;
   }
 
-  if (value === null || value === undefined || value === false || value === true) {
+  if (value === null || value === undefined || value === false || value === true || value === '') {
     return [];
   }
 

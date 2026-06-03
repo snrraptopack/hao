@@ -332,6 +332,180 @@ The lower-level DOM helpers are exported for tests and advanced usage:
 import { h, Fragment, createMemoElement } from 'auwla';
 ```
 
+## Router
+
+Auwla ships a client-side router as a separate entry point. Import everything from `auwla/router`.
+
+```ts
+import {
+  Router, defineRoutes, navigate, back, forward,
+  getParams, getQuery, getLocation,
+  getLoaderHandle, getRouteMeta,
+  isActive, isExactActive,
+  Link,
+} from 'auwla/router';
+```
+
+### Defining Routes
+
+```tsx
+import { defineRoutes, Router } from 'auwla/router';
+
+defineRoutes([
+  { path: '/',          component: Home     },
+  { path: '/posts',     component: PostList },
+  { path: '/posts/:id', component: PostDetail },
+  { path: '*',          component: NotFound },
+]);
+
+function App() {
+  return () => <Router />;
+}
+```
+
+`<Router />` renders the component for the currently matched path. A `*` route is always tried last and acts as a 404 fallback.
+
+### Route Parameters and Query
+
+```tsx
+import { getParams, getQuery, getLocation } from 'auwla/router';
+
+function PostDetail() {
+  // All three are safe in setup — the router always creates a new component
+  // instance when the path or query string changes, so these values are
+  // fresh at the time setup runs and stable for the lifetime of the instance.
+  const { id } = getParams();   // /posts/42        → { id: '42' }
+  const query   = getQuery();   // ?tab=comments     → { tab: 'comments' }
+  const loc     = getLocation(); // '/posts/42?tab=comments'
+
+  return () => <h1>Post {id}</h1>;
+}
+```
+
+`getParams()`, `getQuery()`, and `getLocation()` are plain functions — no hook rules or call restrictions. They read from the module-level state the Router sets on every match.
+
+### Navigation
+
+```tsx
+import { navigate, back, forward } from 'auwla/router';
+
+navigate('/posts');                    // push a new history entry
+navigate('/login', { replace: true }); // replace the current entry (no back-stack entry)
+back();
+forward();
+```
+
+`navigate()` prefers the Navigation API where available and falls back to `history.pushState` automatically.
+
+### Loaders
+
+Add a `loader` to a route to fetch data before the component renders. The router starts it immediately, wires a cancellation signal, and exposes the result via `getLoaderHandle<T>()`.
+
+```tsx
+defineRoutes([{
+  path: '/posts/:id',
+  loader: (ctx, signal) =>
+    fetch(`/api/posts/${ctx.params.id}`, { signal }).then(r => r.json()),
+  component: PostDetail,
+}]);
+
+function PostDetail() {
+  // getLoaderHandle<T>() types .value as T | undefined
+  const loader = getLoaderHandle<Post>();
+
+  return () => {
+    if (loader?.pending)  return <p>Loading…</p>;
+    if (loader?.rejected) return <p>Error: {String(loader.reason)}</p>;
+
+    const post = loader?.value; // typed as Post | undefined
+    return <h1>{post?.title}</h1>;
+  };
+}
+```
+
+Navigating away while a load is in-flight automatically cancels it — no manual `AbortController` management needed.
+
+### Navigation Guards
+
+`beforeEnter` runs before the component renders. Return `false` to block, or a path string to redirect:
+
+```tsx
+defineRoutes([{
+  path: '/dashboard',
+  beforeEnter: (ctx) => isLoggedIn() || '/login',
+  component: Dashboard,
+}]);
+```
+
+### Route Meta
+
+Attach arbitrary data to any route with `meta`. The router never inspects these values — they are purely for application use:
+
+```tsx
+defineRoutes([{
+  path: '/admin',
+  meta: { requiresAuth: true, title: 'Admin Panel' },
+  component: Admin,
+}]);
+
+// Read in any component or beforeEnter guard:
+const { requiresAuth } = getRouteMeta<{ requiresAuth: boolean; title: string }>();
+```
+
+### Active Link Detection
+
+```tsx
+import { isActive, isExactActive } from 'auwla/router';
+
+// isActive('/posts') → true on /posts AND /posts/42 (prefix match at segment boundary)
+// isExactActive('/posts') → true only on /posts
+```
+
+### Link Component
+
+`<Link>` is a drop-in replacement for `<a>` that calls `navigate()` on click and automatically applies active classes:
+
+```tsx
+import { Link } from 'auwla/router';
+
+// Renders with class="active" on /posts and /posts/42
+// Renders with class="active exact-active" on /posts exactly
+<Link href="/posts">Posts</Link>
+
+// Custom class names:
+<Link href="/posts" activeClass="is-active" exactActiveClass="is-current">
+  Posts
+</Link>
+
+// Additional static classes:
+<Link href="/posts" class="nav-item">Posts</Link>
+```
+
+Modifier-key clicks (Ctrl, Meta, Shift, Alt) are passed through to the browser so "open in new tab" keeps working.
+
+### Nested Routes
+
+A route with `children` is flattened. If the parent also has a `component`, it is kept as its own renderable entry:
+
+```tsx
+defineRoutes([{
+  path: '/settings',
+  children: [
+    { path: '/profile',  component: ProfilePage  },
+    { path: '/security', component: SecurityPage },
+  ],
+}]);
+// Registers /settings/profile and /settings/security
+```
+
+### Testing Utilities
+
+```ts
+import { resetRoutes } from 'auwla/router';
+
+beforeEach(() => resetRoutes()); // clear the registry between tests
+```
+
 ## Codebase Docs
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) explains the runtime/compiler module boundaries and render flow.
@@ -339,3 +513,4 @@ import { h, Fragment, createMemoElement } from 'auwla';
 - [ROADMAP.md](./ROADMAP.md) tracks implementation priorities.
 
 The experimental compiler transform is available from `auwla/compiler` for tooling. Runtime apps do not need to import it.
+

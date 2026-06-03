@@ -50,7 +50,7 @@ function flattenRoutes(routes: Route[], prefix = ""): Route[] {
   return flat
 }
 
-function normalizePath(path: string): string {
+export function normalizePath(path: string): string {
   return "/" + path.replace(/^\/+|\/+$/g, "")
 }
 
