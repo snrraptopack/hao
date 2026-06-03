@@ -119,7 +119,22 @@ export function __keyedMap<TItem, TKey>(
   let destroyableRows = 0;
 
   const block: CompiledBlock<[readonly TItem[]]> = {
-    node: fragment,
+    get node() {
+      const frag = document.createDocumentFragment();
+      for (const row of orderedRows) {
+        frag.appendChild(row.block.node);
+      }
+      frag.appendChild(anchor);
+      (frag as any).__auwlaGetNodes = () => {
+        const nodes: Node[] = [];
+        for (const row of orderedRows) {
+          nodes.push(row.block.node);
+        }
+        nodes.push(anchor);
+        return nodes;
+      };
+      return frag;
+    },
     update(nextItems) {
       const parent = anchor.parentNode ?? fragment;
 

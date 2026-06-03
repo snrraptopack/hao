@@ -203,7 +203,7 @@ The compiler infers row dependencies from expressions referencing the item param
 
 ### 6. Component Inlining
 
-Simple components that just return JSX and have no setup state can be inlined into their parent:
+Simple components that return JSX (directly or through a render closure) and have **no setup state** can be inlined into their parent:
 
 ```tsx
 function Label(props) {
@@ -219,8 +219,10 @@ function App() {
 
 Inlining is **blocked** when:
 - The component has more than 1 parameter
-- The component body has conditional returns or loops
+- The component body contains any statement other than a single `return` (e.g., `const self = component()`, variable declarations, loops)
+- The closure body (for `() => { ... }` patterns) contains any statement other than a single `return`
 - The call site passes children and the component references `props.children`
+- The component has setup state that would be lost (e.g., `component()`, `cleanup()`, event listener setup outside JSX)
 
 ---
 
@@ -234,14 +236,19 @@ Inlining is **blocked** when:
 | `return () => { count++; return <div>{count}</div>; }` | Leading statements preserved, JSX compiled to block |
 | `{items.map(item => <li key={item.id}>{item.text}</li>)}` | `__keyedMap` with dependency inference |
 | `{items.map((item, i) => <li>{item}</li>)}` | `__keyedMap` with positional index keys |
-| `{show ? <A/> : <B/>}` and `{show && <A/>}` | `activeBranch` direct DOM swapping |
+| `{show ? <A/> : <B/>}`, `{show && <A/>}`, `{show || <A/>}` | `activeBranch` direct DOM swapping |
+| `{show && items.map(...)}`, `{show ? items.map(...) : null}`, `{show || items.map(...)}` | `activeBranch` + `__keyedMap` |
 | `{a ? <A/> : b ? <B/> : <C/>}` | Nested ternaries flattened to `if / else if / else` |
 | `onClick={() => count++}` | `addEventListener('click', __event(...))` |
 | `style={{ color: 'red', padding: 8 }}` (all static) | Inline CSS in template HTML |
 | `<svg>`, `<circle>`, `<path>`, etc. | `createElementNS("http://www.w3.org/2000/svg", ...)` |
 | Spread on known objects `{...props}` | `__spreadProps(element, props)` |
 | Simple child components (no setup, no children refs) | Inlined into parent block |
+| Closure-returning child components with no setup state | Inlined into parent block |
 | Parent with non-inlinable children | Parent compiles; children use `__setChild` fallback |
+| Parenthesized map calls `{(items.map(...))}` | `__keyedMap` after unwrapping parens |
+| Fragments inside conditionals `{show && <><A/><B/></>}` | `activeBranch` with wrapper span |
+| `||` with JSX or map branches `{show || <A/>}` | `activeBranch` (boolean-like LHS only) |
 
 ### ❌ Falls Back to Runtime JSX
 
@@ -253,6 +260,8 @@ Inlining is **blocked** when:
 | `{items.map(x => x)}` without `key` | Unkeyed map compiles with index fallback |
 | Mixed JSX and non-nullish text branches (`show ? <A/> : 'text'`) | Would need runtime text/JSX interleaving |
 | `style={{ color: dynamic }}` (mixed static/dynamic) | Falls to non-template `__setStyle` patches |
+| Components with setup code (`component()`, `cleanup()`, etc.) | Runtime `__setChild` fallback; setup would be lost |
+| Mixed JSX and non-nullish text branches (`show ? <A/> : 'text'`) | Would need runtime text/JSX interleaving |
 
 ### ✅ Compiled Parent + Runtime Child
 
@@ -327,6 +336,7 @@ This means you can mix compiled and runtime components freely in the same app. A
 2. **Nested ternary inlining limits** — Deeply nested ternaries in the `whenTrue` position (e.g., `a ? (b ? c : d) : e`) are not yet flattened; only `whenFalse` chains are expanded.
 3. **Spread attributes on unknown objects** — `__spreadProps` handles them at runtime, but the template path bails because it can't know which keys will exist.
 4. **SVG standalone roots** — A root-level `<circle>` or `<path>` (not inside `<svg>`) bails from template path because `innerHTML` can't create SVG elements without an SVG parent context.
+5. **Components with setup code inside conditionals** — A component that calls `component()`, `cleanup()`, or has other setup statements cannot be inlined, so `<Child />` inside a conditional uses `__setChild` fallback.
 
 ---
 

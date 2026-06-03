@@ -92,4 +92,17 @@ export type EventChain<TEvent = Event> = {
   readonly touchCancel: EventChain<TouchEvent>;
   emit(handle: ComponentHandle, name: string, payload?: unknown): boolean;
   handler<TResult>(handler: (event: TEvent) => TResult): (event: TEvent) => void;
+
+  /** Track an async operation by name. Starts immediately. */
+  track(name: string, promise: Promise<unknown>): import('./track').TrackHandle;
+  track(name: string, fn: (signal: AbortSignal) => Promise<unknown>): import('./track').TrackHandle;
+  track(promise: Promise<unknown>): import('./track').TrackHandle;
+
+  /** Query track state. */
+  pending(name?: string): boolean;
+  resolved(name?: string): boolean;
+  rejected(name?: string): boolean;
+  value<T = unknown>(name: string): T | undefined;
+  reason(name: string): unknown;
+  cancel(name?: string): void;
 };

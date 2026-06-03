@@ -174,11 +174,20 @@ export function needsChildPatch(expression: ts.Expression): boolean {
   return false;
 }
 
+/** Unwrap a parenthesized expression to reach a `.map()` call. */
+export function unwrapMapCall(expression: ts.Expression): ts.CallExpression | null {
+  if (ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && expression.expression.name.text === 'map') {
+    return expression;
+  }
+  if (ts.isParenthesizedExpression(expression)) {
+    return unwrapMapCall(expression.expression);
+  }
+  return null;
+}
+
 /** Return true if the expression is a `.map()` call. */
 export function isMapCall(expression: ts.Expression): boolean {
-  return ts.isCallExpression(expression)
-    && ts.isPropertyAccessExpression(expression.expression)
-    && expression.expression.name.text === 'map';
+  return unwrapMapCall(expression) !== null;
 }
 
 /** Extract the `key` attribute expression from a JSX element, if present. */
@@ -212,6 +221,27 @@ export function unwrapJsxReturn(body: ts.Block): ts.JsxElement | ts.JsxSelfClosi
     const expression = statement.expression;
     if (!expression) continue;
     return unwrapJsxExpression(expression);
+  }
+  return null;
+}
+
+/**
+ * Extract JSX from a component that returns a render closure.
+ *
+ * Handles both `return () => <jsx>` and `return () => { return <jsx>; }`.
+ */
+export function unwrapJsxClosureReturn(body: ts.Block): ts.JsxElement | ts.JsxSelfClosingElement | null {
+  for (const statement of body.statements) {
+    if (!ts.isReturnStatement(statement)) continue;
+    const expression = statement.expression;
+    if (!expression) continue;
+    if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)) {
+      const arrowBody = expression.body;
+      if (ts.isBlock(arrowBody)) {
+        return unwrapJsxReturn(arrowBody);
+      }
+      return unwrapJsxExpression(arrowBody);
+    }
   }
   return null;
 }
@@ -256,34 +286,41 @@ export function isInlinableComponent(
   if (node.parameters.length > 1) return false;
   const body = node.body;
   if (!body) return false;
-  const jsx = ts.isBlock(body) ? unwrapJsxReturn(body) : unwrapJsxExpression(body);
-  if (!jsx) return false;
 
-  // Reject block bodies with control flow — only a single return statement is allowed.
+  let jsx: ts.JsxElement | ts.JsxSelfClosingElement | null = null;
+
   if (ts.isBlock(body)) {
-    let returnCount = 0;
-    let hasControlFlow = false;
-    function scan(node: ts.Node) {
-      if (ts.isReturnStatement(node)) returnCount++;
-      if (
-        ts.isIfStatement(node) ||
-        ts.isSwitchStatement(node) ||
-        ts.isForStatement(node) ||
-        ts.isForInStatement(node) ||
-        ts.isForOfStatement(node) ||
-        ts.isWhileStatement(node) ||
-        ts.isDoStatement(node) ||
-        ts.isTryStatement(node)
-      ) {
-        hasControlFlow = true;
+    // Must be exactly one statement: a return statement. Any setup code
+    // (variable declarations, function calls, etc.) makes inlining unsafe
+    // because that code would be lost.
+    if (body.statements.length !== 1) return false;
+    const stmt = body.statements[0]!;
+    if (!ts.isReturnStatement(stmt)) return false;
+    const expr = stmt.expression;
+    if (!expr) return false;
+
+    jsx = unwrapJsxExpression(expr);
+
+    // Also accept `return () => <jsx>` and `return () => { return <jsx>; }`
+    if (!jsx && (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr))) {
+      const closureBody = expr.body;
+      if (ts.isBlock(closureBody)) {
+        if (closureBody.statements.length !== 1) return false;
+        const innerStmt = closureBody.statements[0]!;
+        if (!ts.isReturnStatement(innerStmt)) return false;
+        const innerExpr = innerStmt.expression;
+        if (innerExpr) {
+          jsx = unwrapJsxExpression(innerExpr);
+        }
+      } else {
+        jsx = unwrapJsxExpression(closureBody);
       }
-      ts.forEachChild(node, scan);
     }
-    scan(body);
-    if (returnCount > 1 || hasControlFlow) return false;
+  } else {
+    jsx = unwrapJsxExpression(body);
   }
 
-  return true;
+  return !!jsx;
 }
 
 /** Extract the returned JSX from an inlinable component. */
@@ -292,7 +329,33 @@ export function extractComponentJsx(
 ): ts.JsxElement | ts.JsxSelfClosingElement | null {
   const body = node.body;
   if (!body) return null;
-  return ts.isBlock(body) ? unwrapJsxReturn(body) : unwrapJsxExpression(body);
+
+  if (ts.isBlock(body)) {
+    if (body.statements.length !== 1) return null;
+    const stmt = body.statements[0]!;
+    if (!ts.isReturnStatement(stmt)) return null;
+    const expr = stmt.expression;
+    if (!expr) return null;
+
+    let jsx = unwrapJsxExpression(expr);
+    if (!jsx && (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr))) {
+      const closureBody = expr.body;
+      if (ts.isBlock(closureBody)) {
+        if (closureBody.statements.length !== 1) return null;
+        const innerStmt = closureBody.statements[0]!;
+        if (!ts.isReturnStatement(innerStmt)) return null;
+        const innerExpr = innerStmt.expression;
+        if (innerExpr) {
+          jsx = unwrapJsxExpression(innerExpr);
+        }
+      } else {
+        jsx = unwrapJsxExpression(closureBody);
+      }
+    }
+    return jsx;
+  }
+
+  return unwrapJsxExpression(body);
 }
 
 /** Check if a node subtree references `props.children` or a bare `children` identifier. */
