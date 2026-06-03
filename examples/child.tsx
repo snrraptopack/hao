@@ -1,5 +1,5 @@
 // main.tsx
-import { Router, defineRoutes, back, useParams } from "../src/router/index"
+import { Router, defineRoutes, back, getParams } from "auwla/router"
 import { createMemoApp, commit, component } from "auwla"
 import {} from "auwla/jsx-runtime"
 
@@ -76,7 +76,7 @@ function UserList() {
 
 function UserDetail() {
   const self = component()
-  const params = useParams()
+  const params = getParams()
 
   type State =
     | { status: "loading" }
@@ -123,7 +123,7 @@ function UserDetail() {
 
 function UserPosts() {
   const self = component()
-  const params = useParams()
+  const params = getParams()
 
   type State =
     | { status: "loading" }

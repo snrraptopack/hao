@@ -14,5 +14,9 @@ export type {
   WrappedEventHandler,
 } from './types';
 
+// TrackHandle is part of the public API so router and userland can type
+// loader handles without importing from internal paths.
+export type { TrackHandle, TrackStatus } from './track';
+
 export { emit } from './emit';
 export { DEFAULT_EVENT_DELAY_MS } from './timing';

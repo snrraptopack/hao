@@ -15,7 +15,8 @@
       "auwla/jsx-runtime": ["src/jsx-runtime.ts"],
       "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"],
       "auwla/compiler": ["src/compiler.ts"],
-      "auwla/events": ["src/events/index.ts"]
+      "auwla/events": ["src/events/index.ts"],
+      "auwla/router": ["src/router/index.ts"]
     },
 
     // Bundler mode
