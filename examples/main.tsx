@@ -1,4 +1,4 @@
-import { commit, createMemoApp,component, emit, ComponentHandle } from 'auwla';
+import { commit, createMemoApp,component, emit, ComponentHandle, reactive } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
@@ -8,15 +8,19 @@ const state:any = {
   double() { return this.count * 2 }
 }
 
+const reactiveState = reactive(0)
+
 
 function CounterExample() {
-  const self = component()
     return () => (
       <section class="panel">
         <h2>Counter</h2>
         <p>State is a local variable in setup.</p>
-        <button onClick={() => { state.count++;  commit(self)}}>Count: {state.count}</button>
+        <button onClick={() => { state.count++ }}>Count: {state.count}</button>
         <p>double {state.double()}</p>
+        {/*<button onClick={() => reactiveState.set(reactiveState.get() + 1)}>
+          change reactive {reactiveState.get()}
+        </button>*/}
       </section>
     );
 }
@@ -84,13 +88,16 @@ function ChildCounter(props: { label: string }) {
   );
 }
 
-function Another(props: { label: string,counter:number }) {
+function Another(props: { label: string, counter: number }) {
   return () => (
     <div emit:counter={(data:{count:number})=> console.log(data)}>
       <button class="secondary" onClick={() => { state.count++;}}>
       {props.label}: {state.count}
       </button>
-      <p>double..{ props.counter}</p>
+      <p>double..{props.counter}</p>
+      {/*<button onClick={() => reactiveState.set(reactiveState.get() + 1)}>
+        change reactive {reactiveState.get()}
+      </button>*/}
       <ChildCounter label='Another child' />
     </div>
   );
@@ -99,18 +106,21 @@ function Another(props: { label: string,counter:number }) {
 function NestedStateExample() {
   let parentCount = 0;
 
-  return () => (
-    <section class="panel">
-      <h2>Nested Components</h2>
-      <p>Child setup runs once and keeps its own closure state across parent rerenders.</p>
-      <div class="row">
-        <button onClick={() => parentCount++}>Parent: {parentCount}</button>
-        <ChildCounter label="Child A" />
-        <ChildCounter label="Child B" />
-        <Another label='Another parent' counter={parentCount}/>
-      </div>
-    </section>
-  );
+  return () => {
+    console.log("parent rendered from another")
+    return (
+      <section class="panel">
+        <h2>Nested Components</h2>
+        <p>Child setup runs once and keeps its own closure state across parent rerenders.</p>
+        <div class="row">
+          <button onClick={() => parentCount++}>Parent: {parentCount}</button>
+          <ChildCounter label="Child A" />
+          <ChildCounter label="Child B" />
+          <Another label='Another parent' counter={parentCount}/>
+        </div>
+      </section>
+    );
+  }
 }
 
 function KeyedReorderExample() {

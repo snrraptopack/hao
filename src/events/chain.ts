@@ -1,23 +1,32 @@
 import {
-  altModifier,
-  ctrlModifier,
   ifModifier,
-  keyModifier,
-  leftModifier,
-  logModifier,
-  metaModifier,
-  middleModifier,
-  modModifier,
   onceModifier,
   preventModifier,
-  rightModifier,
   selfModifier,
-  shiftModifier,
   stopImmediateModifier,
   stopModifier,
   targetModifier,
   trustedModifier,
-} from './modifiers';
+  logModifier,
+  leftModifier,
+  rightModifier,
+} from './core';
+import { middleModifier } from './mouse';
+import {
+  keyModifier,
+  ctrlModifier,
+  metaModifier,
+  shiftModifier,
+  altModifier,
+  modModifier,
+  upModifier,
+  downModifier,
+  enterModifier,
+  escModifier,
+  delModifier,
+  tabModifier,
+  spaceModifier,
+} from './keyboard';
 import { cooldownModifier, debounceModifier, throttleModifier } from './timing';
 import { emit } from './emit';
 import { track as trackFn, pending, resolved, rejected, value, reason, cancel } from './track';
@@ -73,13 +82,34 @@ function defineChainAccessors<TTarget extends object>(
       get: () => createEventChain(appendModifier(modifiers, trustedModifier)),
     },
     left: {
-      get: () => createEventChain<MouseEvent>(appendModifier(modifiers, leftModifier)),
+      get: () => createEventChain(appendModifier(modifiers, leftModifier)),
     },
     middle: {
       get: () => createEventChain<MouseEvent>(appendModifier(modifiers, middleModifier)),
     },
     right: {
-      get: () => createEventChain<MouseEvent>(appendModifier(modifiers, rightModifier)),
+      get: () => createEventChain(appendModifier(modifiers, rightModifier)),
+    },
+    up: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, upModifier)),
+    },
+    down: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, downModifier)),
+    },
+    enter: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, enterModifier)),
+    },
+    esc: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, escModifier)),
+    },
+    del: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, delModifier)),
+    },
+    tab: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, tabModifier)),
+    },
+    space: {
+      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, spaceModifier)),
     },
     target: {
       get: () => targetChain(modifiers),

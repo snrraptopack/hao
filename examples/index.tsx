@@ -6,8 +6,7 @@ import {
   defineRoutes,
   group,
   composeRoutes,
-  resetRoutes,
-  resetHooks,
+  isActive,
 } from "auwla/router"
 import './index.css'
 
@@ -22,11 +21,13 @@ import { TrackExample } from "./track"
 import { PerfExample } from "./perf"
 import { TableBenchmarkExample } from "./table-benchmark"
 import { TableBenchmarkRuntimeExample } from "./table-benchmark-runtime"
+import { ReactiveDemo } from "./reactive"
 
 // Router examples — routes + shells
 import { navigationRoutes, NavigationShell } from "./navigation"
 import { childRoutes, ChildShell } from "./child"
 import { loaderRoutes, LoaderShell } from "./loader"
+import { modifiersRoutes, ModifiersShell } from "./modifiers"
 
 // ---------------------------------------------------------------------------
 // Central route definitions — compose everything and register once
@@ -48,12 +49,14 @@ defineRoutes(
       { path: "/perf", component: PerfExample },
       { path: "/table-benchmark", component: TableBenchmarkExample },
       { path: "/table-benchmark-runtime", component: TableBenchmarkRuntimeExample },
+      { path: "/reactive", component: ReactiveDemo },
     ],
 
     // Router examples — grouped under a base path with shared layout shell
     group("/navigation", { layout: NavigationShell }, navigationRoutes),
     group("/child", { layout: ChildShell }, childRoutes),
     group("/loader", { layout: LoaderShell }, loaderRoutes),
+    group("/modifiers", { layout: ModifiersShell }, modifiersRoutes),
 
     // Catch-all
     [
@@ -77,12 +80,15 @@ const examples = [
   { path: "/perf", label: "Performance" },
   { path: "/table-benchmark", label: "Table Benchmark" },
   { path: "/table-benchmark-runtime", label: "Table Benchmark (Runtime)" },
+  { path: "/reactive", label: "Reactive vs Plain" },
   { path: "/navigation", label: "Navigation" },
   { path: "/child", label: "Child / Router" },
   { path: "/loader", label: "Router Loader" },
+  { path: "/modifiers", label: "Event Modifiers (Docs)" },
 ]
 
 function Gallery() {
+
   return () => (
     <div class="gallery">
       <aside class="gallery-sidebar">

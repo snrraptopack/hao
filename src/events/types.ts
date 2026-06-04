@@ -52,9 +52,16 @@ export type EventChain<TEvent = Event> = {
   readonly once: EventChain<TEvent>;
   readonly self: EventChain<TEvent>;
   readonly trusted: EventChain<TEvent>;
-  readonly left: EventChain<MouseEvent>;
+  readonly left: EventChain<TEvent>;
   readonly middle: EventChain<MouseEvent>;
-  readonly right: EventChain<MouseEvent>;
+  readonly right: EventChain<TEvent>;
+  readonly up: EventChain<KeyboardEvent>;
+  readonly down: EventChain<KeyboardEvent>;
+  readonly enter: EventChain<KeyboardEvent>;
+  readonly esc: EventChain<KeyboardEvent>;
+  readonly del: EventChain<KeyboardEvent>;
+  readonly tab: EventChain<KeyboardEvent>;
+  readonly space: EventChain<KeyboardEvent>;
   readonly target: TargetEventChain<TEvent>;
   readonly debounce: TimedEventChain<TEvent>;
   readonly throttle: TimedEventChain<TEvent>;

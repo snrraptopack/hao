@@ -1,4 +1,3 @@
-import { createMemoApp } from 'auwla';
 import { event } from 'auwla/events';
 
 interface User {

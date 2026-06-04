@@ -255,4 +255,65 @@ describe('event chain utilities', () => {
     expect(typeof event.emit).toBe('function');
     expect(event.emit(handle, 'saved', { id: 1 })).toBe(false);
   });
+
+  test('new key shortcut modifiers filter correctly', () => {
+    const enterHandler = vi.fn();
+    const upHandler = vi.fn();
+    const escHandler = vi.fn();
+    const tabHandler = vi.fn();
+    const spaceHandler = vi.fn();
+    const delHandler = vi.fn();
+    const downHandler = vi.fn();
+
+    const wrappedEnter = event.enter.handler(enterHandler);
+    const wrappedUp = event.up.handler(upHandler);
+    const wrappedEsc = event.esc.handler(escHandler);
+    const wrappedTab = event.tab.handler(tabHandler);
+    const wrappedSpace = event.space.handler(spaceHandler);
+    const wrappedDel = event.del.handler(delHandler);
+    const wrappedDown = event.down.handler(downHandler);
+
+    wrappedEnter(new KeyboardEvent('keydown', { key: 'Enter' }));
+    wrappedEnter(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    wrappedUp(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    wrappedUp(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+
+    wrappedEsc(new KeyboardEvent('keydown', { key: 'Escape' }));
+    wrappedTab(new KeyboardEvent('keydown', { key: 'Tab' }));
+    wrappedSpace(new KeyboardEvent('keydown', { key: ' ' }));
+    wrappedDel(new KeyboardEvent('keydown', { key: 'Delete' }));
+    wrappedDown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+
+    expect(enterHandler).toHaveBeenCalledTimes(1);
+    expect(upHandler).toHaveBeenCalledTimes(1);
+    expect(escHandler).toHaveBeenCalledTimes(1);
+    expect(tabHandler).toHaveBeenCalledTimes(1);
+    expect(spaceHandler).toHaveBeenCalledTimes(1);
+    expect(delHandler).toHaveBeenCalledTimes(1);
+    expect(downHandler).toHaveBeenCalledTimes(1);
+  });
+
+  test('polymorphic left and right modifiers filter both mouse and keyboard arrow events', () => {
+    const leftHandler = vi.fn();
+    const rightHandler = vi.fn();
+
+    const wrappedLeft = event.left.handler(leftHandler);
+    const wrappedRight = event.right.handler(rightHandler);
+
+    // Mouse events
+    wrappedLeft(new MouseEvent('mousedown', { button: 0 })); // left click
+    wrappedLeft(new MouseEvent('mousedown', { button: 2 })); // right click
+    wrappedRight(new MouseEvent('mousedown', { button: 2 })); // right click
+    wrappedRight(new MouseEvent('mousedown', { button: 0 })); // left click
+
+    // Keyboard events
+    wrappedLeft(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    wrappedLeft(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    wrappedRight(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    wrappedRight(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+
+    expect(leftHandler).toHaveBeenCalledTimes(2); // 1 mouse, 1 keyboard
+    expect(rightHandler).toHaveBeenCalledTimes(2); // 1 mouse, 1 keyboard
+  });
 });
