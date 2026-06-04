@@ -4,7 +4,6 @@
 
 import {} from "auwla/jsx-runtime"
 import {
-  Router,
   Link,
   navigate,
   back,
@@ -13,7 +12,6 @@ import {
   getRouteMeta,
   isActive,
 } from "auwla/router"
-import type { Route } from "auwla/router"
 
 // ---------------------------------------------------------------------------
 // Fake session — in a real app this would be real auth state
@@ -31,19 +29,41 @@ const USERS = [
   { id: "3", name: "Kofi Boateng",  role: "viewer", color: "#2d2a1f", text: "#d29922", bio: "Product manager from Takoradi."   },
 ]
 
-const navigationRoutes: Route[] = [
+// ---------------------------------------------------------------------------
+// Routes (relative — group('/navigation') will prefix them)
+// ---------------------------------------------------------------------------
+
+export const navigationRoutes = [
   { path: "/", component: Home },
   { path: "/users", component: UserList },
   { path: "/users/:id", component: UserDetail },
   {
     path: "/admin",
     meta: { requiresAuth: true, title: "Admin Panel" },
-    beforeEnter: () => loggedIn || "/navigation/login",
+    guard: () => loggedIn || "/navigation/login",
     component: Admin,
   },
   { path: "/login", component: Login },
   { path: "*", component: NotFound },
 ]
+
+// ---------------------------------------------------------------------------
+// Layout shell
+// ---------------------------------------------------------------------------
+
+export function NavigationShell(child: () => any) {
+  return () => (
+    <div class="navigation-example">
+      <nav>
+        <span class="brand">auwla</span>
+        <Link href="/navigation" exactActiveClass="exact-active" activeClass="">Home</Link>
+        <Link href="/navigation/users">Users</Link>
+        <Link href="/navigation/admin">Admin</Link>
+      </nav>
+      <main>{child()}</main>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Components
@@ -172,7 +192,7 @@ function Admin() {
           <span class="meta-tag">requires auth</span>
           <span class="meta-tag">meta.title = {title}</span>
         </div>
-        <p>You are logged in. This page was protected by <code>beforeEnter</code>.</p>
+        <p>You are logged in. This page was protected by <code>guard</code>.</p>
         <p style={{ marginTop: "12px" }}>
           <button
             class="btn"
@@ -253,28 +273,4 @@ function NotFound() {
       <p>Page not found</p>
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// App shell
-// ---------------------------------------------------------------------------
-
-function App() {
-  return () => (
-    <div class="navigation-example">
-      <nav>
-        <span class="brand">auwla</span>
-        <Link href="/navigation" exactActiveClass="exact-active" activeClass="">Home</Link>
-        <Link href="/navigation/users">Users</Link>
-        <Link href="/navigation/admin">Admin</Link>
-      </nav>
-      <main>
-        <Router routes={navigationRoutes} base="/navigation" />
-      </main>
-    </div>
-  )
-}
-
-export function NavigationExample() {
-  return () => <App />;
 }

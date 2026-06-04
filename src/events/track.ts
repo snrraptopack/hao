@@ -41,6 +41,10 @@ type TrackState = {
   reason: unknown;
   controller: AbortController | null;
   promise: Promise<unknown> | null;
+  // Scoped invalidation: when set, resolving/rejecting this track re-renders
+  // only the owning component's subtree instead of every mounted app.
+  invalidate?: (ownerId?: string | null) => void;
+  ownerId?: string | null;
 };
 
 /** Global track registry keyed by `${componentId}::${name}`. */
@@ -86,7 +90,14 @@ function transition(key: string, status: TrackStatus, value?: unknown, reason?: 
   state.status = status;
   if (status === 'resolved') state.value = value;
   if (status === 'rejected') state.reason = reason;
-  commit();
+
+  // Prefer a scoped commit so only the owning component's subtree re-renders.
+  // Fall back to a global commit for anonymous tracks (no known owner).
+  if (state.invalidate && state.ownerId) {
+    state.invalidate(state.ownerId);
+  } else {
+    commit();
+  }
 }
 
 /** @internal */
@@ -158,6 +169,8 @@ function createHandle(key: string, promise: Promise<unknown>): TrackHandle {
 function runAsyncTrack(
   key: string,
   fn: (signal: AbortSignal) => Promise<unknown>,
+  invalidate?: (ownerId?: string | null) => void,
+  ownerId?: string | null,
 ): Promise<unknown> {
   const state = getOrCreate(key);
   if (state.controller) {
@@ -166,6 +179,9 @@ function runAsyncTrack(
   const controller = new AbortController();
   state.controller = controller;
   state.status = 'pending';
+  // Capture ownership so transition() can do a scoped commit.
+  state.invalidate = invalidate;
+  state.ownerId = ownerId;
 
   const promise = fn(controller.signal).then(
     (value) => {
@@ -240,6 +256,10 @@ export function track(
       state.controller = null;
     }
     state.status = 'pending';
+    // Capture the active render state's invalidate so the promise path also
+    // gets scoped commits when it resolves.
+    state.invalidate = runtimeState.activeRenderState?.invalidate;
+    state.ownerId = cid;
     const promise = maybePromiseOrFn.then(
       (value) => {
         transition(key, 'resolved', value);
@@ -256,7 +276,9 @@ export function track(
 
   // Overload: track(name, asyncFn) — starts immediately
   const fn = maybePromiseOrFn as (signal: AbortSignal) => Promise<unknown>;
-  const promise = runAsyncTrack(key, fn);
+  // Pass the active render state's invalidate so the async track resolves via
+  // a scoped commit rather than a global one.
+  const promise = runAsyncTrack(key, fn, runtimeState.activeRenderState?.invalidate, cid);
   return createHandle(key, promise);
 }
 

@@ -107,7 +107,9 @@ export interface MemoApp<TModel> {
 
 /** @internal */
 export type MountedApp = {
-  invalidate(): void;
+  // ownerId is optional — omitting it triggers a full-app invalidation,
+  // passing a component ID limits the dirty set to that subtree.
+  invalidate(ownerId?: string | null): void;
 };
 
 /** @internal */

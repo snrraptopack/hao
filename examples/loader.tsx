@@ -2,12 +2,10 @@
 
 import {} from "auwla/jsx-runtime"
 import {
-  Router,
   getLoaderHandle,
   getParams,
   back,
 } from "auwla/router"
-import type { Route } from "auwla/router"
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -21,24 +19,24 @@ interface Post {
 }
 
 // ---------------------------------------------------------------------------
-// Routes
+// Routes (relative — group('/loader') will prefix them)
 // ---------------------------------------------------------------------------
 
-const loaderRoutes: Route[] = [
+export const loaderRoutes = [
   {
     path: "/",
     component: Home,
   },
   {
     path: "/posts",
-    loader: (_, signal) =>
+    loader: (_context: { params: Record<string, string> }, signal: AbortSignal) =>
       fetch("https://jsonplaceholder.typicode.com/posts?_limit=15", { signal })
         .then((r) => r.json()),
     component: PostList,
   },
   {
     path: "/posts/:id",
-    loader: (ctx, signal) =>
+    loader: (ctx: { params: Record<string, string> }, signal: AbortSignal) =>
       fetch(`https://jsonplaceholder.typicode.com/posts/${ctx.params.id}`, { signal })
         .then((r) => r.json()),
     component: PostDetail,
@@ -48,6 +46,25 @@ const loaderRoutes: Route[] = [
     component: NotFound,
   },
 ]
+
+// ---------------------------------------------------------------------------
+// Layout shell
+// ---------------------------------------------------------------------------
+
+export function LoaderShell(child: () => any) {
+  return () => (
+    <div class="loader-example">
+      <div class="shell">
+        <nav>
+          <span class="brand">auwla</span>
+          <a href="/loader">Home</a>
+          <a href="/loader/posts">Posts</a>
+        </nav>
+        <main>{child()}</main>
+      </div>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Components
@@ -158,29 +175,4 @@ function NotFound() {
       <p>Page not found</p>
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// App shell
-// ---------------------------------------------------------------------------
-
-function App() {
-  return () => (
-    <div class="loader-example">
-      <div class="shell">
-        <nav>
-          <span class="brand">auwla</span>
-          <a href="/loader">Home</a>
-          <a href="/loader/posts">Posts</a>
-        </nav>
-        <main>
-          <Router routes={loaderRoutes} base="/loader" />
-        </main>
-      </div>
-    </div>
-  )
-}
-
-export function LoaderExample() {
-  return () => <App />;
 }

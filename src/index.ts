@@ -8,6 +8,7 @@ export {
   emit,
   h,
   memo,
+  reactive,
 } from './runtime/index';
 
 export {
@@ -33,6 +34,7 @@ export type {
   MemoContext,
   MemoDeps,
   MemoProps,
+  ReactiveCell,
   RenderClosure,
 } from './runtime/index';
 

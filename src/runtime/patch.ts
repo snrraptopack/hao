@@ -128,7 +128,26 @@ export function patchChildren(parent: Node, nextChildren: unknown[]) {
   nextChildren = normalizeChildren(nextChildren);
 
   if (nextChildren.length === 0) {
-    if (parent.firstChild) (parent as Element).replaceChildren();
+    // Guard: never wipe the DOM entirely when a component returns null/false/undefined.
+    //
+    // Without this guard the sequence is:
+    //   1. Component returns null → nextChildren = []
+    //   2. replaceChildren() clears the DOM → inserts nothing
+    //   3. Next render: patchChildren sees a whitespace text node → oldChildren = []
+    //      (because the whitespace filter removes it) → fresh-append path runs →
+    //      toNode(null) creates an empty text node → same blank state repeats.
+    //
+    // Instead, we keep a single comment sentinel so the DOM always has one child
+    // at this position. The comment is invisible to users and survives the
+    // whitespace filter in oldChildren (comment nodes pass the `return true` branch).
+    const existing = parent.firstChild;
+    if (!existing) {
+      parent.appendChild(document.createComment(''));
+    } else if (existing.nodeType !== Node.COMMENT_NODE) {
+      // There was real content before — replace it with the sentinel.
+      (parent as Element).replaceChildren(document.createComment(''));
+    }
+    // If there's already a comment sentinel, nothing to do.
     return;
   }
 

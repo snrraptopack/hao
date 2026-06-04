@@ -156,6 +156,7 @@ function isTextLiteral(expression: ts.Expression): boolean {
  */
 export function needsChildPatch(expression: ts.Expression): boolean {
   if (containsJsx(expression) || ts.isArrayLiteralExpression(expression)) return true;
+  if (ts.isCallExpression(expression)) return true;
 
   if (ts.isConditionalExpression(expression)) {
     // Only avoid __setChild when BOTH branches are text literals.

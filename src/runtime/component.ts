@@ -34,13 +34,16 @@ export function component(): ComponentHandle {
     return { _id: runtimeState.activeSetupComponentId, _invalidate: runtimeState.activeRenderState.invalidate };
   }
 
-  // Top-level component (e.g. createMemoApp(root, <App />)) — no render context yet.
-  // Return a handle that falls back to full invalidation via commit().
+  // Top-level component (e.g. createMemoApp(root, App) called without JSX context) —
+  // no render context is active yet, so we cannot derive a real component ID.
+  // '__root' is a reserved, non-empty sentinel that lets markDirty() walk up the
+  // ancestor chain without collapsing dirtyComponents to null (which would force a
+  // full-app re-render for every scoped commit on this handle).
   return {
-    _id: '',
-    _invalidate() {
+    _id: '__root',
+    _invalidate(ownerId?: string | null) {
       for (const app of runtimeState.mountedApps) {
-        app.invalidate();
+        app.invalidate(ownerId);
       }
     },
   };

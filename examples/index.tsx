@@ -4,6 +4,8 @@ import {
   Router,
   Link,
   defineRoutes,
+  group,
+  composeRoutes,
   resetRoutes,
   resetHooks,
 } from "auwla/router"
@@ -21,41 +23,45 @@ import { PerfExample } from "./perf"
 import { TableBenchmarkExample } from "./table-benchmark"
 import { TableBenchmarkRuntimeExample } from "./table-benchmark-runtime"
 
-// Router examples
-import { NavigationExample } from "./navigation"
-import { ChildExample } from "./child"
-import { LoaderExample } from "./loader"
+// Router examples — routes + shells
+import { navigationRoutes, NavigationShell } from "./navigation"
+import { childRoutes, ChildShell } from "./child"
+import { loaderRoutes, LoaderShell } from "./loader"
 
 // ---------------------------------------------------------------------------
-// Central route definitions
+// Central route definitions — compose everything and register once
 // ---------------------------------------------------------------------------
 
 resetRoutes()
 resetHooks()
 
-defineRoutes([
-  // Simple examples
-  { path: "/", component: ExampleApp },
-  { path: "/emit", component: EmitExample },
-  { path: "/event-chain", component: EventChainExampleApp },
-  { path: "/fetch", component: FetchExample },
-  { path: "/jsx-patterns", component: JsxPatternsExample },
-  { path: "/patterns", component: PatternsExample },
-  { path: "/track", component: TrackExample },
-  { path: "/perf", component: PerfExample },
-  { path: "/table-benchmark", component: TableBenchmarkExample },
-  { path: "/table-benchmark-runtime", component: TableBenchmarkRuntimeExample },
+defineRoutes(
+  composeRoutes(
+    // Simple examples — no group, no layout
+    [
+      { path: "/", component: ExampleApp },
+      { path: "/emit", component: EmitExample },
+      { path: "/event-chain", component: EventChainExampleApp },
+      { path: "/fetch", component: FetchExample },
+      { path: "/jsx-patterns", component: JsxPatternsExample },
+      { path: "/patterns", component: PatternsExample },
+      { path: "/track", component: TrackExample },
+      { path: "/perf", component: PerfExample },
+      { path: "/table-benchmark", component: TableBenchmarkExample },
+      { path: "/table-benchmark-runtime", component: TableBenchmarkRuntimeExample },
+    ],
 
-  // Router examples (namespaced)
-  { path: "/navigation", component: NavigationExample },
-  { path: "/navigation/*", component: NavigationExample },
-  { path: "/child", component: ChildExample },
-  { path: "/child/*", component: ChildExample },
-  { path: "/loader", component: LoaderExample },
-  { path: "/loader/*", component: LoaderExample },
+    // Router examples — grouped under a base path with shared layout shell
+    group("/navigation", { layout: NavigationShell }, navigationRoutes),
+    group("/child", { layout: ChildShell }, childRoutes),
+    group("/loader", { layout: LoaderShell }, loaderRoutes),
 
-  { path: "*", component: () => () => <div style={{ padding: '40px', textAlign: 'center' }}><h1>404 — Example not found</h1></div> },
-])
+    // Catch-all
+    [
+      { path: "*", component: () => () => <div style={{ padding: '40px', textAlign: 'center' }}><h1>404 — Example not found</h1></div> },
+    ]
+  )
+)
 
 // ---------------------------------------------------------------------------
 // Gallery layout

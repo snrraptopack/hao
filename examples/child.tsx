@@ -1,5 +1,4 @@
-import { Router, back, getParams } from "auwla/router"
-import type { Route } from "auwla/router"
+import { back, getParams } from "auwla/router"
 import { commit, component } from "auwla"
 import {} from "auwla/jsx-runtime"
 import './styles/event-chain.css';
@@ -17,13 +16,27 @@ const fakeDb = {
   ],
 }
 
-const childRoutes: Route[] = [
+// Routes (relative — group('/child') will prefix them)
+export const childRoutes = [
   { path: "/", component: Home },
   { path: "/users", component: UserList },
   { path: "/user/:id", component: UserDetail },
   { path: "/user/:id/posts", component: UserPosts },
   { path: "*", component: NotFound },
 ]
+
+// Layout shell
+export function ChildShell(child: () => any) {
+  return () => (
+    <main class="event-chain-example">
+      <nav>
+        <a href="/child">Home</a>
+        <a href="/child/users">Users</a>
+      </nav>
+      {child()}
+    </main>
+  )
+}
 
 function Home() {
   return () => (
@@ -166,20 +179,4 @@ function UserPosts() {
 
 function NotFound() {
   return () => <section><h1>404 — not found</h1></section>
-}
-
-function App() {
-  return () => (
-    <main class="event-chain-example">
-      <nav>
-        <a href="/child">Home</a>
-        <a href="/child/users">Users</a>
-      </nav>
-      <Router routes={childRoutes} base="/child" />
-    </main>
-  )
-}
-
-export function ChildExample() {
-  return () => <App />;
 }

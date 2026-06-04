@@ -183,7 +183,9 @@ export function createMemoApp<TModel>(
   };
 
   const markDirty = (ownerId: string | null | undefined) => {
-    if (!ownerId) {
+    // Falsy OR the '__root' sentinel (top-level component with no real tree position)
+    // both trigger a full invalidation — every component re-renders on the next pass.
+    if (!ownerId || ownerId === '__root') {
       dirtyComponents = null;
       return;
     }

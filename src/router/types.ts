@@ -2,12 +2,35 @@
 import type { TrackHandle } from 'auwla/events'
 
 // A function that returns the component's render closure.
-export type RouteComponent = () => () => any
+// Accepts optional props so route components can be rendered as first-class
+// JSX elements by the runtime's createComponentClosure.
+export type RouteComponent = (props?: Record<string, unknown>) => () => any
+
+// Layout wrapper applied around a route's render closure.
+// Receives the child render closure. If the layout needs params or query,
+// it can import getParams / getQuery from auwla/router directly.
+export type LayoutComponent = (child: () => any) => () => any
+
+// ---------------------------------------------------------------------------
+// Path param type inference
+// ---------------------------------------------------------------------------
+
+export type PathParams<Path extends string> =
+  Path extends `${infer _}:${infer Param}/${infer Rest}`
+    ? { [K in Param]: string } & PathParams<Rest>
+    : Path extends `${infer _}:${infer Param}`
+      ? { [K in Param]: string }
+      : Record<string, never>
+
+// A function that decides whether navigation to a route is allowed.
+// Returning false blocks navigation; returning a string redirects to that path.
+export type RouteGuard = (context: RouteContext) => boolean | string | void
 
 // User-facing route definition. `component` is optional so that parent-only
 // grouping routes (used purely for path prefixing) are valid.
 export type Route = {
   path: string
+  name?: string
   component?: RouteComponent
   // Optional async data loader. The Router runs it automatically when the
   // route is matched and exposes the handle via getLoaderHandle(). The signal
@@ -25,7 +48,12 @@ export type Route = {
   // The router never inspects these values — they are purely for application use
   // (e.g. { requiresAuth: true }, { title: 'Dashboard' }, { layout: 'admin' }).
   meta?: Record<string, unknown>
-  beforeEnter?: (context: RouteContext) => boolean | string
+  // Alias for beforeEnter. Use whichever name reads better in your codebase.
+  guard?: RouteGuard
+  beforeEnter?: RouteGuard
+  // Layout wrapper applied around this route's component. Usually applied
+  // automatically by group() so every route in a group shares the same shell.
+  layout?: LayoutComponent
   children?: Route[]
 }
 
@@ -61,4 +89,10 @@ export type MatchedRoute = {
 // typed value without casting at every read site.
 export type TypedTrackHandle<T> = Omit<TrackHandle, 'value'> & {
   readonly value: T | undefined
+}
+
+// Options for group().
+export type GroupOptions = {
+  layout?: LayoutComponent
+  guard?: RouteGuard
 }

@@ -65,13 +65,17 @@ describe('patchNode', () => {
 });
 
 describe('patchChildren', () => {
-  test('clears all children when empty', () => {
+  test('inserts a comment sentinel when children are empty', () => {
     const parent = document.createElement('div');
     parent.appendChild(document.createElement('span'));
     parent.appendChild(document.createTextNode('text'));
 
+    // Previously this cleared the DOM to zero children.
+    // Now it replaces the content with a single invisible comment node so the
+    // next render always has something to reconcile against (prevents blank-page loops).
     patchChildren(parent, []);
-    expect(parent.childNodes.length).toBe(0);
+    expect(parent.childNodes.length).toBe(1);
+    expect(parent.firstChild!.nodeType).toBe(Node.COMMENT_NODE);
   });
 
   test('appends to empty parent', () => {

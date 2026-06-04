@@ -1,4 +1,4 @@
-export { defineRoutes, resetRoutes } from "./routes"
+export { defineRoutes, resetRoutes, group, composeRoutes, pathFor } from "./routes"
 export { navigate, back, forward } from "./navigation"
 export {
   Router,
@@ -21,4 +21,8 @@ export type {
   RouteContext,
   NavigateOptions,
   TypedTrackHandle,
+  LayoutComponent,
+  GroupOptions,
+  PathParams,
+  RouteGuard,
 } from "./types"

@@ -1,5 +1,5 @@
 // routes.ts
-import type { Route, ResolvedRoute, MatchedRoute } from "./types"
+import type { Route, ResolvedRoute, MatchedRoute, GroupOptions, PathParams } from "./types"
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -8,8 +8,14 @@ import type { Route, ResolvedRoute, MatchedRoute } from "./types"
 // Module-level registry of all flattened, registered routes.
 const registry: Route[] = []
 
-export function defineRoutes(routes: Route[]): void {
+/**
+ * Registers routes in the global registry and returns the flattened list.
+ * Use `const` type parameter so literal paths (including `:params`) are
+ * preserved for type inference.
+ */
+export function defineRoutes<const T extends Route[]>(routes: T): T {
   registry.push(...flattenRoutes(routes))
+  return routes
 }
 
 // Wipes the registry clean.  Call this in tests or on HMR reloads to avoid
@@ -22,15 +28,17 @@ export function resetRoutes(): void {
 // Route flattening
 // ---------------------------------------------------------------------------
 
-// Recursively flattens nested route definitions into a single-depth list.
-//
-// Behaviour for parent routes that have children:
-//   - If the parent has its own `component`, it is kept as a standalone
-//     entry (useful for layout/index routes).
-//   - Children are always flattened under the parent's full path.
-//   - The `children` array is stripped from the parent entry that is kept
-//     so that the registry never holds nested structures.
-function flattenRoutes(routes: Route[], prefix = ""): Route[] {
+/**
+ * Recursively flattens nested route definitions into a single-depth list.
+ *
+ * Behaviour for parent routes that have children:
+ *   - If the parent has its own `component`, it is kept as a standalone
+ *     entry (useful for layout/index routes).
+ *   - Children are always flattened under the parent's full path.
+ *   - The `children` array is stripped from the parent entry that is kept
+ *     so that the registry never holds nested structures.
+ */
+export function flattenRoutes(routes: Route[], prefix = ""): Route[] {
   const flat: Route[] = []
 
   for (const route of routes) {
@@ -104,6 +112,96 @@ export function matchRoute(pathname: string): MatchedRoute | null {
 }
 
 // ---------------------------------------------------------------------------
+// Route composition
+// ---------------------------------------------------------------------------
+
+/**
+ * Groups routes under a shared base path and optionally applies a layout
+ * wrapper and/or guard to every route in the group.
+ *
+ * Example:
+ *   group('/admin', { layout: AppShell, guard: isAdmin }, [
+ *     { path: '/', component: AdminHome },
+ *     { path: '/users', component: AdminUsers },
+ *   ])
+ *   // => [{ path: '/admin', component: wrapped(AdminHome), guard: ... },
+ *   //     { path: '/admin/users', component: wrapped(AdminUsers), guard: ... }]
+ */
+export function group(base: string, options: GroupOptions, routes: Route[]): Route[] {
+  const { layout, guard } = options
+  const flat = flattenRoutes(routes, base)
+
+  return flat.map((route) => {
+    const r: Route = { ...route }
+
+    // Apply layout wrapper around the component.
+    if (layout && r.component) {
+      const original = r.component
+      r.component = () => layout(original())
+    }
+
+    // Merge guard with existing beforeEnter/guard.
+    if (guard) {
+      const existing = r.beforeEnter || r.guard
+      if (existing) {
+        r.guard = (ctx) => {
+          const result = existing(ctx)
+          if (result !== true && result !== undefined) return result
+          return guard(ctx)
+        }
+      } else {
+        r.guard = guard
+      }
+    }
+
+    return r
+  })
+}
+
+/**
+ * Concatenates multiple route arrays into one flat list.
+ * Order matters — earlier routes match first.
+ */
+export function composeRoutes(...lists: Route[][]): Route[] {
+  return lists.flat()
+}
+
+// ---------------------------------------------------------------------------
+// URL building
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a URL from a pattern, replacing `:param` segments with the provided
+ * values and optionally appending a query string.
+ *
+ * Example:
+ *   pathFor('/users/:id', { id: 42 })           // => '/users/42'
+ *   pathFor('/search', {}, { q: 'hello' })      // => '/search?q=hello'
+ */
+export function pathFor<
+  P extends string
+>(
+  pattern: P,
+  params?: PathParams<P>,
+  query?: Record<string, string | number | boolean>
+): string {
+  let url = pattern
+    .replace(/:([a-zA-Z]+)/g, (_, key) => {
+      const value = (params as Record<string, string | number | boolean>)?.[key]
+      return value !== undefined ? encodeURIComponent(String(value)) : `:${key}`
+    })
+
+  if (query && Object.keys(query).length > 0) {
+    const qs = new URLSearchParams(
+      Object.entries(query).map(([k, v]) => [k, String(v)])
+    ).toString()
+    url += (url.includes('?') ? '&' : '?') + qs
+  }
+
+  return url
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -111,3 +209,4 @@ function parseQuery(qs: string): Record<string, string> {
   if (!qs) return {}
   return Object.fromEntries(new URLSearchParams(qs))
 }
+

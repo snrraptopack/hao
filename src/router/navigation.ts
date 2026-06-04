@@ -1,84 +1,95 @@
 // navigation.ts
-import { commit } from "auwla"
-import type { ComponentHandle } from "auwla"
+//
+// URL state management for the Auwla router.
+//
+// The current path is stored in a reactive cell so that any component that
+// reads it via getCurrentPath() during a render pass is automatically
+// subscribed. When the URL changes (Navigation API, History API, or
+// programmatic navigate()) the cell is updated and every subscribed
+// component is invalidated — no manual commit(), no registerRouter(), no
+// stored component handles.
+
+import { reactive } from 'auwla'
 import type { NavigateOptions } from "./types"
 
 // ---------------------------------------------------------------------------
-// Module state
+// Reactive path cell
+//
+// Initialised to the current browser URL when this module first loads in a
+// browser context. In non-browser environments (SSR, tests) it starts as '/'
+// and can be overridden before mounting.
 // ---------------------------------------------------------------------------
 
-let routerHandle: ComponentHandle | null = null
-
-// Null until initNavigation() runs so that importing this module in a
-// non-browser context (tests, SSR) does not crash on window.location.
-let _currentPath: string | null = null
-
-// Guard so that repeated calls to initNavigation() (e.g. from Router
-// re-renders or HMR) never register duplicate event listeners.
-let _initialized = false
+const _path = reactive<string>(
+  typeof window !== "undefined"
+    ? window.location.pathname + window.location.search
+    : "/"
+)
 
 // True when the most recent navigation was a back/forward (traverse).
-// Used by the Router to skip scroll-to-top for history pops.
+// Used by the Router to decide whether to scroll to the top of the page.
 let _isPopNavigation = false
+
+// Guard so that repeated calls to initNavigation() — e.g. from Router
+// re-renders or HMR — never register duplicate event listeners.
+let _initialized = false
 
 // ---------------------------------------------------------------------------
 // Public accessors
 // ---------------------------------------------------------------------------
 
-// Lazily resolve the current path on first access.
+/**
+ * Return the current browser path + search string.
+ *
+ * Calling this during a component render automatically subscribes that
+ * component to path changes — no handle capture or commit() call needed.
+ */
 export function getCurrentPath(): string {
-  if (_currentPath === null) {
-    _currentPath = window.location.pathname + window.location.search
-  }
-  return _currentPath
+  return _path.get()
 }
 
-// Returns true when the last navigation was a back/forward (traverse),
-// false when it was a push, replace, or the initial load.
+/** True when the last navigation was triggered by back() or forward(). */
 export function isPopNavigation(): boolean {
   return _isPopNavigation
-}
-
-export function registerRouter(handle: ComponentHandle): void {
-  routerHandle = handle
 }
 
 // ---------------------------------------------------------------------------
 // Capability detection
 // ---------------------------------------------------------------------------
 
-// Returns true when the browser supports the Navigation API.
-// Checked at call time (not at module load) to stay SSR-safe.
 function supportsNavigationAPI(): boolean {
   return typeof window !== "undefined" && "navigation" in window
 }
 
-// Notify the router that the path has changed and a re-render is needed.
-function notifyRouter(): void {
-  if (routerHandle) commit(routerHandle)
+// ---------------------------------------------------------------------------
+// Internal: update path and notify all subscribers
+// ---------------------------------------------------------------------------
+
+function setPath(next: string): void {
+  // reactive.set() does an Object.is() check internally — calling it with the
+  // same value is a no-op, so duplicate events (HMR, double-fire) are safe.
+  _path.set(next)
 }
 
 // ---------------------------------------------------------------------------
 // Unified navigation functions
-// Each function prefers the Navigation API and silently falls back to the
-// History API so callers never have to care which mode is active.
 // ---------------------------------------------------------------------------
 
 export function navigate(path: string, options?: NavigateOptions): void {
   if (supportsNavigationAPI()) {
     window.navigation.navigate(path, {
-      history: options?.replace ? 'replace' : 'auto',
+      history: options?.replace ? "replace" : "auto",
     })
+    // The Navigation API 'navigate' event listener below will call setPath().
   } else {
-    // pushState/replaceState do not fire popstate, so we update state manually.
     _isPopNavigation = false
     if (options?.replace) {
       history.replaceState(null, "", path)
     } else {
       history.pushState(null, "", path)
     }
-    _currentPath = path
-    notifyRouter()
+    // pushState/replaceState do not fire popstate, so we update manually.
+    setPath(path)
   }
 }
 
@@ -99,38 +110,43 @@ export function forward(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Initialization
+// Initialization — called once by the Router component on first mount
 // ---------------------------------------------------------------------------
 
 export function initNavigation(): void {
-  // Idempotent — safe to call from a component that may remount.
   if (_initialized) return
   _initialized = true
 
-  // Capture the real path now that we know we're in a browser context.
-  _currentPath = window.location.pathname + window.location.search
+  // Sync the reactive cell to the real URL now that we know we are in a
+  // browser context. (The module-level initialiser covers most cases, but
+  // SSR or test environments may mount the app later.)
+  setPath(window.location.pathname + window.location.search)
 
   if (supportsNavigationAPI()) {
-    // Navigation API — handles all navigations including programmatic ones.
-    // navigationType 'traverse' means back/forward; anything else is a push.
+    // Navigation API — intercepts all navigations: link clicks, programmatic
+    // navigate() calls, and browser back/forward (traverse).
     window.navigation.addEventListener("navigate", (e: NavigateEvent) => {
       if (!e.canIntercept || e.hashChange || e.downloadRequest) return
+
       const url = new URL(e.destination.url)
-      _isPopNavigation = e.navigationType === 'traverse'
+      _isPopNavigation = e.navigationType === "traverse"
+       // 1. Update path synchronously so reactivity schedules immediately
+       setPath(url.pathname + url.search)
       e.intercept({
-        handler() {
-          _currentPath = url.pathname + url.search
-          notifyRouter()
+        // Yield to let the Auwla microtask render complete first,
+        // so the DOM matches the new state before the browser commits
+        async handler() {
+
+          await Promise.resolve()
         },
       })
     })
   } else {
-    // History API fallback — popstate fires for back() and forward().
-    // Programmatic pushes are handled directly inside navigate().
+    // History API fallback — popstate fires for back() and forward() only.
+    // Programmatic pushState navigations are handled inside navigate() above.
     window.addEventListener("popstate", () => {
       _isPopNavigation = true
-      _currentPath = window.location.pathname + window.location.search
-      notifyRouter()
+      setPath(window.location.pathname + window.location.search)
     })
   }
 }
