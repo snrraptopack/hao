@@ -62,7 +62,21 @@ export type RenderState = {
   seen: Set<string>;
   rendered: Set<string>;
   stack: string[];
-  counters: number[];
+  /**
+   * Tracks how many times each `parent/ComponentName` pair has been
+   * encountered at the current render depth.
+   *
+   * Key format: `"<parentId>/<componentLabel>"`
+   *
+   * Previously this was a `number[]` indexed by stack depth, which caused
+   * counter-slot collision when a component was conditionally skipped: every
+   * sibling after the skipped slot shifted by one, making the runtime think
+   * they were new components (triggering setup re-runs and stale cleanups).
+   *
+   * Using a Map keyed by `(parent, name)` isolates each component type's
+   * counter so skipping one does not affect its siblings.
+   */
+  counters: Map<string, number>;
   dirty: Set<string> | null;
   invalidate: (ownerId?: string | null) => void;
 };

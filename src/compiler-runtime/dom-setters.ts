@@ -143,12 +143,37 @@ export function __setElementText(element: Element, value: unknown): void {
 
 /**
  * Replace the content at a comment-marker child position.
+ *
+ * The marker itself stays in the DOM as a stable anchor; the actual
+ * rendered nodes are tracked in `marker.__auwlaChildNodes`.
+ *
+ * ### `__auwlaGetNodes` snapshot race
+ *
+ * When `value` is a keyed-map fragment, `__auwlaGetNodes` is a **live
+ * function** over the map's `orderedRows` array. If the map's own
+ * `update()` runs before this function gets to remove previous nodes,
+ * calling `__auwlaGetNodes` at removal time returns the *post-update*
+ * rows — nodes that were just inserted — and removes them immediately.
+ *
+ * Fix: snapshot the previous node list into a plain `Node[]` the
+ * instant `__setChild` is entered, before any DOM mutations. The
+ * removal loop then always operates on the pre-update stale set.
  * @internal
  */
 export function __setChild(parent: Node, current: Node, value: unknown): Node {
   const marker = current as ChildMarker;
   const previous = marker.__auwlaChildNodes;
-  const previousNodes = typeof previous === 'function' ? previous() : previous;
+
+  /**
+   * Snapshot the previous nodes immediately so that lazy live
+   * providers (e.g. `__auwlaGetNodes` on a keyed-map fragment) are
+   * evaluated before any DOM mutation takes place.  Without this
+   * snapshot a live provider would return post-update nodes if the
+   * map had already reconciled by the time the removal pass ran.
+   */
+  const previousNodes: Node[] | undefined = typeof previous === 'function'
+    ? previous()        // evaluate live provider → now a plain snapshot
+    : previous;         // already an array or undefined
 
   if (value === null || value === undefined || value === false || value === true) {
     if (previousNodes) {

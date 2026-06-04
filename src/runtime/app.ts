@@ -126,7 +126,14 @@ export function createMemoApp<TModel>(
       seen: new Set(),
       rendered: new Set(),
       stack: ['root'],
-      counters: [0],
+      /**
+       * Fresh Map every render cycle so stale counter entries from
+       * previous renders never accumulate.  Each `createComponentId`
+       * call increments only its own `(parent, name)` slot inside this
+       * Map, and `runInComponent` no longer needs to manually reset
+       * any depth-based index.
+       */
+      counters: new Map(),
       dirty: dirtyComponents,
       invalidate,
     };

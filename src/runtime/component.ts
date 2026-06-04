@@ -102,29 +102,78 @@ export function runInstanceCleanups(entries: [string, ComponentInstance][]): voi
   }
 }
 
-/** @internal */
+/**
+ * Return a stable label for a component type.
+ *
+ * Slashes are replaced with `|` so the label never looks like an
+ * extra path segment inside a component ID string. This matters
+ * because `runInstanceCleanups` measures depth by counting `/`
+ * characters in the ID — a raw slash inside a minified or oddly
+ * named function would cause that count to be wrong, potentially
+ * firing parent cleanups before child ones.
+ * @internal
+ */
 function componentLabel(type: ComponentType): string {
-  return type.name || 'Anonymous';
+  const name = type.name || 'Anonymous';
+  // Guard: strip any `/` that could corrupt the ID path structure.
+  return name.includes('/') ? name.replace(/\//g, '|') : name;
 }
 
-/** @internal */
+/**
+ * Derive a stable, unique ID for a component call site.
+ *
+ * The ID takes the form `"<parentId>/<ComponentName>:<slot>"` where
+ * `slot` is either the explicit `key` prop or an auto-incremented
+ * counter that is **scoped to this (parent, name) pair**.
+ *
+ * ### Why the counter is keyed by (parent, name)
+ *
+ * The old implementation used `counters[depth]`, a flat array indexed
+ * by call-stack depth.  When a conditional skipped a component at a
+ * given depth, every sibling that came after it shifted its slot by
+ * one.  On the next render the runtime generated a different ID for
+ * those siblings and treated them as new components — re-running setup,
+ * firing old cleanups and losing captured state silently.
+ *
+ * By keying the counter as `"<parentId>/<ComponentName>"`, each
+ * distinct (parent, type) pair maintains an independent sequence. Only
+ * calls to the *same component type inside the same parent* share a
+ * counter, so skipping one type never shifts another.
+ * @internal
+ */
 export function createComponentId(type: ComponentType, props: MemoProps): string | null {
   if (!runtimeState.activeRenderState) return null;
 
-  const depth = runtimeState.activeRenderState.stack.length;
-  const slot = runtimeState.activeRenderState.counters[depth] ?? 0;
-  runtimeState.activeRenderState.counters[depth] = slot + 1;
+  const parent = runtimeState.activeRenderState.stack[
+    runtimeState.activeRenderState.stack.length - 1
+  ] ?? 'root';
+
+  const label = componentLabel(type);
+
+  // Counter key is unique per (parent, component-name) pair.
+  const counterKey = `${parent}/${label}`;
+  const slot = runtimeState.activeRenderState.counters.get(counterKey) ?? 0;
+  runtimeState.activeRenderState.counters.set(counterKey, slot + 1);
+
+  // Explicit `key` prop always wins over the auto slot.
   const key = props && 'key' in props ? props.key : slot;
-  const parent = runtimeState.activeRenderState.stack[runtimeState.activeRenderState.stack.length - 1];
-  return `${parent}/${componentLabel(type)}:${String(key)}`;
+  return `${parent}/${label}:${String(key)}`;
 }
 
-/** @internal */
+/**
+ * Push `id` onto the render stack, invoke `render`, then pop.
+ *
+ * The stack tells `createComponentId` who the current parent is so it
+ * can build the `"<parentId>/<name>:<slot>"` path. Child counters are
+ * automatically isolated via the Map key — no manual reset is needed
+ * here. The Map itself is reset at the **start of each full render
+ * cycle** inside `app.ts` so stale counter entries never accumulate.
+ * @internal
+ */
 export function runInComponent<T>(id: string, render: () => T): T {
   if (!runtimeState.activeRenderState) return render();
 
   runtimeState.activeRenderState.stack.push(id);
-  runtimeState.activeRenderState.counters[runtimeState.activeRenderState.stack.length] = 0;
   try {
     return render();
   } finally {

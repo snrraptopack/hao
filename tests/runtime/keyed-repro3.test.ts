@@ -32,7 +32,7 @@ describe('compiled keyed list with events', () => {
             span.textContent = item.label;
             return {
               node: row,
-              update(item: typeof items[number], index: number) {
+              update(item: typeof items[number], _index: number) {
                 span.textContent = item.label;
               },
             };
@@ -55,22 +55,47 @@ describe('compiled keyed list with events', () => {
     function App() {
       return () => {
         const el = document.createElement('main');
-        el.append((KeyedInputList as any)() as Node);
+
+        /**
+         * Pre-existing bug fix (1):
+         * `KeyedInputList()` returns a `RenderClosure` (a plain function), not a
+         * DOM `Node`. `__componentBlock` intentionally defers the factory until
+         * the closure is first *called* — it does NOT return a node directly.
+         *
+         * The old code cast the function to `Node` and passed it to `el.append()`,
+         * which is a silent no-op in jsdom (appending a function does nothing).
+         * The section element was never inserted so `querySelectorAll('span')`
+         * always found 0 elements.
+         *
+         * Fix: invoke the returned closure with `()` so the factory executes and
+         * we get back the real `section` element to insert.
+         */
+        const renderClosure = KeyedInputList();
+        const node = renderClosure() as unknown as Node;
+        el.append(node);
         return el;
       };
     }
 
     const root = document.createElement('div');
-    createMemoApp(root, (App as any)() as any);
+
+    /**
+     * Pre-existing bug fix (2):
+     * `createMemoApp` never attaches itself to the root DOM element, so
+     * `(root as any).__auwlaApp` is always `undefined` and `app.render()` would
+     * throw. The correct pattern is to capture the `MemoApp` value that
+     * `createMemoApp` returns and call `.render()` on it directly.
+     */
+    const app = createMemoApp(root, (App as any)() as any);
 
     expect(root.querySelectorAll('span').length).toBe(3);
     expect(root.querySelectorAll('span')[0]!.textContent).toBe('Alpha');
 
-    // Click Reverse — but this won't trigger re-render because we used plain addEventListener!
+    // Click Reverse — mutates `items` in-place via the raw addEventListener.
+    // No __event wrapper means no automatic invalidation, so we trigger a
+    // manual re-render through the captured MemoApp reference.
     root.querySelector('button')!.click();
-    // Manually trigger re-render
-    const app = (root as any).__auwlaApp;
-    if (app && app.render) app.render();
+    app.render();
 
     expect(root.querySelectorAll('span')[0]!.textContent).toBe('Gamma');
     expect(root.querySelectorAll('span')[1]!.textContent).toBe('Beta');
