@@ -25,4 +25,5 @@ export type {
   GroupOptions,
   PathParams,
   RouteGuard,
+  RouteComponent
 } from "./types"

@@ -11,6 +11,7 @@ import {
   getQuery,
   getRouteMeta,
   isActive,
+  RouteComponent
 } from "auwla/router"
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,7 @@ export const navigationRoutes = [
 // Layout shell
 // ---------------------------------------------------------------------------
 
-export function NavigationShell(child: () => any) {
+export function NavigationShell(Child:RouteComponent) {
   return () => (
     <div class="navigation-example">
       <nav>
@@ -60,7 +61,9 @@ export function NavigationShell(child: () => any) {
         <Link href="/navigation/users">Users</Link>
         <Link href="/navigation/admin">Admin</Link>
       </nav>
-      <main>{child()}</main>
+      <main>
+        <Child/>
+      </main>
     </div>
   )
 }

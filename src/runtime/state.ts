@@ -8,7 +8,7 @@
  * mutations work reliably under Vite's ES-module transform.
  */
 
-import type { EventWrapper, RenderState, MountedApp } from './types';
+import type { EventWrapper, RenderState, MountedApp,AuwlaNode } from './types';
 
 /** @internal */
 export const runtimeState = {
@@ -44,4 +44,5 @@ export function currentComponentId(): string | null {
 export function registerComponentHost(ownerId: string | null | undefined, node: Node): void {
   if (!ownerId) return;
   runtimeState.componentHosts.set(ownerId, node);
+   (node as AuwlaNode).__auwlaOwnerId = ownerId; // Safely typed
 }

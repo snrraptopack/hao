@@ -9,7 +9,7 @@ export type RouteComponent = (props?: Record<string, unknown>) => () => any
 // Layout wrapper applied around a route's render closure.
 // Receives the child render closure. If the layout needs params or query,
 // it can import getParams / getQuery from auwla/router directly.
-export type LayoutComponent = (child: () => any) => () => any
+export type LayoutComponent = (child: RouteComponent) => () => any
 
 // ---------------------------------------------------------------------------
 // Path param type inference

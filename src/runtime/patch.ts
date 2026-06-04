@@ -7,7 +7,7 @@
  */
 
 import { runtimeState } from './state';
-import type { MemoElement, MemoChild, TemplateNode } from './types';
+import type { MemoElement, MemoChild, TemplateNode,AuwlaNode } from './types';
 import { isRenderClosure, isTemplateNode } from './types';
 import { toNode, setProps } from './dom';
 import { templateEqual } from './template';
@@ -39,6 +39,10 @@ function canPatch(current: Node, next: Node): boolean {
   if (current.nodeType !== next.nodeType) return false;
   if (current.nodeType === Node.TEXT_NODE) return true;
   if (!isElement(current) || !isElement(next)) return false;
+  // Prevent reusing DOM elements across different component instances
+  if ((current as AuwlaNode).__auwlaOwnerId !== (next as AuwlaNode).__auwlaOwnerId) {
+      return false;
+  }
   return current.tagName === next.tagName && Object.is(getKey(current), getKey(next));
 }
 

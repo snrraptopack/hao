@@ -1,4 +1,4 @@
-import { back, getParams } from "auwla/router"
+import { back, getParams,RouteComponent } from "auwla/router"
 import { commit, component } from "auwla"
 import {} from "auwla/jsx-runtime"
 import './styles/event-chain.css';
@@ -26,14 +26,14 @@ export const childRoutes = [
 ]
 
 // Layout shell
-export function ChildShell(child: () => any) {
+export function ChildShell(Child: RouteComponent) {
   return () => (
     <main class="event-chain-example">
       <nav>
         <a href="/child">Home</a>
         <a href="/child/users">Users</a>
       </nav>
-      {child()}
+      <Child/>
     </main>
   )
 }

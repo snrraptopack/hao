@@ -137,7 +137,7 @@ export function group(base: string, options: GroupOptions, routes: Route[]): Rou
     // Apply layout wrapper around the component.
     if (layout && r.component) {
       const original = r.component
-      r.component = () => layout(original())
+      r.component = () => layout(original)
     }
 
     // Merge guard with existing beforeEnter/guard.
@@ -209,4 +209,3 @@ function parseQuery(qs: string): Record<string, string> {
   if (!qs) return {}
   return Object.fromEntries(new URLSearchParams(qs))
 }
-

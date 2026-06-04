@@ -127,3 +127,8 @@ export function isRenderClosure(value: unknown): value is RenderClosure {
 export function isTemplateNode(value: unknown): value is TemplateNode {
   return !!value && typeof value === 'object' && (value as TemplateNode).__auwlaTemplate === true;
 }
+
+/** A standard DOM Node augmented with an optional Auwla owner component instance ID. */
+export type AuwlaNode = Node & {
+  __auwlaOwnerId?: string | null;
+};

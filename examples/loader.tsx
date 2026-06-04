@@ -5,6 +5,7 @@ import {
   getLoaderHandle,
   getParams,
   back,
+  RouteComponent
 } from "auwla/router"
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,7 @@ export const loaderRoutes = [
 // Layout shell
 // ---------------------------------------------------------------------------
 
-export function LoaderShell(child: () => any) {
+export function LoaderShell(Child:RouteComponent) {
   return () => (
     <div class="loader-example">
       <div class="shell">
@@ -60,7 +61,9 @@ export function LoaderShell(child: () => any) {
           <a href="/loader">Home</a>
           <a href="/loader/posts">Posts</a>
         </nav>
-        <main>{child()}</main>
+        <main>
+          <Child/>
+        </main>
       </div>
     </div>
   )
