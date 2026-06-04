@@ -346,6 +346,13 @@ import {
 } from 'auwla/router';
 ```
 
+### Core Architecture
+
+The Auwla router is built directly on the runtime's reactivity:
+- **Single Source of Truth**: The current path is stored in a global reactive cell.
+- **Lockstep Updates**: Any component or router reading the path is automatically subscribed to path changes.
+- **Multiple Routers**: You can render more than one `<Router />` on the page. Since they all subscribe to the same reactive state, they all update synchronously in the same render tick without conflicts.
+
 ### Defining Routes
 
 ```tsx
@@ -363,7 +370,56 @@ function App() {
 }
 ```
 
-`<Router />` renders the component for the currently matched path. A `*` route is always tried last and acts as a 404 fallback.
+`<Router />` renders the component for the currently matched path. A `*` route acts as a 404 fallback.
+
+### First-Class Layout Components
+
+Layouts are wrapped around routes (usually applied via `group()`). Layouts receive the route component constructor (`Child`) and render it natively as a standard JSX element:
+
+```tsx
+import { group, RouteComponent } from 'auwla/router';
+
+// 1. Define the layout shell rendering <Child />
+export function AppLayout(Child: RouteComponent) {
+  return () => (
+    <div class="app-layout">
+      <nav>...</nav>
+      <main>
+        <Child />
+      </main>
+    </div>
+  );
+}
+
+// 2. Apply it to a group of routes
+defineRoutes([
+  ...group('/admin', { layout: AppLayout }, [
+    { path: '/', component: Dashboard },
+    { path: '/settings', component: Settings },
+  ])
+]);
+```
+
+### Local / Scoped Routers
+
+You can pass a local route list to a router using the `routes` prop. This is ideal for nested sub-layouts (like dashboard tabs) or isolated component testing:
+
+```tsx
+const tabRoutes = [
+  { path: '/dashboard/profile', component: ProfileTab },
+  { path: '/dashboard/billing', component: BillingTab }
+];
+
+function DashboardLayout() {
+  return () => (
+    <div class="dashboard">
+      <TabNav />
+      {/* Only matches and renders within tabRoutes */}
+      <Router routes={tabRoutes} />
+    </div>
+  );
+}
+```
 
 ### Route Parameters and Query
 
@@ -371,18 +427,17 @@ function App() {
 import { getParams, getQuery, getLocation } from 'auwla/router';
 
 function PostDetail() {
-  // All three are safe in setup — the router always creates a new component
-  // instance when the path or query string changes, so these values are
-  // fresh at the time setup runs and stable for the lifetime of the instance.
-  const { id } = getParams();   // /posts/42        → { id: '42' }
-  const query   = getQuery();   // ?tab=comments     → { tab: 'comments' }
-  const loc     = getLocation(); // '/posts/42?tab=comments'
+  // Safe to call anywhere in setup — the router creates a fresh component
+  // instance when the path changes, so these values are stable for the component lifecycle.
+  const { id } = getParams();     // /posts/42         → { id: '42' }
+  const query   = getQuery();     // ?tab=comments     → { tab: 'comments' }
+  const loc     = getLocation();   // '/posts/42?tab=comments'
 
   return () => <h1>Post {id}</h1>;
 }
 ```
 
-`getParams()`, `getQuery()`, and `getLocation()` are plain functions — no hook rules or call restrictions. They read from the module-level state the Router sets on every match.
+`getParams()`, `getQuery()`, and `getLocation()` read from the reactive state the Router sets on every match.
 
 ### Navigation
 
@@ -395,7 +450,7 @@ back();
 forward();
 ```
 
-`navigate()` prefers the Navigation API where available and falls back to `history.pushState` automatically.
+`navigate()` prefers the Navigation API where available and falls back to the History API automatically.
 
 ### Loaders
 
@@ -410,20 +465,20 @@ defineRoutes([{
 }]);
 
 function PostDetail() {
-  // getLoaderHandle<T>() types .value as T | undefined
   const loader = getLoaderHandle<Post>();
 
-  return () => {
-    if (loader?.pending)  return <p>Loading…</p>;
-    if (loader?.rejected) return <p>Error: {String(loader.reason)}</p>;
+  if (loader?.pending)  return <p>Loading…</p>;
+  if (loader?.rejected) return <p>Error: {String(loader.reason)}</p>;
 
-    const post = loader?.value; // typed as Post | undefined
-    return <h1>{post?.title}</h1>;
-  };
+  const post = loader?.value; // typed as Post | undefined
+
+  return () =>(
+    <h1>{post?.title}</h1>;
+  )
 }
 ```
 
-Navigating away while a load is in-flight automatically cancels it — no manual `AbortController` management needed.
+Navigating away while a load is in-flight automatically cancels it.
 
 ### Navigation Guards
 
@@ -439,7 +494,7 @@ defineRoutes([{
 
 ### Route Meta
 
-Attach arbitrary data to any route with `meta`. The router never inspects these values — they are purely for application use:
+Attach arbitrary data to any route with `meta`:
 
 ```tsx
 defineRoutes([{
@@ -457,8 +512,8 @@ const { requiresAuth } = getRouteMeta<{ requiresAuth: boolean; title: string }>(
 ```tsx
 import { isActive, isExactActive } from 'auwla/router';
 
-// isActive('/posts') → true on /posts AND /posts/42 (prefix match at segment boundary)
-// isExactActive('/posts') → true only on /posts
+// isActive('/posts') → true on /posts AND /posts/42 (prefix match)
+// isExactActive('/posts') → true only on /posts exactly
 ```
 
 ### Link Component
@@ -468,7 +523,6 @@ import { isActive, isExactActive } from 'auwla/router';
 ```tsx
 import { Link } from 'auwla/router';
 
-// Renders with class="active" on /posts and /posts/42
 // Renders with class="active exact-active" on /posts exactly
 <Link href="/posts">Posts</Link>
 
@@ -476,9 +530,6 @@ import { Link } from 'auwla/router';
 <Link href="/posts" activeClass="is-active" exactActiveClass="is-current">
   Posts
 </Link>
-
-// Additional static classes:
-<Link href="/posts" class="nav-item">Posts</Link>
 ```
 
 Modifier-key clicks (Ctrl, Meta, Shift, Alt) are passed through to the browser so "open in new tab" keeps working.
@@ -513,4 +564,3 @@ beforeEach(() => resetRoutes()); // clear the registry between tests
 - [ROADMAP.md](./ROADMAP.md) tracks implementation priorities.
 
 The experimental compiler transform is available from `auwla/compiler` for tooling. Runtime apps do not need to import it.
-

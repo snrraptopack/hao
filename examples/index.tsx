@@ -32,8 +32,7 @@ import { loaderRoutes, LoaderShell } from "./loader"
 // Central route definitions — compose everything and register once
 // ---------------------------------------------------------------------------
 
-resetRoutes()
-resetHooks()
+
 
 defineRoutes(
   composeRoutes(

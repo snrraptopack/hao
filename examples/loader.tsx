@@ -111,7 +111,7 @@ function PostList() {
 
     const posts = loader?.value ?? []
 
-    return (
+    return ()=> (
       <div>
         <h1 class="page-title">Posts</h1>
         <p class="page-sub">{posts.length} posts loaded</p>
@@ -134,29 +134,31 @@ function PostDetail() {
   const loader = getLoaderHandle<Post>()
   const { id } = getParams()
 
-  return () => {
-    if (loader?.pending) {
-      return (
-        <div>
-          <div class="loader-bar" />
-          <div class="status-badge pending">Loading post #{id}…</div>
-        </div>
-      )
-    }
 
-    if (loader?.rejected) {
-      return (
-        <div class="status-badge error">
-          Failed to load post — {String(loader.reason)}
-        </div>
-      )
-    }
-
-    const post = loader?.value
-
-    if (!post) return <div class="status-badge error">Post not found</div>
-
+  if (loader?.pending) {
     return (
+      <div>
+        <div class="loader-bar" />
+        <div class="status-badge pending">Loading post #{id}…</div>
+      </div>
+    )
+  }
+
+
+  if (loader?.rejected) {
+    return (
+      <div class="status-badge error">
+        Failed to load post — {String(loader.reason)}
+      </div>
+    )
+  }
+
+  const post = loader?.value
+
+  if (!post) return <div class="status-badge error">Post not found</div>
+
+
+  return ()=>(
       <div>
         <a class="back-btn" href="/loader/posts">← Back to posts</a>
         <div class="card">
@@ -168,7 +170,6 @@ function PostDetail() {
         </div>
       </div>
     )
-  }
 }
 
 function NotFound() {

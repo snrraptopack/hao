@@ -162,6 +162,6 @@ export function Router(props: RouterProps = {}) {
     // in the dirty set — only the Router's ID is.
     const RouteComp = route.component
     const loaderStatus = cachedLoader?.status ?? 'idle'
-    return <RouteComp key={`${currentPath}:${loaderStatus}`} />
+    return <RouteComp key={`${encodeURIComponent(currentPath)}:${loaderStatus}`} />
   }
 }
