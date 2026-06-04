@@ -316,4 +316,31 @@ describe('event chain utilities', () => {
     expect(leftHandler).toHaveBeenCalledTimes(2); // 1 mouse, 1 keyboard
     expect(rightHandler).toHaveBeenCalledTimes(2); // 1 mouse, 1 keyboard
   });
+
+  test('global modifier chain registers on window and cleans up', () => {
+    const handler = vi.fn();
+    
+    // 1. Register a global keydown handler
+    const unbind = event.keyDown.ctrl.key('s').prevent.global.handler(handler);
+    
+    // Simulate non-matching keypress
+    const wrongEvent = new KeyboardEvent('keydown', { key: 'a', ctrlKey: true });
+    window.dispatchEvent(wrongEvent);
+    expect(handler).not.toHaveBeenCalled();
+    
+    // Simulate matching keypress
+    const matchEvent = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true });
+    window.dispatchEvent(matchEvent);
+    
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(matchEvent);
+    expect(matchEvent.defaultPrevented).toBe(true);
+    
+    // 2. Unbind and verify it no longer fires
+    unbind();
+    const afterEvent = new KeyboardEvent('keydown', { key: 's', ctrlKey: true });
+    window.dispatchEvent(afterEvent);
+    expect(handler).toHaveBeenCalledTimes(1); // Still 1
+  });
 });
+

@@ -77,10 +77,10 @@ function TrackDemo() {
           type="text"
           value={postQuery}
           placeholder="Filter posts..."
-          onInput={(e) => {
+          onInput={(e) => event.debounce(500).handler((e) => {
             postQuery = (e.target as HTMLInputElement).value;
             searchPosts();
-          }}
+          })}
           style={{ padding: '8px', width: '100%', marginBottom: '8px' }}
         />
         {event.pending('posts') && <p style={{ color: '#ff9900' }}>Searching posts...</p>}

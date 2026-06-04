@@ -6,7 +6,7 @@ export type WrappedEventHandler<THandler extends RuntimeEventHandler> = (
   event: Parameters<THandler>[0],
 ) => void;
 
-export type EventModifier = (handler: RuntimeEventHandler) => RuntimeEventHandler;
+export type EventModifier = ((handler: RuntimeEventHandler) => RuntimeEventHandler) & { cleanup?: () => void };
 
 /**
  * Gate for `event.if(...)`.
@@ -35,6 +35,15 @@ export type KeyEventChain = EventChain<KeyboardEvent> & {
 
 export type TargetEventChain<TEvent = Event> = EventChain<TEvent> & {
   (filter: EventTargetFilter<TEvent>): EventChain<TEvent>;
+};
+
+
+export type GlobalEventChain<TEvent = Event> = {
+  [K in Exclude<keyof EventChain<TEvent>, 'global' | 'handler'>]: EventChain<TEvent>[K] extends EventChain<infer U>
+    ? GlobalEventChain<U>
+    : EventChain<TEvent>[K];
+} & {
+  handler(handler: (event: TEvent) => unknown): () => void;
 };
 
 export type EventChain<TEvent = Event> = {
@@ -97,6 +106,10 @@ export type EventChain<TEvent = Event> = {
   readonly touchEnd: EventChain<TouchEvent>;
   readonly touchMove: EventChain<TouchEvent>;
   readonly touchCancel: EventChain<TouchEvent>;
+  readonly global: {
+    handler(handler: (event: TEvent) => unknown): () => void;
+  };
+  hotkey(keys: string | readonly string[]): GlobalEventChain<KeyboardEvent>;
   emit(handle: ComponentHandle, name: string, payload?: unknown): boolean;
   handler<TResult>(handler: (event: TEvent) => TResult): (event: TEvent) => void;
 

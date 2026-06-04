@@ -18,7 +18,6 @@ export function debounceModifier(milliseconds?: number) {
     let latestResult: unknown;
 
     return (event) => {
-      latestResult = handler(event);
       if (timer !== null) clearTimeout(timer);
       pending ??= new Promise<void>((resolve) => {
         resolvePending = resolve;
@@ -30,6 +29,7 @@ export function debounceModifier(milliseconds?: number) {
         resolvePending = null;
         Promise.resolve(latestResult).finally(resolve);
       }, delay);
+      latestResult = handler(event);
       return pending;
     };
   };
@@ -54,8 +54,7 @@ export function throttleModifier(milliseconds?: number) {
           timer = null;
         }
         lastRun = now;
-        handler(event);
-        return;
+        return handler(event);
       }
 
       if (timer !== null) return;
@@ -77,10 +76,11 @@ export function cooldownModifier(milliseconds?: number) {
     return (event) => {
       if (coolingDown) return;
       coolingDown = true;
-      handler(event);
+      const result = handler(event);
       setTimeout(() => {
         coolingDown = false;
       }, delay);
+      return result;
     };
   };
 }
