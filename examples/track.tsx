@@ -49,6 +49,7 @@ function TrackDemo() {
     rejected: 'failed',
   };
 
+
   return () => (
     <div style={{ fontFamily: 'sans-serif', maxWidth: '700px', margin: '40px auto' }}>
       <h1>event.track() Demo</h1>

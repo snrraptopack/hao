@@ -18,6 +18,7 @@ export default defineConfig({
         'vite': resolve(__dirname, 'src/vite.ts'),
         'events/index': resolve(__dirname, 'src/events/index.ts'),
         'router/index': resolve(__dirname, 'src/router/index.ts'),
+        'css/index': resolve(__dirname, 'src/css/index.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
       },
@@ -53,6 +54,7 @@ export default defineConfig({
       { find: 'auwla/vite', replacement: resolve(__dirname, 'src/vite.ts') },
       { find: 'auwla/events', replacement: resolve(__dirname, 'src/events/index.ts') },
       { find: 'auwla/router', replacement: resolve(__dirname, 'src/router/index.ts') },
+      { find: 'auwla/css', replacement: resolve(__dirname, 'src/css/index.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]
   },

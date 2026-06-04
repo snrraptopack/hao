@@ -9,6 +9,7 @@ export default defineConfig({
       { find: 'auwla/compiler', replacement: fileURLToPath(new URL('./src/compiler.ts', import.meta.url)) },
       { find: 'auwla/vite', replacement: fileURLToPath(new URL('./src/vite.ts', import.meta.url)) },
       { find: 'auwla/events', replacement: fileURLToPath(new URL('./src/events/index.ts', import.meta.url)) },
+      { find: 'auwla/css', replacement: fileURLToPath(new URL('./src/css/index.ts', import.meta.url)) },
       { find: /^auwla$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
     ],
   },
@@ -28,6 +29,7 @@ export default defineConfig({
       'tests/shared/**/*.test.ts',
       'tests/runtime/**/*.test.ts',
       'tests/runtime/**/*.test.tsx',
+      'tests/css/**/*.test.ts',
       'tests/perf.test.tsx',
     ],
     coverage: {
@@ -43,6 +45,7 @@ export default defineConfig({
         'src/compiler.ts',
         'src/vite.ts',
         'src/events/**/*.ts',
+        'src/css/**/*.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

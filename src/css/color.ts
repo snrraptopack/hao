@@ -1,0 +1,386 @@
+/**
+ * @file color.ts
+ * @description
+ * Typed CSS color value with pure manipulation methods.
+ *
+ * Internally colors are stored in OKLCH — a perceptually uniform color space
+ * that makes lighten/darken/rotate behave consistently across hues.
+ * The compiler resolves all operations at build time and emits hex or oklch strings.
+ *
+ * External inputs (hex, rgb, hsl, oklch strings) are parsed on construction.
+ * All manipulation methods are pure — they return a new Color.
+ */
+
+import type { Color, Gradient } from './types';
+
+// ---------------------------------------------------------------------------
+// Internal: OKLCH representation
+// ---------------------------------------------------------------------------
+
+/**
+ * Internal color state. All channels normalized:
+ *   L  — lightness  0–1
+ *   C  — chroma     0–0.4 (typical range; no hard cap)
+ *   H  — hue        0–360
+ *   A  — alpha      0–1
+ */
+interface OklchChannels {
+  L: number;
+  C: number;
+  H: number;
+  A: number;
+}
+
+// ---------------------------------------------------------------------------
+// Parsing helpers
+// ---------------------------------------------------------------------------
+
+/** Parse a hex color string (#rgb, #rrggbb, #rrggbbaa) to sRGB [0–1]. */
+function parseHex(hex: string): [number, number, number, number] {
+  const h = hex.replace('#', '');
+
+  if (h.length === 3 || h.length === 4) {
+    const r = parseInt(h[0]! + h[0]!, 16) / 255;
+    const g = parseInt(h[1]! + h[1]!, 16) / 255;
+    const b = parseInt(h[2]! + h[2]!, 16) / 255;
+    const a = h.length === 4 ? parseInt(h[3]! + h[3]!, 16) / 255 : 1;
+    if (isNaN(r) || isNaN(g) || isNaN(b) || isNaN(a))
+      throw new Error(`css.color: invalid hex characters in "${hex}"`);
+    return [r, g, b, a];
+  }
+
+  if (h.length === 6 || h.length === 8) {
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+    if (isNaN(r) || isNaN(g) || isNaN(b) || isNaN(a))
+      throw new Error(`css.color: invalid hex characters in "${hex}"`);
+    return [r, g, b, a];
+  }
+
+  throw new Error(`css.color: cannot parse hex "${hex}"`);
+}
+
+// ---------------------------------------------------------------------------
+// Color space conversions: sRGB ↔ Linear ↔ XYZ-D65 ↔ Oklab ↔ OKLCH
+// These are the standard formulas from the CSS Color Level 4 spec.
+// ---------------------------------------------------------------------------
+
+function linearize(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function gammaEncode(c: number): number {
+  return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+function srgbToOklab(r: number, g: number, b: number): [number, number, number] {
+  const lr = linearize(r);
+  const lg = linearize(g);
+  const lb = linearize(b);
+
+  // sRGB linear → LMS (Bradford-adapted)
+  const l = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb;
+  const m = 0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb;
+  const s = 0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb;
+
+  const l_ = Math.cbrt(l);
+  const m_ = Math.cbrt(m);
+  const s_ = Math.cbrt(s);
+
+  return [
+    0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+    1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+    0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+  ];
+}
+
+function oklabToSrgb(L: number, a: number, b: number): [number, number, number] {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+
+  const l = l_ * l_ * l_;
+  const m = m_ * m_ * m_;
+  const s = s_ * s_ * s_;
+
+  const r =  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const bv = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+
+  return [
+    Math.max(0, Math.min(1, gammaEncode(r))),
+    Math.max(0, Math.min(1, gammaEncode(g))),
+    Math.max(0, Math.min(1, gammaEncode(bv))),
+  ];
+}
+
+function oklabToOklch(L: number, a: number, b: number): OklchChannels {
+  const C = Math.sqrt(a * a + b * b);
+  const H = (Math.atan2(b, a) * 180) / Math.PI;
+  return { L, C, H: H < 0 ? H + 360 : H, A: 1 };
+}
+
+function oklchToOklab(ch: OklchChannels): [number, number, number] {
+  const hRad = (ch.H * Math.PI) / 180;
+  return [ch.L, ch.C * Math.cos(hRad), ch.C * Math.sin(hRad)];
+}
+
+// ---------------------------------------------------------------------------
+// Parsing: convert any supported CSS color string → OklchChannels
+// ---------------------------------------------------------------------------
+
+function parseColor(input: string): OklchChannels {
+  const s = input.trim();
+
+  // --- hex ---
+  if (s.startsWith('#')) {
+    const [r, g, b, a] = parseHex(s);
+    const [L, ab, bb] = srgbToOklab(r, g, b);
+    const ch = oklabToOklch(L, ab, bb);
+    ch.A = a;
+    return ch;
+  }
+
+  // --- oklch(L C H) or oklch(L C H / A) ---
+  const oklchMatch = s.match(
+    /^oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)\s*(?:\/\s*([\d.]+%?))?\s*\)$/i,
+  );
+  if (oklchMatch) {
+    const rawL = oklchMatch[1]!;
+    const L = rawL.endsWith('%') ? parseFloat(rawL) / 100 : parseFloat(rawL);
+    const C = parseFloat(oklchMatch[2]!);
+    const H = parseFloat(oklchMatch[3]!);
+    const rawA = oklchMatch[4];
+    const A = rawA
+      ? rawA.endsWith('%')
+        ? parseFloat(rawA) / 100
+        : parseFloat(rawA)
+      : 1;
+    return { L, C, H, A };
+  }
+
+  // --- rgb(r g b) or rgb(r, g, b) with optional alpha ---
+  const rgbMatch = s.match(
+    /^rgba?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*[,\s]\s*([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/i,
+  );
+  if (rgbMatch) {
+    const r = parseFloat(rgbMatch[1]!) / 255;
+    const g = parseFloat(rgbMatch[2]!) / 255;
+    const b = parseFloat(rgbMatch[3]!) / 255;
+    const rawA = rgbMatch[4];
+    const A = rawA
+      ? rawA.endsWith('%')
+        ? parseFloat(rawA) / 100
+        : parseFloat(rawA)
+      : 1;
+    const [L, ab, bb] = srgbToOklab(r, g, b);
+    const ch = oklabToOklch(L, ab, bb);
+    ch.A = A;
+    return ch;
+  }
+
+  throw new Error(`css.color: unsupported format "${input}". Use hex, rgb(), or oklch().`);
+}
+
+// ---------------------------------------------------------------------------
+// Serialization
+// ---------------------------------------------------------------------------
+
+/** Clamp a number to [min, max]. */
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+/**
+ * Serialize OklchChannels to a CSS color string.
+ * Outputs hex when alpha=1 for maximum compatibility; oklch otherwise.
+ */
+function serializeColor(ch: OklchChannels): string {
+  const [r, g, b] = oklabToSrgb(...oklchToOklab(ch));
+
+  if (ch.A === 1) {
+    const hex = (v: number) =>
+      Math.round(clamp(v, 0, 1) * 255)
+        .toString(16)
+        .padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+  }
+
+  // Use oklch for colors with transparency — preserves the perceptual intent
+  return `oklch(${ch.L.toFixed(4)} ${ch.C.toFixed(4)} ${ch.H.toFixed(2)} / ${ch.A.toFixed(3)})`;
+}
+
+// ---------------------------------------------------------------------------
+// WCAG relative luminance & contrast ratio
+// ---------------------------------------------------------------------------
+
+function relativeLuminance(r: number, g: number, b: number): number {
+  return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
+}
+
+function contrastRatio(lum1: number, lum2: number): number {
+  const lighter = Math.max(lum1, lum2);
+  const darker = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// ---------------------------------------------------------------------------
+// Color factory
+// ---------------------------------------------------------------------------
+
+function makeColor(channels: OklchChannels): Color {
+  const self: Color = {
+    _tag: 'Color',
+
+    lighten(amount: number): Color {
+      return makeColor({ ...channels, L: clamp(channels.L + amount, 0, 1) });
+    },
+
+    darken(amount: number): Color {
+      return makeColor({ ...channels, L: clamp(channels.L - amount, 0, 1) });
+    },
+
+    alpha(value: number): Color {
+      return makeColor({ ...channels, A: clamp(value, 0, 1) });
+    },
+
+    rotate(degrees: number): Color {
+      return makeColor({ ...channels, H: ((channels.H + degrees) % 360 + 360) % 360 });
+    },
+
+    mix(other: Color, ratio: number): Color {
+      // Parse `other` back to channels by round-tripping through its string repr
+      const otherCh = parseColor(other.toString());
+      const r = clamp(ratio, 0, 1);
+      return makeColor({
+        L: channels.L * (1 - r) + otherCh.L * r,
+        C: channels.C * (1 - r) + otherCh.C * r,
+        H: channels.H * (1 - r) + otherCh.H * r,
+        A: channels.A * (1 - r) + otherCh.A * r,
+      });
+    },
+
+    contrast(threshold = 4.5): Color {
+      const [r, g, b] = oklabToSrgb(...oklchToOklab(channels));
+      const lum = relativeLuminance(r, g, b);
+      const whiteLum = 1;
+      const blackLum = 0;
+      const whiteContrast = contrastRatio(lum, whiteLum);
+      const blackContrast = contrastRatio(lum, blackLum);
+      // Pick whichever passes the threshold; fallback to higher contrast
+      if (whiteContrast >= threshold) return makeColor(parseColor('#ffffff'));
+      if (blackContrast >= threshold) return makeColor(parseColor('#000000'));
+      return whiteContrast > blackContrast
+        ? makeColor(parseColor('#ffffff'))
+        : makeColor(parseColor('#000000'));
+    },
+
+    ensureContrast(foreground: Color, ratio: number): Color {
+      // Binary search in lightness until the contrast ratio is met
+      const fgCh = parseColor(foreground.toString());
+      const [fr, fg, fb] = oklabToSrgb(...oklchToOklab(fgCh));
+      const fgLum = relativeLuminance(fr, fg, fb);
+
+      let lo = 0;
+      let hi = 1;
+      let best: OklchChannels = channels;
+
+      for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        const candidate: OklchChannels = { ...channels, L: mid };
+        const [cr, cg, cb] = oklabToSrgb(...oklchToOklab(candidate));
+        const candLum = relativeLuminance(cr, cg, cb);
+        const cr_ = contrastRatio(candLum, fgLum);
+
+        if (cr_ >= ratio) {
+          best = candidate;
+          // Try to get closer to original lightness
+          if (channels.L > 0.5) hi = mid;
+          else lo = mid;
+        } else {
+          if (channels.L > 0.5) lo = mid;
+          else hi = mid;
+        }
+      }
+
+      return makeColor(best);
+    },
+
+    gradient(to: Color, angle = 180): Gradient {
+      return {
+        _tag: 'Gradient',
+        stops: [
+          [self, 0],
+          [to, 100],
+        ],
+        angle,
+        toString(): string {
+          const stops = this.stops
+            .map(([c, pos]) => `${c.toString()} ${pos}%`)
+            .join(', ');
+          return `linear-gradient(${angle}deg, ${stops})`;
+        },
+      };
+    },
+
+    toString(): string {
+      return serializeColor(channels);
+    },
+  };
+
+  return self;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a typed Color from any supported CSS color string.
+ * Supported: hex (#rgb, #rrggbb, #rrggbbaa), rgb/rgba(), oklch().
+ *
+ * @example
+ * css.color('#3b82f6')
+ * css.color('oklch(0.6 0.2 220)')
+ * css.color('rgb(59, 130, 246)')
+ */
+export function color(input: string): Color {
+  return makeColor(parseColor(input));
+}
+
+// Convenience static colors — avoids repeatedly parsing the same strings
+color.black = makeColor(parseColor('#000000'));
+color.white = makeColor(parseColor('#ffffff'));
+color.transparent = makeColor({ L: 0, C: 0, H: 0, A: 0 });
+
+/**
+ * Build a complex multi-stop gradient.
+ *
+ * @example
+ * css.gradient({
+ *   angle: 135,
+ *   stops: [
+ *     [blue, 0],
+ *     [blue.alpha(0.5), 50],
+ *     [blue.lighten(0.3), 100],
+ *   ],
+ * })
+ */
+export function gradient(options: {
+  angle: number;
+  stops: Array<[Color, number]>;
+}): Gradient {
+  return {
+    _tag: 'Gradient',
+    stops: options.stops,
+    angle: options.angle,
+    toString(): string {
+      const stops = this.stops
+        .map(([c, pos]) => `${c.toString()} ${pos}%`)
+        .join(', ');
+      return `linear-gradient(${this.angle}deg, ${stops})`;
+    },
+  };
+}
