@@ -77,7 +77,7 @@ function TrackDemo() {
           type="text"
           value={postQuery}
           placeholder="Filter posts..."
-          onInput={(e) => event.debounce(500).handler((e) => {
+          onInput={event.debounce(500).handler((e) => {
             postQuery = (e.target as HTMLInputElement).value;
             searchPosts();
           })}

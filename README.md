@@ -271,6 +271,26 @@ Modifiers run left-to-right as a chain around the final handler. For mutable com
 | `left`, `middle`, `right` | Mouse button filters for mouse/pointer-style events with a `button` value. |
 | `debounce(ms)`, `throttle(ms)`, `cooldown(ms)` | Timing modifiers. Defaults use the built-in event delay. |
 | `log(label?)` | Logs the event, optionally with a label, then continues. |
+| `global` | Registers the entire modifier chain as a window-level listener with automatic lifecycle cleanup. |
+| `hotkey(keys)` | Fluent builder for global document-level key shortcuts. Supports modifiers (`ctrl+s`) and sequences (`g i`). |
+
+### Global Listeners & Hotkeys
+
+Global listeners registered via `.global` or `event.hotkey()` are automatically bound to the window/document and will cleanly unbind themselves when the mounting component unmounts.
+
+```tsx
+// Global Click Outside detector
+event.click.global.handler((e) => {
+  if (panel && !panel.contains(e.target)) {
+    closePanel();
+  }
+});
+
+// Global Hotkeys (supports modifiers and sequencing)
+event.hotkey('ctrl+s').prevent.handler(saveDocument);
+event.hotkey('esc').handler(closeAllModals);
+event.hotkey('g i').handler(goToInbox); // sequence: press 'g' then 'i'
+```
 
 Common chains:
 
