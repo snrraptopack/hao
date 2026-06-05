@@ -405,8 +405,15 @@ export type OutlineOptions = {
  * css.outline({ color: theme.colors.focus, width: 2, offset: 2 })
  * // → "2px solid #..."
  */
-export function outline(options: OutlineOptions): string {
+export function outline(options: OutlineOptions): { outline: string; outlineOffset?: string; toString(): string } {
   const width = toLength(options.width, 1);
   const style = options.style ?? 'solid';
-  return `${width.toString()} ${style} ${options.color.toString()}`;
+  
+  return {
+    outline: `${width.toString()} ${style} ${options.color.toString()}`,
+    outlineOffset: options.offset !== undefined ? toLength(options.offset).toString() : undefined,
+    toString() {
+      return this.outline;
+    }
+  };
 }

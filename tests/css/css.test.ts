@@ -60,6 +60,22 @@ describe('css() — basic resolution', () => {
     const result = css({ padding: [css.rem(1), css.rem(2)] });
     expect(result['padding']).toBe('1rem 2rem');
   });
+
+  test('resolves responsive object values using their base key fallback', () => {
+    const result = css({
+      padding: { base: css.px(8), lg: css.px(24) },
+      flexDirection: { base: 'column', md: 'row' },
+    });
+    expect(result['padding']).toBe('8px');
+    expect(result['flexDirection']).toBe('column');
+  });
+
+  test('resolves responsive object values using first key if base is missing', () => {
+    const result = css({
+      padding: { lg: css.px(24), md: css.px(16) },
+    });
+    expect(result['padding']).toBe('24px');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -123,6 +123,36 @@ function makeAngle(value: number, unit: AngleUnit): Angle {
     _tag: 'Angle',
     value,
     unit,
+
+    add(other: Angle): Angle {
+      const degA = unit === 'rad' ? (value * 180) / Math.PI : unit === 'turn' ? value * 360 : value;
+      const degB = other.unit === 'rad' ? (other.value * 180) / Math.PI : other.unit === 'turn' ? other.value * 360 : other.value;
+      const totalDeg = degA + degB;
+      
+      if (unit === 'rad') return makeAngle((totalDeg * Math.PI) / 180, 'rad');
+      if (unit === 'turn') return makeAngle(totalDeg / 360, 'turn');
+      return makeAngle(totalDeg, 'deg');
+    },
+
+    subtract(other: Angle): Angle {
+      const degA = unit === 'rad' ? (value * 180) / Math.PI : unit === 'turn' ? value * 360 : value;
+      const degB = other.unit === 'rad' ? (other.value * 180) / Math.PI : other.unit === 'turn' ? other.value * 360 : other.value;
+      const totalDeg = degA - degB;
+      
+      if (unit === 'rad') return makeAngle((totalDeg * Math.PI) / 180, 'rad');
+      if (unit === 'turn') return makeAngle(totalDeg / 360, 'turn');
+      return makeAngle(totalDeg, 'deg');
+    },
+
+    multiply(factor: number): Angle {
+      return makeAngle(value * factor, unit);
+    },
+
+    divide(divisor: number): Angle {
+      if (divisor === 0) throw new RangeError('css angle: division by zero');
+      return makeAngle(value / divisor, unit);
+    },
+
     toString(): string {
       return `${value}${unit}`;
     },

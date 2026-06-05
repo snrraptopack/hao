@@ -98,6 +98,10 @@ export interface Angle {
   readonly value: number;
   readonly unit: AngleUnit;
 
+  add(other: Angle): Angle;
+  subtract(other: Angle): Angle;
+  multiply(factor: number): Angle;
+  divide(divisor: number): Angle;
   toString(): string;
 }
 
@@ -269,6 +273,22 @@ export interface FlexDescriptor {
  * Matches what the browser's CSSStyleDeclaration accepts plus our typed value objects.
  * The compiler strips the typed objects and replaces them with resolved CSS strings.
  */
+/**
+ * A responsive value wrapper allowing properties to vary by breakpoint.
+ * At runtime, the serializer falls back to the 'base' property.
+ * The Vite plugin extracts these into media query blocks at build time.
+ */
+export type ResponsiveValue<T> =
+  | T
+  | {
+      base?: T;
+      sm?: T;
+      md?: T;
+      lg?: T;
+      xl?: T;
+      [breakpoint: string]: T | undefined;
+    };
+
 export type CSSValue =
   | string
   | number
@@ -296,4 +316,100 @@ export type ResolvedStyle = Record<string, string>;
  * This is what you write; the runtime and compiler both accept it.
  * Keys are camelCase CSS property names (same as React's CSSProperties).
  */
-export type StyleObject = Partial<Record<string, CSSValue>>;
+type LengthProperty =
+  | Length
+  | CalcExpression
+  | ClampExpression
+  | string
+  | number
+  | ReadonlyArray<Length | CalcExpression | string | number>;
+
+type ColorProperty = Color | string;
+
+interface PropertyValueMap {
+  width?: LengthProperty;
+  height?: LengthProperty;
+  minWidth?: LengthProperty;
+  minHeight?: LengthProperty;
+  maxWidth?: LengthProperty;
+  maxHeight?: LengthProperty;
+
+  top?: LengthProperty;
+  right?: LengthProperty;
+  bottom?: LengthProperty;
+  left?: LengthProperty;
+  inset?: LengthProperty;
+
+  padding?: LengthProperty;
+  paddingTop?: LengthProperty;
+  paddingRight?: LengthProperty;
+  paddingBottom?: LengthProperty;
+  paddingLeft?: LengthProperty;
+  margin?: LengthProperty;
+  marginTop?: LengthProperty;
+  marginRight?: LengthProperty;
+  marginBottom?: LengthProperty;
+  marginLeft?: LengthProperty;
+  gap?: LengthProperty;
+  columnGap?: LengthProperty;
+  rowGap?: LengthProperty;
+
+  borderRadius?: LengthProperty;
+  borderTopLeftRadius?: LengthProperty;
+  borderTopRightRadius?: LengthProperty;
+  borderBottomLeftRadius?: LengthProperty;
+  borderBottomRightRadius?: LengthProperty;
+  borderWidth?: LengthProperty;
+  borderTopWidth?: LengthProperty;
+  borderRightWidth?: LengthProperty;
+  borderBottomWidth?: LengthProperty;
+  borderLeftWidth?: LengthProperty;
+  outlineWidth?: LengthProperty;
+
+  fontSize?: LengthProperty;
+  lineHeight?: LengthProperty;
+  letterSpacing?: LengthProperty;
+  wordSpacing?: LengthProperty;
+
+  color?: ColorProperty;
+  backgroundColor?: ColorProperty;
+  borderColor?: ColorProperty;
+  borderTopColor?: ColorProperty;
+  borderRightColor?: ColorProperty;
+  borderBottomColor?: ColorProperty;
+  borderLeftColor?: ColorProperty;
+  outlineColor?: ColorProperty;
+  fill?: ColorProperty;
+  stroke?: ColorProperty;
+
+  background?: Color | Gradient | string;
+
+  border?: Border | string;
+  borderTop?: Border | string;
+  borderRight?: Border | string;
+  borderBottom?: Border | string;
+  borderLeft?: Border | string;
+  outline?: { outline: string; outlineOffset?: string; toString(): string } | Border | string;
+  outlineOffset?: LengthProperty;
+
+  boxShadow?: Shadow | string;
+  textShadow?: Shadow | string;
+
+  transform?: Transform | string;
+  transition?: Transition | string;
+  transitionDuration?: Time | string | number;
+  transitionDelay?: Time | string | number;
+  animationDuration?: Time | string | number;
+  animationDelay?: Time | string | number;
+
+  grid?: GridDescriptor | string;
+  flex?: FlexDescriptor | string;
+}
+
+export type StyleObject = Partial<{
+  [K in keyof CSSStyleDeclaration as CSSStyleDeclaration[K] extends Function
+    ? never
+    : K extends 'length' | 'parentRule'
+    ? never
+    : K]: ResponsiveValue<K extends keyof PropertyValueMap ? PropertyValueMap[K] : string | number>;
+}>;

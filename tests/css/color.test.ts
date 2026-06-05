@@ -225,3 +225,28 @@ describe('color.black / color.white / color.transparent', () => {
     expect(color.transparent.toString()).toContain('/ 0.000');
   });
 });
+
+// ---------------------------------------------------------------------------
+// color.scale()
+// ---------------------------------------------------------------------------
+
+describe('color.scale()', () => {
+  test('creates a map of Color objects from strings', () => {
+    const scale = color.scale('#3b82f6', {
+      50: '#eff6ff',
+      500: '#3b82f6',
+    });
+    expect(scale[50].toString()).toBe('#eff6ff');
+    expect(scale[500].toString()).toBe('#3b82f6');
+  });
+
+  test('accepts existing Color objects in scale steps', () => {
+    const primary = color('#3b82f6');
+    const scale = color.scale('#3b82f6', {
+      50: '#eff6ff',
+      500: primary,
+    });
+    expect(scale[50].toString()).toBe('#eff6ff');
+    expect(scale[500]).toBe(primary);
+  });
+});

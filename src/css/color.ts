@@ -373,11 +373,11 @@ color.transparent = makeColor({ L: 0, C: 0, H: 0, A: 0 });
  */
 color.scale = function colorScale<K extends string | number>(
   _seed: string,
-  steps: Record<K, string>,
+  steps: Record<K, string | Color>,
 ): { [P in K]: Color } {
   const result = {} as Record<string | number, Color>;
-  for (const [key, hex] of Object.entries(steps)) {
-    result[key] = makeColor(parseColor(hex as string));
+  for (const [key, value] of Object.entries(steps)) {
+    result[key] = typeof value === 'string' ? makeColor(parseColor(value)) : (value as Color);
   }
   return result as { [P in K]: Color };
 };

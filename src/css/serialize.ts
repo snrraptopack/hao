@@ -111,6 +111,23 @@ function serializeArray(
  * properties and are handled in the outer `resolve()` loop.
  */
 function serializeValue(value: CSSValue): string {
+  // Check if it is a responsive object literal
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    !('_tag' in value) &&
+    !Array.isArray(value)
+  ) {
+    const responsive = value as unknown as Record<string, unknown>;
+    const fallback =
+      responsive.base !== undefined
+        ? responsive.base
+        : Object.values(responsive)[0];
+    if (fallback !== undefined) {
+      return serializeValue(fallback as CSSValue);
+    }
+  }
+
   if (typeof value === 'string') return value;
   if (typeof value === 'number') return String(value);
 

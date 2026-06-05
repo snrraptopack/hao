@@ -40,31 +40,9 @@ import { merge } from './compose';
 // Types
 // ---------------------------------------------------------------------------
 
-/**
- * The cases object for css.when().
- *
- * Keys are computed from boolean expressions, which JavaScript coerces to the
- * string 'true' or 'false'. The 'default' key is the fallback.
- *
- * Accepts either full StyleObjects (for multi-property branches) or individual
- * CSSValues (for single-property inline use).
- *
- * @example
- * // Multi-property branch
- * css.when({ [isActive]: { background: blue, fontWeight: 700 }, default: { background: 'transparent' } })
- *
- * // Single-property inline
- * opacity: css.when({ [disabled]: 0.5, default: 1 })
- */
-export type WhenCases<V> = {
-  /** Supplied when any condition in the object literal evaluated to true. */
+export type WhenBranches<V> = {
   true?: V;
-  /** Supplied when any condition in the object literal evaluated to false. */
   false?: V;
-  /** Fallback used when no condition was truthy. Overrides the 'false' branch. */
-  default?: V;
-  /** Index signature — allows computed boolean keys at the call site. */
-  [key: string]: V | undefined;
 };
 
 /**
@@ -89,52 +67,24 @@ export type MatchCases<T extends string, V> = { [K in T]: V };
 // ---------------------------------------------------------------------------
 
 /**
- * Return a style (or value) based on boolean conditions.
- *
- * **How it works at runtime:**
- * The cases object is a plain JS object. Boolean conditions used as computed
- * keys become the strings 'true' or 'false'. This function checks for a 'true'
- * key first, then 'default', then 'false'.
- *
- * **How the compiler uses it (Milestone 4):**
- * The plugin reads the condition expression from the AST, emits two CSS classes
- * (one per branch), and replaces the call with a class toggle at runtime.
+ * Return a style (or value) based on a boolean condition.
  *
  * @example
- * // Single-property inline — ternary-style
- * opacity: css.when({ [disabled]: 0.5, default: 1 })
+ * // Single-property inline
+ * opacity: css.when(disabled, { true: 0.5, false: 1 })
  *
- * // Multi-property branch — full StyleObject
- * css.when({
- *   [isHovered]: { background: blue.lighten(0.1), transform: css.transform({ scale: 1.02 }) },
- *   default: { background: blue },
+ * // Multi-property branch
+ * css.when(isHovered, {
+ *   true: { background: blue.lighten(0.1), transform: css.transform({ scale: 1.02 }) },
+ *   false: { background: blue }
  * })
- *
- * // Composing two independent conditions with merge
- * css.merge(
- *   css.when({ [isSelected]: { outline: css.outline({ color: blue, width: 2 }) }, default: {} }),
- *   css.when({ [isDragging]: { opacity: 0.6 }, default: {} }),
- * )
  */
-export function when<V>(cases: WhenCases<V>): V {
-  // A condition evaluated to true — its style takes priority
-  if (Object.prototype.hasOwnProperty.call(cases, 'true')) {
-    return cases['true'] as V;
+export function when<V>(condition: boolean, branches: WhenBranches<V>): V {
+  if (condition) {
+    return (branches.true !== undefined ? branches.true : {} as V) as V;
+  } else {
+    return (branches.false !== undefined ? branches.false : {} as V) as V;
   }
-
-  // No truthy condition — use 'default' as the fallback
-  if (Object.prototype.hasOwnProperty.call(cases, 'default')) {
-    return cases['default'] as V;
-  }
-
-  // Edge case: only a 'false' key present (unusual but valid)
-  if (Object.prototype.hasOwnProperty.call(cases, 'false')) {
-    return cases['false'] as V;
-  }
-
-  // No branches at all — return an empty StyleObject
-  // This keeps the function signature non-nullable without throwing
-  return {} as V;
 }
 
 // ---------------------------------------------------------------------------

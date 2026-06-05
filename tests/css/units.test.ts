@@ -182,6 +182,33 @@ describe('turn()', () => {
   });
 });
 
+describe('Angle arithmetic', () => {
+  test('add combines angles (same unit)', () => {
+    expect(deg(45).add(deg(45)).toString()).toBe('90deg');
+  });
+
+  test('add combines angles (mixed units)', () => {
+    expect(deg(90).add(turn(0.25)).toString()).toBe('180deg');
+    expect(turn(0.25).add(deg(90)).toString()).toBe('0.5turn');
+  });
+
+  test('subtract subtracts angles', () => {
+    expect(deg(90).subtract(deg(30)).toString()).toBe('60deg');
+  });
+
+  test('multiply scales angles', () => {
+    expect(deg(45).multiply(2).toString()).toBe('90deg');
+  });
+
+  test('divide divides angles', () => {
+    expect(deg(90).divide(3).toString()).toBe('30deg');
+  });
+
+  test('divide by zero throws RangeError', () => {
+    expect(() => deg(90).divide(0)).toThrow(RangeError);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------

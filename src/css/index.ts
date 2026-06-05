@@ -26,6 +26,7 @@ export type {
   GridDescriptor,
   Length,
   ResolvedStyle,
+  ResponsiveValue,
   Shadow,
   StyleObject,
   Time,
@@ -35,7 +36,7 @@ export type {
 } from './types';
 
 // Conditional types — useful for typing css.when/css.match arguments
-export type { WhenCases, MatchCases } from './conditionals';
+export type { WhenBranches, MatchCases } from './conditionals';
 
 // Token types — useful for typing function params that receive theme slices
 export type {

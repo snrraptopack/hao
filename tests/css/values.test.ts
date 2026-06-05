@@ -171,14 +171,23 @@ describe('ease()', () => {
 // ---------------------------------------------------------------------------
 
 describe('outline()', () => {
-  test('produces a string shorthand', () => {
+  test('produces a structured outline object', () => {
     const o = outline({ color: color('#3b82f6'), width: 2 });
-    expect(o).toMatch(/^2px solid /);
+    expect(o.outline).toMatch(/^2px solid /);
+    expect(o.outlineOffset).toBeUndefined();
+    expect(o.toString()).toMatch(/^2px solid /);
   });
 
   test('default width is 1px', () => {
     const o = outline({ color: color.black });
-    expect(o).toMatch(/^1px solid/);
+    expect(o.outline).toMatch(/^1px solid/);
+    expect(o.toString()).toMatch(/^1px solid/);
+  });
+
+  test('supports offset', () => {
+    const o = outline({ color: color.black, width: 2, offset: 4 });
+    expect(o.outline).toMatch(/^2px solid/);
+    expect(o.outlineOffset).toBe('4px');
   });
 });
 

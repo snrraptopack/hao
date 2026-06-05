@@ -177,12 +177,21 @@ describe('new touch gesture and high/medium demand modifiers', () => {
     expect(leftSpy).toHaveBeenCalledTimes(1);
     expect(rightSpy).not.toHaveBeenCalled();
 
+    // End first touch gesture
+    el.dispatchEvent(new PointerEvent('pointerup', { clientX: 50, clientY: 100, pointerId: 0 }));
+
     leftSpy.mockClear();
 
-    // Swipe right (dx = 50 from initial start position clientX: 100)
+    // Start a new touch gesture for swipe right
+    el.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, button: 0 }));
+
+    // Swipe right (dx = 50)
     el.dispatchEvent(new PointerEvent('pointermove', { clientX: 150, clientY: 100, pointerId: 0 }));
     expect(rightSpy).toHaveBeenCalledTimes(1);
     expect(leftSpy).not.toHaveBeenCalled();
+
+    // End second touch gesture
+    el.dispatchEvent(new PointerEvent('pointerup', { clientX: 150, clientY: 100, pointerId: 0 }));
 
     el.remove();
   });

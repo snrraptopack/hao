@@ -21,63 +21,51 @@ import { color } from '../../src/css/color';
 // css.when() — boolean branching
 // ---------------------------------------------------------------------------
 
-describe('css.when() — true branch', () => {
-  test('returns the true-key style when condition is true', () => {
+describe('css.when() — boolean branching', () => {
+  test('returns the true branch when condition is true', () => {
     const isActive = true;
-    const style = when({
-      [isActive]: { background: color('#3b82f6') },
-      default:    { background: color('#e5e7eb') },
+    const style = when(isActive, {
+      true:  { background: color('#3b82f6') },
+      false: { background: color('#e5e7eb') },
     });
-    // true branch → background is blue
     expect((style as { background: ReturnType<typeof color> }).background.toString())
       .toMatch(/^#3b82f6/i);
   });
 
-  test('returns the default style when condition is false', () => {
+  test('returns the false branch when condition is false', () => {
     const isActive = false;
-    const style = when({
-      [isActive]: { background: color('#3b82f6') },
-      default:    { background: color('#e5e7eb') },
+    const style = when(isActive, {
+      true:  { background: color('#3b82f6') },
+      false: { background: color('#e5e7eb') },
     });
-    // false branch → background is grey
     expect((style as { background: ReturnType<typeof color> }).background.toString())
       .toMatch(/^#e5e7eb/i);
   });
 
   test('works with scalar CSSValues (inline use)', () => {
     const disabled = true;
-    const opacity = when({ [disabled]: 0.4, default: 1 });
+    const opacity = when(disabled, { true: 0.4, false: 1 });
     expect(opacity).toBe(0.4);
 
     const enabled = false;
-    const opacity2 = when({ [enabled]: 0.4, default: 1 });
+    const opacity2 = when(enabled, { true: 0.4, false: 1 });
     expect(opacity2).toBe(1);
   });
 
   test('returns the cursor string for disabled state', () => {
     const disabled = true;
-    const cursor = when({ [disabled]: 'not-allowed', default: 'pointer' });
+    const cursor = when(disabled, { true: 'not-allowed', false: 'pointer' });
     expect(cursor).toBe('not-allowed');
   });
 
-  test('returns the default when only a false key exists', () => {
-    const inactive = false;
-    const result = when({ [inactive]: 'red', default: 'blue' });
-    expect(result).toBe('blue');
-  });
-});
-
-describe('css.when() — no branch fallback', () => {
-  test('returns empty object when no keys present', () => {
-    // Edge case: empty cases object
-    const result = when({});
+  test('returns empty object when active branch is not defined', () => {
+    const isActive = true;
+    const result = when(isActive, { false: 'grey' });
     expect(result).toEqual({});
-  });
 
-  test('returns false-branch when only false key provided and no default', () => {
-    const inactive = false;
-    const result = when({ [inactive]: 'grey' });
-    expect(result).toBe('grey');
+    const isInactive = false;
+    const result2 = when(isInactive, { true: 'blue' });
+    expect(result2).toEqual({});
   });
 });
 
@@ -85,15 +73,15 @@ describe('css.when() — resolves via css()', () => {
   test('resolved true-branch produces correct string values', () => {
     const active = true;
     const style = css({
-      padding: when({ [active]: px(16), default: px(8) }),
+      padding: when(active, { true: px(16), false: px(8) }),
     });
     expect(style['padding']).toBe('16px');
   });
 
-  test('resolved false-branch (default) produces correct string values', () => {
+  test('resolved false-branch produces correct string values', () => {
     const active = false;
     const style = css({
-      padding: when({ [active]: px(16), default: px(8) }),
+      padding: when(active, { true: px(16), false: px(8) }),
     });
     expect(style['padding']).toBe('8px');
   });
@@ -101,9 +89,9 @@ describe('css.when() — resolves via css()', () => {
   test('full StyleObject branch resolves all properties', () => {
     const hovered = true;
     const resolved = css(
-      when({
-        [hovered]: { background: color('#2563eb'), transform: css.transform({ scale: 1.02 }) },
-        default:   { background: color('#3b82f6') },
+      when(hovered, {
+        true:  { background: color('#2563eb'), transform: css.transform({ scale: 1.02 }) },
+        false: { background: color('#3b82f6') },
       }) as Parameters<typeof css>[0],
     );
     expect(resolved['transform']).toBe('scale(1.02)');
@@ -262,8 +250,8 @@ describe('css.define() + css.match() — parameterized factory', () => {
         primary:   color('#3b82f6'),
         secondary: color('#e5e7eb'),
       }),
-      opacity: when({ [props.disabled]: 0.4, default: 1 }),
-      cursor:  when({ [props.disabled]: 'not-allowed', default: 'pointer' }),
+      opacity: when(props.disabled, { true: 0.4, false: 1 }),
+      cursor:  when(props.disabled, { true: 'not-allowed', false: 'pointer' }),
     }));
 
     const enabledPrimary  = css(buttonStyle({ variant: 'primary',   disabled: false }));
@@ -313,7 +301,7 @@ describe('css.when / css.match / css.mergeWhen via css object', () => {
 
   test('css.when works through the css namespace', () => {
     const active = true;
-    const result = css.when({ [active]: 'blue', default: 'grey' });
+    const result = css.when(active, { true: 'blue', false: 'grey' });
     expect(result).toBe('blue');
   });
 

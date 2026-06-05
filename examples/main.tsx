@@ -1,15 +1,20 @@
-import { commit, createMemoApp,component, emit, ComponentHandle, reactive } from 'auwla';
-import type {} from 'auwla/jsx-runtime';
+import {component, emit, reactive } from 'auwla';
 import './styles.css';
+import { css } from 'auwla/css';
+
+let con = true
+const style = css.define({
+  padding: css.when(con, {
+    true: css.px(10),
+    false: css.px(20)
+  }),
+})
 
 
 const state:any = {
   count: 0,
   double() { return this.count * 2 }
 }
-
-const reactiveState = reactive(0)
-
 
 function CounterExample() {
     return () => (
