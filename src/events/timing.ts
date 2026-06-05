@@ -1,4 +1,5 @@
 import type { RuntimeEventHandler } from './types';
+import { BLOCKED_EVENT } from '../runtime/index';
 
 export const DEFAULT_EVENT_DELAY_MS = 500;
 
@@ -57,7 +58,7 @@ export function throttleModifier(milliseconds?: number) {
         return handler(event);
       }
 
-      if (timer !== null) return;
+      if (timer !== null) return BLOCKED_EVENT;
       timer = setTimeout(() => {
         timer = null;
         lastRun = Date.now();
@@ -74,7 +75,7 @@ export function cooldownModifier(milliseconds?: number) {
     let coolingDown = false;
 
     return (event) => {
-      if (coolingDown) return;
+      if (coolingDown) return BLOCKED_EVENT;
       coolingDown = true;
       const result = handler(event);
       setTimeout(() => {

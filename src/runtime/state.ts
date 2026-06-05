@@ -10,6 +10,9 @@
 
 import type { EventWrapper, RenderState, MountedApp,AuwlaNode } from './types';
 
+/** Sentinel returned by event modifiers to prevent automatic render invalidation. */
+export const BLOCKED_EVENT = Symbol('auwla.blocked');
+
 /** @internal */
 export const runtimeState = {
   activeEventWrapper: null as EventWrapper | null,

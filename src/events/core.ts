@@ -8,6 +8,7 @@
 
 import type { EventCondition, EventModifier, EventTargetFilter, RuntimeEventHandler } from './types';
 import { isEvent, isMouseEvent, isKeyboardEvent, eventOrigin } from './shared';
+import { BLOCKED_EVENT } from '../runtime/index';
 
 /**
  * Calls event.preventDefault() before running the handler.
@@ -45,7 +46,7 @@ export function stopImmediateModifier(handler: RuntimeEventHandler): RuntimeEven
 export function onceModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   let called = false;
   return (event) => {
-    if (called) return;
+    if (called) return BLOCKED_EVENT;
     called = true;
     return handler(event);
   };
@@ -56,7 +57,7 @@ export function onceModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
  */
 export function selfModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (isEvent(event) && eventOrigin(event) !== event.currentTarget) return;
+    if (isEvent(event) && eventOrigin(event) !== event.currentTarget) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -66,7 +67,7 @@ export function selfModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
  */
 export function trustedModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (!isEvent(event) || !event.isTrusted) return;
+    if (!isEvent(event) || !event.isTrusted) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -76,13 +77,13 @@ export function trustedModifier(handler: RuntimeEventHandler): RuntimeEventHandl
  */
 export function targetModifier(filter: EventTargetFilter<any>): EventModifier {
   return (handler) => (event) => {
-    if (!isEvent(event)) return;
+    if (!isEvent(event)) return BLOCKED_EVENT;
 
     const target = eventOrigin(event);
     const matches = typeof filter === 'string'
       ? target instanceof Element && target.matches(filter)
       : filter(target, event);
-    if (!matches) return;
+    if (!matches) return BLOCKED_EVENT;
 
     return handler(event);
   };
@@ -108,7 +109,7 @@ export function logModifier(label?: string): EventModifier {
 export function ifModifier(condition: EventCondition<any>): EventModifier {
   return (handler) => (event) => {
     const allowed = typeof condition === 'function' ? condition(event) : condition;
-    if (!allowed) return;
+    if (!allowed) return BLOCKED_EVENT;
     return handler(event);
   };
 }

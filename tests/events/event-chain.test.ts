@@ -342,5 +342,33 @@ describe('event chain utilities', () => {
     window.dispatchEvent(afterEvent);
     expect(handler).toHaveBeenCalledTimes(1); // Still 1
   });
+  test('intersect modifiers filter intersection events', () => {
+    const intersectHandler = vi.fn();
+    const inHandler = vi.fn();
+    const outHandler = vi.fn();
+
+    const wrappedIntersect = event.intersect(0.5).handler(intersectHandler);
+    const wrappedIn = event.intersect().in.handler(inHandler);
+    const wrappedOut = event.intersect().out.handler(outHandler);
+
+    const eventIntersect = new CustomEvent('intersect', { detail: { isIntersecting: true, intersectionRatio: 0.6 } });
+    const eventIntersectLow = new CustomEvent('intersect', { detail: { isIntersecting: true, intersectionRatio: 0.2 } });
+    const eventOut = new CustomEvent('intersect', { detail: { isIntersecting: false, intersectionRatio: 0 } });
+
+    wrappedIntersect(eventIntersect);
+    wrappedIn(eventIntersect);
+    wrappedIn(eventOut);
+    wrappedOut(eventIntersect);
+    wrappedOut(eventOut);
+
+    expect(intersectHandler).toHaveBeenCalledTimes(1);
+    expect(intersectHandler).toHaveBeenCalledWith(eventIntersect);
+
+    expect(inHandler).toHaveBeenCalledTimes(1);
+    expect(inHandler).toHaveBeenCalledWith(eventIntersect);
+
+    expect(outHandler).toHaveBeenCalledTimes(1);
+    expect(outHandler).toHaveBeenCalledWith(eventOut);
+  });
 });
 

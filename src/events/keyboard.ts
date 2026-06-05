@@ -7,6 +7,7 @@
 
 import type { EventModifier, RuntimeEventHandler } from './types';
 import { isKeyboardEvent } from './shared';
+import { BLOCKED_EVENT } from '../runtime/index';
 
 /**
  * Normalizes input key names to a lowercase Set for case-insensitive matching.
@@ -21,7 +22,7 @@ function normalizedKeySet(key: string | readonly string[]): Set<string> {
 export function keyModifier(key: string | readonly string[]): EventModifier {
   const allowed = normalizedKeySet(key);
   return (handler) => (event) => {
-    if (!isKeyboardEvent(event) || !allowed.has(event.key.toLowerCase())) return;
+    if (!isKeyboardEvent(event) || !allowed.has(event.key.toLowerCase())) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -31,7 +32,7 @@ export function keyModifier(key: string | readonly string[]): EventModifier {
  */
 export function ctrlModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (!isKeyboardEvent(event) || !event.ctrlKey) return;
+    if (!isKeyboardEvent(event) || !event.ctrlKey) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -41,7 +42,7 @@ export function ctrlModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
  */
 export function metaModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (!isKeyboardEvent(event) || !event.metaKey) return;
+    if (!isKeyboardEvent(event) || !event.metaKey) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -51,7 +52,7 @@ export function metaModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
  */
 export function shiftModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (!isKeyboardEvent(event) || !event.shiftKey) return;
+    if (!isKeyboardEvent(event) || !event.shiftKey) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -61,7 +62,7 @@ export function shiftModifier(handler: RuntimeEventHandler): RuntimeEventHandler
  */
 export function altModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (!isKeyboardEvent(event) || !event.altKey) return;
+    if (!isKeyboardEvent(event) || !event.altKey) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -71,7 +72,7 @@ export function altModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
  */
 export function modModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
-    if (!isKeyboardEvent(event) || (!event.ctrlKey && !event.metaKey)) return;
+    if (!isKeyboardEvent(event) || (!event.ctrlKey && !event.metaKey)) return BLOCKED_EVENT;
     return handler(event);
   };
 }
@@ -82,7 +83,7 @@ export function modModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
 function keyFilterModifier(keys: string[]): EventModifier {
   const allowed = new Set(keys.map(k => k.toLowerCase()));
   return (handler) => (event) => {
-    if (!isKeyboardEvent(event) || !allowed.has(event.key.toLowerCase())) return;
+    if (!isKeyboardEvent(event) || !allowed.has(event.key.toLowerCase())) return BLOCKED_EVENT;
     return handler(event);
   };
 }

@@ -37,6 +37,7 @@ type EventProps = {
   onTouchEnd?: (e: TouchEvent) => void;
   onTouchMove?: (e: TouchEvent) => void;
   onTouchCancel?: (e: TouchEvent) => void;
+  onIntersect?: (e: CustomEvent<IntersectionObserverEntry>) => void;
 };
 
 type CustomEventProps = {

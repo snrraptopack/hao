@@ -6,13 +6,14 @@
 
 import type { EventModifier } from './types';
 import { isMouseEvent } from './shared';
+import { BLOCKED_EVENT } from '../runtime/index';
 
 /**
  * Helper to build modifiers that restrict handlers to a specific mouse button.
  */
 function mouseButtonModifier(button: number): EventModifier {
   return (handler) => (event) => {
-    if (!isMouseEvent(event) || event.button !== button) return;
+    if (!isMouseEvent(event) || event.button !== button) return BLOCKED_EVENT;
     return handler(event);
   };
 }

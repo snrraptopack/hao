@@ -7,6 +7,7 @@
 
 import type { EventModifier } from './types';
 import { isKeyboardEvent } from './shared';
+import { BLOCKED_EVENT } from '../runtime/index';
 
 export interface KeyCombo {
   key: string;
@@ -188,12 +189,12 @@ export function hotkeyModifier(shortcuts: string | readonly string[]): EventModi
   });
 
   const modifier: import('./types').EventModifier = (handler) => (event) => {
-    if (!isKeyboardEvent(event)) return;
+    if (!isKeyboardEvent(event)) return BLOCKED_EVENT;
 
     // Ignore single key hotkeys inside text fields to allow normal typing
     if (typeof document !== 'undefined' && isEditable(document.activeElement)) {
       const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
-      if (!hasModifier) return;
+      if (!hasModifier) return BLOCKED_EVENT;
     }
 
     let matched = false;
@@ -204,6 +205,7 @@ export function hotkeyModifier(shortcuts: string | readonly string[]): EventModi
     }
 
     if (matched) return handler(event);
+    return BLOCKED_EVENT;
   };
 
   modifier.cleanup = () => {

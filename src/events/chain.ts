@@ -28,6 +28,7 @@ import {
   spaceModifier,
 } from './keyboard';
 import { cooldownModifier, debounceModifier, throttleModifier } from './timing';
+import { intersectModifier, intersectInModifier, intersectOutModifier } from './intersect';
 import { emit } from './emit';
 import { hotkeyModifier } from './hotkey';
 import { track as trackFn, pending, resolved, rejected, value, reason, cancel } from './track';
@@ -223,6 +224,17 @@ function defineChainAccessors<TTarget extends object>(
     },
     global: {
       get: () => createEventChain(modifiers, eventName, true),
+    },
+    in: {
+      get: () => createEventChain(appendModifier(modifiers, intersectInModifier), eventName, isGlobal),
+    },
+    out: {
+      get: () => createEventChain(appendModifier(modifiers, intersectOutModifier), eventName, isGlobal),
+    },
+    intersect: {
+      value: (optionsOrThreshold?: import('./intersect').IntersectOptions | number) => {
+        return createEventChain([intersectModifier(optionsOrThreshold)], 'intersect', isGlobal);
+      },
     },
     hotkey: {
       value: (keys: string | readonly string[]) => {
