@@ -9,6 +9,12 @@ function normalizeDelay(milliseconds?: number): number {
     : DEFAULT_EVENT_DELAY_MS;
 }
 
+/**
+ * Delays execution of the handler until after a duration of inactivity.
+ * 
+ * @example
+ * <input onInput={event.debounce(300).handler(search)} />
+ */
 export function debounceModifier(milliseconds?: number) {
   const delay = normalizeDelay(milliseconds);
 
@@ -36,6 +42,12 @@ export function debounceModifier(milliseconds?: number) {
   };
 }
 
+/**
+ * Limits execution of the handler to at most once per specified duration.
+ * 
+ * @example
+ * <div onScroll={event.throttle(100).handler(handleScroll)} />
+ */
 export function throttleModifier(milliseconds?: number) {
   const delay = normalizeDelay(milliseconds);
 
@@ -88,6 +100,12 @@ export function throttleModifier(milliseconds?: number) {
   };
 }
 
+/**
+ * Temporarily disables the event handler for a specified duration after it is triggered.
+ * 
+ * @example
+ * <button onClick={event.cooldown(1000).handler(submitOnce)}>Submit</button>
+ */
 export function cooldownModifier(milliseconds?: number) {
   const delay = normalizeDelay(milliseconds);
 

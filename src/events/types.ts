@@ -76,6 +76,18 @@ export type EventChain<TEvent = Event> = {
   readonly throttle: TimedEventChain<TEvent>;
   readonly cooldown: TimedEventChain<TEvent>;
   readonly log: LogEventChain<TEvent>;
+  readonly capture: EventChain<TEvent>;
+  readonly passive: EventChain<TEvent>;
+  readonly silent: EventChain<TEvent>;
+  readonly trap: EventChain<TEvent>;
+  readonly outside: EventChain<TEvent>;
+  closest(selector: string): EventChain<TEvent>;
+
+  readonly touch: EventChain<CustomEvent<any>>;
+  fit(arg1?: any, arg2?: any, arg3?: any): EventChain<TEvent>;
+  sync(obj: any, xProp?: string, yProp?: string): EventChain<TEvent>;
+  moved(threshold: number | string, direction?: string): EventChain<TEvent>;
+
   readonly mod: EventChain<KeyboardEvent>;
   readonly ctrl: EventChain<KeyboardEvent>;
   readonly meta: EventChain<KeyboardEvent>;
@@ -128,7 +140,7 @@ export type EventChain<TEvent = Event> = {
   intersect(optionsOrThreshold?: import('./intersect').IntersectOptions | number): EventChain<CustomEvent<IntersectionObserverEntry>>;
   hotkey(keys: string | readonly string[]): GlobalEventChain<KeyboardEvent>;
   emit(handle: ComponentHandle, name: string, payload?: unknown): boolean;
-  handler<TResult>(handler: (event: TEvent) => TResult): (event: TEvent) => void;
+  handler<TResult>(handler: (event: TEvent) => TResult): ((event: TEvent) => void) & EventChain<TEvent>;
 
   /** Track an async operation by name. Starts immediately. */
   track(name: string, promise: Promise<unknown>): import('./track').TrackHandle;

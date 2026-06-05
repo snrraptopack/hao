@@ -26,6 +26,7 @@ export default defineConfig({
       'tests/compiler/**/*.test.ts',
       'tests/compiler-runtime/**/*.test.ts',
       'tests/events/**/*.test.ts',
+      'tests/events/**/*.test.tsx',
       'tests/shared/**/*.test.ts',
       'tests/runtime/**/*.test.ts',
       'tests/runtime/**/*.test.tsx',

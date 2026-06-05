@@ -10,7 +10,14 @@ import {
   logModifier,
   leftModifier,
   rightModifier,
+  captureModifier,
+  passiveModifier,
+  silentModifier,
+  trapModifier,
+  outsideModifier,
+  closestModifier,
 } from './core';
+import { touchFitModifier, touchSyncModifier, touchMovedModifier } from './touch';
 import { middleModifier } from './mouse';
 import {
   keyModifier,
@@ -57,199 +64,155 @@ function appendModifier(modifiers: readonly EventModifier[], modifier: EventModi
   return [...modifiers, modifier];
 }
 
+const simpleModifiers: Record<string, EventModifier> = {
+  prevent: preventModifier,
+  stop: stopModifier,
+  stopImmediate: stopImmediateModifier,
+  once: onceModifier,
+  self: selfModifier,
+  trusted: trustedModifier,
+  left: leftModifier,
+  middle: middleModifier,
+  right: rightModifier,
+  up: upModifier,
+  down: downModifier,
+  enter: enterModifier,
+  esc: escModifier,
+  del: delModifier,
+  tab: tabModifier,
+  space: spaceModifier,
+  capture: captureModifier,
+  passive: passiveModifier,
+  silent: silentModifier,
+  trap: trapModifier,
+  outside: outsideModifier,
+  mod: modModifier,
+  ctrl: ctrlModifier,
+  meta: metaModifier,
+  shift: shiftModifier,
+  alt: altModifier,
+  in: intersectInModifier,
+  out: intersectOutModifier,
+};
+
+const eventNames: Record<string, string> = {
+  touch: 'touch',
+  click: 'click',
+  dblClick: 'dblclick',
+  mouseEnter: 'mouseenter',
+  mouseLeave: 'mouseleave',
+  mouseMove: 'mousemove',
+  mouseDown: 'mousedown',
+  mouseUp: 'mouseup',
+  keyDown: 'keydown',
+  keyUp: 'keyup',
+  keyPress: 'keypress',
+  focus: 'focus',
+  blur: 'blur',
+  input: 'input',
+  change: 'change',
+  submit: 'submit',
+  pointerDown: 'pointerdown',
+  pointerUp: 'pointerup',
+  pointerMove: 'pointermove',
+  pointerEnter: 'pointerenter',
+  pointerLeave: 'pointerleave',
+  touchStart: 'touchstart',
+  touchEnd: 'touchend',
+  touchMove: 'touchmove',
+  touchCancel: 'touchcancel',
+};
+
 function defineChainAccessors<TTarget extends object>(
   target: TTarget,
   modifiers: readonly EventModifier[],
   eventName?: string,
   isGlobal?: boolean,
+  handlers: readonly RuntimeEventHandler[] = [],
 ): TTarget & EventChain<any> {
-  return Object.defineProperties(target, {
+  const props: PropertyDescriptorMap = {
     if: {
       value: (condition: boolean | ((event: unknown) => boolean)) => (
-        createEventChain(appendModifier(modifiers, ifModifier(condition)), eventName, isGlobal)
+        createEventChain(appendModifier(modifiers, ifModifier(condition)), eventName, isGlobal, handlers)
       ),
     },
-    prevent: {
-      get: () => createEventChain(appendModifier(modifiers, preventModifier), eventName, isGlobal),
-    },
-    stop: {
-      get: () => createEventChain(appendModifier(modifiers, stopModifier), eventName, isGlobal),
-    },
-    stopImmediate: {
-      get: () => createEventChain(appendModifier(modifiers, stopImmediateModifier), eventName, isGlobal),
-    },
-    once: {
-      get: () => createEventChain(appendModifier(modifiers, onceModifier), eventName, isGlobal),
-    },
-    self: {
-      get: () => createEventChain(appendModifier(modifiers, selfModifier), eventName, isGlobal),
-    },
-    trusted: {
-      get: () => createEventChain(appendModifier(modifiers, trustedModifier), eventName, isGlobal),
-    },
-    left: {
-      get: () => createEventChain(appendModifier(modifiers, leftModifier), eventName, isGlobal),
-    },
-    middle: {
-      get: () => createEventChain<MouseEvent>(appendModifier(modifiers, middleModifier), eventName, isGlobal),
-    },
-    right: {
-      get: () => createEventChain(appendModifier(modifiers, rightModifier), eventName, isGlobal),
-    },
-    up: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, upModifier), eventName, isGlobal),
-    },
-    down: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, downModifier), eventName, isGlobal),
-    },
-    enter: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, enterModifier), eventName, isGlobal),
-    },
-    esc: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, escModifier), eventName, isGlobal),
-    },
-    del: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, delModifier), eventName, isGlobal),
-    },
-    tab: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, tabModifier), eventName, isGlobal),
-    },
-    space: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, spaceModifier), eventName, isGlobal),
-    },
     target: {
-      get: () => targetChain(modifiers, eventName, isGlobal),
+      get: () => targetChain(modifiers, eventName, isGlobal, handlers),
     },
     debounce: {
-      get: () => timedChain(modifiers, debounceModifier, eventName, isGlobal),
+      get: () => timedChain(modifiers, debounceModifier, eventName, isGlobal, handlers),
     },
     throttle: {
-      get: () => timedChain(modifiers, throttleModifier, eventName, isGlobal),
+      get: () => timedChain(modifiers, throttleModifier, eventName, isGlobal, handlers),
     },
     cooldown: {
-      get: () => timedChain(modifiers, cooldownModifier, eventName, isGlobal),
+      get: () => timedChain(modifiers, cooldownModifier, eventName, isGlobal, handlers),
     },
     log: {
-      get: () => logChain(modifiers, eventName, isGlobal),
+      get: () => logChain(modifiers, eventName, isGlobal, handlers),
     },
-    mod: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, modModifier), eventName, isGlobal),
+    closest: {
+      value: (selector: string) => createEventChain(appendModifier(modifiers, closestModifier(selector)), eventName, isGlobal, handlers),
     },
-    ctrl: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, ctrlModifier), eventName, isGlobal),
+    fit: {
+      value: (arg1?: any, arg2?: any, arg3?: any) => createEventChain(appendModifier(modifiers, touchFitModifier(arg1, arg2, arg3)), eventName, isGlobal, handlers),
     },
-    meta: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, metaModifier), eventName, isGlobal),
+    sync: {
+      value: (obj: any, xProp?: string, yProp?: string) => createEventChain(appendModifier(modifiers, touchSyncModifier(obj, xProp, yProp)), eventName, isGlobal, handlers),
     },
-    shift: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, shiftModifier), eventName, isGlobal),
-    },
-    alt: {
-      get: () => createEventChain<KeyboardEvent>(appendModifier(modifiers, altModifier), eventName, isGlobal),
+    moved: {
+      value: (threshold: number | string, direction?: string) => createEventChain(appendModifier(modifiers, touchMovedModifier(threshold, direction)), eventName, isGlobal, handlers),
     },
     key: {
-      get: () => keyChain(modifiers, eventName, isGlobal),
-    },
-    click: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'click', isGlobal),
-    },
-    dblClick: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'dblclick', isGlobal),
-    },
-    mouseEnter: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'mouseenter', isGlobal),
-    },
-    mouseLeave: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'mouseleave', isGlobal),
-    },
-    mouseMove: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'mousemove', isGlobal),
-    },
-    mouseDown: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'mousedown', isGlobal),
-    },
-    mouseUp: {
-      get: () => createEventChain<MouseEvent>(modifiers, 'mouseup', isGlobal),
-    },
-    keyDown: {
-      get: () => createEventChain<KeyboardEvent>(modifiers, 'keydown', isGlobal),
-    },
-    keyUp: {
-      get: () => createEventChain<KeyboardEvent>(modifiers, 'keyup', isGlobal),
-    },
-    keyPress: {
-      get: () => createEventChain<KeyboardEvent>(modifiers, 'keypress', isGlobal),
-    },
-    focus: {
-      get: () => createEventChain<FocusEvent>(modifiers, 'focus', isGlobal),
-    },
-    blur: {
-      get: () => createEventChain<FocusEvent>(modifiers, 'blur', isGlobal),
-    },
-    input: {
-      get: () => createEventChain<InputEvent>(modifiers, 'input', isGlobal),
-    },
-    change: {
-      get: () => createEventChain<Event>(modifiers, 'change', isGlobal),
-    },
-    submit: {
-      get: () => createEventChain<SubmitEvent>(modifiers, 'submit', isGlobal),
-    },
-    pointerDown: {
-      get: () => createEventChain<PointerEvent>(modifiers, 'pointerdown', isGlobal),
-    },
-    pointerUp: {
-      get: () => createEventChain<PointerEvent>(modifiers, 'pointerup', isGlobal),
-    },
-    pointerMove: {
-      get: () => createEventChain<PointerEvent>(modifiers, 'pointermove', isGlobal),
-    },
-    pointerEnter: {
-      get: () => createEventChain<PointerEvent>(modifiers, 'pointerenter', isGlobal),
-    },
-    pointerLeave: {
-      get: () => createEventChain<PointerEvent>(modifiers, 'pointerleave', isGlobal),
-    },
-    touchStart: {
-      get: () => createEventChain<TouchEvent>(modifiers, 'touchstart', isGlobal),
-    },
-    touchEnd: {
-      get: () => createEventChain<TouchEvent>(modifiers, 'touchend', isGlobal),
-    },
-    touchMove: {
-      get: () => createEventChain<TouchEvent>(modifiers, 'touchmove', isGlobal),
-    },
-    touchCancel: {
-      get: () => createEventChain<TouchEvent>(modifiers, 'touchcancel', isGlobal),
+      get: () => keyChain(modifiers, eventName, isGlobal, handlers),
     },
     global: {
-      get: () => createEventChain(modifiers, eventName, true),
-    },
-    in: {
-      get: () => createEventChain(appendModifier(modifiers, intersectInModifier), eventName, isGlobal),
-    },
-    out: {
-      get: () => createEventChain(appendModifier(modifiers, intersectOutModifier), eventName, isGlobal),
+      get: () => createEventChain(modifiers, eventName, true, handlers),
     },
     intersect: {
       value: (optionsOrThreshold?: import('./intersect').IntersectOptions | number) => {
-        return createEventChain([intersectModifier(optionsOrThreshold)], 'intersect', isGlobal);
+        return createEventChain([intersectModifier(optionsOrThreshold)], 'intersect', isGlobal, handlers);
       },
     },
     hotkey: {
       value: (keys: string | readonly string[]) => {
-        return createEventChain<KeyboardEvent>([hotkeyModifier(keys)], 'keydown', true);
+        return createEventChain<KeyboardEvent>([hotkeyModifier(keys)], 'keydown', true, handlers);
       },
     },
     handler: {
       value: (handler: RuntimeEventHandler) => {
         const wrapped = applyModifiers(handler, modifiers);
+        const allHandlers = [...handlers, wrapped];
+        
+        const combined = (event: any) => {
+          let result;
+          for (const h of allHandlers) {
+            const r = h(event);
+            if (r !== undefined) {
+              result = r;
+            }
+          }
+          return result;
+        };
+
+        // Propagate setup options
+        for (const modifier of modifiers) {
+          if ((modifier as any).__capture) (combined as any).__capture = true;
+          if ((modifier as any).__passive) (combined as any).__passive = true;
+          if ((modifier as any).__outside) (combined as any).__outside = true;
+        }
+        for (const h of handlers) {
+          if ((h as any).__capture) (combined as any).__capture = true;
+          if ((h as any).__passive) (combined as any).__passive = true;
+          if ((h as any).__outside) (combined as any).__outside = true;
+        }
+
         if (isGlobal) {
           const type = eventName || 'keydown';
           if (typeof window !== 'undefined') {
             const wrap = runtimeState.activeEventWrapper ?? ((h) => h);
             const ownerId = runtimeState.activeSetupComponentId ?? currentComponentId();
-            const listener = wrap(wrapped, ownerId);
+            const listener = wrap(combined, ownerId);
             window.addEventListener(type, listener);
             const modifierCleanups = modifiers.map((m) => m.cleanup).filter(Boolean) as (() => void)[];
             const unbind = () => {
@@ -267,7 +230,8 @@ function defineChainAccessors<TTarget extends object>(
           }
           return () => {};
         }
-        return wrapped;
+
+        return defineChainAccessors(combined, [], undefined, isGlobal, allHandlers);
       },
     },
     emit: {
@@ -282,7 +246,21 @@ function defineChainAccessors<TTarget extends object>(
     value: { value: value },
     reason: { value: reason },
     cancel: { value: cancel },
-  }) as TTarget & EventChain<any>;
+  };
+
+  for (const [prop, modifier] of Object.entries(simpleModifiers)) {
+    props[prop] = {
+      get: () => createEventChain(appendModifier(modifiers, modifier), eventName, isGlobal, handlers),
+    };
+  }
+
+  for (const [prop, name] of Object.entries(eventNames)) {
+    props[prop] = {
+      get: () => createEventChain(modifiers, name, isGlobal, handlers),
+    };
+  }
+
+  return Object.defineProperties(target, props) as TTarget & EventChain<any>;
 }
 
 function timedChain<TEvent>(
@@ -290,50 +268,55 @@ function timedChain<TEvent>(
   modifierFactory: (milliseconds?: number) => EventModifier,
   eventName?: string,
   isGlobal?: boolean,
+  handlers: readonly RuntimeEventHandler[] = [],
 ): TimedEventChain<TEvent> {
   const callable = ((milliseconds?: number) => (
-    createEventChain<TEvent>(appendModifier(modifiers, modifierFactory(milliseconds)), eventName, isGlobal)
+    createEventChain<TEvent>(appendModifier(modifiers, modifierFactory(milliseconds)), eventName, isGlobal, handlers)
   )) as TimedEventChain<TEvent>;
-  return defineChainAccessors(callable, appendModifier(modifiers, modifierFactory()), eventName, isGlobal);
+  return defineChainAccessors(callable, appendModifier(modifiers, modifierFactory()), eventName, isGlobal, handlers);
 }
 
 function logChain<TEvent>(
   modifiers: readonly EventModifier[],
   eventName?: string,
   isGlobal?: boolean,
+  handlers: readonly RuntimeEventHandler[] = [],
 ): LogEventChain<TEvent> {
   const callable = ((label?: string) => (
-    createEventChain<TEvent>(appendModifier(modifiers, logModifier(label)), eventName, isGlobal)
+    createEventChain<TEvent>(appendModifier(modifiers, logModifier(label)), eventName, isGlobal, handlers)
   )) as LogEventChain<TEvent>;
-  return defineChainAccessors(callable, appendModifier(modifiers, logModifier()), eventName, isGlobal);
+  return defineChainAccessors(callable, appendModifier(modifiers, logModifier()), eventName, isGlobal, handlers);
 }
 
 function keyChain(
   modifiers: readonly EventModifier[],
   eventName?: string,
   isGlobal?: boolean,
+  handlers: readonly RuntimeEventHandler[] = [],
 ): KeyEventChain {
   const callable = ((key: string | readonly string[]) => (
-    createEventChain<KeyboardEvent>(appendModifier(modifiers, keyModifier(key)), eventName, isGlobal)
+    createEventChain<KeyboardEvent>(appendModifier(modifiers, keyModifier(key)), eventName, isGlobal, handlers)
   )) as KeyEventChain;
-  return defineChainAccessors(callable, modifiers, eventName, isGlobal) as KeyEventChain;
+  return defineChainAccessors(callable, modifiers, eventName, isGlobal, handlers) as KeyEventChain;
 }
 
 function targetChain<TEvent>(
   modifiers: readonly EventModifier[],
   eventName?: string,
   isGlobal?: boolean,
+  handlers: readonly RuntimeEventHandler[] = [],
 ): TargetEventChain<TEvent> {
   const callable = ((filter: EventTargetFilter<TEvent>) => (
-    createEventChain<TEvent>(appendModifier(modifiers, targetModifier(filter)), eventName, isGlobal)
+    createEventChain<TEvent>(appendModifier(modifiers, targetModifier(filter)), eventName, isGlobal, handlers)
   )) as TargetEventChain<TEvent>;
-  return defineChainAccessors(callable, modifiers, eventName, isGlobal) as TargetEventChain<TEvent>;
+  return defineChainAccessors(callable, modifiers, eventName, isGlobal, handlers) as TargetEventChain<TEvent>;
 }
 
 export function createEventChain<TEvent = Event>(
   modifiers: readonly EventModifier[] = [],
   eventName?: string,
   isGlobal?: boolean,
+  handlers: readonly RuntimeEventHandler[] = [],
 ): EventChain<TEvent> {
-  return defineChainAccessors({}, modifiers, eventName, isGlobal);
+  return defineChainAccessors({}, modifiers, eventName, isGlobal, handlers);
 }

@@ -188,14 +188,37 @@ export function setProp(
     const listeners = element.__memoListeners ??= new Map();
     const previous = listeners.get(key);
     if (previous) {
-      element.removeEventListener(eventName, previous);
+      const prevOptions = (previous as any).__options;
+      if (prevOptions?.global) {
+        window.removeEventListener(eventName, previous, prevOptions);
+      } else {
+        element.removeEventListener(eventName, previous, prevOptions);
+      }
       listeners.delete(key);
     }
 
     if (typeof value === 'function') {
       const listener = wrapEvent(value as EventHandler);
-      listeners.set(key, listener);
-      element.addEventListener(eventName, listener);
+      const options: AddEventListenerOptions & { global?: boolean } = {};
+      if ((value as any).__capture) options.capture = true;
+      if ((value as any).__passive) options.passive = true;
+
+      if ((value as any).__outside) {
+        options.global = true;
+        const outsideListener = (event: Event) => {
+          const target = event.target as Node;
+          if (target && !element.contains(target)) {
+            listener(event);
+          }
+        };
+        (outsideListener as any).__options = options;
+        listeners.set(key, outsideListener);
+        window.addEventListener(eventName, outsideListener, options);
+      } else {
+        (listener as any).__options = options;
+        listeners.set(key, listener);
+        element.addEventListener(eventName, listener, options);
+      }
     }
     return;
   }

@@ -17,7 +17,10 @@ function normalizedKeySet(key: string | readonly string[]): Set<string> {
 }
 
 /**
- * Filter keys by matching name(s) against the event.key property.
+ * Filters keyboard events to only match specific key name(s).
+ * 
+ * @example
+ * <input onKeyDown={event.key('Enter').handler(submit)} />
  */
 export function keyModifier(key: string | readonly string[]): EventModifier {
   const allowed = normalizedKeySet(key);
@@ -29,6 +32,9 @@ export function keyModifier(key: string | readonly string[]): EventModifier {
 
 /**
  * Filters keyboard events to only allow when the Ctrl key is pressed.
+ * 
+ * @example
+ * <input onKeyDown={event.ctrl.key('s').prevent.handler(save)} />
  */
 export function ctrlModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
@@ -39,6 +45,9 @@ export function ctrlModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
 
 /**
  * Filters keyboard events to only allow when the Meta/Cmd key is pressed.
+ * 
+ * @example
+ * <input onKeyDown={event.meta.key('z').prevent.handler(undo)} />
  */
 export function metaModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
@@ -49,6 +58,9 @@ export function metaModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
 
 /**
  * Filters keyboard events to only allow when the Shift key is pressed.
+ * 
+ * @example
+ * <input onKeyDown={event.shift.key('Tab').prevent.handler(focusPrevious)} />
  */
 export function shiftModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
@@ -59,6 +71,9 @@ export function shiftModifier(handler: RuntimeEventHandler): RuntimeEventHandler
 
 /**
  * Filters keyboard events to only allow when the Alt/Option key is pressed.
+ * 
+ * @example
+ * <input onKeyDown={event.alt.key('p').prevent.handler(openSettings)} />
  */
 export function altModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {
@@ -69,6 +84,9 @@ export function altModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
 
 /**
  * Filters keyboard events to allow Control or Meta key combos (cross-platform Mod key).
+ * 
+ * @example
+ * <input onKeyDown={event.mod.key('k').prevent.handler(searchPalette)} />
  */
 export function modModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
   return (event) => {

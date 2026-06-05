@@ -275,6 +275,13 @@ Modifiers run left-to-right as a chain around the final handler. For mutable com
 | `hotkey(keys)` | Fluent builder for global document-level key shortcuts. Supports modifiers (`ctrl+s`) and sequences (`g i`). |
 | `intersect(options?)` | Automatically sets up a native `IntersectionObserver` on the target element. |
 | `in`, `out` | Intersection direction filters. Run handler only on entry (`.in`) or exit (`.out`). |
+| `silent` | Runs the handler but prevents the framework from scheduling a component re-render. Ideal for high-frequency events. |
+| `trap` | Shorthand that calls both `preventDefault` and `stopPropagation` before the handler. |
+| `closest(selector)` | Runs the handler only if the event target (or an ancestor) matches the CSS selector. |
+| `touch` | Custom touch gesture engine. Dispatches custom events with coordinates and phase calculations. |
+| `fit(min, max, step?)` | Linear interpolation modifier. Maps touch position relative to the element into a custom range. |
+| `sync(obj, xProp?, yProp?)` | Updates coordinates of a target object directly on drag. |
+| `moved(threshold, direction?)` | Filters pointer movements below a threshold (in pixels) for directional swipe detection. |
 
 > [!NOTE]
 > **Reactive Timing Integration**: The timing modifiers (`throttle`, `debounce`, `cooldown`) return a `Promise` representing the delayed execution of the handler. Auwla's event handler wrapper automatically intercepts this promise and defers component invalidation until the promise resolves. This prevents premature renders while waiting for throttled or debounced events.
@@ -338,6 +345,74 @@ Common chains:
 <button onMouseDown={event.left.handler(select)}>Primary click only</button>
 
 <div onPointerMove={event.pointerMove.throttle(80).handler(trackPointer)} />
+```
+
+### Touch Gestures & Pointer Tracking
+
+Auwla includes a first-class gesture system using `.touch`. When a touch gesture starts, pointer coordinates are captured and tracked:
+
+```tsx
+// 1. Direct coordinate synchronization on drag
+<div 
+  class="draggable-card"
+  onTouch={event.touch.sync(position, 'x', 'y').handler(() => {
+    // Component is automatically re-rendered with the updated position properties
+  })}
+/>
+
+// 2. Linear interpolation (.fit)
+// Maps the element's local coordinates (0 to 1) onto a custom scale (e.g. 0 to 100)
+<div 
+  class="slider"
+  onTouch={event.touch.fit(0, 100).handler((e) => {
+    sliderValue = e.detail.x; 
+  })}
+/>
+
+// 3. Swipe gesture filtering (.moved)
+// Prevents small, accidental tremors from triggering swipe actions
+<div 
+  class="swipe-pad"
+  onTouch={
+    event.touch.moved(40, 'left').handler(() => {
+      showToast('Swiped Left!');
+    })
+    .touch.moved(40, 'right').handler(() => {
+      showToast('Swiped Right!');
+    })
+  }
+/>
+```
+
+### Advanced Layout and Render Controls
+
+For high-frequency events or complex trees, you can control re-renders and delegate targets natively:
+
+```tsx
+// 1. Silent handlers (no re-renders)
+// Runs the handler but blocks the framework from scheduling a component update.
+<div onMouseMove={event.silent.handler((e) => {
+  const counter = document.getElementById('hover-coords');
+  if (counter) counter.innerText = `${e.clientX}, ${e.clientY}`;
+})} />
+
+// 2. Event Trapping
+// Stops propagation and prevents browser defaults.
+<button onClick={event.trap.handler(() => {
+  showToast('Action performed!');
+})}>
+  Click Me
+</button>
+
+// 3. Ancestor Event Delegation (.closest)
+// Evaluates the handler only if the target matches or is nested inside a selector.
+<ul onClick={event.closest('.item-btn').handler((e) => {
+  const button = e.target.closest('.item-btn');
+  console.log("Clicked button", button);
+})}>
+  <li><button class="item-btn">Item 1</button></li>
+  <li><button class="item-btn">Item 2</button></li>
+</ul>
 ```
 
 ## TypeScript Setup

@@ -136,6 +136,9 @@ function isEditable(element: Element | null): boolean {
 /**
  * Returns an EventModifier that filters events to only match when the specified
  * keyboard shortcut or sequence is typed.
+ * 
+ * @example
+ * <div onKeyDown={event.hotkey('ctrl+s').prevent.handler(save)} />
  */
 export function hotkeyModifier(shortcuts: string | readonly string[]): EventModifier {
   const list = (Array.isArray(shortcuts) ? shortcuts : [shortcuts]).map(parseHotkey);

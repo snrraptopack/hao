@@ -6,7 +6,7 @@
  * re-renders across mounted apps.
  */
 
-import { runtimeState, BLOCKED_EVENT } from './state';
+import { runtimeState, BLOCKED_EVENT, SILENT_EVENT } from './state';
 import type {
   ComponentHandle,
   ComponentInstance,
@@ -235,6 +235,7 @@ export function createMemoApp<TModel>(
       try {
         const result = handler(evt, model as TModel);
         if (result !== undefined && result === BLOCKED_EVENT) return;
+        if (result !== undefined && result === SILENT_EVENT) return;
         if (result && typeof (result as Promise<unknown>).then === 'function') {
           void (result as Promise<unknown>).finally(() => {
             runtimeState.activeHandlerComponentId = prevHandlerId;

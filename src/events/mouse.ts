@@ -20,6 +20,11 @@ function mouseButtonModifier(button: number): EventModifier {
 
 /**
  * Mouse button filters (button 0 = left, button 1 = middle, button 2 = right)
+ * 
+ * @example
+ * <div onMouseDown={event.left.handler(startDrag)} />
+ * <div onMouseDown={event.middle.handler(middleClick)} />
+ * <div onMouseDown={event.right.handler(contextMenu)} />
  */
 export const mouseLeftModifier = mouseButtonModifier(0);
 export const middleModifier = mouseButtonModifier(1);

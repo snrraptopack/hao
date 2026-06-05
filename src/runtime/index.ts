@@ -41,7 +41,7 @@ export {
 
 export { memo } from './app';
 
-export { __wrapCompilerEvent, currentComponentId, BLOCKED_EVENT } from './state';
+export { __wrapCompilerEvent, currentComponentId, BLOCKED_EVENT, SILENT_EVENT } from './state';
 
 export {
   createTemplateElement,
