@@ -20,7 +20,18 @@
  *   - css.ease()            — easing string helper (from values.ts)
  *   - css.merge()           — shallow-merge style objects (from compose.ts)
  *   - css.extend()          — extend a base style (from compose.ts)
- *   - css.define()          — named style fragments (from compose.ts)
+ *   - css.define()          — named style fragments, static and parameterized (from compose.ts)
+ *   - css.when()            — boolean conditional style branching (from conditionals.ts)
+ *   - css.match()           — exhaustive union discriminant matching (from conditionals.ts)
+ *   - css.mergeWhen()       — compose multiple independent boolean conditions (from conditionals.ts)
+ *   - css.tokens()          — typed design token map (from tokens.ts)
+ *   - css.scale()           — geometric spacing scale (from tokens.ts)
+ *   - css.typeScale()       — typographic modular scale (from tokens.ts)
+ *   - css.fontStack()       — CSS font-family string (from tokens.ts)
+ *   - css.elevation()       — shadow scale from a base color (from tokens.ts)
+ *   - css.spring()          — spring physics → CSS linear() easing (from tokens.ts)
+ *   - css.color.scale()     — typed color scale map (from color.ts)
+ *   - css.color.group()     — interactive state colors derived from a base (from color.ts)
  *
  * Design note:
  *   `css({ ... })` is the compiler's primary extraction target. Every call site
@@ -32,6 +43,8 @@ import * as units from './units';
 import * as colorModule from './color';
 import * as valuesModule from './values';
 import { merge, extend, define } from './compose';
+import { when, match, mergeWhen } from './conditionals';
+import * as tokensModule from './tokens';
 import { resolve } from './serialize';
 import type { ResolvedStyle, StyleObject } from './types';
 
@@ -101,6 +114,19 @@ css.flex = valuesModule.flex;
 css.merge  = merge;
 css.extend = extend;
 css.define = define;
+
+// Conditionals
+css.when      = when;
+css.match     = match;
+css.mergeWhen = mergeWhen;
+
+// Tokens & design system
+css.tokens    = tokensModule.tokens;
+css.scale     = tokensModule.scale;
+css.typeScale = tokensModule.typeScale;
+css.fontStack = tokensModule.fontStack;
+css.elevation = tokensModule.elevation;
+css.spring    = tokensModule.spring;
 
 // ---------------------------------------------------------------------------
 // Named exports for tree-shaking

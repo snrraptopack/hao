@@ -33,3 +33,22 @@ export type {
   Transition,
   TransitionEntry,
 } from './types';
+
+// Conditional types — useful for typing css.when/css.match arguments
+export type { WhenCases, MatchCases } from './conditionals';
+
+// Token types — useful for typing function params that receive theme slices
+export type {
+  SpacingScale,
+  TypeScale,
+  ElevationLevel,
+  ElevationOptions,
+  SpringOptions,
+  ScaleOptions,
+  TypeScaleOptions,
+} from './tokens';
+
+// Color group — returned by css.color.group()
+export type { ColorGroup } from './color';
+
+

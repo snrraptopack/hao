@@ -356,6 +356,110 @@ color.white = makeColor(parseColor('#ffffff'));
 color.transparent = makeColor({ L: 0, C: 0, H: 0, A: 0 });
 
 /**
+ * Create a typed color scale (map of keys → Color).
+ *
+ * The first argument is the "seed" (reference) color for the scale — it acts
+ * as documentation and a compiler hint for future palette generation.
+ * The second argument defines the actual step values.
+ *
+ * @example
+ * css.color.scale('#3b82f6', {
+ *   50:  '#eff6ff',
+ *   100: '#dbeafe',
+ *   500: '#3b82f6',
+ *   900: '#1e3a5f',
+ * })
+ * // Returns { 50: Color, 100: Color, 500: Color, 900: Color }
+ */
+color.scale = function colorScale<K extends string | number>(
+  _seed: string,
+  steps: Record<K, string>,
+): { [P in K]: Color } {
+  const result = {} as Record<string | number, Color>;
+  for (const [key, hex] of Object.entries(steps)) {
+    result[key] = makeColor(parseColor(hex as string));
+  }
+  return result as { [P in K]: Color };
+};
+
+/**
+ * Manipulation string — describes a color transform relative to a base color.
+ * Applied by color.group() to derive interactive state colors.
+ */
+type ColorManipulation = `lighten(${number})` | `darken(${number})` | `alpha(${number})` | `rotate(${number})`;
+
+/**
+ * Parse and apply a manipulation string to a base Color.
+ * Used internally by color.group().
+ */
+function applyManipulation(base: Color, manip: Color | ColorManipulation | string): Color {
+  if (typeof manip !== 'string') return manip;
+  const m = manip.match(/^(\w+)\(([^)]+)\)$/);
+  if (!m) throw new Error(`css.color.group: invalid manipulation "${manip}". Use "lighten(n)", "darken(n)", "alpha(n)", or "rotate(n)".`);
+  const fn  = m[1]!;
+  const val = parseFloat(m[2]!);
+  if (isNaN(val)) throw new Error(`css.color.group: non-numeric argument in "${manip}".`);
+  switch (fn) {
+    case 'lighten': return base.lighten(val);
+    case 'darken':  return base.darken(val);
+    case 'alpha':   return base.alpha(val);
+    case 'rotate':  return base.rotate(val);
+    default: throw new Error(`css.color.group: unknown function "${fn}". Use lighten, darken, alpha, or rotate.`);
+  }
+}
+
+/**
+ * The interactive color group returned by color.group().
+ * Contains one Color for each interactive state.
+ */
+export interface ColorGroup {
+  /** The resting, default color. */
+  base:     Color;
+  /** Color when the element is hovered. */
+  hover:    Color;
+  /** Color when the element is actively pressed. */
+  active:   Color;
+  /** Color when the element is disabled. */
+  disabled: Color;
+}
+
+/**
+ * Create a set of interactive state colors derived from a single base color.
+ *
+ * Each state can be:
+ *   - A Color object — used as-is
+ *   - A manipulation string — applied to the base color:
+ *       "lighten(0.1)" | "darken(0.1)" | "alpha(0.3)" | "rotate(30)"
+ *
+ * If a state is omitted, sensible defaults are applied:
+ *   hover    → base.lighten(0.08)
+ *   active   → base.darken(0.08)
+ *   disabled → base.alpha(0.35)
+ *
+ * @example
+ * css.color.group({
+ *   base:     theme.colors.primary[500],
+ *   hover:    'lighten(0.08)',
+ *   active:   'darken(0.08)',
+ *   disabled: 'alpha(0.35)',
+ * })
+ */
+color.group = function colorGroup(options: {
+  base:      Color;
+  hover?:    Color | ColorManipulation | string;
+  active?:   Color | ColorManipulation | string;
+  disabled?: Color | ColorManipulation | string;
+}): ColorGroup {
+  const { base, hover, active, disabled } = options;
+  return {
+    base,
+    hover:    hover    != null ? applyManipulation(base, hover)    : base.lighten(0.08),
+    active:   active   != null ? applyManipulation(base, active)   : base.darken(0.08),
+    disabled: disabled != null ? applyManipulation(base, disabled) : base.alpha(0.35),
+  };
+};
+
+/**
  * Build a complex multi-stop gradient.
  *
  * @example

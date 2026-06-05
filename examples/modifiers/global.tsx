@@ -1,6 +1,15 @@
 import { component } from 'auwla';
 import { event } from 'auwla/events';
-import type {} from 'auwla/jsx-runtime';
+import { css, } from 'auwla/css';
+import type { } from 'auwla/jsx-runtime';
+
+// const style = css({
+//   maxWidth: css.px(400),
+//   cursor: "default",
+//   backgroundColor: css.color('#f8fafc'),
+//   padding: css.px(24),
+//   border: css.border({style:"solid"})
+// })
 
 /**
  * Interactive Global Listeners demo.
@@ -40,8 +49,8 @@ export function GlobalModifiersDemo() {
         <h3>1. Click-Outside Panel</h3>
         <p>Click anywhere <b>inside</b> the card below to see normal behavior, or click <b>outside</b> the card anywhere on the page to trigger the global click detector.</p>
 
-        <div 
-          class="click-area" 
+        <div
+          class="click-area"
           style={{ maxWidth: '400px', cursor: 'default', backgroundColor: '#f8fafc', padding: '24px', borderStyle: 'solid' }}
           ref={(el) => { panelEl = el; }}
         >
@@ -58,8 +67,8 @@ export function GlobalModifiersDemo() {
         <p>Toggle the switch below to bind a global <b>mousemove</b> event listener that tracks your cursor coordinates anywhere on the window.</p>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-          <button 
-            class="input-box" 
+          <button
+            class="input-box"
             style={{ width: 'auto', padding: '8px 16px', cursor: 'pointer', margin: 0, backgroundColor: trackMouse ? 'var(--color-accent)' : '#fff', color: trackMouse ? '#fff' : '#1f2937', border: '1px solid var(--color-border)' }}
             onClick={() => {
               trackMouse = !trackMouse;
