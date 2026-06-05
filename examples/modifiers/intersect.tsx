@@ -16,13 +16,13 @@ export function IntersectModifiersDemo() {
       <header class="demo-header" style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '24px', margin: '0 0 8px 0' }}>Intersection Modifiers</h1>
         <p style={{ color: '#8b949e', fontSize: '0.9rem', lineHeight: '1.5', margin: '0' }}>
-          Cleanly hook into scroll visibility using the <code>event.intersect()</code> modifier. 
+          Cleanly hook into scroll visibility using the <code>event.intersect()</code> modifier.
           Use <code>.in</code> and <code>.out</code> to detect enter/exit events.
         </p>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '24px', alignItems: 'stretch' }}>
-        
+
         {/* Left Column: Stats Panel */}
         <div style={{
           background: '#161b22',
@@ -36,7 +36,7 @@ export function IntersectModifiersDemo() {
           <h3 style={{ margin: '0 0 16px 0', color: '#c9d1d9', fontSize: '0.95rem', fontWeight: 'bold', borderBottom: '1px solid #21262d', paddingBottom: '8px' }}>
             Event Dashboard
           </h3>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#8b949e', fontSize: '0.85rem' }}>Box 1 In View:</span>
@@ -52,12 +52,12 @@ export function IntersectModifiersDemo() {
             <span style={{ color: '#8b949e', fontSize: '0.85rem', display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
               Live Scroll Log:
             </span>
-            <div style={{ 
+            <div style={{
               flex: '1',
-              maxHeight: '200px', 
-              overflowY: 'auto', 
-              display: 'flex', 
-              flexDirection: 'column', 
+              maxHeight: '200px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
               gap: '4px',
               paddingRight: '2px'
             }}>
@@ -67,9 +67,9 @@ export function IntersectModifiersDemo() {
                 </div>
               ) : (
                 history.map((log) => (
-                  <div key={log} style={{ 
-                    fontFamily: 'monospace', 
-                    fontSize: '0.7rem', 
+                  <div key={log} style={{
+                    fontFamily: 'monospace',
+                    fontSize: '0.7rem',
                     color: '#c9d1d9',
                     padding: '4px 6px',
                     background: '#0d1117',
@@ -92,27 +92,27 @@ export function IntersectModifiersDemo() {
           <span style={{ color: '#8b949e', fontSize: '0.85rem' }}>
             Scroll within the viewport box below:
           </span>
-          
-          <div style={{ 
-            height: '380px', 
-            overflowY: 'auto', 
-            background: '#0d1117', 
-            border: '1px solid #30363d', 
-            borderRadius: '12px', 
+
+          <div style={{
+            height: '380px',
+            overflowY: 'auto',
+            background: '#0d1117',
+            border: '1px solid #30363d',
+            borderRadius: '12px',
             padding: '20px 16px',
             position: 'relative'
           }}>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '300px', paddingBottom: '300px' }}>
-              
+
               <div
                 class="intersect-box"
-                style={{ 
-                  padding: '40px 16px', 
-                  background: 'rgba(56, 139, 253, 0.06)', 
-                  border: '1px dashed #388bfd', 
-                  borderRadius: '8px', 
-                  textAlign: 'center', 
+                style={{
+                  padding: '40px 16px',
+                  background: 'rgba(56, 139, 253, 0.06)',
+                  border: '1px dashed #388bfd',
+                  borderRadius: '8px',
+                  textAlign: 'center',
                   color: '#c9d1d9'
                 }}
                 onIntersect={
@@ -132,12 +132,12 @@ export function IntersectModifiersDemo() {
 
               <div
                 class="intersect-box"
-                style={{ 
-                  padding: '40px 16px', 
-                  background: 'rgba(240, 136, 62, 0.06)', 
-                  border: '1px dashed #f0883e', 
-                  borderRadius: '8px', 
-                  textAlign: 'center', 
+                style={{
+                  padding: '40px 16px',
+                  background: 'rgba(240, 136, 62, 0.06)',
+                  border: '1px dashed #f0883e',
+                  borderRadius: '8px',
+                  textAlign: 'center',
                   color: '#c9d1d9'
                 }}
                 onIntersect={
@@ -156,18 +156,18 @@ export function IntersectModifiersDemo() {
 
               <div
                 class="intersect-box"
-                style={{ 
-                  padding: '40px 16px', 
-                  background: 'rgba(46, 160, 67, 0.06)', 
-                  border: '1px dashed #39d353', 
-                  borderRadius: '8px', 
-                  textAlign: 'center', 
+                style={{
+                  padding: '40px 16px',
+                  background: 'rgba(46, 160, 67, 0.06)',
+                  border: '1px dashed #39d353',
+                  borderRadius: '8px',
+                  textAlign: 'center',
                   color: '#c9d1d9'
                 }}
                 onIntersect={
                   event
                     .intersect({ threshold: [0, 1] })
-                    .handler((e: CustomEvent<IntersectionObserverEntry>) => {
+                    .handler((e) => {
                       const percent = Math.round(e.detail.intersectionRatio * 100);
                       pushHistory(`Box 3 visible: ${percent}%`);
                     })

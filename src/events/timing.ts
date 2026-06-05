@@ -43,6 +43,8 @@ export function throttleModifier(milliseconds?: number) {
     let lastRun = Number.NEGATIVE_INFINITY;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let latestEvent: unknown;
+    let pending: Promise<void> | null = null;
+    let resolvePending: (() => void) | null = null;
 
     return (event) => {
       const now = Date.now();
@@ -55,15 +57,33 @@ export function throttleModifier(milliseconds?: number) {
           timer = null;
         }
         lastRun = now;
-        return handler(event);
+        const result = handler(event);
+        if (resolvePending) {
+          const resolve = resolvePending;
+          pending = null;
+          resolvePending = null;
+          resolve();
+        }
+        return result;
       }
 
-      if (timer !== null) return BLOCKED_EVENT;
+      if (timer !== null) return pending;
+
+      pending = new Promise<void>((resolve) => {
+        resolvePending = resolve;
+      });
+
       timer = setTimeout(() => {
         timer = null;
         lastRun = Date.now();
-        handler(latestEvent);
+        const resolve = resolvePending;
+        pending = null;
+        resolvePending = null;
+        const result = handler(latestEvent);
+        Promise.resolve(result).finally(resolve!);
       }, remaining);
+
+      return pending;
     };
   };
 }

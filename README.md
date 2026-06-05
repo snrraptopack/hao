@@ -273,6 +273,11 @@ Modifiers run left-to-right as a chain around the final handler. For mutable com
 | `log(label?)` | Logs the event, optionally with a label, then continues. |
 | `global` | Registers the entire modifier chain as a window-level listener with automatic lifecycle cleanup. |
 | `hotkey(keys)` | Fluent builder for global document-level key shortcuts. Supports modifiers (`ctrl+s`) and sequences (`g i`). |
+| `intersect(options?)` | Automatically sets up a native `IntersectionObserver` on the target element. |
+| `in`, `out` | Intersection direction filters. Run handler only on entry (`.in`) or exit (`.out`). |
+
+> [!NOTE]
+> **Reactive Timing Integration**: The timing modifiers (`throttle`, `debounce`, `cooldown`) return a `Promise` representing the delayed execution of the handler. Auwla's event handler wrapper automatically intercepts this promise and defers component invalidation until the promise resolves. This prevents premature renders while waiting for throttled or debounced events.
 
 ### Global Listeners & Hotkeys
 
@@ -290,6 +295,30 @@ event.click.global.handler((e) => {
 event.hotkey('ctrl+s').prevent.handler(saveDocument);
 event.hotkey('esc').handler(closeAllModals);
 event.hotkey('g i').handler(goToInbox); // sequence: press 'g' then 'i'
+```
+
+### Scroll & Intersection Observers
+
+The `.intersect` modifier configures and attaches a native `IntersectionObserver` to the element upon mount. You can pass a threshold number (`0` to `1.0`) or a standard `IntersectionObserverInit` options object.
+
+```tsx
+// Trigger when Box enters the viewport (defaults to 0% visible)
+<div onIntersect={event.intersect().in.handler(handleEnter)} />
+
+// Trigger when Box exits the viewport
+<div onIntersect={event.intersect().out.handler(handleExit)} />
+
+// Custom threshold (50% visibility)
+<div onIntersect={event.intersect(0.5).in.handler(handleFiftyPercent)} />
+
+// Custom scrolling root and margins
+<div onIntersect={
+  event.intersect({
+    root: scrollContainer,
+    threshold: [0, 1.0],
+    rootMargin: '10px'
+  }).handler(handleIntersectionChange)
+} />
 ```
 
 Common chains:
