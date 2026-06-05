@@ -127,3 +127,23 @@ export function define<T extends object>(
   // which matters for future compiler equality checks.
   return styleOrFactory;
 }
+
+/**
+ * Create a child selector string for nesting.
+ *
+ * @example
+ * [css.children('li')]: { padding: css.px(8) }
+ */
+export function children(selector: string): string {
+  return `& > ${selector}`;
+}
+
+/**
+ * Create a pseudo-class selector string for nesting.
+ *
+ * @example
+ * [css.pseudo('first-child')]: { borderTop: 'none' }
+ */
+export function pseudo(name: string): string {
+  return `&:${name}`;
+}

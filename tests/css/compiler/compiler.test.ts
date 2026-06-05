@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { compileStyle } from '../../../src/css/compiler/index';
+import { css } from '../../../src/css/index';
 
 describe('compileStyle engine', () => {
   it('should compile flat styles with shorthand expansion', () => {
@@ -194,5 +195,41 @@ describe('compileStyle engine', () => {
     expect(() => compileStyle(input)).toThrowError(
       /Invalid nested object detected under responsive key "md"/
     );
+  });
+
+  it('should expand and compile flex and grid layout descriptors', () => {
+    const input = {
+      display: css.flex({
+        direction: 'row',
+        align: 'center',
+        gap: css.px(16)
+      })
+    };
+    const { classes } = compileStyle(input);
+    expect(classes.sort()).toEqual(['d_flex', 'flex-dir_row', 'items_center', 'gap_16px'].sort());
+  });
+
+  it('should compile children and pseudo selectors using & replacement rules', () => {
+    const input = {
+      display: 'block',
+      [css.children('li')]: {
+        padding: css.px(8)
+      },
+      [css.pseudo('first-child')]: {
+        borderTop: 'none'
+      }
+    };
+    const { classes, rules } = compileStyle(input);
+
+    expect(classes).toContain('li:pt_8px');
+    expect(classes).toContain('first-child:border-top_none');
+
+    const childRule = rules.find(r => r.className === 'li:pt_8px');
+    expect(childRule?.selector).toBe('.li\\:pt_8px > li');
+    expect(childRule?.declaration).toBe('.li\\:pt_8px > li { padding-top: 8px; }');
+
+    const pseudoRule = rules.find(r => r.className === 'first-child:border-top_none');
+    expect(pseudoRule?.selector).toBe('.first-child\\:border-top_none:first-child');
+    expect(pseudoRule?.declaration).toBe('.first-child\\:border-top_none:first-child { border-top: none; }');
   });
 });

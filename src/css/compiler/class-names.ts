@@ -157,7 +157,8 @@ export function toClassName(prop: string, value: any, modifier?: string): string
       .map((part) => {
         const cleanPart = part.replace(/^:+/, '');
         return sanitizeValue(cleanPart);
-      });
+      })
+      .filter(Boolean);
     return `${cleanParts.join(':')}:${baseClass}`;
   }
 

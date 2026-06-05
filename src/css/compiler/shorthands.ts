@@ -148,6 +148,19 @@ export function expandShorthands(style: Record<string, any>): Record<string, any
   for (const [key, value] of Object.entries(style)) {
     if (value === undefined || value === null) continue;
 
+    // Check if it is a Flex or Grid descriptor object
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      '_tag' in value &&
+      (value._tag === 'Flex' || value._tag === 'Grid') &&
+      typeof (value as any).toProperties === 'function'
+    ) {
+      const layoutProps = (value as any).toProperties();
+      Object.assign(expanded, expandShorthands(layoutProps));
+      continue;
+    }
+
     if (key === 'padding' || key === 'margin' || key === 'inset') {
       Object.assign(expanded, expandBoxModel(key, value));
     } else if (key === 'borderRadius') {

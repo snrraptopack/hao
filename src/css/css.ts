@@ -42,7 +42,7 @@
 import * as units from './units';
 import * as colorModule from './color';
 import * as valuesModule from './values';
-import { merge, extend, define } from './compose';
+import { merge, extend, define, children, pseudo } from './compose';
 import { when, match, mergeWhen } from './conditionals';
 import * as tokensModule from './tokens';
 import { resolve } from './serialize';
@@ -114,6 +114,8 @@ css.flex = valuesModule.flex;
 css.merge  = merge;
 css.extend = extend;
 css.define = define;
+css.children = children;
+css.pseudo   = pseudo;
 
 // Conditionals
 css.when      = when;
@@ -134,6 +136,6 @@ css.spring    = tokensModule.spring;
 // discoverability. Individual imports are available for advanced use cases.
 // ---------------------------------------------------------------------------
 
-export { css };
+export { css, children, pseudo };
 
 export type { ResolvedStyle, StyleObject };
