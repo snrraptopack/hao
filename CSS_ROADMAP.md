@@ -286,10 +286,10 @@ no style computation code for that component, and class names are stable across 
 
 | Milestone | Status |
 |---|---|
-| 1. Typed Primitives | **Not started** — ready to scaffold |
-| 2. Conditionals | Not started |
-| 3. Theme & Tokens | Not started |
-| 4. Vite Plugin / Compiler | **Blocked** — wait for router stabilization |
+| 1. Typed Primitives | **Done** |
+| 2. Conditionals | **Done** |
+| 3. Theme & Tokens | **Done** |
+| 4. Vite Plugin / Compiler | **Ready to start** |
 | 5. Cross-file Extraction | **Blocked** — depends on compiler |
 | 6. Advanced Features | Not started |
 
