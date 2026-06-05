@@ -11,7 +11,7 @@ export default defineConfig({
       formats: ['es']
     },
     rollupOptions: {
-      external: ['typescript'],
+      external: ['typescript', 'path', 'fs'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),

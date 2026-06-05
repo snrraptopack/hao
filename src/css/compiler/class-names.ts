@@ -104,6 +104,9 @@ export function getPropertyKey(prop: string): string {
  */
 export function valueToString(val: any): string {
   if (val === null || val === undefined) return '';
+  if (typeof val === 'function') {
+    throw new Error('Auwla CSS Compiler: Attempted to serialize a function reference. Did you forget to call the function?');
+  }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') return String(val);
   if (typeof val.toString === 'function') return val.toString();

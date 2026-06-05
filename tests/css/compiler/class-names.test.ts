@@ -36,6 +36,10 @@ describe('class-names compiler utility', () => {
       };
       expect(valueToString(mockLength)).toBe('1.5rem');
     });
+
+    it('should throw on function references', () => {
+      expect(() => valueToString(() => {})).toThrow('Auwla CSS Compiler: Attempted to serialize a function reference');
+    });
   });
 
   describe('sanitizeValue', () => {

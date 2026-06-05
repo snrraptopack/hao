@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite';
 import { compileAuwla } from './compiler';
 import { ViteCSSHandler } from './vite-css';
+import { clearThemeCache } from './css/compiler/css-compiler';
 
 export type AuwlaViteOptions = {
   include?: RegExp;
@@ -32,6 +33,12 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
 
     configureServer(server) {
       cssHandler.setServer(server);
+    },
+
+    handleHotUpdate({ file }) {
+      if (file.includes('theme')) {
+        clearThemeCache();
+      }
     },
 
     // 1. Delegate virtual module resolution
