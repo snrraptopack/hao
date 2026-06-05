@@ -8,7 +8,8 @@ const style = css.define({
     true: css.px(10),
     false: css.px(20)
   }),
-})
+  background: { base: css.color(""), lg: css.color("") },
+})// compiles to ${con ? p_10 : p_ 20 bg:sm_}
 
 
 const state:any = {
