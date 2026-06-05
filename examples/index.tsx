@@ -22,6 +22,7 @@ import { PerfExample } from "./perf"
 import { TableBenchmarkExample } from "./table-benchmark"
 import { TableBenchmarkRuntimeExample } from "./table-benchmark-runtime"
 import { ReactiveDemo } from "./reactive"
+import { AccessibleMenuDemo } from "./menu"
 
 // Router examples — routes + shells
 import { navigationRoutes, NavigationShell } from "./navigation"
@@ -50,6 +51,7 @@ defineRoutes(
       { path: "/table-benchmark", component: TableBenchmarkExample },
       { path: "/table-benchmark-runtime", component: TableBenchmarkRuntimeExample },
       { path: "/reactive", component: ReactiveDemo },
+      { path: "/menu", component: AccessibleMenuDemo },
     ],
 
     // Router examples — grouped under a base path with shared layout shell
@@ -81,6 +83,7 @@ const examples = [
   { path: "/table-benchmark", label: "Table Benchmark" },
   { path: "/table-benchmark-runtime", label: "Table Benchmark (Runtime)" },
   { path: "/reactive", label: "Reactive vs Plain" },
+  { path: "/menu", label: "Accessible Menu" },
   { path: "/navigation", label: "Navigation" },
   { path: "/child", label: "Child / Router" },
   { path: "/loader", label: "Router Loader" },
