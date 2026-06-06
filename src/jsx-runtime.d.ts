@@ -1,3 +1,5 @@
+import type { StyleObject } from './css/types';
+
 export declare const Fragment: (props?: { children?: JSX.Children }) => DocumentFragment;
 export declare function jsx(type: any, props?: any, key?: any): JSX.Element;
 export declare const jsxs: typeof jsx;
@@ -49,12 +51,12 @@ type BaseProps<E extends HTMLElement> = EventProps & {
   children?: Children;
   key?: string | number;
   ref?: (el: E) => void;
-  class?: string;
-  className?: string;
+  class?: string | StyleObject | Function;
+  className?: string | StyleObject | Function;
   id?: string;
   title?: string;
   hidden?: boolean;
-  style?: string | CSSProperties;
+  style?: string | CSSProperties | StyleObject | Function;
   tabIndex?: number;
   draggable?: boolean;
   contentEditable?: boolean | 'true' | 'false' | 'inherit' | 'plaintext-only';

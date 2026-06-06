@@ -165,6 +165,17 @@ export function evalNode(
             hasDynamic = true;
           }
         }
+      } else if (ts.isSpreadAssignment(prop)) {
+        const spreadRes = evalNode(prop.expression, source, themeValues, selectorContext, localScope);
+        if (spreadRes.isStatic && spreadRes.value && typeof spreadRes.value === 'object') {
+          Object.assign(staticObj, spreadRes.value);
+          if (spreadRes.extractedVars) {
+            extractedVars.push(...spreadRes.extractedVars);
+          }
+        } else {
+          dynamicProps.push(prop);
+          hasDynamic = true;
+        }
       } else {
         dynamicProps.push(prop);
         hasDynamic = true;
@@ -294,7 +305,7 @@ export function evalNode(
       const staticArgs = argResults.map((r) => r.value);
 
       // Branch evaluations
-      if (funcName === 'css.match') {
+      if (funcName === 'css.match' || funcName === 'match') {
         const discriminator = staticArgs[0];
         const cases = staticArgs[1] || {};
         if (typeof cases === 'object' && cases !== null) {
@@ -308,7 +319,7 @@ export function evalNode(
         return { isStatic: true, value: {} };
       }
 
-      if (funcName === 'css.when') {
+      if (funcName === 'css.when' || funcName === 'when') {
         const condition = !!staticArgs[0];
         const cases = staticArgs[1] || {};
         const lookupKey = String(condition);
@@ -323,23 +334,49 @@ export function evalNode(
         return { isStatic: true, value: {} };
       }
 
+      // Merge & Extend evaluations
+      if (funcName === 'css.merge' || funcName === 'merge' || funcName === 'css.extend' || funcName === 'extend') {
+        const mergedObj: Record<string, any> = {};
+        const extractedVars: EvaluatedNode['extractedVars'] = [];
+        for (const argRes of argResults) {
+          if (argRes.value && typeof argRes.value === 'object') {
+            Object.assign(mergedObj, argRes.value);
+            if (argRes.extractedVars) {
+              extractedVars.push(...argRes.extractedVars);
+            }
+          }
+        }
+        return {
+          isStatic: true,
+          value: mergedObj,
+          extractedVars: extractedVars.length > 0 ? extractedVars : undefined,
+        };
+      }
+
       // Unit conversions
-      if (funcName === 'css.px') return { isStatic: true, value: `${staticArgs[0]}px` };
-      if (funcName === 'css.rem') return { isStatic: true, value: `${staticArgs[0]}rem` };
-      if (funcName === 'css.em') return { isStatic: true, value: `${staticArgs[0]}em` };
-      if (funcName === 'css.vw') return { isStatic: true, value: `${staticArgs[0]}vw` };
-      if (funcName === 'css.vh') return { isStatic: true, value: `${staticArgs[0]}vh` };
-      if (funcName === 'css.ch') return { isStatic: true, value: `${staticArgs[0]}ch` };
-      if (funcName === 'css.pct') return { isStatic: true, value: `${staticArgs[0]}%` };
-      if (funcName === 'css.color') return { isStatic: true, value: color(staticArgs[0]) };
-      if (funcName === 'css.color.scale') return { isStatic: true, value: color.scale(staticArgs[0], staticArgs[1]) };
-      if (funcName === 'css.color.group') return { isStatic: true, value: color.group(staticArgs[0]) };
-      if (funcName === 'css.ms') return { isStatic: true, value: `${staticArgs[0]}ms` };
-      if (funcName === 'css.s') return { isStatic: true, value: `${staticArgs[0]}s` };
-      if (funcName === 'css.deg') return { isStatic: true, value: `${staticArgs[0]}deg` };
+      if (funcName === 'css.px' || funcName === 'px') return { isStatic: true, value: `${staticArgs[0]}px` };
+      if (funcName === 'css.rem' || funcName === 'rem') return { isStatic: true, value: `${staticArgs[0]}rem` };
+      if (funcName === 'css.em' || funcName === 'em') return { isStatic: true, value: `${staticArgs[0]}em` };
+      if (funcName === 'css.vw' || funcName === 'vw') return { isStatic: true, value: `${staticArgs[0]}vw` };
+      if (funcName === 'css.vh' || funcName === 'vh') return { isStatic: true, value: `${staticArgs[0]}vh` };
+      if (funcName === 'css.ch' || funcName === 'ch') return { isStatic: true, value: `${staticArgs[0]}ch` };
+      if (funcName === 'css.pct' || funcName === 'pct') return { isStatic: true, value: `${staticArgs[0]}%` };
+      if (funcName === 'css.vmin' || funcName === 'vmin') return { isStatic: true, value: `${staticArgs[0]}vmin` };
+      if (funcName === 'css.vmax' || funcName === 'vmax') return { isStatic: true, value: `${staticArgs[0]}vmax` };
+      if (funcName === 'css.fr' || funcName === 'fr') return { isStatic: true, value: `${staticArgs[0]}fr` };
+      if (funcName === 'css.zero' || funcName === 'zero') return { isStatic: true, value: '0' };
+      if (funcName === 'css.clamp' || funcName === 'clamp') return { isStatic: true, value: `clamp(${staticArgs[0]}, ${staticArgs[1]}, ${staticArgs[2]})` };
+      if (funcName === 'css.color' || funcName === 'color') return { isStatic: true, value: color(staticArgs[0]) };
+      if (funcName === 'css.color.scale' || funcName === 'color.scale') return { isStatic: true, value: color.scale(staticArgs[0], staticArgs[1]) };
+      if (funcName === 'css.color.group' || funcName === 'color.group') return { isStatic: true, value: color.group(staticArgs[0]) };
+      if (funcName === 'css.ms' || funcName === 'ms') return { isStatic: true, value: `${staticArgs[0]}ms` };
+      if (funcName === 'css.s' || funcName === 's') return { isStatic: true, value: `${staticArgs[0]}s` };
+      if (funcName === 'css.deg' || funcName === 'deg') return { isStatic: true, value: `${staticArgs[0]}deg` };
+      if (funcName === 'css.rad' || funcName === 'rad') return { isStatic: true, value: `${staticArgs[0]}rad` };
+      if (funcName === 'css.turn' || funcName === 'turn') return { isStatic: true, value: `${staticArgs[0]}turn` };
 
       // Design token & scale builders
-      if (funcName === 'css.scale') {
+      if (funcName === 'css.scale' || funcName === 'scale') {
         const opts = staticArgs[0] || {};
         const baseLen = parseLength(opts.base);
         const ratio = Number(opts.ratio) || 1.333;
@@ -352,7 +389,7 @@ export function evalNode(
         }
         return { isStatic: true, value: scaleObj };
       }
-      if (funcName === 'css.typeScale') {
+      if (funcName === 'css.typeScale' || funcName === 'typeScale') {
         const opts = staticArgs[0] || {};
         const baseLen = parseLength(opts.base);
         const ratio = Number(opts.ratio) || 1.25;
@@ -365,12 +402,12 @@ export function evalNode(
         }
         return { isStatic: true, value: scaleObj };
       }
-      if (funcName === 'css.fontStack') {
+      if (funcName === 'css.fontStack' || funcName === 'fontStack') {
         const fonts = staticArgs[0] || [];
         const stack = fonts.map((f: string) => f.includes(' ') ? `"${f}"` : f).join(', ');
         return { isStatic: true, value: stack };
       }
-      if (funcName === 'css.elevation') {
+      if (funcName === 'css.elevation' || funcName === 'elevation') {
         const opts = staticArgs[0] || {};
         const baseColor = opts.base || 'rgba(0,0,0,0.08)';
         const levels = opts.levels || [];
@@ -383,23 +420,23 @@ export function evalNode(
         });
         return { isStatic: true, value: shadows };
       }
-      if (funcName === 'css.spring') {
+      if (funcName === 'css.spring' || funcName === 'spring') {
         const opts = staticArgs[0] || {};
         return { isStatic: true, value: computeSpring(opts.stiffness, opts.damping, opts.mass) };
       }
-      if (funcName === 'css.tokens') {
+      if (funcName === 'css.tokens' || funcName === 'tokens') {
         return { isStatic: true, value: staticArgs[0] };
       }
 
       // Nesting selector helpers
-      if (funcName === 'css.children') return { isStatic: true, value: `& > ${staticArgs[0]}` };
-      if (funcName === 'css.pseudo') return { isStatic: true, value: `&:${staticArgs[0]}` };
-      if (funcName === 'css.child') return { isStatic: true, value: child(staticArgs[0]) };
-      if (funcName === 'css.descendant') return { isStatic: true, value: descendant(staticArgs[0]) };
-      if (funcName === 'css.sibling') return { isStatic: true, value: sibling(staticArgs[0]) };
+      if (funcName === 'css.children' || funcName === 'children') return { isStatic: true, value: `& > ${staticArgs[0]}` };
+      if (funcName === 'css.pseudo' || funcName === 'pseudo') return { isStatic: true, value: `&:${staticArgs[0]}` };
+      if (funcName === 'css.child' || funcName === 'child') return { isStatic: true, value: child(staticArgs[0]) };
+      if (funcName === 'css.descendant' || funcName === 'descendant') return { isStatic: true, value: descendant(staticArgs[0]) };
+      if (funcName === 'css.sibling' || funcName === 'sibling') return { isStatic: true, value: sibling(staticArgs[0]) };
 
       // Responsive media range helpers
-      if (funcName === 'css.above') {
+      if (funcName === 'css.above' || funcName === 'above') {
         const bp = staticArgs[0];
         const raw = BREAKPOINTS[bp] || bp;
         const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
@@ -408,7 +445,7 @@ export function evalNode(
           : bp;
         return { isStatic: true, value: `@media (min-width: ${val})` };
       }
-      if (funcName === 'css.below') {
+      if (funcName === 'css.below' || funcName === 'below') {
         const bp = staticArgs[0];
         const raw = BREAKPOINTS[bp] || bp;
         const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
@@ -421,7 +458,7 @@ export function evalNode(
         }
         return { isStatic: true, value: `@media (max-width: ${bp})` };
       }
-      if (funcName === 'css.matchBreakpoint') {
+      if (funcName === 'css.matchBreakpoint' || funcName === 'matchBreakpoint') {
         const bp = staticArgs[0];
         const rawMin = BREAKPOINTS[bp] || bp;
         const matchMin = rawMin.match(/^([\d.]+)([a-zA-Z%]+)$/);
@@ -447,7 +484,7 @@ export function evalNode(
         }
         return { isStatic: true, value: `@media (min-width: ${minVal})` };
       }
-      if (funcName === 'css.between') {
+      if (funcName === 'css.between' || funcName === 'between') {
         const minBp = staticArgs[0];
         const maxBp = staticArgs[1];
         
@@ -470,7 +507,7 @@ export function evalNode(
       }
 
       // Flex Layout Descriptor Mock
-      if (funcName === 'css.flex') {
+      if (funcName === 'css.flex' || funcName === 'flex') {
         const opts = staticArgs[0] || {};
         const props: Record<string, string> = { display: 'flex' };
         if (opts.direction) props.flexDirection = opts.direction;
@@ -493,7 +530,7 @@ export function evalNode(
       }
 
       // Grid Layout Descriptor Mock
-      if (funcName === 'css.grid') {
+      if (funcName === 'css.grid' || funcName === 'grid') {
         const opts = staticArgs[0] || {};
         const props: Record<string, string> = { display: 'grid' };
         if (opts.columns && Array.isArray(opts.columns))
@@ -516,7 +553,7 @@ export function evalNode(
       }
 
       // Outline Mock
-      if (funcName === 'css.outline') {
+      if (funcName === 'css.outline' || funcName === 'outline') {
         const opts = staticArgs[0] || {};
         const width = opts.width !== undefined ? String(opts.width) : '1px';
         const style = opts.style || 'solid';
@@ -534,7 +571,7 @@ export function evalNode(
       }
 
       // Border Mock
-      if (funcName === 'css.border') {
+      if (funcName === 'css.border' || funcName === 'border') {
         const opts = staticArgs[0] || {};
         return {
           isStatic: true,

@@ -110,6 +110,7 @@ function isElementGroupStyle(evaluatedValue: any): boolean {
     return (
       typeof val === 'object' &&
       val !== null &&
+      !('_tag' in val) &&
       !Array.isArray(val) &&
       !key.startsWith(':') &&
       !key.startsWith('&') &&
@@ -152,8 +153,11 @@ function findStyleFactoriesInImports(
                     if (ts.isAsExpression(init)) {
                       init = init.expression;
                     }
-                    if (ts.isCallExpression(init) && init.expression.getText(importedSource).trim() === 'css.define') {
-                      exportedDefines.add(decl.name.text);
+                    if (ts.isCallExpression(init)) {
+                      const initText = init.expression.getText(importedSource).trim();
+                      if (initText === 'css.define' || initText === 'define') {
+                        exportedDefines.add(decl.name.text);
+                      }
                     }
                   }
                 }
@@ -187,8 +191,11 @@ function findStyleFactoriesInImports(
           if (ts.isAsExpression(init)) {
             init = init.expression;
           }
-          if (ts.isCallExpression(init) && init.expression.getText(source).trim() === 'css.define') {
-            factories.add(decl.name.text);
+          if (ts.isCallExpression(init)) {
+            const initText = init.expression.getText(source).trim();
+            if (initText === 'css.define' || initText === 'define') {
+              factories.add(decl.name.text);
+            }
           }
         }
       }
@@ -336,7 +343,7 @@ export function findCSSReplacements(
           if (ts.isCallExpression(expr)) {
             const funcName = expr.expression.getText(source).trim();
 
-            if (funcName === 'css.when') {
+            if (funcName === 'css.when' || funcName === 'when') {
               const condArg = expr.arguments[0];
               const branchesArg = expr.arguments[1];
               if (condArg && branchesArg && ts.isObjectLiteralExpression(branchesArg)) {
@@ -433,7 +440,7 @@ export function findCSSReplacements(
                   }
                 }
               }
-            } else if (funcName === 'css.match') {
+            } else if (funcName === 'css.match' || funcName === 'match') {
               const discArg = expr.arguments[0];
               const casesArg = expr.arguments[1];
               if (discArg && casesArg && ts.isObjectLiteralExpression(casesArg)) {
@@ -638,8 +645,9 @@ export function findCSSReplacements(
       }
     }
 
-    // 2. Check for css.define({...}) calls
-    if (ts.isCallExpression(node) && node.expression.getText(source).trim() === 'css.define') {
+    // 2. Check for css.define({...}) or define({...}) calls
+    const nodeFuncName = ts.isCallExpression(node) ? node.expression.getText(source).trim() : '';
+    if (ts.isCallExpression(node) && (nodeFuncName === 'css.define' || nodeFuncName === 'define')) {
       const arg = node.arguments[0];
       if (arg) {
         if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {

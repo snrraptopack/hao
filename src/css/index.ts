@@ -11,7 +11,23 @@
  */
 
 // Main API object
-export { css, children, pseudo, child, descendant, sibling, above, below, matchBreakpoint, between } from './css';
+// Main API object
+export { css } from './css';
+
+// Composition helpers
+export { merge, extend, define, children, pseudo, child, descendant, sibling, above, below, matchBreakpoint, between } from './compose';
+
+// Conditionals
+export { when, match, mergeWhen } from './conditionals';
+
+// Units
+export { px, rem, em, vw, vh, vmin, vmax, pct, fr, ch, zero, clamp, ms, s, deg, rad, turn } from './units';
+
+// Color
+export { color, gradient } from './color';
+
+// Values / Layouts / Composites
+export { border, shadow, transform, transition, ease, outline, grid, flex } from './values';
 
 // Types — re-exported for consumers who want to type function parameters
 export type {

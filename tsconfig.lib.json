@@ -17,7 +17,8 @@
     "src/compiler-runtime.ts",
     "src/compiler.ts",
     "src/vite.ts",
-    "src/events/**/*.ts"
+    "src/events/**/*.ts",
+    "src/css/index.ts"
   ],
   "exclude": [
     "node_modules",

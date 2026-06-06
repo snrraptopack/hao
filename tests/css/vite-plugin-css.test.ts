@@ -423,4 +423,61 @@ describe('auwla vite plugin - css extraction', () => {
       }
     }
   });
+
+  test('supports prefix-less CSS helpers (define, px, color, when, match, merge)', () => {
+    const plugin = auwla({ css: true });
+    const code = `
+      import { define, px, color, when, match, merge } from 'auwla/css';
+      const styles = define({
+        padding: px(16),
+        color: color('#ff0000'),
+      });
+      const activeStyles = define((props: { active: boolean }) => ({
+        ...when(props.active, {
+          true: { background: color('#0000ff') }
+        })
+      }));
+      function Card(props: { active: boolean }) {
+        return () => <div className={styles} style={activeStyles({ active: props.active })} />;
+      }
+    `;
+    const result = transform(plugin, code, path.resolve(__dirname, 'Card.tsx'));
+    const codeStr = result && 'code' in result ? result.code : '';
+    expect(codeStr).toContain('styles = "pt_16px pr_16px pb_16px pl_16px text_ff0000"');
+    expect(codeStr).toContain('activeStyles({ active: props.active })');
+    expect(codeStr).toContain('"active=true"');
+    expect(codeStr).toContain('"bg_0000ff"');
+
+    const loadHook = plugin.load;
+    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
+    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    expect(cssContent).toContain('.pt_16px { padding-top: 16px; }');
+    expect(cssContent).toContain('.text_ff0000 { color: #ff0000; }');
+    expect(cssContent).toContain('.bg_0000ff { background: #0000ff; }');
+  });
+
+  test('supports object spreads and merge call evaluation inside define factories', () => {
+    const plugin = auwla({ css: true });
+    const code = `
+      import { define, px, color, when, merge } from 'auwla/css';
+      const buttonStyles = define((props: { active: boolean }) => merge(
+        { borderRadius: px(4) },
+        when(props.active, {
+          true: { color: color('#fff'), background: color('#00f') },
+          false: { color: color('#000'), background: color('#fff') }
+        })
+      ));
+      function Button(props: { active: boolean }) {
+        return () => <button style={buttonStyles({ active: props.active })} />;
+      }
+    `;
+    const result = transform(plugin, code, path.resolve(__dirname, 'Button.tsx'));
+    const codeStr = result && 'code' in result ? result.code : '';
+    expect(codeStr).toContain('buttonStyles({ active: props.active })');
+    expect(codeStr).toContain('"active=true"');
+    expect(codeStr).toContain('"rounded-tl_4px rounded-tr_4px rounded-br_4px rounded-bl_4px text_ffffff bg_0000ff"');
+    expect(codeStr).toContain('"active=false"');
+    expect(codeStr).toContain('"rounded-tl_4px rounded-tr_4px rounded-br_4px rounded-bl_4px text_000000 bg_ffffff"');
+  });
 });
+

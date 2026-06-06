@@ -1,12 +1,22 @@
 import { component, commit } from 'auwla';
 import { event } from 'auwla/events';
 import type { } from 'auwla/jsx-runtime';
-import { css } from "auwla/css"
+import { css, px, define, flex } from "auwla/css"
 
-const expand = css.define((props: { isMoving: boolean }) => ({
-  width: css.when(props.isMoving, {
-    true: css.px(20),
-      false: css.px(10)
+const small = css({
+  width: px(10),
+  height: px(20)
+})
+const big = css({
+  width: px(20),
+  height: px(40)
+})
+
+
+const expand = define((props: { isMoving: boolean }) => ({
+  ...css.when(props.isMoving, {
+    true: big,
+    false:small
   })
 }))
 
