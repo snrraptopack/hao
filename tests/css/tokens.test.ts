@@ -120,4 +120,51 @@ describe('tokens module tests', () => {
     expect(defaultGroup.active.toString()).not.toBe(baseColor.toString());
     expect(defaultGroup.disabled.toString()).toContain('/ 0.350');
   });
+
+  // Test css.color.palette()
+  test('css.color.palette generates a balanced 11-step scale from a seed color', () => {
+    const seed = css.color('#3b82f6');
+    const palette = css.color.palette(seed);
+
+    // Should contain all 11 keys
+    expect(palette[50]).toBeDefined();
+    expect(palette[100]).toBeDefined();
+    expect(palette[200]).toBeDefined();
+    expect(palette[300]).toBeDefined();
+    expect(palette[400]).toBeDefined();
+    expect(palette[500]).toBeDefined();
+    expect(palette[600]).toBeDefined();
+    expect(palette[700]).toBeDefined();
+    expect(palette[800]).toBeDefined();
+    expect(palette[900]).toBeDefined();
+    expect(palette[950]).toBeDefined();
+
+    // 500 should be the exact seed color
+    expect(palette[500].toString()).toBe(seed.toString());
+
+    // Lightness should decrease as weight increases
+    const getL = (colorObj: any) => {
+      const str = colorObj.toString();
+      if (str.startsWith('#')) {
+        const hex = str.replace('#', '');
+        const r = parseInt(hex.slice(0, 2), 16) / 255;
+        const g = parseInt(hex.slice(2, 4), 16) / 255;
+        const b = parseInt(hex.slice(4, 6), 16) / 255;
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      }
+      const parts = str.match(/oklch\(([\d.]+)/);
+      return parts ? parseFloat(parts[1]) : 0;
+    };
+
+    const l50 = getL(palette[50]);
+    const l300 = getL(palette[300]);
+    const l500 = getL(palette[500]);
+    const l800 = getL(palette[800]);
+    const l950 = getL(palette[950]);
+
+    expect(l50).toBeGreaterThan(l300);
+    expect(l300).toBeGreaterThan(l500);
+    expect(l500).toBeGreaterThan(l800);
+    expect(l800).toBeGreaterThan(l950);
+  });
 });

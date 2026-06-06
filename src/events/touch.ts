@@ -64,6 +64,8 @@ function dispatchTouchEvent(
 
 /**
  * Setup a pointer gesture tracker on the element.
+ * Tracks pointer events and dispatches unified 'touch' custom events, 
+ * as well as phase-specific 'touchstart', 'touchmove', and 'touchend' events.
  */
 export function setupTouchListener(element: Element) {
   if (touchBoundElements.has(element)) return;
@@ -71,6 +73,7 @@ export function setupTouchListener(element: Element) {
 
   element.addEventListener('pointerdown', (e: Event) => {
     const event = e as PointerEvent;
+    // Only track left-click for mouse pointer type
     if (event.button !== 0 && event.pointerType === 'mouse') return;
 
     try {
@@ -82,18 +85,26 @@ export function setupTouchListener(element: Element) {
     const startX = event.clientX;
     const startY = event.clientY;
 
+    // Dispatch both the generic 'touch' event and the specific 'touchstart' event
     dispatchTouchEvent('touch', element, event, 'start', startX, startY, startX, startY);
+    dispatchTouchEvent('touchstart', element, event, 'start', startX, startY, startX, startY);
 
     const onPointerMove = (e: Event) => {
       const moveEvent = e as PointerEvent;
       if (moveEvent.pointerId !== event.pointerId) return;
+      
+      // Dispatch generic 'touch' and specific 'touchmove' events
       dispatchTouchEvent('touch', element, moveEvent, 'move', startX, startY, moveEvent.clientX, moveEvent.clientY);
+      dispatchTouchEvent('touchmove', element, moveEvent, 'move', startX, startY, moveEvent.clientX, moveEvent.clientY);
     };
 
     const onPointerUp = (e: Event) => {
       const upEvent = e as PointerEvent;
       if (upEvent.pointerId !== event.pointerId) return;
+      
+      // Dispatch generic 'touch' and specific 'touchend' events
       dispatchTouchEvent('touch', element, upEvent, 'end', startX, startY, upEvent.clientX, upEvent.clientY);
+      dispatchTouchEvent('touchend', element, upEvent, 'end', startX, startY, upEvent.clientX, upEvent.clientY);
       
       element.removeEventListener('pointermove', onPointerMove);
       element.removeEventListener('pointerup', onPointerUp);
@@ -109,7 +120,7 @@ export function setupTouchListener(element: Element) {
   });
 }
 
-// Monkey-patch EventTarget to setup touch tracking when 'touch' events are bound
+// Monkey-patch EventTarget to setup touch tracking when 'touch' or standard touch lifecycle events are bound
 if (typeof EventTarget !== 'undefined') {
   const originalAddEventListener = EventTarget.prototype.addEventListener;
   EventTarget.prototype.addEventListener = function(
@@ -118,7 +129,14 @@ if (typeof EventTarget !== 'undefined') {
     listener: EventListenerOrEventListenerObject | null,
     options?: boolean | AddEventListenerOptions
   ) {
-    if (type === 'touch' && this instanceof Element) {
+    if (
+      (type === 'touch' ||
+       type === 'touchstart' ||
+       type === 'touchmove' ||
+       type === 'touchend' ||
+       type === 'touchcancel') &&
+      this instanceof Element
+    ) {
       setupTouchListener(this);
     }
     return originalAddEventListener.call(this, type, listener as any, options);

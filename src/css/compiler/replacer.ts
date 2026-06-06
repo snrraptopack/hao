@@ -282,6 +282,20 @@ export function findCSSReplacements(
       }
     }
   }
+  // Build a local scope of static variables defined in this file
+  const localScope = new Map<string, any>();
+  for (const stmt of source.statements) {
+    if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.initializer) {
+          const evalRes = evalNode(decl.initializer, source, themeValues, undefined, localScope);
+          if (evalRes.isStatic) {
+            localScope.set(decl.name.text, evalRes.value);
+          }
+        }
+      }
+    }
+  }
 
   function visit(node: ts.Node) {
     if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name)) {
@@ -357,8 +371,8 @@ export function findCSSReplacements(
                   }
                 }
 
-                const trueRes = trueExpr ? evalNode(trueExpr, source, themeValues) : null;
-                const falseRes = falseExpr ? evalNode(falseExpr, source, themeValues) : null;
+                const trueRes = trueExpr ? evalNode(trueExpr, source, themeValues, undefined, localScope) : null;
+                const falseRes = falseExpr ? evalNode(falseExpr, source, themeValues, undefined, localScope) : null;
 
                 const trueStatic = !trueRes || trueRes.isStatic;
                 const falseStatic = !falseRes || falseRes.isStatic;
@@ -452,7 +466,7 @@ export function findCSSReplacements(
                     const key = ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)
                       ? prop.name.text
                       : prop.name.getText(source);
-                    const valRes = evalNode(prop.initializer, source, themeValues);
+                    const valRes = evalNode(prop.initializer, source, themeValues, undefined, localScope);
                     if (valRes.isStatic) {
                       const compiled = compileStyle(valRes.value);
                       caseEntries.push({ key, classes: compiled.classes.join(' '), rules: compiled.rules });
@@ -539,7 +553,7 @@ export function findCSSReplacements(
             } else if (attrName === 'style' && funcName === 'css') {
               const arg = expr.arguments[0];
               if (arg) {
-                const evalRes = evalNode(arg, source, themeValues);
+                const evalRes = evalNode(arg, source, themeValues, undefined, localScope);
 
                 const hasDynamicProps = !!evalRes.dynamicProps && evalRes.dynamicProps.length > 0;
                 const hasExtracted = !!evalRes.extractedVars && evalRes.extractedVars.length > 0;
@@ -675,9 +689,9 @@ export function findCSSReplacements(
             let allStatic = true;
 
             for (const combo of combos) {
-              const localScope = new Map<string, any>();
-              localScope.set(paramName, combo);
-              const evalRes = evalNode(bodyExpr, source, themeValues, undefined, localScope);
+              const comboLocalScope = new Map<string, any>(localScope);
+              comboLocalScope.set(paramName, combo);
+              const evalRes = evalNode(bodyExpr, source, themeValues, undefined, comboLocalScope);
               if (evalRes.isStatic) {
                 compiledCombos.push({ combo, value: evalRes.value });
               } else {
@@ -752,7 +766,7 @@ export function findCSSReplacements(
           }
         } else {
           // Static parameterless css.define
-          const evalRes = evalNode(arg, source, themeValues);
+          const evalRes = evalNode(arg, source, themeValues, undefined, localScope);
           if (evalRes.isStatic) {
             const compiled = compileStyle(evalRes.value);
             compiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));

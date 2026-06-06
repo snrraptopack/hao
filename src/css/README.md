@@ -103,6 +103,49 @@ const complexGrad = css.gradient({
 });
 ```
 
+### Interactive Color Groups
+
+Create a set of interactive state colors derived from a single base color using `css.color.group()`. Each state can be a raw `Color` object, or a manipulation string (`lighten(n)`, `darken(n)`, `alpha(n)`, or `rotate(n)`) which is applied relatively to the base color.
+
+If you omit any interactive states, sensible defaults will be automatically generated.
+
+```ts
+const primaryInteractive = css.color.group({
+  base:     css.color('#3b82f6'),
+  hover:    'lighten(0.1)',   // 10% lighter than base
+  active:   'darken(0.1)',    // 10% darker than base
+  disabled: 'alpha(0.3)'      // 30% opacity of base
+})
+
+// You can also use it with theme tokens:
+const theme = css.tokens({
+  colors: {
+    interactive: css.color.group({
+      base: css.color('#10b981') // hover, active, and disabled will use defaults
+    })
+  }
+})
+```
+
+### Dynamic Color Palettes
+
+Auwla allows you to generate a full 11-step color shade scale (50-950) dynamically from a single seed color using `css.color.palette()`. It uses perceptually uniform OKLCH curves to automatically derive beautiful light and dark shades while preserving the hue and maintaining visual balance.
+
+```ts
+// Generate a dynamic palette from a brand seed color
+const brand = css.color.palette('#3b82f6')
+// Returns: { 50: Color, 100: Color, ..., 500: Color (seed), ..., 950: Color }
+
+const card = css({
+  backgroundColor: brand[50],   // Soft light background
+  color:           brand[900],  // Highly readable dark text
+  borderColor:     brand[200],  // Subtle borders
+  ':hover': {
+    backgroundColor: brand[100],
+  }
+})
+```
+
 ### Composite Values
 
 ```ts

@@ -479,5 +479,30 @@ describe('auwla vite plugin - css extraction', () => {
     expect(codeStr).toContain('"active=false"');
     expect(codeStr).toContain('"rounded-tl_4px rounded-tr_4px rounded-br_4px rounded-bl_4px text_000000 bg_ffffff"');
   });
+
+  test('supports compile-time evaluation of color.palette', () => {
+    const plugin = auwla({ css: true });
+    const code = `
+      import { define, color } from 'auwla/css';
+      const brand = color.palette('#3b82f6');
+      const styles = define({
+        color: brand[50],
+        background: brand[900],
+      });
+      function Card() {
+        return () => <div className={styles} />;
+      }
+    `;
+    const result = transform(plugin, code, path.resolve(__dirname, 'Card.tsx'));
+    const codeStr = result && 'code' in result ? result.code : '';
+    expect(codeStr).toContain('styles = "text_');
+    expect(codeStr).toContain('bg_');
+
+    const loadHook = plugin.load;
+    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
+    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    expect(cssContent).toContain('.text_');
+    expect(cssContent).toContain('.bg_');
+  });
 });
 

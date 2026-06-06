@@ -66,6 +66,6 @@ export type {
 } from './tokens';
 
 // Color group — returned by css.color.group()
-export type { ColorGroup } from './color';
+export type { ColorGroup, ColorPalette } from './color';
 
 

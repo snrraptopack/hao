@@ -369,6 +369,7 @@ export function evalNode(
       if (funcName === 'css.color' || funcName === 'color') return { isStatic: true, value: color(staticArgs[0]) };
       if (funcName === 'css.color.scale' || funcName === 'color.scale') return { isStatic: true, value: color.scale(staticArgs[0], staticArgs[1]) };
       if (funcName === 'css.color.group' || funcName === 'color.group') return { isStatic: true, value: color.group(staticArgs[0]) };
+      if (funcName === 'css.color.palette' || funcName === 'color.palette') return { isStatic: true, value: color.palette(staticArgs[0]) };
       if (funcName === 'css.ms' || funcName === 'ms') return { isStatic: true, value: `${staticArgs[0]}ms` };
       if (funcName === 'css.s' || funcName === 's') return { isStatic: true, value: `${staticArgs[0]}s` };
       if (funcName === 'css.deg' || funcName === 'deg') return { isStatic: true, value: `${staticArgs[0]}deg` };

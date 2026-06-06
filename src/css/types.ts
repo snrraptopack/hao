@@ -327,83 +327,215 @@ type LengthProperty =
 type ColorProperty = Color | string;
 
 interface PropertyValueMap {
-  width?: LengthProperty;
-  height?: LengthProperty;
-  minWidth?: LengthProperty;
-  minHeight?: LengthProperty;
-  maxWidth?: LengthProperty;
-  maxHeight?: LengthProperty;
-
-  top?: LengthProperty;
-  right?: LengthProperty;
+  // 1. Layout & Positioning
   bottom?: LengthProperty;
-  left?: LengthProperty;
+  /**
+   * Layout display mode.
+   *
+   * @example
+   * display: 'block'
+   * display: flex({ direction: 'row', align: 'center', gap: px(16) })
+   * display: grid({ columns: [fr(1), px(200)], gap: px(12) })
+   */
+  display?: string;
   inset?: LengthProperty;
+  left?: LengthProperty;
+  position?: string;
+  right?: LengthProperty;
+  top?: LengthProperty;
+  zIndex?: number | string;
 
-  padding?: LengthProperty;
-  paddingTop?: LengthProperty;
-  paddingRight?: LengthProperty;
-  paddingBottom?: LengthProperty;
-  paddingLeft?: LengthProperty;
+  // 2. Box Model (Sizing, Margins, Padding)
+  gap?: LengthProperty;
+  height?: LengthProperty;
+  /**
+   * Margin spacing shorthand.
+   *
+   * @example
+   * margin: px(8)
+   * margin: [px(4), zero()]
+   */
   margin?: LengthProperty;
-  marginTop?: LengthProperty;
-  marginRight?: LengthProperty;
   marginBottom?: LengthProperty;
   marginLeft?: LengthProperty;
-  gap?: LengthProperty;
+  marginRight?: LengthProperty;
+  marginTop?: LengthProperty;
+  maxHeight?: LengthProperty;
+  maxWidth?: LengthProperty;
+  minHeight?: LengthProperty;
+  minWidth?: LengthProperty;
+  /**
+   * Padding spacing shorthand.
+   * Accepts length primitives, custom units, or arrays for multi-side shorthand.
+   *
+   * @example
+   * padding: px(16)            // "16px" on all sides
+   * padding: [px(8), px(16)]    // "8px" vertical, "16px" horizontal
+   */
+  padding?: LengthProperty;
+  paddingBottom?: LengthProperty;
+  paddingLeft?: LengthProperty;
+  paddingRight?: LengthProperty;
+  paddingTop?: LengthProperty;
+  width?: LengthProperty;
+
+  // 3. Flexbox & Grid
+  alignContent?: string;
+  alignItems?: string;
+  alignSelf?: string;
   columnGap?: LengthProperty;
+  flex?: FlexDescriptor | string;
+  flexBasis?: LengthProperty;
+  flexDirection?: 'row' | 'row-reverse' | 'column' | 'column-reverse' | string;
+  flexGrow?: number | string;
+  flexShrink?: number | string;
+  flexWrap?: 'wrap' | 'wrap-reverse' | 'nowrap' | string;
+  grid?: GridDescriptor | string;
+  gridArea?: string;
+  gridAutoColumns?: string;
+  gridAutoFlow?: string;
+  gridAutoRows?: string;
+  gridColumn?: string;
+  gridColumnEnd?: string;
+  gridColumnStart?: string;
+  gridRow?: string;
+  gridRowEnd?: string;
+  gridRowStart?: string;
+  gridTemplateAreas?: string;
+  gridTemplateColumns?: string;
+  gridTemplateRows?: string;
+  justifyContent?: string;
+  justifyItems?: string;
+  justifySelf?: string;
   rowGap?: LengthProperty;
 
-  borderRadius?: LengthProperty;
-  borderTopLeftRadius?: LengthProperty;
-  borderTopRightRadius?: LengthProperty;
-  borderBottomLeftRadius?: LengthProperty;
-  borderBottomRightRadius?: LengthProperty;
-  borderWidth?: LengthProperty;
-  borderTopWidth?: LengthProperty;
-  borderRightWidth?: LengthProperty;
-  borderBottomWidth?: LengthProperty;
-  borderLeftWidth?: LengthProperty;
-  outlineWidth?: LengthProperty;
-
+  // 4. Typography
+  fontFamily?: string;
   fontSize?: LengthProperty;
-  lineHeight?: LengthProperty;
+  fontStyle?: string;
+  fontWeight?: number | string;
   letterSpacing?: LengthProperty;
+  lineHeight?: LengthProperty;
+  textAlign?: string;
+  textDecoration?: string;
+  textTransform?: string;
   wordSpacing?: LengthProperty;
 
-  color?: ColorProperty;
-  backgroundColor?: ColorProperty;
-  borderColor?: ColorProperty;
-  borderTopColor?: ColorProperty;
-  borderRightColor?: ColorProperty;
+  // 5. Borders & Corners
+  /**
+   * Border shorthand.
+   *
+   * @example
+   * border: border({ color: color('#e5e7eb'), width: 1, style: 'solid' })
+   * border: border.none()
+   */
+  border?: Border | string;
+  borderBottom?: Border | string;
   borderBottomColor?: ColorProperty;
+  borderBottomLeftRadius?: LengthProperty;
+  borderBottomRightRadius?: LengthProperty;
+  borderBottomStyle?: string;
+  borderBottomWidth?: LengthProperty;
+  borderColor?: ColorProperty;
+  borderLeft?: Border | string;
   borderLeftColor?: ColorProperty;
+  borderLeftStyle?: string;
+  borderLeftWidth?: LengthProperty;
+  borderRadius?: LengthProperty;
+  borderRight?: Border | string;
+  borderRightColor?: ColorProperty;
+  borderRightStyle?: string;
+  borderRightWidth?: LengthProperty;
+  borderStyle?: string;
+  borderTop?: Border | string;
+  borderTopColor?: ColorProperty;
+  borderTopLeftRadius?: LengthProperty;
+  borderTopRightRadius?: LengthProperty;
+  borderTopStyle?: string;
+  borderTopWidth?: LengthProperty;
+  borderWidth?: LengthProperty;
+
+  // 6. Outlines
+  /**
+   * Outline cosmetics (useful for focus rings).
+   *
+   * @example
+   * outline: outline({ color: color('#3b82f6'), width: 2, offset: 2 })
+   */
+  outline?: { outline: string; outlineOffset?: string; toString(): string } | Border | string;
   outlineColor?: ColorProperty;
+  outlineOffset?: LengthProperty;
+  outlineStyle?: string;
+  outlineWidth?: LengthProperty;
+
+  // 7. Backgrounds & Colors (Cosmetics)
+  /**
+   * Background value.
+   * Accepts Color objects, Gradients, or CSS color/image strings.
+   *
+   * @example
+   * background: color('#ffffff')
+   * background: gradient({ angle: 90, stops: [[color('#00f'), 0], [color('#f00'), 100]] })
+   */
+  background?: Color | Gradient | string;
+  backgroundColor?: ColorProperty;
+  /**
+   * Text foreground color.
+   * Accepts Color objects or CSS color strings.
+   *
+   * @example
+   * color: color('#3b82f6')
+   * color: color('#3b82f6').lighten(0.1)
+   * color: 'inherit'
+   */
+  color?: ColorProperty;
   fill?: ColorProperty;
+  opacity?: number | string;
   stroke?: ColorProperty;
 
-  background?: Color | Gradient | string;
-
-  border?: Border | string;
-  borderTop?: Border | string;
-  borderRight?: Border | string;
-  borderBottom?: Border | string;
-  borderLeft?: Border | string;
-  outline?: { outline: string; outlineOffset?: string; toString(): string } | Border | string;
-  outlineOffset?: LengthProperty;
-
+  // 8. Shadows
+  /**
+   * Shadow cosmetics.
+   *
+   * @example
+   * boxShadow: shadow({ x: 0, y: 4, blur: 8, color: color('#000').alpha(0.1) })
+   * boxShadow: shadow.inset({ x: 0, y: 1, blur: 3, color: color('#000').alpha(0.06) })
+   */
   boxShadow?: Shadow | string;
   textShadow?: Shadow | string;
 
-  transform?: Transform | string;
-  transition?: Transition | string;
-  transitionDuration?: Time | string | number;
-  transitionDelay?: Time | string | number;
-  animationDuration?: Time | string | number;
+  // 9. Transforms, Transitions & Animations
   animationDelay?: Time | string | number;
+  animationDuration?: Time | string | number;
+  /**
+   * CSS transformations.
+   *
+   * @example
+   * transform: transform({ translateX: px(10), scale: 1.1 })
+   */
+  transform?: Transform | string;
+  /**
+   * CSS transition timings.
+   *
+   * @example
+   * transition: transition({
+   *   background: { duration: ms(200) },
+   *   transform:  { duration: ms(300), easing: ease('out') }
+   * })
+   */
+  transition?: Transition | string;
+  transitionDelay?: Time | string | number;
+  transitionDuration?: Time | string | number;
 
-  grid?: GridDescriptor | string;
-  flex?: FlexDescriptor | string;
+  // 10. Directives
+  /**
+   * CSS @import directive to import external stylesheets.
+   * Resolved by the compiler and placed at the top of the global stylesheet.
+   *
+   * @example
+   * '@import': 'url("https://fonts.googleapis.com/css2?family=Inter")'
+   * '@import': ['url("first.css")', 'url("second.css")']
+   */
   '@import'?: string | ReadonlyArray<string>;
 }
 
