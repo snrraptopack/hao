@@ -1,5 +1,7 @@
 import ts from 'typescript';
 import { color } from '../color';
+import { child, descendant, sibling } from '../compose';
+import { BREAKPOINTS } from './index';
 
 export interface EvaluatedNode {
   isStatic: boolean;
@@ -124,9 +126,21 @@ export function evalNode(
 
     for (const prop of node.properties) {
       if (ts.isPropertyAssignment(prop)) {
-        const key = ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)
-          ? prop.name.text
-          : prop.name.getText(source);
+        let key: string;
+        if (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) || ts.isNumericLiteral(prop.name)) {
+          key = prop.name.text;
+        } else if (ts.isComputedPropertyName(prop.name)) {
+          const evalKey = evalNode(prop.name.expression, source, themeValues, selectorContext, localScope);
+          if (evalKey.isStatic) {
+            key = String(evalKey.value);
+          } else {
+            dynamicProps.push(prop);
+            hasDynamic = true;
+            continue;
+          }
+        } else {
+          key = prop.name.getText(source);
+        }
 
         const isNestedKey = key.startsWith(':') || key.startsWith('&') || key.startsWith('@');
         const nextContext = isNestedKey ? key : selectorContext;
@@ -380,6 +394,80 @@ export function evalNode(
       // Nesting selector helpers
       if (funcName === 'css.children') return { isStatic: true, value: `& > ${staticArgs[0]}` };
       if (funcName === 'css.pseudo') return { isStatic: true, value: `&:${staticArgs[0]}` };
+      if (funcName === 'css.child') return { isStatic: true, value: child(staticArgs[0]) };
+      if (funcName === 'css.descendant') return { isStatic: true, value: descendant(staticArgs[0]) };
+      if (funcName === 'css.sibling') return { isStatic: true, value: sibling(staticArgs[0]) };
+
+      // Responsive media range helpers
+      if (funcName === 'css.above') {
+        const bp = staticArgs[0];
+        const raw = BREAKPOINTS[bp] || bp;
+        const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
+        const val = match && match[1] !== undefined && match[2] !== undefined
+          ? `${parseFloat(match[1])}${match[2]}`
+          : bp;
+        return { isStatic: true, value: `@media (min-width: ${val})` };
+      }
+      if (funcName === 'css.below') {
+        const bp = staticArgs[0];
+        const raw = BREAKPOINTS[bp] || bp;
+        const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
+        if (match && match[1] !== undefined && match[2] !== undefined) {
+          const unit = match[2];
+          const val = parseFloat(match[1]);
+          const sub = unit === 'px' ? 0.02 : 0.01;
+          const maxVal = (val - sub).toFixed(3).replace(/\.?0+$/, '');
+          return { isStatic: true, value: `@media (max-width: ${maxVal}${unit})` };
+        }
+        return { isStatic: true, value: `@media (max-width: ${bp})` };
+      }
+      if (funcName === 'css.matchBreakpoint') {
+        const bp = staticArgs[0];
+        const rawMin = BREAKPOINTS[bp] || bp;
+        const matchMin = rawMin.match(/^([\d.]+)([a-zA-Z%]+)$/);
+        const minVal = matchMin && matchMin[1] !== undefined && matchMin[2] !== undefined
+          ? `${parseFloat(matchMin[1])}${matchMin[2]}`
+          : bp;
+        
+        const keys = Object.keys(BREAKPOINTS);
+        const idx = keys.indexOf(bp);
+        if (idx !== -1 && idx < keys.length - 1) {
+          const nextBp = keys[idx + 1];
+          const rawMax = nextBp ? BREAKPOINTS[nextBp] : undefined;
+          if (rawMax) {
+            const matchMax = rawMax.match(/^([\d.]+)([a-zA-Z%]+)$/);
+            if (matchMax && matchMax[1] !== undefined && matchMax[2] !== undefined) {
+              const unit = matchMax[2];
+              const val = parseFloat(matchMax[1]);
+              const sub = unit === 'px' ? 0.02 : 0.01;
+              const maxVal = (val - sub).toFixed(3).replace(/\.?0+$/, '');
+              return { isStatic: true, value: `@media (min-width: ${minVal}) and (max-width: ${maxVal}${unit})` };
+            }
+          }
+        }
+        return { isStatic: true, value: `@media (min-width: ${minVal})` };
+      }
+      if (funcName === 'css.between') {
+        const minBp = staticArgs[0];
+        const maxBp = staticArgs[1];
+        
+        const rawMin = BREAKPOINTS[minBp] || minBp;
+        const matchMin = rawMin.match(/^([\d.]+)([a-zA-Z%]+)$/);
+        const minStr = matchMin && matchMin[1] !== undefined && matchMin[2] !== undefined
+          ? `${parseFloat(matchMin[1])}${matchMin[2]}`
+          : minBp;
+
+        const rawMax = BREAKPOINTS[maxBp] || maxBp;
+        const matchMax = rawMax.match(/^([\d.]+)([a-zA-Z%]+)$/);
+        if (matchMax && matchMax[1] !== undefined && matchMax[2] !== undefined) {
+          const unit = matchMax[2];
+          const val = parseFloat(matchMax[1]);
+          const sub = unit === 'px' ? 0.02 : 0.01;
+          const maxVal = (val - sub).toFixed(3).replace(/\.?0+$/, '');
+          return { isStatic: true, value: `@media (min-width: ${minStr}) and (max-width: ${maxVal}${unit})` };
+        }
+        return { isStatic: true, value: `@media (min-width: ${minStr}) and (max-width: ${maxBp})` };
+      }
 
       // Flex Layout Descriptor Mock
       if (funcName === 'css.flex') {

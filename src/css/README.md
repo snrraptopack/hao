@@ -222,6 +222,36 @@ When you compile the `ResponsiveBox` component, the compiler extracts the respon
    className="p_8px flex-dir_column sm:p_12px md:p_16px md:flex-dir_row lg:p_24px xl:p_32px 2xl:p_40px"
    ```
 
+#### Responsive Media Range Helpers
+
+When you need style rules to apply within specific bounds (rather than standard mobile-first `min-width` behavior that inherits upwards), you can define media query range blocks:
+
+* **`css.above(breakpoint)`**: Targets everything above or equal to `breakpoint`. Equivalent to `(min-width: X)`.
+* **`css.below(breakpoint)`**: Targets everything below `breakpoint` (automatically subtracts `0.02px`/`0.01rem` to avoid viewport overlap collisions).
+* **`css.between(min, max)`**: Targets screen widths between `min` and `max` (subtracting offset on the upper bound).
+* **`css.matchBreakpoint(breakpoint)`**: Targets only that specific breakpoint's window (e.g. `css.matchBreakpoint('md')` is exclusively for tablets, compiling to between `md` and `lg`).
+
+```tsx
+const styles = css.define({
+  // Desktop-only styles
+  [css.above('lg')]: {
+    maxWidth: css.px(1200)
+  },
+  // Mobile-only styles
+  [css.below('md')]: {
+    display: 'none'
+  },
+  // Tablet-only styles
+  [css.matchBreakpoint('md')]: {
+    padding: css.px(16)
+  },
+  // Bound range styles
+  [css.between('sm', 'lg')]: {
+    backgroundColor: css.color('#f3f4f6')
+  }
+});
+```
+
 ---
 
 ## 3. Composition & Defining Styles
@@ -465,14 +495,34 @@ Alternatively, if you prefer using typed helper functions or need dynamically co
 * **`css.children(selector)`**: Targets direct descendants. Resolves to `& > selector`.
 * **`css.pseudo(name)`**: Targets pseudo-classes and elements. Resolves to `&:${name}`.
 
+#### Advanced Chainable Selectors
+
+For highly expressive layouts, use chainable builders:
+* **`css.child(selector)`**: Direct child combinator (`& > selector`).
+* **`css.descendant(selector)`**: Descendant combinator (`& selector`).
+* **`css.sibling(selector)`**: Adjacent sibling combinator (`& + selector`).
+
+Each builder returns a `SelectorBuilder` supporting:
+* Getters: `.first`, `.last`, `.hover`, `.active`, `.focus`, `.before`, `.after`.
+* Methods: `.pseudo(name)`, `.nth(n)` (supports integers or strings like `'odd'`).
+
 ```ts
 const listStyles = css.define({
-  [css.pseudo('hover')]: {
+  // Direct child list items
+  [css.child('li')]: {
+    padding: '8px'
+  },
+  // Hovering over the first child list item
+  [css.child('li').first.hover]: {
     background: '#f3f4f6'
   },
-  [css.children('li')]: {
-    padding: '8px',
-    color: '#374151'
+  // Targeting span descendant
+  [css.descendant('span')]: {
+    fontWeight: 'bold'
+  },
+  // Targeting adjacent sibling div on focus
+  [css.sibling('div').pseudo('focus')]: {
+    borderColor: '#3b82f6'
   }
 });
 ```

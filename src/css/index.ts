@@ -11,7 +11,7 @@
  */
 
 // Main API object
-export { css, children, pseudo } from './css';
+export { css, children, pseudo, child, descendant, sibling, above, below, matchBreakpoint, between } from './css';
 
 // Types — re-exported for consumers who want to type function parameters
 export type {

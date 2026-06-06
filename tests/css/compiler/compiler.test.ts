@@ -232,4 +232,90 @@ describe('compileStyle engine', () => {
     expect(pseudoRule?.selector).toBe('.first-child\\:border-top_none:first-child');
     expect(pseudoRule?.declaration).toBe('.first-child\\:border-top_none:first-child { border-top: none; }');
   });
+
+  it('should compile advanced chainable selectors', () => {
+    const input = {
+      [css.child('li').first]: {
+        color: 'red'
+      },
+      [css.descendant('span').hover]: {
+        color: 'blue'
+      },
+      [css.sibling('div').pseudo('focus')]: {
+        color: 'green'
+      }
+    };
+    const { classes, rules } = compileStyle(input);
+
+    expect(classes).toContain('li:first-child:text_red');
+    expect(classes).toContain('span:hover:text_blue');
+    expect(classes).toContain('div:focus:text_green');
+
+    const rule1 = rules.find(r => r.className === 'li:first-child:text_red');
+    expect(rule1?.selector).toBe('.li\\:first-child\\:text_red > li:first-child');
+    expect(rule1?.declaration).toBe('.li\\:first-child\\:text_red > li:first-child { color: red; }');
+
+    const rule2 = rules.find(r => r.className === 'span:hover:text_blue');
+    expect(rule2?.selector).toBe('.span\\:hover\\:text_blue span:hover');
+    expect(rule2?.declaration).toBe('.span\\:hover\\:text_blue span:hover { color: blue; }');
+
+    const rule3 = rules.find(r => r.className === 'div:focus:text_green');
+    expect(rule3?.selector).toBe('.div\\:focus\\:text_green + div:focus');
+  });
+
+  it('should compile responsive media range query blocks', () => {
+    const input = {
+      [css.above('md')]: {
+        display: 'block'
+      },
+      [css.below('lg')]: {
+        display: 'none'
+      },
+      [css.matchBreakpoint('sm')]: {
+        display: 'flex'
+      },
+      [css.between('md', 'xl')]: {
+        display: 'grid'
+      }
+    };
+    const { classes, rules } = compileStyle(input);
+
+    const rule1 = rules.find(r => r.mediaQuery === '(min-width: 768px)');
+    expect(rule1).toBeDefined();
+    expect(rule1?.property).toBe('display');
+    expect(rule1?.value).toBe('block');
+
+    const rule2 = rules.find(r => r.mediaQuery === '(max-width: 1023.98px)');
+    expect(rule2).toBeDefined();
+    expect(rule2?.property).toBe('display');
+    expect(rule2?.value).toBe('none');
+
+    const rule3 = rules.find(r => r.mediaQuery === '(min-width: 640px) and (max-width: 767.98px)');
+    expect(rule3).toBeDefined();
+    expect(rule3?.property).toBe('display');
+    expect(rule3?.value).toBe('flex');
+
+    const rule4 = rules.find(r => r.mediaQuery === '(min-width: 768px) and (max-width: 1279.98px)');
+    expect(rule4).toBeDefined();
+    expect(rule4?.property).toBe('display');
+    expect(rule4?.value).toBe('grid');
+  });
+
+  it('should compile @import global statements', () => {
+    const input = {
+      '@import': 'url("https://fonts.googleapis.com/css2?family=Inter")',
+      display: 'block'
+    };
+    const { classes, rules } = compileStyle(input);
+
+    expect(classes).toContain('d_block');
+    expect(classes).not.toContain('');
+
+    const importRule = rules.find(r => r.property === '@import');
+    expect(importRule).toBeDefined();
+    expect(importRule?.declaration).toBe('@import url("https://fonts.googleapis.com/css2?family=Inter");');
+    expect(importRule?.className).toBe('');
+    expect(importRule?.selector).toBe('');
+  });
 });
+

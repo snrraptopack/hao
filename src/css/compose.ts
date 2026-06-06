@@ -147,3 +147,132 @@ export function children(selector: string): string {
 export function pseudo(name: string): string {
   return `&:${name}`;
 }
+
+// ---------------------------------------------------------------------------
+// Advanced Selectors & Responsive Range Helpers
+// ---------------------------------------------------------------------------
+
+const BREAKPOINTS: Record<string, string> = {
+  sm: '640px',
+  md: '768px',
+  lg: '1024px',
+  xl: '1280px',
+  '2xl': '1536px',
+};
+
+export type SelectorBuilder = string & {
+  readonly first: SelectorBuilder;
+  readonly last: SelectorBuilder;
+  readonly hover: SelectorBuilder;
+  readonly active: SelectorBuilder;
+  readonly focus: SelectorBuilder;
+  readonly before: SelectorBuilder;
+  readonly after: SelectorBuilder;
+  pseudo(name: string): SelectorBuilder;
+  nth(n: number | string): SelectorBuilder;
+};
+
+class SelectorBuilderImpl {
+  private parts: string[];
+
+  constructor(parts: string[]) {
+    this.parts = parts;
+  }
+
+  get first(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, ':first-child']) as unknown as SelectorBuilder; }
+  get last(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, ':last-child']) as unknown as SelectorBuilder; }
+  get hover(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, ':hover']) as unknown as SelectorBuilder; }
+  get active(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, ':active']) as unknown as SelectorBuilder; }
+  get focus(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, ':focus']) as unknown as SelectorBuilder; }
+  get before(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, '::before']) as unknown as SelectorBuilder; }
+  get after(): SelectorBuilder { return new SelectorBuilderImpl([...this.parts, '::after']) as unknown as SelectorBuilder; }
+
+  pseudo(name: string): SelectorBuilder {
+    return new SelectorBuilderImpl([...this.parts, `:${name}`]) as unknown as SelectorBuilder;
+  }
+
+  nth(n: number | string): SelectorBuilder {
+    return new SelectorBuilderImpl([...this.parts, `:nth-child(${n})`]) as unknown as SelectorBuilder;
+  }
+
+  toString(): string {
+    return this.parts.join('');
+  }
+}
+
+export function child(selector: string): SelectorBuilder {
+  return new SelectorBuilderImpl(['& > ', selector]) as unknown as SelectorBuilder;
+}
+
+export function descendant(selector: string): SelectorBuilder {
+  return new SelectorBuilderImpl(['& ', selector]) as unknown as SelectorBuilder;
+}
+
+export function sibling(selector: string): SelectorBuilder {
+  return new SelectorBuilderImpl(['& + ', selector]) as unknown as SelectorBuilder;
+}
+
+function getBreakpointValue(bp: string): { value: number; unit: string } | null {
+  const raw = BREAKPOINTS[bp] || bp;
+  const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
+  if (match && match[1] !== undefined && match[2] !== undefined) {
+    return { value: parseFloat(match[1]), unit: match[2] };
+  }
+  return null;
+}
+
+export function above(bp: string): string {
+  const parsed = getBreakpointValue(bp);
+  if (parsed) {
+    return `@media (min-width: ${parsed.value}${parsed.unit})`;
+  }
+  return `@media (min-width: ${bp})`;
+}
+
+export function below(bp: string): string {
+  const parsed = getBreakpointValue(bp);
+  if (parsed) {
+    const subtractVal = parsed.unit === 'px' ? 0.02 : 0.01;
+    const maxVal = Number((parsed.value - subtractVal).toFixed(3));
+    return `@media (max-width: ${maxVal}${parsed.unit})`;
+  }
+  return `@media (max-width: ${bp})`;
+}
+
+export function matchBreakpoint(bp: string): string {
+  const parsedMin = getBreakpointValue(bp);
+  if (!parsedMin) {
+    return `@media (min-width: ${bp})`;
+  }
+
+  const keys = Object.keys(BREAKPOINTS);
+  const idx = keys.indexOf(bp);
+  if (idx !== -1 && idx < keys.length - 1) {
+    const nextBp = keys[idx + 1];
+    if (nextBp) {
+      const parsedMax = getBreakpointValue(nextBp);
+      if (parsedMax) {
+        const subtractVal = parsedMax.unit === 'px' ? 0.02 : 0.01;
+        const maxVal = Number((parsedMax.value - subtractVal).toFixed(3));
+        return `@media (min-width: ${parsedMin.value}${parsedMin.unit}) and (max-width: ${maxVal}${parsedMax.unit})`;
+      }
+    }
+  }
+
+  return `@media (min-width: ${parsedMin.value}${parsedMin.unit})`;
+}
+
+export function between(minBp: string, maxBp: string): string {
+  const parsedMin = getBreakpointValue(minBp);
+  const parsedMax = getBreakpointValue(maxBp);
+
+  const minStr = parsedMin ? `${parsedMin.value}${parsedMin.unit}` : minBp;
+  
+  if (parsedMax) {
+    const subtractVal = parsedMax.unit === 'px' ? 0.02 : 0.01;
+    const maxVal = Number((parsedMax.value - subtractVal).toFixed(3));
+    return `@media (min-width: ${minStr}) and (max-width: ${maxVal}${parsedMax.unit})`;
+  }
+  
+  return `@media (min-width: ${minStr}) and (max-width: ${maxBp})`;
+}

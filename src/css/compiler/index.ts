@@ -9,7 +9,7 @@
  */
 
 import { expandShorthands } from './shorthands';
-import { toClassName, getPropertyKey, valueToString } from './class-names';
+import { toClassName, getPropertyKey, valueToString, sanitizeValue } from './class-names';
 
 export { expandShorthands } from './shorthands';
 export { toClassName, PROPERTY_MAP, getPropertyKey, sanitizeValue, valueToString } from './class-names';
@@ -65,7 +65,8 @@ function toCSSProperty(prop: string): string {
 export function compileStyle(
   style: Record<string, any>,
   outerModifier?: string,
-  nestingSelector: string = '&'
+  nestingSelector: string = '&',
+  inheritedMediaQuery?: string
 ): CompiledStyles {
   const classes: string[] = [];
   const rules: CompiledStyles['rules'] = [];
@@ -76,6 +77,38 @@ export function compileStyle(
   // 2. Iterate through all properties in the style object
   for (const [key, value] of Object.entries(expandedStyle)) {
     if (value === null || value === undefined) continue;
+
+    // Check if it's a global import rule
+    if (key === '@import') {
+      const imports = Array.isArray(value) ? value : [value];
+      for (const imp of imports) {
+        if (imp === null || imp === undefined) continue;
+        const strVal = String(imp).trim();
+        const declaration = strVal.endsWith(';') ? `@import ${strVal}` : `@import ${strVal};`;
+        rules.push({
+          className: '',
+          selector: '',
+          property: '@import',
+          value: strVal,
+          declaration,
+        });
+      }
+      continue;
+    }
+
+    // Check if it's a media query block
+    if (key.startsWith('@media ')) {
+      const mediaQuery = key.slice(7).trim();
+      const bpModifier = 'media-' + sanitizeValue(mediaQuery);
+      const subModifier = outerModifier
+        ? `${bpModifier}:${outerModifier}`
+        : bpModifier;
+
+      const subResult = compileStyle(value, subModifier, nestingSelector, mediaQuery);
+      classes.push(...subResult.classes);
+      rules.push(...subResult.rules);
+      continue;
+    }
 
     // Check if it's a nesting selector block (starts with ':' or '&')
     if (key.startsWith(':') || key.startsWith('&')) {
@@ -91,7 +124,7 @@ export function compileStyle(
         ? `${outerModifier}:${modifierPart}`
         : modifierPart;
 
-      const subResult = compileStyle(value, subModifier, subNestingSelector);
+      const subResult = compileStyle(value, subModifier, subNestingSelector, inheritedMediaQuery);
       classes.push(...subResult.classes);
       rules.push(...subResult.rules);
       continue;
@@ -128,7 +161,7 @@ export function compileStyle(
             : outerModifier
           : bpModifier;
 
-        const subResult = compileProperty(key, bpVal, finalModifier, nestingSelector);
+        const subResult = compileProperty(key, bpVal, finalModifier, nestingSelector, inheritedMediaQuery);
         if (subResult) {
           classes.push(subResult.className);
           rules.push(subResult.rule);
@@ -138,7 +171,7 @@ export function compileStyle(
     }
 
     // Standard single property-value pair
-    const subResult = compileProperty(key, value, outerModifier, nestingSelector);
+    const subResult = compileProperty(key, value, outerModifier, nestingSelector, inheritedMediaQuery);
     if (subResult) {
       classes.push(subResult.className);
       rules.push(subResult.rule);
@@ -155,7 +188,8 @@ function compileProperty(
   prop: string,
   value: any,
   modifier?: string,
-  nestingSelector: string = '&'
+  nestingSelector: string = '&',
+  inheritedMediaQuery?: string
 ): { className: string; rule: CSSRule } | null {
   const className = toClassName(prop, value, modifier);
   if (!className) return null;
@@ -167,9 +201,9 @@ function compileProperty(
   const escapedClass = escapeClassName(className);
   const selector = nestingSelector.replace(/&/g, `.${escapedClass}`);
 
-  let mediaQuery: string | undefined;
+  let mediaQuery: string | undefined = inheritedMediaQuery;
 
-  if (modifier) {
+  if (!mediaQuery && modifier) {
     const parts = modifier.split(/(?<!:):(?!:)/);
     for (const part of parts) {
       const cleanPart = part.replace(/^[:\s>+~]+|[:\s>+~]+$/g, '');

@@ -46,10 +46,13 @@ export class ViteCSSHandler {
         allRules.push(...fileRules.values());
       }
 
-      const baseRules = allRules.filter((r) => !r.trim().startsWith('@media'));
-      const mediaRules = allRules.filter((r) => r.trim().startsWith('@media'));
+      const importRules = Array.from(new Set(allRules.filter((r) => r.trim().startsWith('@import'))));
+      const remainingRules = allRules.filter((r) => !r.trim().startsWith('@import'));
 
-      return [...baseRules, ...mediaRules].join('\n');
+      const baseRules = remainingRules.filter((r) => !r.trim().startsWith('@media'));
+      const mediaRules = remainingRules.filter((r) => r.trim().startsWith('@media'));
+
+      return [...importRules, ...baseRules, ...mediaRules].join('\n');
     }
     return null;
   }
@@ -66,7 +69,7 @@ export class ViteCSSHandler {
     const fileRules = new Map<string, string>();
 
     const compiled = compileCSS(code, filepath, (className, declaration, mediaQuery) => {
-      const ruleKey = mediaQuery ? `${mediaQuery}::${className}` : className;
+      const ruleKey = className === '' ? declaration : (mediaQuery ? `${mediaQuery}::${className}` : className);
       const ruleVal = mediaQuery
         ? `@media (${mediaQuery}) {\n  ${declaration}\n}`
         : declaration;

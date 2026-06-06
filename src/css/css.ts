@@ -42,7 +42,7 @@
 import * as units from './units';
 import * as colorModule from './color';
 import * as valuesModule from './values';
-import { merge, extend, define, children, pseudo } from './compose';
+import { merge, extend, define, children, pseudo, child, descendant, sibling, above, below, matchBreakpoint, between } from './compose';
 import { when, match, mergeWhen } from './conditionals';
 import * as tokensModule from './tokens';
 import { resolve } from './serialize';
@@ -116,6 +116,13 @@ css.extend = extend;
 css.define = define;
 css.children = children;
 css.pseudo   = pseudo;
+css.child = child;
+css.descendant = descendant;
+css.sibling = sibling;
+css.above = above;
+css.below = below;
+css.matchBreakpoint = matchBreakpoint;
+css.between = between;
 
 // Conditionals
 css.when      = when;
@@ -136,6 +143,6 @@ css.spring    = tokensModule.spring;
 // discoverability. Individual imports are available for advanced use cases.
 // ---------------------------------------------------------------------------
 
-export { css, children, pseudo };
+export { css, children, pseudo, child, descendant, sibling, above, below, matchBreakpoint, between };
 
 export type { ResolvedStyle, StyleObject };

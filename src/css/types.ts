@@ -404,6 +404,7 @@ interface PropertyValueMap {
 
   grid?: GridDescriptor | string;
   flex?: FlexDescriptor | string;
+  '@import'?: string | ReadonlyArray<string>;
 }
 
 export type StyleObject = Partial<{
