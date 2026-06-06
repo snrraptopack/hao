@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { auwla } from 'auwla/vite';
+import { auwla } from './src/vite';
 
 export default defineConfig({
   build: {
