@@ -9,6 +9,7 @@ import {
   isActive,
 } from "auwla/router"
 import './index.css'
+import 'virtual:auwla.css';
 
 // Simple examples
 import { ExampleApp } from "./main"

@@ -7,15 +7,19 @@
 
 import type { ViteDevServer } from 'vite';
 import { compileCSS } from './css/compiler/css-compiler';
+import fs from 'fs';
+import path from 'path';
 
 export class ViteCSSHandler {
   // Nested map registry: filepath -> ruleKey -> ruleVal
   private registry = new Map<string, Map<string, string>>();
   private server?: ViteDevServer;
   private enabled: boolean;
+  private debug: boolean;
 
-  constructor(enabled: boolean) {
+  constructor(enabled: boolean, debug: boolean = false) {
     this.enabled = enabled;
+    this.debug = debug;
   }
 
   /**
@@ -49,10 +53,64 @@ export class ViteCSSHandler {
       const importRules = Array.from(new Set(allRules.filter((r) => r.trim().startsWith('@import'))));
       const remainingRules = allRules.filter((r) => !r.trim().startsWith('@import'));
 
-      const baseRules = remainingRules.filter((r) => !r.trim().startsWith('@media'));
-      const mediaRules = remainingRules.filter((r) => r.trim().startsWith('@media'));
+      const baseRules = remainingRules.filter((r) => 
+        !r.trim().startsWith('@media') && 
+        (r.includes('html') || r.includes('body') || r.includes('* ') || r.includes('*:'))
+      );
 
-      return [...importRules, ...baseRules, ...mediaRules].join('\n');
+      const componentRules: string[] = [];
+      const utilityRules: string[] = [];
+
+      for (const r of remainingRules) {
+        if (baseRules.includes(r)) continue;
+
+        const isComponent = !r.trim().startsWith('@media') && (
+          r.includes(' > ') || 
+          r.includes(' + ') || 
+          r.includes(' ~ ') || 
+          r.includes('::before') || 
+          r.includes('::after') ||
+          r.includes('::placeholder')
+        );
+
+        if (isComponent) {
+          componentRules.push(r);
+        } else {
+          utilityRules.push(r);
+        }
+      }
+
+      const flatUtilities = utilityRules.filter((r) => !r.trim().startsWith('@media'));
+      const mediaUtilities = utilityRules.filter((r) => r.trim().startsWith('@media'));
+
+      const cssContent = [
+        ...importRules,
+        `@layer base, components, utilities;`,
+        `@layer base {`,
+        baseRules.join('\n'),
+        `}`,
+        `@layer components {`,
+        componentRules.join('\n'),
+        `}`,
+        `@layer utilities {`,
+        flatUtilities.join('\n'),
+        mediaUtilities.join('\n'),
+        `}`
+      ].join('\n');
+
+      if (this.debug) {
+        try {
+          const dir = path.resolve(process.cwd(), '.auwla');
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          fs.writeFileSync(path.join(dir, 'compiled.css'), cssContent, 'utf-8');
+        } catch (err) {
+          console.error('[auwla:css] Failed to write debug CSS file:', err);
+        }
+      }
+
+      return cssContent;
     }
     return null;
   }

@@ -34,7 +34,7 @@ export default defineConfig({
     open: true
   },
   appType: "spa" ,
-  plugins: [auwla({ debugFlag: true })],
+  plugins: [auwla({ debugFlag: true ,css:true})],
   assetsInclude: [],
   optimizeDeps: {
     exclude: [],

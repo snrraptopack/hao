@@ -25,7 +25,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
   const exclude = options.exclude;
   
   // Instantiate the modular CSS handler
-  const cssHandler = new ViteCSSHandler(!!options.css);
+  const cssHandler = new ViteCSSHandler(!!options.css, !!options.debugFlag);
 
   return {
     name: 'auwla',

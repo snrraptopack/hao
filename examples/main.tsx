@@ -2,14 +2,6 @@ import {component, emit, reactive } from 'auwla';
 import './styles.css';
 import { css } from 'auwla/css';
 
-let con = true
-const style = css.define({
-  padding: css.when(con, {
-    true: css.px(10),
-    false: css.px(20)
-  }),
-  background: { base: css.color(""), lg: css.color("") },
-})
 
 
 const state:any = {

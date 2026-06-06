@@ -533,6 +533,11 @@ const listStyles = css.define({
 
 At build time, the Vite plugin (`auwla`) performs the following:
 1. **Extracts CSS rules**: Resolves design tokens, color manipulations, and arithmetic into plain CSS rules.
-2. **Aggregates virtual module**: Serves rules via `virtual:auwla.css` sorted correctly (base classes first, media queries/nested selectors last to respect specificity).
-3. **Optimizes output**: Merges extracted classNames with existing inline static or dynamic class strings in TSX templates.
-4. **HMR Garbage Collection**: Tracks rules by file and removes old CSS declarations during active development hot reloads.
+2. **Organizes via Cascade Layers**: Rules are grouped into native CSS Cascade Layers to guarantee conflict-free overrides:
+   * `@layer base` — Global resets, imports, and core element styles (e.g. `html`, `body`).
+   * `@layer components` — Reusable component-specific nested selectors (e.g., `.parent > .child`, pseudo-elements `::before`).
+   * `@layer utilities` — Atomic utility class styles (with responsive and stateful modifiers sorted chronologically at the bottom of the layer).
+3. **Aggregates virtual module**: Serves rules via `virtual:auwla.css` structured under `@layer base, components, utilities`.
+4. **Debug File Writer**: If `debugFlag: true` is set in the Vite config, a local copy of the compiled stylesheet is automatically written to `.auwla/compiled.css` in the project root for easy editor syntax highlighting and inspection.
+5. **Optimizes output**: Merges extracted classNames with existing inline static or dynamic class strings in TSX templates.
+6. **HMR Garbage Collection**: Tracks rules by file and removes old CSS declarations during active development hot reloads.

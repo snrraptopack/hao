@@ -1,6 +1,14 @@
 import { component, commit } from 'auwla';
 import { event } from 'auwla/events';
-import type {} from 'auwla/jsx-runtime';
+import type { } from 'auwla/jsx-runtime';
+import { css } from "auwla/css"
+
+const expand = css.define((props: { isMoving: boolean }) => ({
+  width: css.when(props.isMoving, {
+    true: css.px(20),
+      false: css.px(10)
+  })
+}))
 
 /**
  * Interactive Touch and Advanced Modifiers demo.
@@ -30,6 +38,7 @@ export function TouchModifiersDemo() {
   // 2. Swipe detection (for touch.moved)
   let swipeDirection = 'None';
   let swipeCount = 0;
+  let isMoving = false
 
   // 3. Silent & render counts (for silent modifier demo)
   let renderCount = 0;
@@ -69,11 +78,10 @@ export function TouchModifiersDemo() {
         >
           {/* Card synced with offset */}
           <div
-            style={{
+            style={css({
               position: 'absolute',
               left: `${rawPosition.x}px`,
               top: `${rawPosition.y}px`,
-              width: '80px',
               height: '80px',
               background: 'linear-gradient(135deg, var(--color-accent), #4f46e5)',
               color: '#ffffff',
@@ -85,10 +93,16 @@ export function TouchModifiersDemo() {
               fontWeight: 'bold',
               cursor: 'grab',
               userSelect: 'none',
-              boxShadow: '0 4px 12px rgba(31, 111, 235, 0.3)'
-            }}
-            onTouch={event.touch.sync(rawPosition, 'x', 'y').handler(() => {
+              boxShadow: '0 4px 12px rgba(31, 111, 235, 0.3)',
+              width: css.when(isMoving,{true:css.px(100),false:css.px(80)})
             })}
+            onTouch={event.touch.sync(rawPosition, 'x', 'y').handler(() => {
+              isMoving = true
+            })}
+            onTouchEnd={() => {
+              isMoving = false
+              console.log("end")
+            }}
           >
             sync
           </div>
