@@ -273,7 +273,7 @@ describe('auwla vite plugin - css extraction', () => {
     `;
     const resultStyle = transform(plugin, codeStyle, path.resolve(__dirname, 'CardStyle.tsx'));
     const codeStrStyle = resultStyle && 'code' in resultStyle ? resultStyle.code : '';
-    expect(codeStrStyle).toContain('__setClass(el0, ({ "primary": "bg_blue", "secondary": "bg_gray" })[props.variant])');
+    expect(codeStrStyle).toContain('__setClass(el0, (({ "primary": "bg_blue", "secondary": "bg_gray" })[props.variant] || ""))');
 
     const codeClassName = `
       import { css } from 'auwla/css';
@@ -283,7 +283,7 @@ describe('auwla vite plugin - css extraction', () => {
     `;
     const resultClassName = transform(plugin, codeClassName, path.resolve(__dirname, 'CardClassName.tsx'));
     const codeStrClassName = resultClassName && 'code' in resultClassName ? resultClassName.code : '';
-    expect(codeStrClassName).toContain('__setClass(el0, `card ${({ "primary": "text_white", "secondary": "text_black" })[props.variant]}`)');
+    expect(codeStrClassName).toContain('__setClass(el0, `card ${(({ "primary": "text_white", "secondary": "text_black" })[props.variant] || "")}`)');
   });
 
   test('compiles dynamic properties inside nested selectors into CSS custom variables', () => {
@@ -503,6 +503,33 @@ describe('auwla vite plugin - css extraction', () => {
     const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
     expect(cssContent).toContain('.text_');
     expect(cssContent).toContain('.bg_');
+  });
+
+  test('combines nested media queries using the "and" operator', () => {
+    const plugin = auwla({ css: true });
+    const code = `
+      import { css } from 'auwla/css';
+      function Card() {
+        return () => (
+          <div style={css({
+            '@media (min-width: 500px)': {
+              '@media (max-width: 800px)': {
+                color: 'red'
+              }
+            }
+          })} />
+        );
+      }
+    `;
+
+    transform(plugin, code, path.resolve(__dirname, 'NestedMediaCard.tsx'));
+
+    const loadHook = plugin.load;
+    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
+    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    
+    expect(cssContent).toContain('@media ((min-width: 500px) and (max-width: 800px))');
+    expect(cssContent).toContain('color: red;');
   });
 });
 

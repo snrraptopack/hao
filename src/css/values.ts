@@ -15,8 +15,6 @@ import type {
   Border,
   CalcExpression,
   Color,
-  FlexDescriptor,
-  GridDescriptor,
   Length,
   Shadow,
   Time,
@@ -277,112 +275,6 @@ export function ease(
   return map[name] ?? 'ease';
 }
 
-// ---------------------------------------------------------------------------
-// Grid
-// ---------------------------------------------------------------------------
-
-export type GridOptions = {
-  columns?: Array<Length | CalcExpression | 'auto'>;
-  rows?: Array<Length | CalcExpression | 'auto'>;
-  areas?: Array<Array<string>>;
-  gap?: Length;
-  columnGap?: Length;
-  rowGap?: Length;
-};
-
-/**
- * Create a typed CSS grid descriptor.
- * Call `.toProperties()` to get a `Record<string, string>` to spread into a style object.
- *
- * @example
- * css.grid({
- *   columns: [css.fr(1), css.px(300)],
- *   rows:    [css.auto(), css.fr(1)],
- *   gap:     css.px(16),
- * }).toProperties()
- * // → { display: 'grid', gridTemplateColumns: '1fr 300px', … }
- */
-export function grid(options: GridOptions): GridDescriptor {
-  return {
-    _tag: 'Grid',
-    columns: options.columns ?? [],
-    rows: options.rows ?? [],
-    areas: options.areas,
-    gap: options.gap,
-    columnGap: options.columnGap,
-    rowGap: options.rowGap,
-
-    toProperties(): Record<string, string> {
-      const props: Record<string, string> = { display: 'grid' };
-
-      if (this.columns.length > 0)
-        props['gridTemplateColumns'] = this.columns.map(String).join(' ');
-      if (this.rows.length > 0)
-        props['gridTemplateRows'] = this.rows.map(String).join(' ');
-      if (this.areas)
-        props['gridTemplateAreas'] = this.areas
-          .map((row) => `"${row.join(' ')}"`)
-          .join(' ');
-      if (this.gap)
-        props['gap'] = this.gap.toString();
-      if (this.columnGap)
-        props['columnGap'] = this.columnGap.toString();
-      if (this.rowGap)
-        props['rowGap'] = this.rowGap.toString();
-
-      return props;
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Flex
-// ---------------------------------------------------------------------------
-
-export type FlexOptions = {
-  direction?: FlexDescriptor['direction'];
-  wrap?: boolean | 'reverse';
-  gap?: Length;
-  align?: string;
-  justify?: string;
-};
-
-/**
- * Create a typed CSS flex descriptor.
- * Call `.toProperties()` to get a `Record<string, string>` to spread into a style object.
- *
- * @example
- * css.flex({ direction: 'row', gap: theme.spacing.md, align: 'center' }).toProperties()
- * // → { display: 'flex', flexDirection: 'row', gap: '…', alignItems: 'center' }
- */
-export function flex(options: FlexOptions): FlexDescriptor {
-  return {
-    _tag: 'Flex',
-    direction: options.direction,
-    wrap: options.wrap,
-    gap: options.gap,
-    align: options.align,
-    justify: options.justify,
-
-    toProperties(): Record<string, string> {
-      const props: Record<string, string> = { display: 'flex' };
-
-      if (this.direction) props['flexDirection'] = this.direction;
-
-      if (this.wrap !== undefined) {
-        if (this.wrap === true) props['flexWrap'] = 'wrap';
-        else if (this.wrap === 'reverse') props['flexWrap'] = 'wrap-reverse';
-        else props['flexWrap'] = 'nowrap';
-      }
-
-      if (this.gap) props['gap'] = this.gap.toString();
-      if (this.align) props['alignItems'] = this.align;
-      if (this.justify) props['justifyContent'] = this.justify;
-
-      return props;
-    },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Outline (used in focus rings)

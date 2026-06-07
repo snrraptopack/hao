@@ -2,7 +2,7 @@ import ts from 'typescript';
 import path from 'path';
 import fs from 'fs';
 import { compileStyle } from './index';
-import { evalNode, cleanVarName } from './evaluator';
+import { evalNode } from './evaluator';
 import { getThemeObject, resolveThemeFile } from './theme-resolver';
 
 export interface CSSRuleCallback {
@@ -119,6 +119,138 @@ function isElementGroupStyle(evaluatedValue: any): boolean {
   });
 }
 
+// Module-level caches to avoid repeating file reads and AST parses
+export const exportedStylesCache = new Map<string, Record<string, any>>();
+export const fileFactoriesCache = new Map<string, Set<string>>();
+
+export function clearReplacerCache() {
+  exportedStylesCache.clear();
+  fileFactoriesCache.clear();
+}
+
+function getExportedFactories(resolvedPath: string): Set<string> {
+  if (fileFactoriesCache.has(resolvedPath)) {
+    return fileFactoriesCache.get(resolvedPath)!;
+  }
+
+  const exportedDefines = new Set<string>();
+  try {
+    const content = fs.readFileSync(resolvedPath, 'utf8');
+    const importedSource = ts.createSourceFile(
+      resolvedPath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+
+    for (const s of importedSource.statements) {
+      if (ts.isVariableStatement(s)) {
+        const isExported = s.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
+        if (isExported) {
+          for (const decl of s.declarationList.declarations) {
+            if (ts.isIdentifier(decl.name) && decl.initializer) {
+              let init = decl.initializer;
+              if (ts.isAsExpression(init)) {
+                init = init.expression;
+              }
+              if (ts.isCallExpression(init)) {
+                const initText = init.expression.getText(importedSource).trim();
+                if (initText === 'css.define' || initText === 'define') {
+                  exportedDefines.add(decl.name.text);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore
+  }
+
+  fileFactoriesCache.set(resolvedPath, exportedDefines);
+  return exportedDefines;
+}
+
+function getExportedStyles(
+  resolvedPath: string,
+  themeValues: Map<string, any>
+): Record<string, any> {
+  if (exportedStylesCache.has(resolvedPath)) {
+    return exportedStylesCache.get(resolvedPath)!;
+  }
+
+  try {
+    const content = fs.readFileSync(resolvedPath, 'utf8');
+    const source = ts.createSourceFile(
+      resolvedPath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+    const localScope = new Map<string, any>();
+    const unresolved = new Map<string, ts.Expression>();
+    const exports: Record<string, any> = {};
+
+    // Collect all local variables
+    for (const stmt of source.statements) {
+      if (ts.isVariableStatement(stmt)) {
+        for (const decl of stmt.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name) && decl.initializer) {
+            unresolved.set(decl.name.text, decl.initializer);
+          }
+        }
+      }
+    }
+
+    // Fixed-point evaluation loop to support forward references
+    let resolvedAny = true;
+    while (resolvedAny && unresolved.size > 0) {
+      resolvedAny = false;
+      for (const [name, initializer] of unresolved.entries()) {
+        const evalRes = evalNode(
+          initializer,
+          source,
+          themeValues,
+          undefined,
+          localScope
+        );
+        if (evalRes.isStatic) {
+          localScope.set(name, evalRes.value);
+          unresolved.delete(name);
+          resolvedAny = true;
+        }
+      }
+    }
+
+    // Find and grab exported variable values
+    for (const stmt of source.statements) {
+      if (ts.isVariableStatement(stmt)) {
+        const isExported = stmt.modifiers?.some(
+          (m) => m.kind === ts.SyntaxKind.ExportKeyword
+        );
+        if (isExported) {
+          for (const decl of stmt.declarationList.declarations) {
+            if (ts.isIdentifier(decl.name)) {
+              const name = decl.name.text;
+              if (localScope.has(name)) {
+                exports[name] = localScope.get(name);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    exportedStylesCache.set(resolvedPath, exports);
+    return exports;
+  } catch (e) {
+    return {};
+  }
+}
+
 function findStyleFactoriesInImports(
   source: ts.SourceFile,
   fileName: string
@@ -132,51 +264,21 @@ function findStyleFactoriesInImports(
       
       const resolvedPath = resolveThemeFile(dir, moduleSpecifier);
       if (resolvedPath) {
-        try {
-          const content = fs.readFileSync(resolvedPath, 'utf8');
-          const importedSource = ts.createSourceFile(
-            resolvedPath,
-            content,
-            ts.ScriptTarget.Latest,
-            true,
-            ts.ScriptKind.TSX
-          );
-
-          const exportedDefines = new Set<string>();
-          for (const s of importedSource.statements) {
-            if (ts.isVariableStatement(s)) {
-              const isExported = s.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
-              if (isExported) {
-                for (const decl of s.declarationList.declarations) {
-                  if (ts.isIdentifier(decl.name) && decl.initializer) {
-                    let init = decl.initializer;
-                    if (ts.isAsExpression(init)) {
-                      init = init.expression;
-                    }
-                    if (ts.isCallExpression(init)) {
-                      const initText = init.expression.getText(importedSource).trim();
-                      if (initText === 'css.define' || initText === 'define') {
-                        exportedDefines.add(decl.name.text);
-                      }
-                    }
-                  }
-                }
-              }
+        const exportedDefines = getExportedFactories(resolvedPath);
+        const clause = stmt.importClause;
+        if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+          for (const element of clause.namedBindings.elements) {
+            const localName = element.name.text;
+            const propertyName = element.propertyName ? element.propertyName.text : localName;
+            if (exportedDefines.has(propertyName)) {
+              factories.add(localName);
             }
           }
-
-          const clause = stmt.importClause;
-          if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
-            for (const element of clause.namedBindings.elements) {
-              const localName = element.name.text;
-              const propertyName = element.propertyName ? element.propertyName.text : localName;
-              if (exportedDefines.has(propertyName)) {
-                factories.add(localName);
-              }
-            }
+        }
+        if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+          if (exportedDefines.size > 0) {
+            factories.add(clause.namedBindings.name.text);
           }
-        } catch (e) {
-          // Ignore resolution/read errors
         }
       }
     }
@@ -240,34 +342,58 @@ export function findCSSReplacements(
 ): Replacement[] {
   const replacements: Replacement[] = [];
   const themeValues = new Map<string, any>();
+  const localScope = new Map<string, any>();
   const dir = path.dirname(fileName);
 
   // Register all imported and local css.define style factories
   const factories = findStyleFactoriesInImports(source, fileName);
 
-  // Scan import statements for theme imports
+  // Scan import statements for theme and style imports
   for (const stmt of source.statements) {
     if (ts.isImportDeclaration(stmt) && stmt.importClause) {
       const moduleSpecifier = (stmt.moduleSpecifier as ts.StringLiteral).text;
       const clause = stmt.importClause;
 
+      // Check for Namespace Import (* as styles)
+      if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+        const localName = clause.namedBindings.name.text;
+        const resolvedPath = resolveThemeFile(dir, moduleSpecifier);
+        if (resolvedPath) {
+          const importedExports = getExportedStyles(resolvedPath, themeValues);
+          localScope.set(localName, importedExports);
+        }
+      }
+
+      // Check for Named Imports ({ globalLayout, theme })
       if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+        const resolvedPath = resolveThemeFile(dir, moduleSpecifier);
+        let importedExports: Record<string, any> | null = null;
+
         for (const element of clause.namedBindings.elements) {
           const localName = element.name.text;
           const propertyName = element.propertyName ? element.propertyName.text : localName;
 
           if (propertyName === 'theme') {
-            const resolvedPath = resolveThemeFile(dir, moduleSpecifier);
             if (resolvedPath) {
               const themeObj = getThemeObject(resolvedPath);
               if (themeObj) {
                 themeValues.set(localName, themeObj);
               }
             }
+          } else {
+            if (resolvedPath) {
+              if (!importedExports) {
+                importedExports = getExportedStyles(resolvedPath, themeValues);
+              }
+              if (propertyName in importedExports) {
+                localScope.set(localName, importedExports[propertyName]);
+              }
+            }
           }
         }
       }
 
+      // Check for default import (import theme from './theme')
       if (clause.name) {
         const localName = clause.name.text;
         if (localName === 'theme') {
@@ -283,7 +409,6 @@ export function findCSSReplacements(
     }
   }
   // Build a local scope of static variables defined in this file
-  const localScope = new Map<string, any>();
   for (const stmt of source.statements) {
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
@@ -300,7 +425,7 @@ export function findCSSReplacements(
   function visit(node: ts.Node) {
     if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name)) {
       const attrName = node.name.text;
-      if (attrName === 'style' || attrName === 'className') {
+      if (attrName === 'style' || attrName === 'className' || attrName === 'class') {
         const init = node.initializer;
         if (init && ts.isJsxExpression(init) && init.expression) {
           const expr = init.expression;
@@ -332,10 +457,10 @@ export function findCSSReplacements(
 
                 let replacementText = '';
                 if (existing.isExpression) {
-                  replacementText = `className={\`\${${existing.text}} \${${factoryExprText}}\`}`;
+                  replacementText = `class={\`\${${existing.text}} \${${factoryExprText}}\`}`;
                 } else {
                   const merged = existing.text ? `${existing.text} \${${factoryExprText}}` : `\${${factoryExprText}}`;
-                  replacementText = `className={\`${merged}\`}`;
+                  replacementText = `class={\`${merged}\`}`;
                 }
                 replacements.push({
                   start: existing.node.getStart(source),
@@ -346,7 +471,7 @@ export function findCSSReplacements(
                 replacements.push({
                   start: node.getStart(source),
                   end: node.getEnd(),
-                  text: `className={${factoryExprText}}`,
+                  text: `class={${factoryExprText}}`,
                 });
               }
             }
@@ -404,10 +529,10 @@ export function findCSSReplacements(
 
                       let replacementText = '';
                       if (existing.isExpression) {
-                        replacementText = `className={\`\${${existing.text}} \${${ternaryExpr}}\`}`;
+                        replacementText = `class={\`\${${existing.text}} \${${ternaryExpr}}\`}`;
                       } else {
                         const merged = existing.text ? `${existing.text} \${${ternaryExpr}}` : `\${${ternaryExpr}}`;
-                        replacementText = `className={\`${merged}\`}`;
+                        replacementText = `class={\`${merged}\`}`;
                       }
                       replacements.push({
                         start: existing.node.getStart(source),
@@ -418,7 +543,7 @@ export function findCSSReplacements(
                       replacements.push({
                         start: node.getStart(source),
                         end: node.getEnd(),
-                        text: `className={${ternaryExpr}}`,
+                        text: `class={${ternaryExpr}}`,
                       });
                     }
                   } else {
@@ -434,10 +559,10 @@ export function findCSSReplacements(
                       // Merge with the other existing one
                       let replacementText = '';
                       if (existing.isExpression) {
-                        replacementText = `className={\`\${${existing.text}} \${${ternaryExpr}}\`}`;
+                        replacementText = `class={\`\${${existing.text}} \${${ternaryExpr}}\`}`;
                       } else {
                         const merged = existing.text ? `${existing.text} \${${ternaryExpr}}` : `\${${ternaryExpr}}`;
-                        replacementText = `className={\`${merged}\`}`;
+                        replacementText = `class={\`${merged}\`}`;
                       }
                       replacements.push({
                         start: existing.node.getStart(source),
@@ -448,7 +573,7 @@ export function findCSSReplacements(
                       replacements.push({
                         start: node.getStart(source),
                         end: node.getEnd(),
-                        text: `className={${ternaryExpr}}`,
+                        text: `class={${ternaryExpr}}`,
                       });
                     }
                   }
@@ -487,7 +612,7 @@ export function findCSSReplacements(
 
                   const mapObjectText = `{ ${caseEntries.map((e) => `${JSON.stringify(e.key)}: ${JSON.stringify(e.classes)}`).join(', ')} }`;
                   const discText = discArg.getText(source);
-                  const lookupExpr = `(${mapObjectText})[${discText}]`;
+                  const lookupExpr = `((${mapObjectText})[${discText}] || "")`;
 
                   const existing = findExistingClassAttr(node, source);
                   if (attrName === 'style') {
@@ -501,10 +626,10 @@ export function findCSSReplacements(
 
                       let replacementText = '';
                       if (existing.isExpression) {
-                        replacementText = `className={\`\${${existing.text}} \${${lookupExpr}}\`}`;
+                        replacementText = `class={\`\${${existing.text}} \${${lookupExpr}}\`}`;
                       } else {
                         const merged = existing.text ? `${existing.text} \${${lookupExpr}}` : `\${${lookupExpr}}`;
-                        replacementText = `className={\`${merged}\`}`;
+                        replacementText = `class={\`${merged}\`}`;
                       }
                       replacements.push({
                         start: existing.node.getStart(source),
@@ -515,7 +640,7 @@ export function findCSSReplacements(
                       replacements.push({
                         start: node.getStart(source),
                         end: node.getEnd(),
-                        text: `className={${lookupExpr}}`,
+                        text: `class={${lookupExpr}}`,
                       });
                     }
                   } else {
@@ -530,10 +655,10 @@ export function findCSSReplacements(
 
                       let replacementText = '';
                       if (existing.isExpression) {
-                        replacementText = `className={\`\${${existing.text}} \${${lookupExpr}}\`}`;
+                        replacementText = `class={\`\${${existing.text}} \${${lookupExpr}}\`}`;
                       } else {
                         const merged = existing.text ? `${existing.text} \${${lookupExpr}}` : `\${${lookupExpr}}`;
-                        replacementText = `className={\`${merged}\`}`;
+                        replacementText = `class={\`${merged}\`}`;
                       }
                       replacements.push({
                         start: existing.node.getStart(source),
@@ -544,7 +669,7 @@ export function findCSSReplacements(
                       replacements.push({
                         start: node.getStart(source),
                         end: node.getEnd(),
-                        text: `className={${lookupExpr}}`,
+                        text: `class={${lookupExpr}}`,
                       });
                     }
                   }
@@ -558,7 +683,7 @@ export function findCSSReplacements(
                 const hasDynamicProps = !!evalRes.dynamicProps && evalRes.dynamicProps.length > 0;
                 const hasExtracted = !!evalRes.extractedVars && evalRes.extractedVars.length > 0;
 
-                if (!hasDynamicProps && !hasExtracted) {
+                if (evalRes.isStatic && evalRes.value && !hasDynamicProps && !hasExtracted) {
                   // Case 1: 100% Static
                   const compiled = compileStyle(evalRes.value);
                   compiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
@@ -574,10 +699,10 @@ export function findCSSReplacements(
                     const newClasses = compiled.classes.join(' ');
                     let replacementText = '';
                     if (existing.isExpression) {
-                      replacementText = `className={\`${newClasses} \${${existing.text}}\`}`;
+                      replacementText = `class={\`${newClasses} \${${existing.text}}\`}`;
                     } else {
                       const merged = existing.text ? `${existing.text} ${newClasses}` : newClasses;
-                      replacementText = `className="${merged}"`;
+                      replacementText = `class="${merged}"`;
                     }
 
                     replacements.push({
@@ -589,7 +714,7 @@ export function findCSSReplacements(
                     replacements.push({
                       start: node.getStart(source),
                       end: node.getEnd(),
-                      text: `className="${compiled.classes.join(' ')}"`,
+                      text: `class="${compiled.classes.join(' ')}"`,
                     });
                   }
                 } else if (evalRes.value || hasExtracted) {
@@ -616,10 +741,10 @@ export function findCSSReplacements(
                     if (newClasses) {
                       let replacementText = '';
                       if (existing.isExpression) {
-                        replacementText = `className={\`${newClasses} \${${existing.text}}\`}`;
+                        replacementText = `class={\`${newClasses} \${${existing.text}}\`}`;
                       } else {
                         const merged = existing.text ? `${existing.text} ${newClasses}` : newClasses;
-                        replacementText = `className="${merged}"`;
+                        replacementText = `class="${merged}"`;
                       }
 
                       replacements.push({
@@ -630,7 +755,7 @@ export function findCSSReplacements(
                     }
                   } else {
                     const staticClassAttr = newClasses
-                      ? `className="${newClasses}"`
+                      ? `class="${newClasses}"`
                       : '';
                     const dynamicStyleAttr = `style={{ ${dynamicPropsText} }}`;
 
@@ -767,7 +892,7 @@ export function findCSSReplacements(
         } else {
           // Static parameterless css.define
           const evalRes = evalNode(arg, source, themeValues, undefined, localScope);
-          if (evalRes.isStatic) {
+          if (evalRes.isStatic && evalRes.value) {
             const compiled = compileStyle(evalRes.value);
             compiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
 

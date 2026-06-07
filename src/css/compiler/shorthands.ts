@@ -67,7 +67,7 @@ function expandBorderRadius(value: any): Record<string, any> {
   const values = Array.isArray(value)
     ? value
     : typeof value === 'string'
-    ? value.trim().split(/\s+/)
+    ? value.trim().split(/\s+(?![^(]*\))/)
     : [value];
 
   let tl = values[0];

@@ -13,7 +13,6 @@ import type {
   MemoApp,
   MemoChild,
   MemoContext,
-  MemoDeps,
   MemoEntry,
   RenderClosure,
 } from './types';

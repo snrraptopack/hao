@@ -351,14 +351,15 @@ export function compileJsxNode(
   }
 
   const elementVar = `el${ctx.elementId++}`;
-  if (isSvgTag(tag)) {
+  const isSvg = isSvgTag(tag);
+  if (isSvg) {
     ctx.setup.push(`const ${elementVar} = document.createElementNS("http://www.w3.org/2000/svg", ${stringLiteral(tag)});`);
   } else {
     ctx.setup.push(`const ${elementVar} = document.createElement(${stringLiteral(tag)});`);
   }
 
   for (const attribute of opening.attributes.properties) {
-    if (!compileAttribute(ctx, elementVar, attribute)) return null;
+    if (!compileAttribute(ctx, elementVar, attribute, isSvg)) return null;
   }
 
   if (ts.isJsxElement(node)) {
@@ -481,7 +482,7 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
 }
 
 export function substituteProps(code: string, props: Map<string, string>): string {
-  return code.replace(/\bprops\.([A-Za-z_$][\w$]*)\b/g, (match, name) => {
+  return code.replace(/\bprops\.([A-Za-z_$][\w$]*)\b/g, (_, name) => {
     return props.get(name) ?? 'undefined';
   });
 }

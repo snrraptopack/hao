@@ -9,7 +9,7 @@
  */
 
 import { expandShorthands } from './shorthands';
-import { toClassName, getPropertyKey, valueToString, sanitizeValue } from './class-names';
+import { toClassName, valueToString, sanitizeValue } from './class-names';
 
 export { expandShorthands } from './shorthands';
 export { toClassName, PROPERTY_MAP, getPropertyKey, sanitizeValue, valueToString } from './class-names';
@@ -104,7 +104,11 @@ export function compileStyle(
         ? `${bpModifier}:${outerModifier}`
         : bpModifier;
 
-      const subResult = compileStyle(value, subModifier, nestingSelector, mediaQuery);
+      const combinedMediaQuery = inheritedMediaQuery
+        ? `${inheritedMediaQuery} and ${mediaQuery}`
+        : mediaQuery;
+
+      const subResult = compileStyle(value, subModifier, nestingSelector, combinedMediaQuery);
       classes.push(...subResult.classes);
       rules.push(...subResult.rules);
       continue;

@@ -1,8 +1,6 @@
-import { component } from 'auwla';
 import { event } from 'auwla/events';
-import { css, } from 'auwla/css';
 import type { } from 'auwla/jsx-runtime';
-
+ 
 // const style = css({
 //   maxWidth: css.px(400),
 //   cursor: "default",
@@ -10,14 +8,13 @@ import type { } from 'auwla/jsx-runtime';
 //   padding: css.px(24),
 //   border: css.border({style:"solid"})
 // })
-
+ 
 /**
  * Interactive Global Listeners demo.
  * Demonstrates window-level click-outside detection and mouse tracking
  * using event.click.global and event.mouseMove.global.
  */
 export function GlobalModifiersDemo() {
-  const self = component();
   let clickOutsideCount = 0;
   let trackMouse = false;
   let mouseCoords = { x: 0, y: 0 };

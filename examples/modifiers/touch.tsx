@@ -1,25 +1,13 @@
 import { component, commit } from 'auwla';
 import { event } from 'auwla/events';
 import type { } from 'auwla/jsx-runtime';
-import { css, px, define, flex } from "auwla/css"
+import { css,} from "auwla/css"
 
 
-const small = css({
-  width: px(10),
-  height: px(20)
-})
-const big = css({
-  width: px(20),
-  height: px(40)
-})
+let colors = css.color.palette('oklch(0.72 0.16 195)')
+let colorIndex = Object.keys(colors)
 
 
-const expand = define((props: { isMoving: boolean }) => ({
-  ...css.when(props.isMoving, {
-    true: big,
-    false:small
-  })
-}))
 
 /**
  * Interactive Touch and Advanced Modifiers demo.
@@ -62,6 +50,14 @@ export function TouchModifiersDemo() {
 
   return () => (
     <div class="docs-section">
+      {colorIndex.map(it => (
+        <button style={css({
+          background: colors[it],
+          padding: css.rem(0.95),
+          marginLeft: css.px(5)
+        })}>{it}</button>
+      ))}
+
       <h1>Touch Gestures & Advanced Modifiers</h1>
       <p>
         Explore Auwla's custom touch gesture tracking system alongside high-demand event listeners.
@@ -91,8 +87,8 @@ export function TouchModifiersDemo() {
           <div
             style={css({
               position: 'absolute',
-              left: `${rawPosition.x}px`,
-              top: `${rawPosition.y}px`,
+              left: css.px(rawPosition.x),
+              top: css.px(rawPosition.y),
               height: '80px',
               background: 'linear-gradient(135deg, var(--color-accent), #4f46e5)',
               color: '#ffffff',

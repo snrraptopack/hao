@@ -6,7 +6,7 @@
 
 import ts from 'typescript';
 import { clearThemeCache as resolverClearThemeCache } from './theme-resolver';
-import { findCSSReplacements } from './replacer';
+import { findCSSReplacements, clearReplacerCache as replacerClearCache } from './replacer';
 
 export interface CSSRuleCallback {
   (className: string, declaration: string, mediaQuery?: string): void;
@@ -17,6 +17,7 @@ export interface CSSRuleCallback {
  */
 export function clearThemeCache(): void {
   resolverClearThemeCache();
+  replacerClearCache();
 }
 
 /**

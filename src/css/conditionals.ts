@@ -60,7 +60,9 @@ export type WhenBranches<V> = {
  *   ghost:     { background: 'transparent', border: css.border.none() },
  * })
  */
-export type MatchCases<T extends string, V> = { [K in T]: V };
+export type MatchCases<T extends string | number | boolean, V> = {
+  [K in T as K extends boolean ? `${K}` : K]: V;
+};
 
 // ---------------------------------------------------------------------------
 // css.when()
@@ -115,12 +117,21 @@ export function when<V>(condition: boolean, branches: WhenBranches<V>): V {
  *   padding: css.match(props.size, { sm: css.px(8), md: css.px(16), lg: css.px(24) }),
  * }))
  */
-export function match<T extends string, V extends StyleObject | CSSValue>(
+export function match<T extends string | number | boolean, V extends StyleObject>(
+  value: T,
+  cases: MatchCases<T, V>,
+): V;
+export function match<T extends string | number | boolean, V extends CSSValue>(
+  value: T,
+  cases: MatchCases<T, V>,
+): V;
+export function match<T extends string | number | boolean, V extends StyleObject | CSSValue>(
   value: T,
   cases: MatchCases<T, V>,
 ): V {
   // Safe cast — MatchCases<T, V> guarantees the key exists for any T
-  const result = (cases as Record<string, V>)[value];
+  const key = String(value);
+  const result = (cases as Record<string, V>)[key];
 
   // Guard against impossible runtime mismatches (e.g. value from an untyped source)
   if (result === undefined) {
@@ -132,6 +143,7 @@ export function match<T extends string, V extends StyleObject | CSSValue>(
 
   return result;
 }
+
 
 // ---------------------------------------------------------------------------
 // css.mergeWhen() — convenience for composing multiple independent conditions

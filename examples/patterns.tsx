@@ -1,4 +1,4 @@
-import { createMemoApp, commit, component, cleanup } from 'auwla';
+import { commit, component, cleanup } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 
 // ─── Shared State (Object + Getters pattern) ────────────────────────────────

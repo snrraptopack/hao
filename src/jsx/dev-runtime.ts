@@ -17,9 +17,9 @@ export function jsxDEV(
   type: any,
   props: any = {},
   key?: any,
-  isStaticChildren?: boolean,
-  source?: any,
-  self?: any
+  _isStaticChildren?: boolean,
+  _source?: any,
+  _self?: any
 ): any {
   return jsx(type, props, key);
 }

@@ -41,39 +41,34 @@ export function getThemeObject(themePath: string): any {
     let themeValue: any = null;
 
     const localScope = new Map<string, any>();
+    const unresolved = new Map<string, ts.Expression>();
 
-    // Pass 1: Build local scope from variable statements in declaration order
+    // Collect all local variables
     for (const stmt of source.statements) {
       if (ts.isVariableStatement(stmt)) {
         for (const decl of stmt.declarationList.declarations) {
           if (ts.isIdentifier(decl.name) && decl.initializer) {
-            const evalRes = evalNode(decl.initializer, source, localScope);
-            if (evalRes.isStatic) {
-              localScope.set(decl.name.text, evalRes.value);
-            }
+            unresolved.set(decl.name.text, decl.initializer);
           }
         }
       }
     }
 
-    // Pass 2: Find and evaluate the exported 'theme' declaration using localScope
-    for (const stmt of source.statements) {
-      if (ts.isVariableStatement(stmt)) {
-        const isExported = stmt.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-        if (isExported) {
-          for (const decl of stmt.declarationList.declarations) {
-            if (ts.isIdentifier(decl.name) && decl.name.text === 'theme') {
-              if (decl.initializer) {
-                const evalRes = evalNode(decl.initializer, source, localScope);
-                if (evalRes.isStatic) {
-                  themeValue = evalRes.value;
-                }
-              }
-            }
-          }
+    // Fixed-point evaluation loop to support forward references
+    let resolvedAny = true;
+    while (resolvedAny && unresolved.size > 0) {
+      resolvedAny = false;
+      for (const [name, initializer] of unresolved.entries()) {
+        const evalRes = evalNode(initializer, source, undefined, undefined, localScope);
+        if (evalRes.isStatic) {
+          localScope.set(name, evalRes.value);
+          unresolved.delete(name);
+          resolvedAny = true;
         }
       }
     }
+
+    themeValue = localScope.get('theme') ?? null;
 
     themeCache.set(themePath, themeValue);
     return themeValue;

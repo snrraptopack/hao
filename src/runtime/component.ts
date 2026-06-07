@@ -15,7 +15,6 @@ import type {
   MemoChild,
   MemoProps,
   RenderClosure,
-  RenderState,
 } from './types';
 import { isRenderClosure } from './types';
 import { objectShallowEqual } from './template';

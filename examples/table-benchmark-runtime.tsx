@@ -1,4 +1,4 @@
-import { createMemoApp, component, commit } from 'auwla';
+import { component, commit } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 

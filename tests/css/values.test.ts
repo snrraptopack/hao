@@ -7,7 +7,8 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import { border, shadow, transform, transition, ease, outline, grid, flex } from '../../src/css/values';
+import { border, shadow, transform, transition, ease, outline } from '../../src/css/values';
+import { grid, flex } from '../../src/css/layout';
 import { px, ms, deg } from '../../src/css/units';
 import { color } from '../../src/css/color';
 

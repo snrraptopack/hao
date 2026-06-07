@@ -134,14 +134,41 @@ export function setProp(
   }
 
   if (key === 'className' || key === 'class') {
-    element.className = value == null ? '' : String(value);
+    if (element instanceof SVGElement) {
+      if (value == null) {
+        element.removeAttribute('class');
+      } else {
+        element.setAttribute('class', String(value));
+      }
+    } else {
+      element.className = value == null ? '' : String(value);
+    }
     return;
   }
 
   if (key === 'style' && value && typeof value === 'object') {
-    const nextStyle = value as Record<string, string | number | null | undefined>;
+    const flattenStyle = (styleObj: Record<string, unknown>): Record<string, string> => {
+      const res: Record<string, string> = {};
+      for (const [k, v] of Object.entries(styleObj)) {
+        if (v === null || v === undefined) continue;
+        if (typeof v === 'object') {
+          if (Array.isArray(v)) {
+            res[k] = v.map(item => item == null ? '' : String(item)).join(' ');
+            continue;
+          }
+          if ('toProperties' in v && typeof (v as any).toProperties === 'function') {
+            Object.assign(res, (v as any).toProperties());
+            continue;
+          }
+        }
+        res[k] = String(v);
+      }
+      return res;
+    };
+
+    const nextStyle = flattenStyle(value as Record<string, unknown>);
     const oldStyle = oldValue && typeof oldValue === 'object'
-      ? oldValue as Record<string, string | number | null | undefined>
+      ? flattenStyle(oldValue as Record<string, unknown>)
       : {};
 
     for (const name of Object.keys(oldStyle)) {
@@ -158,7 +185,7 @@ export function setProp(
       const old = oldStyle[name];
       if (Object.is(next, old)) continue;
       try {
-        (element.style as any)[name] = next == null ? '' : String(next);
+        (element.style as any)[name] = next;
       } catch {
         // Ignore invalid/readonly style properties.
       }

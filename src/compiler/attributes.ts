@@ -3,7 +3,7 @@
  */
 
 import ts from 'typescript';
-import { DynamicPatch, CompileContext, TemplateContext, TemplatePatch, PROPERTY_PROPS } from './types';
+import { DynamicPatch, CompileContext, TemplateContext, PROPERTY_PROPS } from './types';
 import { expressionText, stringLiteral, escapeHtml, isStaticExpression, childExpression } from './utils';
 
 /** Convert a camelCase CSS property name to kebab-case. */
@@ -154,6 +154,7 @@ export function compileAttribute(
   ctx: CompileContext,
   elementVar: string,
   attribute: ts.JsxAttributeLike,
+  isSvg = false,
 ): boolean {
   if (ts.isJsxSpreadAttribute(attribute)) {
     const value = expressionText(ctx.source, attribute.expression);
@@ -185,7 +186,11 @@ export function compileAttribute(
 
   if (ts.isStringLiteral(initializer)) {
     if (name === 'class') {
-      ctx.setup.push(`${elementVar}.className = ${stringLiteral(initializer.text)};`);
+      if (isSvg) {
+        ctx.setup.push(`${elementVar}.setAttribute("class", ${stringLiteral(initializer.text)});`);
+      } else {
+        ctx.setup.push(`${elementVar}.className = ${stringLiteral(initializer.text)};`);
+      }
       return true;
     }
 

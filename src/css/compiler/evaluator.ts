@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { color } from '../color';
 import { child, descendant, sibling } from '../compose';
 import { BREAKPOINTS } from './index';
+import { flexProperties, gridProperties } from '../layout';
 
 export interface EvaluatedNode {
   isStatic: boolean;
@@ -212,6 +213,18 @@ export function evalNode(
 
   // 7. Property Access (theme.spacing.md or props.size)
   if (ts.isPropertyAccessExpression(node)) {
+    const text = node.getText(source).trim();
+    if (text === 'css.color.transparent' || text === 'color.transparent') {
+      const c = color('rgba(0,0,0,0)');
+      return { isStatic: true, value: { ...c, toString() { return 'transparent'; } } };
+    }
+    if (text === 'css.color.black' || text === 'color.black') {
+      return { isStatic: true, value: color('#000000') };
+    }
+    if (text === 'css.color.white' || text === 'color.white') {
+      return { isStatic: true, value: color('#ffffff') };
+    }
+
     const objRes = evalNode(node.expression, source, themeValues, selectorContext, localScope);
     if (objRes.isStatic && objRes.value && typeof objRes.value === 'object') {
       const propName = node.name.text;
@@ -428,6 +441,123 @@ export function evalNode(
       if (funcName === 'css.tokens' || funcName === 'tokens') {
         return { isStatic: true, value: staticArgs[0] };
       }
+      if (funcName === 'css.define' || funcName === 'define') {
+        return { isStatic: true, value: staticArgs[0] };
+      }
+      if (funcName === 'css.border.none' || funcName === 'border.none') {
+        return {
+          isStatic: true,
+          value: {
+            _tag: 'Border',
+            toString() { return 'none'; }
+          }
+        };
+      }
+      if (funcName === 'css.shadow' || funcName === 'shadow') {
+        const opts = staticArgs[0] || {};
+        const x = opts.x !== undefined ? String(opts.x) : '0px';
+        const y = opts.y !== undefined ? String(opts.y) : '0px';
+        const blur = opts.blur !== undefined ? String(opts.blur) : '0px';
+        const spread = opts.spread !== undefined ? String(opts.spread) : '0px';
+        const colorVal = opts.color !== undefined ? String(opts.color) : '';
+        const inset = !!opts.inset;
+        return {
+          isStatic: true,
+          value: {
+            _tag: 'Shadow',
+            toString() {
+              const parts = [x, y, blur, spread, colorVal].filter(Boolean);
+              if (inset) parts.unshift('inset');
+              return parts.join(' ');
+            }
+          }
+        };
+      }
+      if (funcName === 'css.transform' || funcName === 'transform') {
+        const opts = staticArgs[0] || {};
+        const functions: string[] = [];
+        if (opts.translateX !== undefined) functions.push(`translateX(${String(opts.translateX)})`);
+        if (opts.translateY !== undefined) functions.push(`translateY(${String(opts.translateY)})`);
+        if (opts.translateZ !== undefined) functions.push(`translateZ(${String(opts.translateZ)})`);
+        if (opts.scale !== undefined) functions.push(`scale(${opts.scale})`);
+        if (opts.scaleX !== undefined) functions.push(`scaleX(${opts.scaleX})`);
+        if (opts.scaleY !== undefined) functions.push(`scaleY(${opts.scaleY})`);
+        if (opts.rotate !== undefined) {
+          const r = typeof opts.rotate === 'number' ? `${opts.rotate}deg` : String(opts.rotate);
+          functions.push(`rotate(${r})`);
+        }
+        if (opts.skewX !== undefined) {
+          const s = typeof opts.skewX === 'number' ? `${opts.skewX}deg` : String(opts.skewX);
+          functions.push(`skewX(${s})`);
+        }
+        if (opts.skewY !== undefined) {
+          const s = typeof opts.skewY === 'number' ? `${opts.skewY}deg` : String(opts.skewY);
+          functions.push(`skewY(${s})`);
+        }
+        return {
+          isStatic: true,
+          value: {
+            _tag: 'Transform',
+            toString() {
+              return functions.length > 0 ? functions.join(' ') : 'none';
+            }
+          }
+        };
+      }
+      if (funcName === 'css.transition' || funcName === 'transition') {
+        const map = staticArgs[0] || {};
+        const entries = Object.entries(map).map(([property, opts]: [string, any]) => {
+          const duration = opts.duration;
+          const easing = opts.easing;
+          const delay = opts.delay;
+          return { property, duration, easing, delay };
+        });
+        return {
+          isStatic: true,
+          value: {
+            _tag: 'Transition',
+            toString() {
+              return entries
+                .map((e) => {
+                  const parts = [e.property, String(e.duration)];
+                  if (e.easing) parts.push(String(e.easing));
+                  if (e.delay) parts.push(String(e.delay));
+                  return parts.join(' ');
+                })
+                .join(', ');
+            }
+          }
+        };
+      }
+      if (funcName === 'css.ease' || funcName === 'ease') {
+        const name = staticArgs[0];
+        const map: Record<string, string> = {
+          in:       'ease-in',
+          out:      'ease-out',
+          'in-out': 'ease-in-out',
+          linear:   'linear',
+          spring:   'cubic-bezier(0.34, 1.56, 0.64, 1)',
+          bounce:   'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+        };
+        return { isStatic: true, value: map[name] ?? 'ease' };
+      }
+      if (funcName === 'css.gradient' || funcName === 'gradient') {
+        const opts = staticArgs[0] || {};
+        const angle = opts.angle;
+        const stops = opts.stops || [];
+        return {
+          isStatic: true,
+          value: {
+            _tag: 'Gradient',
+            toString() {
+              const stopStr = stops
+                .map(([c, pos]: [any, number]) => `${String(c)} ${pos}%`)
+                .join(', ');
+              return `linear-gradient(${angle}deg, ${stopStr})`;
+            }
+          }
+        };
+      }
 
       // Nesting selector helpers
       if (funcName === 'css.children' || funcName === 'children') return { isStatic: true, value: `& > ${staticArgs[0]}` };
@@ -510,17 +640,7 @@ export function evalNode(
       // Flex Layout Descriptor Mock
       if (funcName === 'css.flex' || funcName === 'flex') {
         const opts = staticArgs[0] || {};
-        const props: Record<string, string> = { display: 'flex' };
-        if (opts.direction) props.flexDirection = opts.direction;
-        if (opts.wrap !== undefined) {
-          if (opts.wrap === true) props.flexWrap = 'wrap';
-          else if (opts.wrap === 'reverse') props.flexWrap = 'wrap-reverse';
-          else props.flexWrap = 'nowrap';
-        }
-        if (opts.gap) props.gap = String(opts.gap);
-        if (opts.align) props.alignItems = opts.align;
-        if (opts.justify) props.justifyContent = opts.justify;
-
+        const props = flexProperties(opts);
         return {
           isStatic: true,
           value: {
@@ -533,17 +653,7 @@ export function evalNode(
       // Grid Layout Descriptor Mock
       if (funcName === 'css.grid' || funcName === 'grid') {
         const opts = staticArgs[0] || {};
-        const props: Record<string, string> = { display: 'grid' };
-        if (opts.columns && Array.isArray(opts.columns))
-          props.gridTemplateColumns = opts.columns.map(String).join(' ');
-        if (opts.rows && Array.isArray(opts.rows))
-          props.gridTemplateRows = opts.rows.map(String).join(' ');
-        if (opts.areas && Array.isArray(opts.areas))
-          props.gridTemplateAreas = opts.areas.map((row: any) => `"${row.join(' ')}"`).join(' ');
-        if (opts.gap) props.gap = String(opts.gap);
-        if (opts.columnGap) props.columnGap = String(opts.columnGap);
-        if (opts.rowGap) props.rowGap = String(opts.rowGap);
-
+        const props = gridProperties(opts);
         return {
           isStatic: true,
           value: {

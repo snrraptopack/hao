@@ -1,8 +1,5 @@
-import {component, emit, reactive } from 'auwla';
+import {component, emit } from 'auwla';
 import './styles.css';
-import { css } from 'auwla/css';
-
-
 
 const state:any = {
   count: 0,
@@ -16,9 +13,6 @@ function CounterExample() {
         <p>State is a local variable in setup.</p>
         <button onClick={() => { state.count++ }}>Count: {state.count}</button>
         <p>double {state.double()}</p>
-        {/*<button onClick={() => reactiveState.set(reactiveState.get() + 1)}>
-          change reactive {reactiveState.get()}
-        </button>*/}
       </section>
     );
 }
@@ -167,7 +161,6 @@ function InputPatchExample() {
 }
 
 export function ExampleApp() {
-  let child = 0
   return () => (
     <main>
       <header>

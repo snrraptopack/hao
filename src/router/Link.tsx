@@ -12,6 +12,8 @@ export type LinkProps = {
   href: string
   // Additional CSS classes always applied to the anchor.
   class?: string
+  // Additional CSS inline styles always applied to the anchor.
+  style?: string | Record<string, string>
   // Class applied when the current path matches href at a segment boundary.
   // Defaults to "active" when not provided.
   activeClass?: string
@@ -51,6 +53,7 @@ export function Link(props: LinkProps) {
       <a
         href={href}
         class={classes}
+        style={props.style}
         onClick={(e: MouseEvent) => {
           // Pass through modified clicks (new tab, etc.) and any link that
           // points outside the app — let the browser handle those normally.

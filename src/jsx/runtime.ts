@@ -6,6 +6,7 @@
 
 import { h, Fragment as Frag } from './index';
 import type { MemoChild, RenderClosure } from '../runtime/types';
+import type { StyleObject } from '../css/types';
 
 export const Fragment = Frag;
 
@@ -78,12 +79,12 @@ type BaseProps<E extends HTMLElement> = EventProps & {
   children?: Children;
   key?: string | number;
   ref?: (el: E) => void;
-  class?: string;
-  className?: string;
+  class?: string | StyleObject | Function;
+  className?: string | StyleObject | Function;
   id?: string;
   title?: string;
   hidden?: boolean;
-  style?: string | CSSProperties;
+  style?: string | CSSProperties | StyleObject | Function;
   tabIndex?: number;
   draggable?: boolean;
   contentEditable?: boolean | 'true' | 'false' | 'inherit' | 'plaintext-only';
@@ -227,5 +228,13 @@ export namespace JSX {
     progress: BaseProps<HTMLProgressElement>;
     meter: BaseProps<HTMLMeterElement>;
     template: BaseProps<HTMLTemplateElement>;
+    svg: any;
+    g: any;
+    circle: any;
+    line: any;
+    path: any;
+    defs: any;
+    linearGradient: any;
+    stop: any;
   }
 }

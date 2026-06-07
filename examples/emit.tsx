@@ -1,4 +1,4 @@
-import { createMemoApp, component, emit } from 'auwla';
+import { component, emit } from 'auwla';
 import type {} from 'auwla/jsx-runtime';
 import './styles/emit.css';
 

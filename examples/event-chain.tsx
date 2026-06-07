@@ -1,4 +1,4 @@
-import { createMemoApp, component } from 'auwla';
+import { component } from 'auwla';
 import { event } from 'auwla/events';
 import type {} from 'auwla/jsx-runtime';
 import './styles/event-chain.css';

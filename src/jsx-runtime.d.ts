@@ -201,6 +201,14 @@ declare global {
       progress: BaseProps<HTMLProgressElement>;
       meter: BaseProps<HTMLMeterElement>;
       template: BaseProps<HTMLTemplateElement>;
+      svg: any;
+      g: any;
+      circle: any;
+      line: any;
+      path: any;
+      defs: any;
+      linearGradient: any;
+      stop: any;
     }
   }
 }

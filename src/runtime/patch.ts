@@ -7,7 +7,7 @@
  */
 
 import { runtimeState } from './state';
-import type { MemoElement, MemoChild, TemplateNode,AuwlaNode } from './types';
+import type { MemoElement, AuwlaNode } from './types';
 import { isRenderClosure, isTemplateNode } from './types';
 import { toNode, setProps } from './dom';
 import { templateEqual } from './template';

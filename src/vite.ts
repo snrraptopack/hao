@@ -1,4 +1,4 @@
-import type { Plugin } from 'vite';
+import type { Plugin, ViteDevServer, ModuleNode } from 'vite';
 import { compileAuwla } from './compiler';
 import { ViteCSSHandler } from './vite-css';
 import { clearThemeCache } from './css/compiler/css-compiler';
@@ -12,6 +12,21 @@ export type AuwlaViteOptions = {
 
 function normalizeId(id: string): string {
   return id.split('?', 1)[0] ?? id;
+}
+
+function invalidateModuleAndImporters(
+  mod: ModuleNode,
+  invalidated: Set<ModuleNode>,
+  server: ViteDevServer
+) {
+  if (invalidated.has(mod)) return;
+  invalidated.add(mod);
+
+  server.moduleGraph.invalidateModule(mod);
+
+  for (const importer of mod.importers) {
+    invalidateModuleAndImporters(importer, invalidated, server);
+  }
 }
 
 function markerCode(value: boolean, debugFlag: boolean | string | undefined): string {
@@ -35,9 +50,36 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       cssHandler.setServer(server);
     },
 
-    handleHotUpdate({ file }) {
-      if (file.includes('theme')) {
+    handleHotUpdate({ file, server, modules }) {
+      const isTheme = file.includes('theme');
+      const isStyleFile = file.endsWith('.ts') || file.endsWith('.tsx');
+
+      if (isTheme || isStyleFile) {
         clearThemeCache();
+      }
+
+      if (file.endsWith('.ts') && server?.moduleGraph) {
+        const mods = server.moduleGraph.getModulesByFile(file);
+        if (mods) {
+          const invalidated = new Set<ModuleNode>();
+          for (const mod of mods) {
+            invalidateModuleAndImporters(mod, invalidated, server);
+          }
+        }
+      }
+
+      const cssMod = server?.moduleGraph?.getModuleById('\0virtual:auwla.css');
+      if (cssMod) {
+        server.moduleGraph.invalidateModule(cssMod);
+        return [...modules, cssMod];
+      }
+
+      return modules;
+    },
+
+    watchChange(id, change) {
+      if (change.event === 'delete') {
+        cssHandler.deleteFile(id);
       }
     },
 

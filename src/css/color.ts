@@ -474,6 +474,7 @@ export interface ColorPalette {
   800: Color;
   900: Color;
   950: Color;
+  [key: string]: Color;
 }
 
 /**

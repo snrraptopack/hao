@@ -124,6 +124,26 @@ describe('css.match() — basic union matching', () => {
     expect(style.background).toBe('transparent');
   });
 
+  test('matches boolean union values', () => {
+    const isTrue = true;
+    const style = match<boolean, { background: string }>(isTrue, {
+      true:  { background: 'blue' },
+      false: { background: 'gray' },
+    });
+    expect(style.background).toBe('blue');
+  });
+
+  test('matches numeric union values', () => {
+    type Level = 1 | 2 | 3;
+    const level: Level = 2;
+    const style = match<Level, { background: string }>(level, {
+      1: { background: 'light' },
+      2: { background: 'medium' },
+      3: { background: 'dark' },
+    });
+    expect(style.background).toBe('medium');
+  });
+
   test('throws when called with an unhandled string value', () => {
     // Simulates a runtime mismatch from an untyped source (e.g. API response)
     expect(() =>

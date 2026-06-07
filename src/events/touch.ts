@@ -1,4 +1,4 @@
-import type { EventModifier, RuntimeEventHandler } from './types';
+import type { EventModifier } from './types';
 import { BLOCKED_EVENT } from '../runtime/state';
 
 export interface IntersectOptions {

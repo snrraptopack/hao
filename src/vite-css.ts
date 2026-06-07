@@ -163,9 +163,21 @@ export class ViteCSSHandler {
   }
 
   /**
+   * Cleans up registry mappings and triggers HMR when a style-declaring file is deleted.
+   */
+  deleteFile(filepath: string) {
+    const file = filepath.split('?', 1)[0] ?? filepath;
+    if (this.registry.delete(file)) {
+      if (this.server) {
+        this.triggerHMR();
+      }
+    }
+  }
+
+  /**
    * Invalidate the virtual CSS module and push an HMR update to the browser client.
    */
-  private triggerHMR() {
+  triggerHMR() {
     const mod = this.server?.moduleGraph.getModuleById('\0virtual:auwla.css');
     if (mod) {
       this.server?.moduleGraph.invalidateModule(mod);
@@ -174,8 +186,8 @@ export class ViteCSSHandler {
         updates: [
           {
             type: 'js-update',
-            path: '/@id/__x00__virtual:auwla.css',
-            acceptedPath: '/@id/__x00__virtual:auwla.css',
+            path: mod.url,
+            acceptedPath: mod.url,
             timestamp: Date.now(),
           },
         ],

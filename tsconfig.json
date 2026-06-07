@@ -35,11 +35,12 @@
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
 
     // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*", "examples/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "benchmark"]

@@ -1,9 +1,7 @@
-import { component } from 'auwla';
 import { reactiveTheme, plainTheme } from './store';
-
+ 
 export function Display() {
   console.log('Display component setup run (only once)');
-  const self = component()
   return () => {
     console.log('Display component rendered');
     return (
@@ -21,9 +19,8 @@ export function Display() {
     );
   };
 }
-
+ 
 export function SiblingDisplay() {
-  const self = component()
   console.log('SiblingDisplay component setup run (only once)');
 
   return () => {

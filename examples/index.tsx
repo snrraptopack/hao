@@ -6,7 +6,6 @@ import {
   defineRoutes,
   group,
   composeRoutes,
-  isActive,
 } from "auwla/router"
 import './index.css'
 import 'virtual:auwla.css';
@@ -30,6 +29,7 @@ import { navigationRoutes, NavigationShell } from "./navigation"
 import { childRoutes, ChildShell } from "./child"
 import { loaderRoutes, LoaderShell } from "./loader"
 import { modifiersRoutes, ModifiersShell } from "./modifiers"
+import { showcaseRoutes, ShowcaseShell } from "./showcase"
 
 // ---------------------------------------------------------------------------
 // Central route definitions — compose everything and register once
@@ -60,6 +60,7 @@ defineRoutes(
     group("/child", { layout: ChildShell }, childRoutes),
     group("/loader", { layout: LoaderShell }, loaderRoutes),
     group("/modifiers", { layout: ModifiersShell }, modifiersRoutes),
+    group("/showcase", { layout: ShowcaseShell }, showcaseRoutes),
 
     // Catch-all
     [
@@ -89,6 +90,7 @@ const examples = [
   { path: "/child", label: "Child / Router" },
   { path: "/loader", label: "Router Loader" },
   { path: "/modifiers", label: "Event Modifiers (Docs)" },
+  { path: "/showcase", label: "Showcase Hub" },
 ]
 
 function Gallery() {

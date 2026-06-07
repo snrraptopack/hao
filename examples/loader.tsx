@@ -4,7 +4,6 @@ import {} from "auwla/jsx-runtime"
 import {
   getLoaderHandle,
   getParams,
-  back,
   RouteComponent
 } from "auwla/router"
 

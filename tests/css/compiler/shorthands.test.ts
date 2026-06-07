@@ -80,6 +80,17 @@ describe('expandShorthands', () => {
         borderBottomLeftRadius: '8px',
       });
     });
+
+    it('should expand space-separated values containing calc with spaces', () => {
+      const input = { borderRadius: 'calc(100% - 16px) 12px' };
+      const output = expandShorthands(input);
+      expect(output).toEqual({
+        borderTopLeftRadius: 'calc(100% - 16px)',
+        borderBottomRightRadius: 'calc(100% - 16px)',
+        borderTopRightRadius: '12px',
+        borderBottomLeftRadius: '12px',
+      });
+    });
   });
 
   describe('border expansion', () => {

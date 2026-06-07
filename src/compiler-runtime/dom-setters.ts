@@ -217,9 +217,17 @@ export function __setChild(parent: Node, current: Node, value: unknown): Node {
  * Update an element's `className` when the value changes.
  * @internal
  */
-export function __setClass(element: HTMLElement, value: unknown): void {
+export function __setClass(element: HTMLElement | SVGElement, value: unknown): void {
   const next = compiledValue(value);
-  if (element.className !== next) element.className = next;
+  if (element instanceof SVGElement) {
+    if (next) {
+      element.setAttribute('class', next);
+    } else {
+      element.removeAttribute('class');
+    }
+  } else {
+    if (element.className !== next) element.className = next;
+  }
 }
 
 /**

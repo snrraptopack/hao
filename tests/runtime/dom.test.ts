@@ -110,6 +110,54 @@ describe('setProp', () => {
     expect(el.style.display).toBe('');
   });
 
+  test('handles shorthand arrays and layout descriptors recursively in style', () => {
+    const el = document.createElement('div') as MemoElement;
+    const mockFlexDescriptor = {
+      _tag: 'Flex',
+      toProperties() {
+        return {
+          display: 'flex',
+          flexDirection: 'row',
+          gap: '12px'
+        };
+      }
+    };
+    
+    setProp(el, 'style', {
+      padding: ['8px', '16px'],
+      display: mockFlexDescriptor
+    }, undefined, wrapEvent);
+    
+    expect(el.style.padding).toBe('8px 16px');
+    expect(el.style.display).toBe('flex');
+    expect(el.style.flexDirection).toBe('row');
+    expect(el.style.gap).toBe('12px');
+    
+    // Clear and override
+    const mockGridDescriptor = {
+      _tag: 'Grid',
+      toProperties() {
+        return {
+          display: 'grid',
+          gridTemplateColumns: '1fr 100px'
+        };
+      }
+    };
+    
+    setProp(el, 'style', {
+      display: mockGridDescriptor
+    }, {
+      padding: ['8px', '16px'],
+      display: mockFlexDescriptor
+    }, wrapEvent);
+    
+    expect(el.style.padding).toBe('');
+    expect(el.style.display).toBe('grid');
+    expect(el.style.flexDirection).toBe('');
+    expect(el.style.gap).toBe('');
+    expect(el.style.gridTemplateColumns).toBe('1fr 100px');
+  });
+
   test('adds and updates event listeners', () => {
     const el = document.createElement('button') as MemoElement;
     let count = 0;

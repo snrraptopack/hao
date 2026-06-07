@@ -160,6 +160,7 @@ export function leftModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
     } else if (isKeyboardEvent(event)) {
       return keyWrapped(event);
     }
+    return BLOCKED_EVENT;
   };
 }
 
@@ -179,6 +180,7 @@ export function rightModifier(handler: RuntimeEventHandler): RuntimeEventHandler
     } else if (isKeyboardEvent(event)) {
       return keyWrapped(event);
     }
+    return BLOCKED_EVENT;
   };
 }
 

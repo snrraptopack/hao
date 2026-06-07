@@ -45,6 +45,7 @@ import * as valuesModule from './values';
 import { merge, extend, define, children, pseudo, child, descendant, sibling, above, below, matchBreakpoint, between } from './compose';
 import { when, match, mergeWhen } from './conditionals';
 import * as tokensModule from './tokens';
+import { grid, flex } from './layout';
 import { resolve } from './serialize';
 import type { ResolvedStyle, StyleObject } from './types';
 
@@ -107,8 +108,8 @@ css.ease       = valuesModule.ease;
 css.outline    = valuesModule.outline;
 
 // Layout descriptors
-css.grid = valuesModule.grid;
-css.flex = valuesModule.flex;
+css.grid = grid;
+css.flex = flex;
 
 // Composition
 css.merge  = merge;

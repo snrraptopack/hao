@@ -27,7 +27,8 @@ export { px, rem, em, vw, vh, vmin, vmax, pct, fr, ch, zero, clamp, ms, s, deg, 
 export { color, gradient } from './color';
 
 // Values / Layouts / Composites
-export { border, shadow, transform, transition, ease, outline, grid, flex } from './values';
+export { border, shadow, transform, transition, ease, outline } from './values';
+export { grid, flex } from './layout';
 
 // Types — re-exported for consumers who want to type function parameters
 export type {
@@ -38,8 +39,10 @@ export type {
   Color,
   CSSValue,
   FlexDescriptor,
+  FlexOptions,
   Gradient,
   GridDescriptor,
+  GridOptions,
   Length,
   ResolvedStyle,
   ResponsiveValue,
