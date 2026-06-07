@@ -584,3 +584,48 @@ At build time, the Vite plugin (`auwla`) performs the following:
 4. **Debug File Writer**: If `debugFlag: true` is set in the Vite config, a local copy of the compiled stylesheet is automatically written to `.auwla/compiled.css` in the project root for easy editor syntax highlighting and inspection.
 5. **Optimizes output**: Merges extracted classNames with existing inline static or dynamic class strings in TSX templates.
 6. **HMR Garbage Collection**: Tracks rules by file and removes old CSS declarations during active development hot reloads.
+
+---
+
+## 8. DX Shorthand Property Mappings & Sequential Modifiers
+
+To write clean and concise inline CSS expressions, Auwla CSS supports developer experience (DX) property shorthands and sequential modifier parsing.
+
+### Property Shorthands
+The compiler and runtime translate abbreviated keys to their standard camelCase CSS property equivalents:
+
+| Shorthand | Standard Property | Shorthand | Standard Property |
+| :--- | :--- | :--- | :--- |
+| `d` | `display` | `pos` | `position` |
+| `t` / `r` / `b` / `l` | `top` / `right` / `bottom` / `left` | `z` | `zIndex` |
+| `w` / `h` | `width` / `height` | `minW` / `maxW` | `minWidth` / `maxWidth` |
+| `minH` / `maxH` | `minHeight` / `maxHeight` | `m` / `p` | `margin` / `padding` |
+| `mt` / `mr` / `mb` / `ml` | `marginTop` / `marginRight` / `marginBottom` / `marginLeft` | `mx` / `my` | `marginInline` / `marginBlock` |
+| `pt` / `pr` / `pb` / `pl` | `paddingTop` / `paddingRight` / `paddingBottom` / `paddingLeft` | `px` / `py` | `paddingInline` / `paddingBlock` |
+| `jc` / `ai` / `ac` / `ji` | `justifyContent` / `alignItems` / `alignContent` / `justifyItems` | `as` / `js` | `alignSelf` / `justifySelf` |
+| `g` / `rg` / `cg` | `gap` / `rowGap` / `columnGap` | `bg` / `bgc` | `background` / `backgroundColor` |
+| `c` | `color` | `op` | `opacity` |
+| `bsh` / `tsh` | `boxShadow` / `textShadow` | `bc` / `bw` / `bs` / `br` | `borderColor` / `borderWidth` / `borderStyle` / `borderRadius` |
+| `ff` / `fs` / `fw` / `lh` | `fontFamily` / `fontSize` / `fontWeight` / `lineHeight` | `ta` / `td` / `tt` | `textAlign` / `textDecoration` / `textTransform` |
+| `ws` / `to` | `whiteSpace` / `textOverflow` | `anim` / `trans` | `animation` / `transition` |
+| `pe` / `us` / `v` | `pointerEvents` / `userSelect` / `visibility` | | |
+
+### Sequential Modifiers
+If a state modifier key (like `hover`, `focus`, or a breakpoint like `md`, `lg`) is declared immediately following a property, the engine nests it under that property's state context. This avoids having to write nested selectors for individual values:
+
+```typescript
+const buttonStyles = css({
+  d: 'flex',
+  jc: 'center',
+  ai: 'center',
+  bg: '#3b82f6',
+  hover: '#2563eb',       // applies to 'bg' -> background:hover
+  mdHover: '#1d4ed8',     // applies to 'bg' -> background under md query + hover
+  c: '#ffffff',
+  fw: 'bold',
+  br: css.px(4),
+});
+```
+
+> [!NOTE]
+> All values remain original typed units (like `css.px(value)`) or explicit standard string values. The engine translates property names and states without altering or auto-scaling values.

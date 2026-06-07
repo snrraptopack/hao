@@ -242,6 +242,13 @@ import type { CosmeticsProperties } from './cosmetics';
 import type { EffectsProperties } from './effects';
 import type { ScrollProperties } from './scroll';
 
+import type { DisplayMode, PositionMode, LengthProperty, GlobalCssValues } from './positioning';
+import type { SizingProperty, MinMaxSizingProperty } from './sizing';
+import type { JustifyContent, AlignItems, AlignContent, FlexGap } from './layout';
+import type { ColorProperty, BorderWidthValue, BorderStyleValue } from './borders';
+import type { FontWeightValue, TextAlignValue, TextTransformValue, WhiteSpaceValue, TextOverflowValue } from './typography';
+import type { PointerEventsValue, UserSelectValue, VisibilityValue } from './cosmetics';
+
 // ---------------------------------------------------------------------------
 // Style object
 // ---------------------------------------------------------------------------
@@ -295,6 +302,107 @@ export type ResolvedStyle = Record<string, string>;
  * Keys are camelCase CSS property names (same as React's CSSProperties).
  */
 
+export interface DxShorthands {
+  // Layout & Positioning
+  d?: ResponsiveValue<DisplayMode>;
+  pos?: ResponsiveValue<PositionMode>;
+  t?: ResponsiveValue<LengthProperty>;
+  r?: ResponsiveValue<LengthProperty>;
+  b?: ResponsiveValue<LengthProperty>;
+  l?: ResponsiveValue<LengthProperty>;
+  z?: ResponsiveValue<number | 'auto' | GlobalCssValues>;
+
+  // Sizing
+  w?: ResponsiveValue<SizingProperty>;
+  h?: ResponsiveValue<SizingProperty>;
+  minW?: ResponsiveValue<MinMaxSizingProperty>;
+  maxW?: ResponsiveValue<MinMaxSizingProperty>;
+  minH?: ResponsiveValue<MinMaxSizingProperty>;
+  maxH?: ResponsiveValue<MinMaxSizingProperty>;
+
+  // Spacing
+  m?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  mt?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  mr?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  mb?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  ml?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  mx?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  my?: ResponsiveValue<LengthProperty | 'auto' | GlobalCssValues>;
+  p?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  pt?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  pr?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  pb?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  pl?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  px?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  py?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+
+  // Flex / Grid
+  jc?: ResponsiveValue<JustifyContent>;
+  ai?: ResponsiveValue<AlignItems>;
+  ac?: ResponsiveValue<AlignContent>;
+  ji?: ResponsiveValue<'stretch' | 'start' | 'end' | 'center' | 'left' | 'right' | 'baseline' | 'first baseline' | 'last baseline' | string | GlobalCssValues>;
+  as?: ResponsiveValue<'auto' | 'flex-start' | 'flex-end' | 'center' | 'baseline' | 'stretch' | 'start' | 'end' | 'self-start' | 'self-end' | GlobalCssValues | (string & {})>;
+  js?: ResponsiveValue<'auto' | 'stretch' | 'start' | 'end' | 'center' | 'baseline' | 'left' | 'right' | string | GlobalCssValues>;
+  g?: ResponsiveValue<FlexGap>;
+  rg?: ResponsiveValue<FlexGap>;
+  cg?: ResponsiveValue<FlexGap>;
+
+  // Cosmetics & Colors
+  bg?: ResponsiveValue<Color | Gradient | string | GlobalCssValues>;
+  bgc?: ResponsiveValue<ColorProperty | GlobalCssValues>;
+  c?: ResponsiveValue<ColorProperty | GlobalCssValues>;
+  op?: ResponsiveValue<number | string | GlobalCssValues>;
+  bsh?: ResponsiveValue<Shadow | string | GlobalCssValues>;
+  tsh?: ResponsiveValue<Shadow | string | GlobalCssValues>;
+
+  // Borders
+  bc?: ResponsiveValue<ColorProperty | 'transparent' | GlobalCssValues>;
+  bw?: ResponsiveValue<BorderWidthValue>;
+  bs?: ResponsiveValue<BorderStyleValue>;
+  br?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+
+  // Typography
+  ff?: ResponsiveValue<string | GlobalCssValues>;
+  fs?: ResponsiveValue<LengthProperty | GlobalCssValues>;
+  fw?: ResponsiveValue<FontWeightValue>;
+  lh?: ResponsiveValue<LengthProperty | number | GlobalCssValues>;
+  ta?: ResponsiveValue<TextAlignValue>;
+  td?: ResponsiveValue<string | GlobalCssValues>;
+  tt?: ResponsiveValue<TextTransformValue>;
+  ws?: ResponsiveValue<WhiteSpaceValue>;
+  to?: ResponsiveValue<TextOverflowValue>;
+
+  // Effects & Interactions
+  anim?: ResponsiveValue<string | GlobalCssValues>;
+  trans?: ResponsiveValue<Transition | string | GlobalCssValues>;
+  pe?: ResponsiveValue<PointerEventsValue>;
+  us?: ResponsiveValue<UserSelectValue>;
+  v?: ResponsiveValue<VisibilityValue>;
+
+  // Autocomplete support for sequential modifiers
+  hover?: any;
+  focus?: any;
+  active?: any;
+  visited?: any;
+  disabled?: any;
+  checked?: any;
+  focusWithin?: any;
+  focusVisible?: any;
+  target?: any;
+  empty?: any;
+  first?: any;
+  last?: any;
+  odd?: any;
+  even?: any;
+  sm?: any;
+  md?: any;
+  lg?: any;
+  xl?: any;
+  '2xl'?: any;
+  dark?: any;
+  light?: any;
+}
+
 interface PropertyValueMap extends
   PositioningProperties,
   SizingProperties,
@@ -304,7 +412,8 @@ interface PropertyValueMap extends
   TypographyProperties,
   CosmeticsProperties,
   EffectsProperties,
-  ScrollProperties {
+  ScrollProperties,
+  DxShorthands {
   // 10. Directives
   /**
    * CSS @import directive to import external stylesheets.

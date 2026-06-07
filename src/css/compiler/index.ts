@@ -10,18 +10,12 @@
 
 import { expandShorthands } from './shorthands';
 import { toClassName, valueToString, sanitizeValue } from './class-names';
+import { normalizeStyleObject } from '../dx';
+import { BREAKPOINTS } from '../breakpoints';
 
 export { expandShorthands } from './shorthands';
 export { toClassName, PROPERTY_MAP, getPropertyKey, sanitizeValue, valueToString } from './class-names';
-
-/** Standard responsive breakpoints map */
-export const BREAKPOINTS: Record<string, string> = {
-  sm: '640px',
-  md: '768px',
-  lg: '1024px',
-  xl: '1280px',
-  '2xl': '1536px',
-};
+export { BREAKPOINTS };
 
 export interface CSSRule {
   className: string;
@@ -71,8 +65,11 @@ export function compileStyle(
   const classes: string[] = [];
   const rules: CompiledStyles['rules'] = [];
 
-  // 1. Expand shorthands (padding, margin, flex, grid, etc.) to longhands first
-  const expandedStyle = expandShorthands(style);
+  // 1. Pre-process/normalize style object to expand DX shorthands & resolve sequential modifiers
+  const normalizedStyle = normalizeStyleObject(style);
+
+  // 2. Expand shorthands (padding, margin, flex, grid, etc.) to longhands
+  const expandedStyle = expandShorthands(normalizedStyle);
 
   // 2. Iterate through all properties in the style object
   for (const [key, value] of Object.entries(expandedStyle)) {

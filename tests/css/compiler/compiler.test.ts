@@ -317,5 +317,40 @@ describe('compileStyle engine', () => {
     expect(importRule?.className).toBe('');
     expect(importRule?.selector).toBe('');
   });
+
+  it('should compile DX shorthands and sequential modifiers correctly', () => {
+    const input = {
+      d: 'flex',
+      jc: 'center',
+      ai: 'center',
+      bg: '#3b82f6',
+      hover: '#2563eb',
+      mdHover: '#1d4ed8',
+    };
+    const { classes, rules } = compileStyle(input);
+
+    expect(classes.sort()).toEqual([
+      'd_flex',
+      'justify_center',
+      'items_center',
+      'bg_3b82f6',
+      'hover:bg_2563eb',
+      'media-min-width_-768px:hover:bg_1d4ed8'
+    ].sort());
+
+    const hoverRule = rules.find((r) => r.className === 'hover:bg_2563eb');
+    expect(hoverRule).toBeDefined();
+    expect(hoverRule?.selector).toBe('.hover\\:bg_2563eb:hover');
+    expect(hoverRule?.property).toBe('background');
+    expect(hoverRule?.value).toBe('#2563eb');
+    expect(hoverRule?.mediaQuery).toBeUndefined();
+
+    const mdHoverRule = rules.find((r) => r.className === 'media-min-width_-768px:hover:bg_1d4ed8');
+    expect(mdHoverRule).toBeDefined();
+    expect(mdHoverRule?.selector).toBe('.media-min-width_-768px\\:hover\\:bg_1d4ed8:hover');
+    expect(mdHoverRule?.property).toBe('background');
+    expect(mdHoverRule?.value).toBe('#1d4ed8');
+    expect(mdHoverRule?.mediaQuery).toBe('(min-width: 768px)');
+  });
 });
 

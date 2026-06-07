@@ -47,6 +47,7 @@ import { when, match, mergeWhen } from './conditionals';
 import * as tokensModule from './tokens';
 import { grid, flex } from './layout';
 import { resolve } from './serialize';
+import { normalizeStyleObject } from './dx';
 import type { ResolvedStyle, StyleObject } from './types';
 
 // ---------------------------------------------------------------------------
@@ -65,7 +66,7 @@ import type { ResolvedStyle, StyleObject } from './types';
  * <button style={css({ padding: css.px(16), background: css.color('#3b82f6') })} />
  */
 function css(style: StyleObject): ResolvedStyle {
-  return resolve(style);
+  return resolve(normalizeStyleObject(style));
 }
 
 // ---------------------------------------------------------------------------

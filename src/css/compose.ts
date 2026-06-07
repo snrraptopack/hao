@@ -24,6 +24,7 @@
  */
 
 import type { StyleObject } from './types';
+import { BREAKPOINTS } from './breakpoints';
 
 // ---------------------------------------------------------------------------
 // merge
@@ -152,13 +153,7 @@ export function pseudo(name: string): string {
 // Advanced Selectors & Responsive Range Helpers
 // ---------------------------------------------------------------------------
 
-const BREAKPOINTS: Record<string, string> = {
-  sm: '640px',
-  md: '768px',
-  lg: '1024px',
-  xl: '1280px',
-  '2xl': '1536px',
-};
+
 
 export type SelectorBuilder = string & {
   readonly first: SelectorBuilder;
