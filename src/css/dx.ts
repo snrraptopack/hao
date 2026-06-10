@@ -6,7 +6,7 @@
  */
 
 import { SHORTHAND_MAP } from './shorthand-map';
-import { BREAKPOINTS } from './breakpoints';
+import { BREAKPOINTS, BREAKPOINT_KEYS } from './breakpoints';
 
 export const MODIFIERS = new Set([
   'hover', 'focus', 'active', 'visited', 'disabled', 'checked',
@@ -62,14 +62,23 @@ function applyNestedModifier(
   current[standardProp] = value;
 }
 
+/**
+ * Determine whether a plain object is a responsive value wrapper.
+ *
+ * A responsive object contains ONLY breakpoint keys (`base`, `sm`, `md`, …)
+ * and nothing else. Objects with CSS property keys, pseudo-selectors, or
+ * modifier keys are NOT responsive values — they are nested StyleObjects.
+ *
+ * This strict check prevents `{ background: 'blue' }` (a StyleObject returned
+ * by css.when) from being misidentified as a responsive value.
+ */
 function isResponsiveObject(value: any): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value) || '_tag' in value) {
     return false;
   }
   const keys = Object.keys(value);
   if (keys.length === 0) return false;
-  if (keys.includes('base')) return true;
-  return keys.every(key => MODIFIERS.has(key));
+  return keys.every(key => BREAKPOINT_KEYS.has(key));
 }
 
 /**
@@ -98,7 +107,9 @@ export function normalizeStyleObject(style: Record<string, any>): Record<string,
       continue;
     }
 
-    const standardKey = SHORTHAND_MAP[key] || key;
+    // Use Object.hasOwn to avoid inheriting Object.prototype properties
+    // like 'toString' or 'constructor' as shorthand mappings.
+    const standardKey = Object.hasOwn(SHORTHAND_MAP, key) ? SHORTHAND_MAP[key] : key;
     if (typeof value === 'object' && value !== null && !('_tag' in value) && !Array.isArray(value)) {
       if (isResponsiveObject(value)) {
         normalized[standardKey] = value;

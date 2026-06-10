@@ -10,7 +10,8 @@ export default defineConfig({
       fileName: (format) => `auwla.${format === 'es' ? 'js' : 'umd.cjs'}`,
       formats: ['es']
     },
-    rollupOptions: {
+    // Vite 8: rollupOptions is deprecated, use rolldownOptions
+    rolldownOptions: {
       external: ['typescript', 'path', 'fs'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
@@ -25,7 +26,6 @@ export default defineConfig({
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: '[name].js',
-        inlineDynamicImports: false
       }
     }
   },
@@ -33,14 +33,16 @@ export default defineConfig({
     port: 5173,
     open: true
   },
-  appType: "spa" ,
-  plugins: [auwla({ debugFlag: true ,css:true})],
+  appType: 'spa',
+  plugins: [auwla({ debugFlag: true, css: true })],
   assetsInclude: [],
   optimizeDeps: {
     exclude: [],
     include: [],
-    esbuildOptions: {
-      loader: {
+    // Vite 8: esbuildOptions is deprecated, use rolldownOptions
+    // loader → moduleTypes
+    rolldownOptions: {
+      moduleTypes: {
         '.tsx': 'tsx',
         '.ts': 'ts'
       }
@@ -58,8 +60,11 @@ export default defineConfig({
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]
   },
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'auwla'
+  // Vite 8: esbuild option replaced by oxc
+  oxc: {
+    jsx: {
+      runtime: 'automatic',
+      importSource: 'auwla'
+    }
   }
 });

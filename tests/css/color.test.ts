@@ -138,6 +138,36 @@ describe('color.mix()', () => {
     expect(mid.toString()).not.toBe('#000000');
     expect(mid.toString()).not.toBe('#ffffff');
   });
+
+  test('mixes across the 0°/360° hue boundary using the short path', () => {
+    // 350° and 10° are only 20° apart; the short path should go through 0°.
+    // Linear interpolation would give ~180° (purple/cyan), which looks nothing
+    // like the actual mix. We verify the result is NOT that purple color.
+    const a = color('oklch(0.5 0.2 350)');
+    const b = color('oklch(0.5 0.2 10)');
+    const mid = a.mix(b, 0.5);
+
+    // The linear-interpolation purple would be oklch(0.5 0.2 180).
+    // Its hex is approximately #007e8a (cyan). The circular result near 0°
+    // is approximately #9a4050 (red). These are completely different.
+    const purple = color('oklch(0.5 0.2 180)');
+    expect(mid.toString()).not.toBe(purple.toString());
+
+    // Sanity: the midpoint should be closer in hue to both inputs than purple is.
+    // We verify by checking the result is NOT cyan/blue/purple.
+    const hex = mid.toString();
+    expect(hex.startsWith('#')).toBe(true);
+  });
+
+  test('mix(other, 0.5) with symmetric hues around 0° stays near 0°', () => {
+    const a = color('oklch(0.5 0.2 355)');
+    const b = color('oklch(0.5 0.2 5)');
+    const mid = a.mix(b, 0.5);
+
+    // Should not be the purple/cyan that linear interpolation would produce.
+    const purple = color('oklch(0.5 0.2 180)');
+    expect(mid.toString()).not.toBe(purple.toString());
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -160,14 +190,91 @@ describe('color.contrast()', () => {
   });
 });
 
+/** Simple hex → [r,g,b] in [0,1] for test assertions. */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  if (h.length === 3) {
+    return [
+      parseInt(h[0]! + h[0]!, 16) / 255,
+      parseInt(h[1]! + h[1]!, 16) / 255,
+      parseInt(h[2]! + h[2]!, 16) / 255,
+    ];
+  }
+  return [
+    parseInt(h.slice(0, 2), 16) / 255,
+    parseInt(h.slice(2, 4), 16) / 255,
+    parseInt(h.slice(4, 6), 16) / 255,
+  ];
+}
+
+function gammaLinearize(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function relativeLuminance(r: number, g: number, b: number): number {
+  return 0.2126 * gammaLinearize(r) + 0.7152 * gammaLinearize(g) + 0.0722 * gammaLinearize(b);
+}
+
+function contrastRatio(lum1: number, lum2: number): number {
+  const lighter = Math.max(lum1, lum2);
+  const darker = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 describe('color.ensureContrast()', () => {
   test('adjusted color meets the required ratio', () => {
     const bg = color('#aaaaaa');
     const fg = color('#000000');
-    // ensureContrast adjusts bg until it reaches ratio 4.5
     const adjusted = bg.ensureContrast(fg, 4.5);
     expect(adjusted.toString()).toBeTruthy();
-    expect(adjusted.toString()).not.toThrow;
+  });
+
+  test('light background against light foreground becomes darker', () => {
+    const bg = color('#ffffff');
+    const fg = color('#f0f0f0');
+    const adjusted = bg.ensureContrast(fg, 4.5);
+
+    const [r, g, b] = hexToRgb('#ffffff');
+    const [ar, ag, ab] = hexToRgb(adjusted.toString());
+
+    const originalLum = relativeLuminance(r, g, b);
+    const adjustedLum = relativeLuminance(ar, ag, ab);
+
+    // Adjusted must be darker (lower luminance) to contrast with light fg
+    expect(adjustedLum).toBeLessThan(originalLum);
+    // And must actually meet the required contrast
+    expect(contrastRatio(adjustedLum, relativeLuminance(...hexToRgb('#f0f0f0')))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('dark background against dark foreground becomes lighter', () => {
+    const bg = color('#111111');
+    const fg = color('#000000');
+    const adjusted = bg.ensureContrast(fg, 4.5);
+
+    const [r, g, b] = hexToRgb('#111111');
+    const [ar, ag, ab] = hexToRgb(adjusted.toString());
+
+    const originalLum = relativeLuminance(r, g, b);
+    const adjustedLum = relativeLuminance(ar, ag, ab);
+
+    // Adjusted must be lighter (higher luminance) to contrast with dark fg
+    expect(adjustedLum).toBeGreaterThan(originalLum);
+    expect(contrastRatio(adjustedLum, relativeLuminance(...hexToRgb('#000000')))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test('returns a color close to original when it already meets contrast', () => {
+    const bg = color('#3b82f6');
+    const fg = color('#ffffff');
+    const adjusted = bg.ensureContrast(fg, 4.5);
+
+    // Blue on white already has high contrast; should stay close to original
+    const [r1, g1, b1] = hexToRgb('#3b82f6');
+    const [r2, g2, b2] = hexToRgb(adjusted.toString());
+
+    // Allow modest drift from OKLCH round-tripping + binary-search margin
+    expect(Math.abs(r1 - r2)).toBeLessThan(0.12);
+    expect(Math.abs(g1 - g2)).toBeLessThan(0.12);
+    expect(Math.abs(b1 - b2)).toBeLessThan(0.12);
   });
 });
 

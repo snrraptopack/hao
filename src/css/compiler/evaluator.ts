@@ -1,8 +1,30 @@
 import ts from 'typescript';
 import { color } from '../color';
 import { child, descendant, sibling } from '../compose';
-import { BREAKPOINTS } from './index';
 import { flexProperties, gridProperties } from '../layout';
+import { computeSpring } from '../shared/spring';
+import { getBreakpointValue, above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from '../shared/breakpoints';
+import { parseLength as sharedParseLength } from '../shared/length';
+
+/**
+ * A conditional style value produced by css.when() or css.match() where the
+ * branches are statically known but the condition/discriminator is dynamic.
+ * The compiler uses this to emit ternary class expressions instead of falling
+ * back to runtime inline styles.
+ */
+export interface ConditionalValue {
+  readonly __conditional: true;
+  /** 'when' for boolean conditions, 'match' for union discriminant */
+  type: 'when' | 'match';
+  /** The raw AST expression for the condition (or lookup key for match) */
+  condition: ts.Expression;
+  /** Statically-evaluated branch values */
+  branches: Record<string, any>;
+}
+
+export function isConditionalValue(v: any): v is ConditionalValue {
+  return v !== null && typeof v === 'object' && v.__conditional === true;
+}
 
 export interface EvaluatedNode {
   isStatic: boolean;
@@ -31,44 +53,8 @@ export function parseLength(val: any): { value: number; unit: string } {
   return { value: 0, unit: 'px' };
 }
 
-export function computeSpring(stiffness = 300, damping = 25, mass = 1): string {
-  const omega0 = Math.sqrt(stiffness / mass);
-  const zeta   = damping / (2 * Math.sqrt(stiffness * mass));
-  let duration: number;
-  if (zeta >= 1) {
-    duration = 6 / (zeta * omega0);
-  } else {
-    const settling = Math.log(0.001) / (-zeta * omega0);
-    const omegaD   = omega0 * Math.sqrt(1 - zeta * zeta);
-    const period   = (2 * Math.PI) / omegaD;
-    duration = Math.max(settling, period * 1.5);
-  }
-  const SAMPLES = 30;
-  const points: string[] = [];
-  for (let i = 0; i <= SAMPLES; i++) {
-    const t = (i / SAMPLES) * duration;
-    let x: number;
-    if (zeta < 1) {
-      const omegaD = omega0 * Math.sqrt(1 - zeta * zeta);
-      x = 1 - Math.exp(-zeta * omega0 * t) * (
-        Math.cos(omegaD * t) + (zeta / omegaD) * Math.sin(omegaD * t)
-      );
-    } else if (zeta === 1) {
-      x = 1 - (1 + omega0 * t) * Math.exp(-omega0 * t);
-    } else {
-      const sqrtTerm = Math.sqrt(zeta * zeta - 1);
-      const r1 = omega0 * (-zeta + sqrtTerm);
-      const r2 = omega0 * (-zeta - sqrtTerm);
-      x = 1 + (r2 / (r1 - r2)) * Math.exp(r1 * t) - (r1 / (r1 - r2)) * Math.exp(r2 * t);
-    }
-    x = Math.max(-0.5, Math.min(1.5, x));
-    const inputPct = ((i / SAMPLES) * 100).toFixed(1);
-    points.push(`${x.toFixed(4)} ${inputPct}%`);
-  }
-  return `linear(${points.join(', ')})`;
-}
-
 /**
+ * Statically evaluates a TypeScript AST expression node.
  * Statically evaluates a TypeScript AST expression node.
  * Supports primitives, object literals, arrays, design tokens, and standard `css.*` helpers.
  */
@@ -314,38 +300,85 @@ export function evalNode(
     const argResults = node.arguments.map((arg) => evalNode(arg, source, themeValues, selectorContext, localScope));
     const argsAllStatic = argResults.every((r) => r.isStatic);
 
+    // --- Conditional evaluation: css.when / css.match with dynamic conditions ---
+    // Even when the condition is dynamic, if the branches are static we can
+    // return a ConditionalValue so the compiler emits ternary class expressions.
+    if (funcName === 'css.when' || funcName === 'when') {
+      const condArg = node.arguments[0];
+      const branchesArg = node.arguments[1];
+      if (branchesArg && ts.isObjectLiteralExpression(branchesArg)) {
+        const branches: Record<string, any> = {};
+        let allBranchesStatic = true;
+        for (const prop of branchesArg.properties) {
+          if (ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) {
+            const branchRes = evalNode(prop.initializer, source, themeValues, selectorContext, localScope);
+            if (branchRes.isStatic) {
+              branches[prop.name.text] = branchRes.value;
+            } else {
+              allBranchesStatic = false;
+              break;
+            }
+          }
+        }
+        if (allBranchesStatic && Object.keys(branches).length > 0) {
+          if (argsAllStatic) {
+            // Fully static — resolve immediately
+            const lookupKey = String(!!argResults[0]?.value);
+            return { isStatic: true, value: branches[lookupKey] ?? branches['default'] ?? {} };
+          }
+          // Dynamic condition, static branches — return conditional
+          return {
+            isStatic: true,
+            value: {
+              __conditional: true as const,
+              type: 'when',
+              condition: condArg,
+              branches,
+            } as ConditionalValue,
+          };
+        }
+      }
+    }
+
+    if (funcName === 'css.match' || funcName === 'match') {
+      const discArg = node.arguments[0];
+      const branchesArg = node.arguments[1];
+      if (branchesArg && ts.isObjectLiteralExpression(branchesArg)) {
+        const branches: Record<string, any> = {};
+        let allBranchesStatic = true;
+        for (const prop of branchesArg.properties) {
+          if (ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) {
+            const branchRes = evalNode(prop.initializer, source, themeValues, selectorContext, localScope);
+            if (branchRes.isStatic) {
+              branches[prop.name.text] = branchRes.value;
+            } else {
+              allBranchesStatic = false;
+              break;
+            }
+          }
+        }
+        if (allBranchesStatic && Object.keys(branches).length > 0) {
+          if (argsAllStatic) {
+            // Fully static — resolve immediately
+            const key = String(argResults[0]?.value);
+            return { isStatic: true, value: branches[key] ?? branches['default'] ?? {} };
+          }
+          // Dynamic discriminator, static branches — return conditional
+          return {
+            isStatic: true,
+            value: {
+              __conditional: true as const,
+              type: 'match',
+              condition: discArg,
+              branches,
+            } as ConditionalValue,
+          };
+        }
+      }
+    }
+
     if (argsAllStatic) {
       const staticArgs = argResults.map((r) => r.value);
-
-      // Branch evaluations
-      if (funcName === 'css.match' || funcName === 'match') {
-        const discriminator = staticArgs[0];
-        const cases = staticArgs[1] || {};
-        if (typeof cases === 'object' && cases !== null) {
-          if (discriminator in cases) {
-            return { isStatic: true, value: cases[discriminator] };
-          }
-          if ('default' in cases) {
-            return { isStatic: true, value: cases['default'] };
-          }
-        }
-        return { isStatic: true, value: {} };
-      }
-
-      if (funcName === 'css.when' || funcName === 'when') {
-        const condition = !!staticArgs[0];
-        const cases = staticArgs[1] || {};
-        const lookupKey = String(condition);
-        if (typeof cases === 'object' && cases !== null) {
-          if (lookupKey in cases) {
-            return { isStatic: true, value: cases[lookupKey] };
-          }
-          if ('default' in cases) {
-            return { isStatic: true, value: cases['default'] };
-          }
-        }
-        return { isStatic: true, value: {} };
-      }
 
       // Merge & Extend evaluations
       if (funcName === 'css.merge' || funcName === 'merge' || funcName === 'css.extend' || funcName === 'extend') {
@@ -566,75 +599,18 @@ export function evalNode(
       if (funcName === 'css.descendant' || funcName === 'descendant') return { isStatic: true, value: descendant(staticArgs[0]) };
       if (funcName === 'css.sibling' || funcName === 'sibling') return { isStatic: true, value: sibling(staticArgs[0]) };
 
-      // Responsive media range helpers
+      // Responsive media range helpers — delegate to shared implementation
       if (funcName === 'css.above' || funcName === 'above') {
-        const bp = staticArgs[0];
-        const raw = BREAKPOINTS[bp] || bp;
-        const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
-        const val = match && match[1] !== undefined && match[2] !== undefined
-          ? `${parseFloat(match[1])}${match[2]}`
-          : bp;
-        return { isStatic: true, value: `@media (min-width: ${val})` };
+        return { isStatic: true, value: bpAbove(staticArgs[0]) };
       }
       if (funcName === 'css.below' || funcName === 'below') {
-        const bp = staticArgs[0];
-        const raw = BREAKPOINTS[bp] || bp;
-        const match = raw.match(/^([\d.]+)([a-zA-Z%]+)$/);
-        if (match && match[1] !== undefined && match[2] !== undefined) {
-          const unit = match[2];
-          const val = parseFloat(match[1]);
-          const sub = unit === 'px' ? 0.02 : 0.01;
-          const maxVal = (val - sub).toFixed(3).replace(/\.?0+$/, '');
-          return { isStatic: true, value: `@media (max-width: ${maxVal}${unit})` };
-        }
-        return { isStatic: true, value: `@media (max-width: ${bp})` };
+        return { isStatic: true, value: bpBelow(staticArgs[0]) };
       }
       if (funcName === 'css.matchBreakpoint' || funcName === 'matchBreakpoint') {
-        const bp = staticArgs[0];
-        const rawMin = BREAKPOINTS[bp] || bp;
-        const matchMin = rawMin.match(/^([\d.]+)([a-zA-Z%]+)$/);
-        const minVal = matchMin && matchMin[1] !== undefined && matchMin[2] !== undefined
-          ? `${parseFloat(matchMin[1])}${matchMin[2]}`
-          : bp;
-        
-        const keys = Object.keys(BREAKPOINTS);
-        const idx = keys.indexOf(bp);
-        if (idx !== -1 && idx < keys.length - 1) {
-          const nextBp = keys[idx + 1];
-          const rawMax = nextBp ? BREAKPOINTS[nextBp] : undefined;
-          if (rawMax) {
-            const matchMax = rawMax.match(/^([\d.]+)([a-zA-Z%]+)$/);
-            if (matchMax && matchMax[1] !== undefined && matchMax[2] !== undefined) {
-              const unit = matchMax[2];
-              const val = parseFloat(matchMax[1]);
-              const sub = unit === 'px' ? 0.02 : 0.01;
-              const maxVal = (val - sub).toFixed(3).replace(/\.?0+$/, '');
-              return { isStatic: true, value: `@media (min-width: ${minVal}) and (max-width: ${maxVal}${unit})` };
-            }
-          }
-        }
-        return { isStatic: true, value: `@media (min-width: ${minVal})` };
+        return { isStatic: true, value: bpMatch(staticArgs[0]) };
       }
       if (funcName === 'css.between' || funcName === 'between') {
-        const minBp = staticArgs[0];
-        const maxBp = staticArgs[1];
-        
-        const rawMin = BREAKPOINTS[minBp] || minBp;
-        const matchMin = rawMin.match(/^([\d.]+)([a-zA-Z%]+)$/);
-        const minStr = matchMin && matchMin[1] !== undefined && matchMin[2] !== undefined
-          ? `${parseFloat(matchMin[1])}${matchMin[2]}`
-          : minBp;
-
-        const rawMax = BREAKPOINTS[maxBp] || maxBp;
-        const matchMax = rawMax.match(/^([\d.]+)([a-zA-Z%]+)$/);
-        if (matchMax && matchMax[1] !== undefined && matchMax[2] !== undefined) {
-          const unit = matchMax[2];
-          const val = parseFloat(matchMax[1]);
-          const sub = unit === 'px' ? 0.02 : 0.01;
-          const maxVal = (val - sub).toFixed(3).replace(/\.?0+$/, '');
-          return { isStatic: true, value: `@media (min-width: ${minStr}) and (max-width: ${maxVal}${unit})` };
-        }
-        return { isStatic: true, value: `@media (min-width: ${minStr}) and (max-width: ${maxBp})` };
+        return { isStatic: true, value: bpBetween(staticArgs[0], staticArgs[1]) };
       }
 
       // Flex Layout Descriptor Mock

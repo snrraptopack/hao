@@ -67,6 +67,35 @@ describe('css.when() — boolean branching', () => {
     const result2 = when(isInactive, { true: 'blue' });
     expect(result2).toEqual({});
   });
+
+  test('falls back to default when true branch is omitted', () => {
+    const result = when(true, { false: 'grey', default: 'blue' });
+    expect(result).toBe('blue');
+  });
+
+  test('falls back to default when false branch is omitted', () => {
+    const result = when(false, { true: 'blue', default: 'grey' });
+    expect(result).toBe('grey');
+  });
+
+  test('prefers explicit true branch over default', () => {
+    const result = when(true, { true: 'blue', default: 'grey' });
+    expect(result).toBe('blue');
+  });
+
+  test('prefers explicit false branch over default', () => {
+    const result = when(false, { false: 'grey', default: 'blue' });
+    expect(result).toBe('grey');
+  });
+
+  test('default works with StyleObject branches', () => {
+    const result = when(false, {
+      true: { background: color('#3b82f6') },
+      default: { background: color('#e5e7eb') },
+    });
+    expect((result as { background: ReturnType<typeof color> }).background.toString())
+      .toMatch(/^#e5e7eb/i);
+  });
 });
 
 describe('css.when() — resolves via css()', () => {

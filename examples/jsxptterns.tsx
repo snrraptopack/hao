@@ -1,6 +1,7 @@
 import type {} from 'auwla/jsx-runtime';
 import './styles.css';
 
+
 function Button(props: { lable: string,action:()=>void }) {
 
   return () => (
@@ -10,21 +11,33 @@ function Button(props: { lable: string,action:()=>void }) {
   )
 }
 
-function ExampleApp() {
-  let data:string[] = []
-  let currentInput = ""
-  function handleAdd() {
-    if (currentInput.trim() !== "") {
-      data.push(currentInput)
-      currentInput = ""
+class Data{
+  #data: string[] = []
+
+  handleAdd(userInput: string) {
+    if (userInput.trim() !== "") {
+      this.data.push(userInput)
     }
   }
-  function handleDelete(item:string) {
-    data = data.filter((it)=> it !==item)
+  handleDelete(item:string) {
+    this.#data = this.#data.filter((it)=> it !==item)
   }
 
+  get data() {
+    return this.#data
+  }
 
-  return () => (
+  get count() {
+    return this.data.length
+  }
+}
+
+function ExampleApp() {
+  const data = new Data()
+  let currentInput = ""
+
+
+  return ()=>(
     <section>
       <input
         type='text'
@@ -32,13 +45,19 @@ function ExampleApp() {
         value={currentInput}
         onInput={(e) => currentInput = (e.target as HTMLInputElement).value}
       />
-      <Button lable='Add' action={handleAdd} />
+      <Button lable='Add' action={() => {
+        data.handleAdd(currentInput)
+        currentInput = ""
+      }} />
+      <p>count { data.count}</p>
 
-      {data.length === 0 && <p>No todo</p>}
-      {data.length > 0 && data.map(it => (
+      {data.data.length === 0 && <p>No todo</p>}
+      {data.data.length > 0 && data.data.map(it => (
         <div>
           <p>{it}</p>
-          <Button lable='delete' action={()=>handleDelete(it)}/>
+          <Button lable='delete' action={() => {
+            data.handleDelete(it)
+          }}/>
         </div>
       ))}
     </section>

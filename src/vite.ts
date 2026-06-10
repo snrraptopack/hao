@@ -7,7 +7,7 @@ export type AuwlaViteOptions = {
   include?: RegExp;
   exclude?: RegExp;
   debugFlag?: boolean | string;
-  css?: boolean; // If true, enables the CSS extraction and compilation pipeline
+  css?: boolean;
 };
 
 function normalizeId(id: string): string {
@@ -38,8 +38,7 @@ function markerCode(value: boolean, debugFlag: boolean | string | undefined): st
 export function auwla(options: AuwlaViteOptions = {}): Plugin {
   const include = options.include ?? /\.[tj]sx$/;
   const exclude = options.exclude;
-  
-  // Instantiate the modular CSS handler
+
   const cssHandler = new ViteCSSHandler(!!options.css, !!options.debugFlag);
 
   return {
@@ -68,7 +67,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         }
       }
 
-      const cssMod = server?.moduleGraph?.getModuleById('\0virtual:auwla.css');
+      const cssMod = server?.moduleGraph?.getModuleById('virtual:auwla.css');
       if (cssMod) {
         server.moduleGraph.invalidateModule(cssMod);
         return [...modules, cssMod];
@@ -83,27 +82,26 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       }
     },
 
-    // 1. Delegate virtual module resolution
-    resolveId(source) {
+    resolveId(source, _importer, _options) {
       return cssHandler.resolveId(source);
     },
 
-    // 2. Delegate module loading
     load(id) {
       return cssHandler.load(id);
     },
 
-    // 3. Transform TSX files: delegate CSS extraction first, then compile TSX templates
     transform(code, id) {
       const file = normalizeId(id);
       if (!include.test(file)) return null;
       if (exclude?.test(file)) return null;
       if (file.includes('/node_modules/') || file.includes('\\node_modules\\')) return null;
 
-      // 1. Perform CSS extraction on the raw JSX code via the handler
-      let compiled = cssHandler.transform(code, file);
+      const hasJsx = /<[a-zA-Z]/.test(code);
+      if (!options.debugFlag && !code.includes('css') && !code.includes('define') && !hasJsx) {
+        return null;
+      }
 
-      // 2. Perform the JSX template lowering transform on the result
+      let compiled = cssHandler.transform(code, file);
       compiled = compileAuwla(compiled, file);
 
       if (compiled === code) {
@@ -114,6 +112,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       return {
         code: `${markerCode(true, options.debugFlag)}${compiled}`,
         map: null,
+        moduleType: 'js',
       };
     },
   };

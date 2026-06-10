@@ -15,6 +15,7 @@
  *   The browser receives the shorthand string; no individual longhands are set.
  */
 
+import { BREAKPOINT_KEYS } from './breakpoints';
 import type {
   Border,
   CalcExpression,
@@ -110,14 +111,31 @@ function serializeArray(
  * Grid and Flex descriptors are NOT handled here — they expand to multiple
  * properties and are handled in the outer `resolve()` loop.
  */
+/**
+ * Strictly test whether a plain object is a responsive value wrapper.
+ * Only objects whose keys are ALL breakpoints or `base` qualify.
+ * This prevents nested StyleObjects (e.g. returned by css.when) from
+ * being misidentified as responsive values.
+ */
+function isResponsiveValue(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || '_tag' in value) {
+    return false;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  if (keys.length === 0) return false;
+  return keys.every(key => BREAKPOINT_KEYS.has(key));
+}
+
+/**
+ * Convert one CSSValue to a CSS string.
+ * Grid and Flex descriptors are NOT handled here — they expand to multiple
+ * properties and are handled in the outer `resolve()` loop.
+ */
 function serializeValue(value: CSSValue): string {
-  // Check if it is a responsive object literal
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    !('_tag' in value) &&
-    !Array.isArray(value)
-  ) {
+  // Responsive object literal — extract the fallback value.
+  // At runtime we only have one viewport width, so we use `base` when
+  // present, otherwise the first breakpoint value.
+  if (isResponsiveValue(value)) {
     const responsive = value as unknown as Record<string, unknown>;
     const fallback =
       responsive.base !== undefined
@@ -126,6 +144,7 @@ function serializeValue(value: CSSValue): string {
     if (fallback !== undefined) {
       return serializeValue(fallback as CSSValue);
     }
+    return '';
   }
 
   if (typeof value === 'string') return value;
@@ -148,8 +167,13 @@ function serializeValue(value: CSSValue): string {
     return value.toString();
   }
 
-  // Angle (no _tag guard needed — it has toString)
-  if (typeof (value as { toString?(): string }).toString === 'function') {
+  // Fallback for untagged objects that carry a toString() method
+  // (e.g. the object returned by css.outline()).
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { toString?(): string }).toString === 'function'
+  ) {
     return (value as { toString(): string }).toString();
   }
 

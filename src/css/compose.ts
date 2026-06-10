@@ -25,6 +25,7 @@
 
 import type { StyleObject } from './types';
 import { BREAKPOINTS } from './breakpoints';
+import { getBreakpointValue, above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from './shared/breakpoints';
 
 // ---------------------------------------------------------------------------
 // merge

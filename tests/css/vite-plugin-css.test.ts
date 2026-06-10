@@ -46,6 +46,7 @@ describe('auwla vite plugin - css extraction', () => {
     const resolveHook = plugin.resolveId;
     if (typeof resolveHook !== 'function') throw new Error('Expected resolveId function hook');
     expect(resolveHook.call({} as any, 'virtual:auwla.css', '', {})).toBe('\0virtual:auwla.css');
+    expect(resolveHook.call({} as any, '\0virtual:auwla.css', '', {})).toBe('\0virtual:auwla.css');
 
     const loadHook = plugin.load;
     if (typeof loadHook !== 'function') throw new Error('Expected load function hook');

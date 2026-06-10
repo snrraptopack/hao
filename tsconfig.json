@@ -21,8 +21,10 @@
     },
 
     // Bundler mode
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
+
+
 
     // Declaration files
     "declaration": true,
@@ -41,6 +43,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     // "noPropertyAccessFromIndexSignature": false
+
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
   },
   "include": ["src/**/*", "examples/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "benchmark"]

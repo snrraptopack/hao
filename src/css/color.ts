@@ -254,10 +254,23 @@ function makeColor(channels: OklchChannels): Color {
       // Parse `other` back to channels by round-tripping through its string repr
       const otherCh = parseColor(other.toString());
       const r = clamp(ratio, 0, 1);
+
+      // Circular hue interpolation so that 350° and 10° mix toward 0°,
+      // not toward the long-path 180°.
+      let h1 = channels.H;
+      let h2 = otherCh.H;
+      const delta = h2 - h1;
+      if (delta > 180) {
+        h1 += 360;
+      } else if (delta < -180) {
+        h2 += 360;
+      }
+      const H = ((h1 * (1 - r) + h2 * r) % 360 + 360) % 360;
+
       return makeColor({
         L: channels.L * (1 - r) + otherCh.L * r,
         C: channels.C * (1 - r) + otherCh.C * r,
-        H: channels.H * (1 - r) + otherCh.H * r,
+        H,
         A: channels.A * (1 - r) + otherCh.A * r,
       });
     },
@@ -278,7 +291,11 @@ function makeColor(channels: OklchChannels): Color {
     },
 
     ensureContrast(foreground: Color, ratio: number): Color {
-      // Binary search in lightness until the contrast ratio is met
+      // Binary search in lightness until the contrast ratio is met.
+      // We target ratio * 1.02 to leave a small safety margin for
+      // 8-bit hex quantization: the exact OKLCH boundary may round to
+      // a hex value whose contrast is fractionally below the threshold.
+      const targetRatio = ratio * 1.02;
       const fgCh = parseColor(foreground.toString());
       const [fr, fg, fb] = oklabToSrgb(...oklchToOklab(fgCh));
       const fgLum = relativeLuminance(fr, fg, fb);
@@ -287,21 +304,22 @@ function makeColor(channels: OklchChannels): Color {
       let hi = 1;
       let best: OklchChannels = channels;
 
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 24; i++) {
         const mid = (lo + hi) / 2;
         const candidate: OklchChannels = { ...channels, L: mid };
         const [cr, cg, cb] = oklabToSrgb(...oklchToOklab(candidate));
         const candLum = relativeLuminance(cr, cg, cb);
         const cr_ = contrastRatio(candLum, fgLum);
 
-        if (cr_ >= ratio) {
+        if (cr_ >= targetRatio) {
           best = candidate;
-          // Try to get closer to original lightness
-          if (channels.L > 0.5) hi = mid;
-          else lo = mid;
+          // Contrast met — try to get closer to original lightness
+          if (channels.L > 0.5) lo = mid; // light original → try lighter (upper half)
+          else hi = mid;                  // dark original  → try darker  (lower half)
         } else {
-          if (channels.L > 0.5) lo = mid;
-          else hi = mid;
+          // Contrast NOT met — move away from original lightness
+          if (channels.L > 0.5) hi = mid; // light original → go darker (lower half)
+          else lo = mid;                  // dark original  → go lighter (upper half)
         }
       }
 

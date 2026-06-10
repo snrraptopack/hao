@@ -427,7 +427,7 @@ interface PropertyValueMap extends
 }
 
 type StyleObjectBase = Partial<{
-  [K in keyof CSSStyleDeclaration as CSSStyleDeclaration[K] extends Function
+  [K in Extract<keyof CSSStyleDeclaration, string> as CSSStyleDeclaration[K] extends Function
     ? never
     : K extends 'length' | 'parentRule'
     ? never

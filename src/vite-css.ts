@@ -10,41 +10,39 @@ import { compileCSS } from './css/compiler/css-compiler';
 import fs from 'fs';
 import path from 'path';
 
+const VIRTUAL_ID = 'virtual:auwla.css';
+const RESOLVED_ID = '\0' + VIRTUAL_ID;
+
 export class ViteCSSHandler {
-  // Nested map registry: filepath -> ruleKey -> ruleVal
   private registry = new Map<string, Map<string, string>>();
   private server?: ViteDevServer;
   private enabled: boolean;
   private debug: boolean;
+  private cssCache: string | null = null;
+  private isDirty = true;
 
   constructor(enabled: boolean, debug: boolean = false) {
     this.enabled = enabled;
     this.debug = debug;
   }
 
-  /**
-   * Registers the active Vite development server instance.
-   */
   setServer(server: ViteDevServer) {
     this.server = server;
   }
 
-  /**
-   * Resolves the virtual CSS module path.
-   */
   resolveId(id: string): string | null {
-    if (this.enabled && id === 'virtual:auwla.css') {
-      return '\0virtual:auwla.css'; // Rollup virtual prefix
+    if (this.enabled && (id === VIRTUAL_ID || id === RESOLVED_ID)) {
+      return RESOLVED_ID;
     }
     return null;
   }
 
-  /**
-   * Loads the aggregated stylesheet content for the virtual module.
-   * Resolves Finding 1 by placing base styles before media queries.
-   */
   load(id: string): string | null {
-    if (this.enabled && id === '\0virtual:auwla.css') {
+    if (this.enabled && id === RESOLVED_ID) {
+      if (!this.isDirty && this.cssCache !== null) {
+        return this.cssCache;
+      }
+
       const allRules: string[] = [];
       for (const fileRules of this.registry.values()) {
         allRules.push(...fileRules.values());
@@ -53,8 +51,8 @@ export class ViteCSSHandler {
       const importRules = Array.from(new Set(allRules.filter((r) => r.trim().startsWith('@import'))));
       const remainingRules = allRules.filter((r) => !r.trim().startsWith('@import'));
 
-      const baseRules = remainingRules.filter((r) => 
-        !r.trim().startsWith('@media') && 
+      const baseRules = remainingRules.filter((r) =>
+        !r.trim().startsWith('@media') &&
         (r.includes('html') || r.includes('body') || r.includes('* ') || r.includes('*:'))
       );
 
@@ -65,10 +63,10 @@ export class ViteCSSHandler {
         if (baseRules.includes(r)) continue;
 
         const isComponent = !r.trim().startsWith('@media') && (
-          r.includes(' > ') || 
-          r.includes(' + ') || 
-          r.includes(' ~ ') || 
-          r.includes('::before') || 
+          r.includes(' > ') ||
+          r.includes(' + ') ||
+          r.includes(' ~ ') ||
+          r.includes('::before') ||
           r.includes('::after') ||
           r.includes('::placeholder')
         );
@@ -110,15 +108,13 @@ export class ViteCSSHandler {
         }
       }
 
+      this.cssCache = cssContent;
+      this.isDirty = false;
       return cssContent;
     }
     return null;
   }
 
-  /**
-   * Runs the CSS compiler on the transformed code to extract style classes.
-   * Resolves Finding 2 by garbage collecting deleted rules per file on HMR.
-   */
   transform(code: string, filepath: string): string {
     if (!this.enabled) {
       return code;
@@ -155,30 +151,28 @@ export class ViteCSSHandler {
 
     this.registry.set(filepath, fileRules);
 
-    if (changed && this.server) {
-      this.triggerHMR();
+    if (changed) {
+      this.isDirty = true;
+      if (this.server) {
+        this.triggerHMR();
+      }
     }
 
     return compiled;
   }
 
-  /**
-   * Cleans up registry mappings and triggers HMR when a style-declaring file is deleted.
-   */
   deleteFile(filepath: string) {
     const file = filepath.split('?', 1)[0] ?? filepath;
     if (this.registry.delete(file)) {
+      this.isDirty = true;
       if (this.server) {
         this.triggerHMR();
       }
     }
   }
 
-  /**
-   * Invalidate the virtual CSS module and push an HMR update to the browser client.
-   */
   triggerHMR() {
-    const mod = this.server?.moduleGraph.getModuleById('\0virtual:auwla.css');
+    const mod = this.server?.moduleGraph.getModuleById(RESOLVED_ID);
     if (mod) {
       this.server?.moduleGraph.invalidateModule(mod);
       this.server?.ws.send({

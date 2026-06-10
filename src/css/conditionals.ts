@@ -40,9 +40,19 @@ import { merge } from './compose';
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Branches for css.when().
+ *
+ * - `true`  — used when the condition is true
+ * - `false` — used when the condition is false
+ * - `default` — fallback when the matching boolean branch is omitted.
+ *   The compiler supports `default`; the runtime also supports it so that
+ *   authored code behaves identically in development and production.
+ */
 export type WhenBranches<V> = {
   true?: V;
   false?: V;
+  default?: V;
 };
 
 /**
@@ -81,11 +91,27 @@ export type MatchCases<T extends string | number | boolean, V> = {
  *   false: { background: blue }
  * })
  */
+/**
+ * Return a style (or value) based on a boolean condition.
+ *
+ * The `default` branch is used when the matching `true`/`false` branch is
+ * omitted. This guarantees symmetry with the static compiler evaluator.
+ *
+ * @example
+ * // Single-property inline
+ * opacity: css.when(disabled, { true: 0.5, false: 1 })
+ *
+ * // Multi-property branch with default fallback
+ * css.when(isHovered, {
+ *   true: { background: blue.lighten(0.1), transform: css.transform({ scale: 1.02 }) },
+ *   default: { background: blue }
+ * })
+ */
 export function when<V>(condition: boolean, branches: WhenBranches<V>): V {
   if (condition) {
-    return (branches.true !== undefined ? branches.true : {} as V) as V;
+    return (branches.true !== undefined ? branches.true : branches.default !== undefined ? branches.default : {} as V) as V;
   } else {
-    return (branches.false !== undefined ? branches.false : {} as V) as V;
+    return (branches.false !== undefined ? branches.false : branches.default !== undefined ? branches.default : {} as V) as V;
   }
 }
 

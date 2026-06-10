@@ -1,5 +1,5 @@
 import { commit, component, cleanup } from 'auwla';
-import type {} from 'auwla/jsx-runtime';
+import { css } from "auwla/css"
 
 // ─── Shared State (Object + Getters pattern) ────────────────────────────────
 
@@ -19,7 +19,7 @@ function Counter() {
   let localCount = 0;
 
   return () => (
-    <div style={{ padding: '16px', border: '1px solid #444', borderRadius: '8px', marginBottom: '16px' }}>
+    <div style={css({ p: '1.5rem', border: '1px solid #444', br: '8px', mb: '16px',})}>
       <h3>Local Counter (event-driven)</h3>
       <p>Local: {localCount}</p>
       <button onClick={() => { localCount++; }}>Increment Local</button>

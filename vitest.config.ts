@@ -13,9 +13,12 @@ export default defineConfig({
       { find: /^auwla$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
     ],
   },
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'auwla',
+  esbuild: false,
+  oxc: {
+    jsx: {
+      runtime: 'automatic',
+      importSource: 'auwla',
+    },
   },
   test: {
     environment: 'jsdom',

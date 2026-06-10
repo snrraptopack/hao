@@ -1,7 +1,7 @@
 import { border, color, css,px ,rem} from 'auwla/css';
 
 // 1. Color Palettes (generated using our new color.palette OKLCH curves)
-export const brand = css.color.palette('oklch(0.62 0.18 290)');    // Violet
+export const brand = css.color.palette('oklch(0.62 0.18 300)');    // Violet
 export const accent = css.color.palette('oklch(0.72 0.16 195)');   // Teal/Cyan
 export const slate = css.color.palette('#1e293b');                // Slates for neutral text/bg
 

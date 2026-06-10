@@ -2,7 +2,7 @@ import ts from 'typescript';
 import path from 'path';
 import fs from 'fs';
 import { compileStyle } from './index';
-import { evalNode } from './evaluator';
+import { evalNode, isConditionalValue, type ConditionalValue } from './evaluator';
 import { getThemeObject, resolveThemeFile } from './theme-resolver';
 
 export interface CSSRuleCallback {
@@ -19,6 +19,39 @@ interface SiblingClassAttr {
   node: ts.JsxAttribute;
   isExpression: boolean;
   text: string;
+}
+
+/**
+ * Separate normal static styles from ConditionalValue properties.
+ * Returns the cleaned style object, an array of conditional entries,
+ * and any remaining extracted vars.
+ */
+function extractConditionals(
+  styleObj: Record<string, any>,
+  source: ts.SourceFile,
+): {
+  cleaned: Record<string, any>;
+  conditionals: Array<{ key: string; value: ConditionalValue }>;
+} {
+  const cleaned: Record<string, any> = {};
+  const conditionals: Array<{ key: string; value: ConditionalValue }> = [];
+
+  for (const [key, value] of Object.entries(styleObj)) {
+    if (isConditionalValue(value)) {
+      conditionals.push({ key, value });
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // Recurse into nested objects (pseudo-selectors, media queries)
+      const nested = extractConditionals(value, source);
+      if (Object.keys(nested.cleaned).length > 0) {
+        cleaned[key] = nested.cleaned;
+      }
+      conditionals.push(...nested.conditionals.map((c) => ({ key: `${key}.${c.key}`, value: c.value })));
+    } else {
+      cleaned[key] = value;
+    }
+  }
+
+  return { cleaned, conditionals };
 }
 
 function extractPropsDomain(typeNode: ts.TypeNode, source: ts.SourceFile): Record<string, any[]> {
@@ -684,9 +717,37 @@ export function findCSSReplacements(
                 const hasExtracted = !!evalRes.extractedVars && evalRes.extractedVars.length > 0;
 
                 if (evalRes.isStatic && evalRes.value && !hasDynamicProps && !hasExtracted) {
-                  // Case 1: 100% Static
-                  const compiled = compileStyle(evalRes.value);
+                  // Case 1: 100% Static (may include ConditionalValue branches)
+                  const { cleaned, conditionals } = extractConditionals(evalRes.value, source);
+
+                  // Compile non-conditional static styles
+                  const compiled = compileStyle(cleaned);
                   compiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
+
+                  // Compile each conditional branch and build expressions
+                  const conditionalExprs: string[] = [];
+                  for (const { value: condVal } of conditionals) {
+                    const branchClasses: Record<string, string> = {};
+                    for (const [branchKey, branchStyle] of Object.entries(condVal.branches)) {
+                      const branchCompiled = compileStyle(branchStyle as Record<string, any>);
+                      branchCompiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
+                      branchClasses[branchKey] = branchCompiled.classes.join(' ');
+                    }
+
+                    const condText = condVal.condition.getText(source);
+                    if (condVal.type === 'when') {
+                      const trueClasses = branchClasses['true'] || '';
+                      const falseClasses = branchClasses['false'] || branchClasses['default'] || '';
+                      conditionalExprs.push(`${condText} ? ${JSON.stringify(trueClasses)} : ${JSON.stringify(falseClasses)}`);
+                    } else {
+                      const entries = Object.entries(branchClasses)
+                        .map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`)
+                        .join(', ');
+                      conditionalExprs.push(`({ ${entries} })[${condText}]`);
+                    }
+                  }
+
+                  const staticClasses = compiled.classes.join(' ');
 
                   const existing = findExistingClassAttr(node, source);
                   if (existing) {
@@ -696,13 +757,23 @@ export function findCSSReplacements(
                       text: '',
                     });
 
-                    const newClasses = compiled.classes.join(' ');
                     let replacementText = '';
                     if (existing.isExpression) {
-                      replacementText = `class={\`${newClasses} \${${existing.text}}\`}`;
+                      const exprParts = [existing.text, ...conditionalExprs];
+                      const staticPrefix = staticClasses ? staticClasses + ' ' : '';
+                      if (exprParts.length === 1 && !staticPrefix) {
+                        replacementText = `class={${exprParts[0]}}`;
+                      } else {
+                        replacementText = `class={\`${staticPrefix}\${${exprParts.join('} \${')}}\`}`;
+                      }
                     } else {
-                      const merged = existing.text ? `${existing.text} ${newClasses}` : newClasses;
-                      replacementText = `class="${merged}"`;
+                      const staticPart = [existing.text, staticClasses].filter(Boolean).join(' ');
+                      if (conditionalExprs.length === 0) {
+                        replacementText = `class="${staticPart}"`;
+                      } else {
+                        const prefix = staticPart ? staticPart + ' ' : '';
+                        replacementText = `class={\`${prefix}\${${conditionalExprs.join('} \${')}}\`}`;
+                      }
                     }
 
                     replacements.push({
@@ -711,11 +782,20 @@ export function findCSSReplacements(
                       text: replacementText,
                     });
                   } else {
-                    replacements.push({
-                      start: node.getStart(source),
-                      end: node.getEnd(),
-                      text: `class="${compiled.classes.join(' ')}"`,
-                    });
+                    if (conditionalExprs.length === 0) {
+                      replacements.push({
+                        start: node.getStart(source),
+                        end: node.getEnd(),
+                        text: `class="${staticClasses}"`,
+                      });
+                    } else {
+                      const prefix = staticClasses ? staticClasses + ' ' : '';
+                      replacements.push({
+                        start: node.getStart(source),
+                        end: node.getEnd(),
+                        text: `class={\`${prefix}\${${conditionalExprs.join('} \${')}}\`}`,
+                      });
+                    }
                   }
                 } else if (evalRes.value || hasExtracted) {
                   // Case 2: Partially Dynamic (or static with inline CSS variables)

@@ -102,14 +102,9 @@ export interface GridDescriptor {
   toProperties(): Record<string, string>;
 }
 
+import { formatLength } from './shared/length';
+
 // --- Serializers ---
-function formatLength(val: any): string {
-  if (val === undefined || val === null) return '';
-  if (typeof val === 'number') {
-    return val === 0 ? '0' : `${val}px`;
-  }
-  return String(val);
-}
 
 export function flexProperties(options: FlexOptions): Record<string, string> {
   const props: Record<string, string> = {

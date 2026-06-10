@@ -76,6 +76,28 @@ describe('css() — basic resolution', () => {
     });
     expect(result['padding']).toBe('24px');
   });
+
+  test('does NOT misidentify plain StyleObject as responsive value', () => {
+    // css.when() returns a plain StyleObject; it should NOT be treated
+    // as a responsive value and have its first property extracted.
+    const style = css({
+      ':hover': { background: 'blue', color: 'white' },
+    });
+    // At runtime inline styles can't express :hover, but we should NOT
+    // silently flatten the object to a single string.
+    expect(style[':hover']).not.toBe('blue');
+    expect(style[':hover']).not.toBe('white');
+  });
+
+  test('css.outline() spreads correctly into resolved styles', () => {
+    // css.outline() is designed to be spread; it produces both outline
+    // and outlineOffset properties.
+    const result = css({
+      ...css.outline({ color: css.color('#3b82f6'), width: 2, offset: 2 }),
+    });
+    expect(result['outline']).toMatch(/^2px solid/);
+    expect(result['outlineOffset']).toBe('2px');
+  });
 });
 
 // ---------------------------------------------------------------------------

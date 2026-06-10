@@ -4,6 +4,9 @@
  * Shared responsive breakpoints for the Auwla CSS package.
  */
 
+/** All breakpoint names recognized by the responsive value system. */
+export const BREAKPOINT_KEYS = new Set(['base', 'sm', 'md', 'lg', 'xl', '2xl']);
+
 export const BREAKPOINTS: Record<string, string> = {
   sm: '640px',
   md: '768px',
