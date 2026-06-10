@@ -105,6 +105,10 @@ export function Router(props: RouterProps = {}) {
   // _currentLoader while the old component is being shown so that any
   // getLoaderHandle() call during that render sees the resolved data.
   let prevCachedLoader: TrackHandle | null = null
+  // Whether the navigation that triggered suspension was a pop (back/forward).
+  // Saved at suspension entry so the deferred scroll-to-top on suspension exit
+  // honours the same rule as immediate navigation: don't scroll on pop.
+  let suspendWasPopNav = false
 
   const { routes, suspend } = props
   const suspendEnabled = !!suspend
@@ -153,16 +157,19 @@ export function Router(props: RouterProps = {}) {
       const prevPath = cachedPath
       cachedPath = currentPath
 
-      // Scroll to top on push/replace; let the browser restore position for pops.
-      if (!isPopNavigation()) window.scrollTo(0, 0)
-
       const nextContext: RouteContext = { path: currentPath, params, query }
 
       if (suspendEnabled && route.loader && !isSuspended) {
         // Enter suspension: start the loader but keep the current route visible.
+        // Do NOT scroll yet — we are still showing the previous page content.
+        // The scroll happens in the suspension-exit block below when the new
+        // content actually appears.
         isSuspended = true
         enterSuspense()
         _pendingContext = nextContext
+        // Capture whether this was a pop navigation so the deferred scroll can
+        // make the same decision without racing against a future navigation.
+        suspendWasPopNav = isPopNavigation()
 
         // Snapshot the key and loader from the previous render so the suspension
         // branch can render <PrevComp key={suspendPrevKey} /> and reuse the
@@ -183,8 +190,11 @@ export function Router(props: RouterProps = {}) {
           _pendingContext = null
           suspendPrevKey = null
           prevCachedLoader = null
+          suspendWasPopNav = false
           cachedLoader?.cancel()
         }
+        // Scroll to top now: the new content renders immediately in this branch.
+        if (!isPopNavigation()) window.scrollTo(0, 0)
         _currentContext = nextContext
         _currentMeta = route.meta ?? null
 
@@ -208,6 +218,10 @@ export function Router(props: RouterProps = {}) {
       _pendingContext = null
       suspendPrevKey = null
       prevCachedLoader = null
+      // Deferred scroll: the new content is about to be painted for the first
+      // time, so this is the correct moment to reset the scroll position.
+      if (!suspendWasPopNav) window.scrollTo(0, 0)
+      suspendWasPopNav = false
       // Fall through to normal render with the now-resolved loader.
     }
 
