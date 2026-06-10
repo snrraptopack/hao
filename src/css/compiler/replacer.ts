@@ -54,6 +54,28 @@ function extractConditionals(
   return { cleaned, conditionals };
 }
 
+/**
+ * Wrap a branch value into a style object using the conditional's key path.
+ * For primitives: { width: '100px' }
+ * For objects: passed through as-is (already a nested style object).
+ */
+function wrapBranchStyle(keyPath: string, value: any): Record<string, any> {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    return value;
+  }
+  const keys = keyPath.split('.');
+  let obj: Record<string, any> = {};
+  let current = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const k = keys[i]!;
+    current[k] = {};
+    current = current[k];
+  }
+  const lastKey = keys[keys.length - 1]!;
+  current[lastKey] = value;
+  return obj;
+}
+
 function extractPropsDomain(typeNode: ts.TypeNode, source: ts.SourceFile): Record<string, any[]> {
   const domain: Record<string, any[]> = {};
 
@@ -726,10 +748,11 @@ export function findCSSReplacements(
 
                   // Compile each conditional branch and build expressions
                   const conditionalExprs: string[] = [];
-                  for (const { value: condVal } of conditionals) {
+                  for (const { key: condKey, value: condVal } of conditionals) {
                     const branchClasses: Record<string, string> = {};
                     for (const [branchKey, branchStyle] of Object.entries(condVal.branches)) {
-                      const branchCompiled = compileStyle(branchStyle as Record<string, any>);
+                      const branchStyleObj = wrapBranchStyle(condKey, branchStyle);
+                      const branchCompiled = compileStyle(branchStyleObj);
                       branchCompiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
                       branchClasses[branchKey] = branchCompiled.classes.join(' ');
                     }
@@ -808,10 +831,11 @@ export function findCSSReplacements(
 
                   // Compile each conditional branch and build expressions
                   const conditionalExprs: string[] = [];
-                  for (const { value: condVal } of conditionals) {
+                  for (const { key: condKey, value: condVal } of conditionals) {
                     const branchClasses: Record<string, string> = {};
                     for (const [branchKey, branchStyle] of Object.entries(condVal.branches)) {
-                      const branchCompiled = compileStyle(branchStyle as Record<string, any>);
+                      const branchStyleObj = wrapBranchStyle(condKey, branchStyle);
+                      const branchCompiled = compileStyle(branchStyleObj);
                       branchCompiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
                       branchClasses[branchKey] = branchCompiled.classes.join(' ');
                     }
