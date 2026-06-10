@@ -20,6 +20,8 @@ export type DerivedContext = {
   expand(expression: string): string;
   /** True if the expression contains no derived variables (nothing to expand). */
   isPure(expression: string): boolean;
+  /** All local variable names declared in the setup scope. */
+  localVars: Set<string>;
 };
 
 const GLOBAL_IDENTIFIERS = new Set([
@@ -186,5 +188,212 @@ export function buildDerivedContext(
     return !ids.some((id) => derived.has(id));
   }
 
-  return { derived, expand, isPure };
+  return { derived, expand, isPure, localVars: localNames };
+}
+
+/* ------------------------------------------------------------------ */
+// Mutation tracking for fine-grained patching
+/* ------------------------------------------------------------------ */
+
+/**
+ * Find variables mutated inside an expression AST.
+ * Returns `null` if the control flow is too complex to analyze
+ * (contains return, throw, try/catch, or nested functions).
+ */
+export function findMutatedVariables(expression: ts.Expression): string[] | null {
+  const mutated = new Set<string>();
+  let uncertain = false;
+
+  function visit(node: ts.Node) {
+    if (uncertain) return;
+
+    // Complex control flow makes analysis uncertain
+    if (ts.isReturnStatement(node)) {
+      uncertain = true;
+      return;
+    }
+    if (ts.isThrowStatement(node)) {
+      uncertain = true;
+      return;
+    }
+    if (ts.isTryStatement(node)) {
+      uncertain = true;
+      return;
+    }
+    if (ts.isSwitchStatement(node)) {
+      // Switch can have fall-through; conservative
+      uncertain = true;
+      return;
+    }
+
+    // Don't recurse into nested functions
+    if (
+      ts.isArrowFunction(node) ||
+      ts.isFunctionExpression(node) ||
+      ts.isFunctionDeclaration(node)
+    ) {
+      return;
+    }
+
+    // Direct assignment: `x = ...`
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      if (
+        op === ts.SyntaxKind.EqualsToken ||
+        op === ts.SyntaxKind.PlusEqualsToken ||
+        op === ts.SyntaxKind.MinusEqualsToken ||
+        op === ts.SyntaxKind.AsteriskEqualsToken ||
+        op === ts.SyntaxKind.SlashEqualsToken ||
+        op === ts.SyntaxKind.PercentEqualsToken ||
+        op === ts.SyntaxKind.AmpersandEqualsToken ||
+        op === ts.SyntaxKind.BarEqualsToken ||
+        op === ts.SyntaxKind.CaretEqualsToken ||
+        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
+        op === ts.SyntaxKind.BarBarEqualsToken ||
+        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
+        op === ts.SyntaxKind.QuestionQuestionEqualsToken
+      ) {
+        if (ts.isIdentifier(node.left)) {
+          mutated.add(node.left.text);
+        } else if (ts.isPropertyAccessExpression(node.left) && ts.isIdentifier(node.left.expression)) {
+          // `obj.prop = ...` mutates obj
+          mutated.add(node.left.expression.text);
+        } else if (ts.isElementAccessExpression(node.left) && ts.isIdentifier(node.left.expression)) {
+          // `obj[key] = ...` mutates obj
+          mutated.add(node.left.expression.text);
+        }
+      }
+    }
+
+    // Prefix / postfix unary: `++x`, `x++`, `--x`, `x--`
+    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+      if (
+        node.operator === ts.SyntaxKind.PlusPlusToken ||
+        node.operator === ts.SyntaxKind.MinusMinusToken
+      ) {
+        if (ts.isIdentifier(node.operand)) {
+          mutated.add(node.operand.text);
+        }
+      }
+    }
+
+    // Delete is also a mutation: `delete obj.prop`
+    if (ts.isDeleteExpression(node)) {
+      if (
+        ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression)
+      ) {
+        mutated.add(node.expression.expression.text);
+      } else if (
+        ts.isElementAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression)
+      ) {
+        mutated.add(node.expression.expression.text);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  // Unwrap the root function so we visit its body, not the function wrapper itself
+  let target: ts.Node = expression;
+  if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)) {
+    target = expression.body;
+  }
+
+  visit(target);
+  return uncertain ? null : Array.from(mutated);
+}
+
+/* ------------------------------------------------------------------ */
+// Patch grouping for fine-grained update()
+/* ------------------------------------------------------------------ */
+
+export type PatchGroup = {
+  code: string;
+  vars: string[];
+};
+
+/**
+ * Group patches by the mutable local variables they depend on.
+ * Patches with no local variable dependencies go into the `__all` group.
+ */
+export function groupPatches(
+  patches: { code: string; deps: string[] }[],
+  localVars: Set<string>,
+): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+
+  for (const patch of patches) {
+    const ids = extractIdentifiers(patch.code);
+    const vars = ids.filter((id) => localVars.has(id));
+
+    if (vars.length === 0) {
+      // No local dependencies — only runs on full update
+      const arr = groups.get('__all') ?? [];
+      arr.push(patch.code);
+      groups.set('__all', arr);
+    } else {
+      // Add to each variable's group
+      for (const v of vars) {
+        const arr = groups.get(v) ?? [];
+        arr.push(patch.code);
+        groups.set(v, arr);
+      }
+    }
+  }
+
+  return groups;
+}
+
+/**
+ * Generate conditional update code from patch groups.
+ *
+ * Each group becomes a guarded block. The `__all` group always runs.
+ * When `__dirty.size === 0` (initial render / parent invalidation),
+ * every group runs.
+ */
+export function buildConditionalUpdate(
+  groups: Map<string, string[]>,
+): string {
+  const varGroups = Array.from(groups.entries()).filter(([k]) => k !== '__all');
+  const allPatches = groups.get('__all') ?? [];
+
+  const lines: string[] = [];
+  lines.push('const _all = __dirty.size === 0 || __dirty.has(\'__all\');');
+
+  // De-dupe: track which patch codes we've already emitted
+  const emitted = new Set<string>();
+
+  // Emit variable groups
+  for (const [varName, patchCodes] of varGroups) {
+    lines.push(`const _${varName} = _all || __dirty.delete('${varName}');`);
+    lines.push(`if (_${varName}) {`);
+    for (const code of patchCodes) {
+      if (!emitted.has(code)) {
+        lines.push(`  ${code}`);
+        emitted.add(code);
+      }
+    }
+    lines.push(`}`);
+  }
+
+  // Emit __all group
+  if (allPatches.length > 0) {
+    lines.push(`if (_all) {`);
+    for (const code of allPatches) {
+      if (!emitted.has(code)) {
+        lines.push(`  ${code}`);
+        emitted.add(code);
+      }
+    }
+    lines.push(`}`);
+  }
+
+  lines.push('__dirty.clear();');
+
+  return lines.map((l) => `          ${l}`).join('\n');
 }
