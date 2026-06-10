@@ -1,5 +1,8 @@
 // types.ts
 import type { TrackHandle } from 'auwla/events'
+import type { SuspendConfig } from './suspend'
+
+export type { SuspendConfig }
 
 // A function that returns the component's render closure.
 // Accepts optional props so route components can be rendered as first-class

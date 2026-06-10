@@ -5,6 +5,7 @@
 import ts from 'typescript';
 import { TemplateContext, isSvgTag } from './types';
 import { compileTemplateAttribute } from './attributes';
+import type { DerivedContext } from './derived';
 import {
   expressionText,
   stringLiteral,
@@ -165,6 +166,7 @@ export function compileTemplateRowBlock(
   itemName: string,
   indexName: string,
   keyText: string,
+  derivedCtx: DerivedContext | null = null,
 ): { block: string; deps: string[] } | null {
   const ctx: TemplateContext = {
     source,
@@ -177,14 +179,18 @@ export function compileTemplateRowBlock(
     patches: [],
     deps: [],
     elementVars: new Map(),
+    derivedCtx,
   };
 
   const html = compileTemplateNode(ctx, row, []);
   if (html === null) return null;
 
-  const updatePatches = ctx.patches.filter((patch) => !patch.initOnly);
-  const init = ctx.patches.length
-    ? ctx.patches.map((patch) => `            ${patch.code}`).join('\n')
+  const patches = derivedCtx
+    ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
+    : ctx.patches;
+  const updatePatches = patches.filter((patch) => !patch.initOnly);
+  const init = patches.length
+    ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
   const update = updatePatches.length
     ? updatePatches.map((patch) => `              ${patch.code}`).join('\n')
@@ -211,6 +217,7 @@ ${update}
 export function compileTemplateRootBlock(
   source: ts.SourceFile,
   node: ts.JsxElement | ts.JsxSelfClosingElement,
+  derivedCtx: DerivedContext | null = null,
 ): string | null {
   const ctx: TemplateContext = {
     source,
@@ -223,13 +230,18 @@ export function compileTemplateRootBlock(
     patches: [],
     deps: [],
     elementVars: new Map(),
+    derivedCtx,
   };
 
   const html = compileTemplateNode(ctx, node, []);
   if (html === null) return null;
 
-  const update = ctx.patches.length
-    ? ctx.patches.map((patch) => `          ${patch.code}`).join('\n')
+  const patches = derivedCtx
+    ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
+    : ctx.patches;
+
+  const update = patches.length
+    ? patches.map((patch) => `          ${patch.code}`).join('\n')
     : '          // Static block; no dynamic fields to patch.';
 
   const setupLines = [

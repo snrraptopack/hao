@@ -4,6 +4,7 @@
 
 import ts from 'typescript';
 import { CompileContext, CompileResult, isSvgTag } from './types';
+import type { DerivedContext } from './derived';
 import { compileAttribute } from './attributes';
 import { compileTemplateRowBlock } from './template';
 import {
@@ -249,6 +250,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
       patches: [],
       deps: [],
       setup: [],
+      derivedCtx: ctx.derivedCtx,
     };
 
     let root: string;
@@ -386,6 +388,7 @@ export function compileRowBlock(
   itemName: string,
   indexName: string,
   keyText: string,
+  derivedCtx: DerivedContext | null = null,
 ): { block: string; deps: string[] } | null {
   const ctx: CompileContext = {
     source,
@@ -395,6 +398,7 @@ export function compileRowBlock(
     patches: [],
     deps: [],
     setup: [],
+    derivedCtx,
   };
   const result = compileJsxNode(ctx, row);
   if (!result) return null;
@@ -451,8 +455,8 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   const key = keyAttribute(row);
   const isUnkeyed = !key;
   const keyText = key ? expressionText(ctx.source, key) : indexName;
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx);
   if (!rowBlock) return null;
 
   const mapVar = `map${ctx.mapId++}`;
@@ -539,6 +543,7 @@ export function tryInlineComponent(
     patches: [],
     deps: [],
     setup: [],
+    derivedCtx: ctx.derivedCtx,
   };
 
   const result = compileJsxNode(childCtx, componentJsx);

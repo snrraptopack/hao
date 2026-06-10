@@ -3,6 +3,7 @@
  */
 
 import ts from 'typescript';
+import type { DerivedContext } from './derived';
 
 export type DynamicPatch = {
   code: string;
@@ -17,6 +18,7 @@ export type CompileContext = {
   patches: DynamicPatch[];
   deps: string[];
   setup: string[];
+  derivedCtx?: DerivedContext | null;
 };
 
 export type CompileResult = {
@@ -39,6 +41,7 @@ export type TemplateContext = {
   patches: TemplatePatch[];
   deps: string[];
   elementVars: Map<string, string>;
+  derivedCtx?: DerivedContext | null;
 };
 
 export const COMPILER_IMPORT = [

@@ -58,6 +58,17 @@ body {
   overflow: auto;
 }
 
+/* Premium suspension UX — dim the app while a route loader resolves */
+html.suspended .gallery {
+  opacity: 0.55;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+html.suspended .gallery-sidebar {
+  opacity: 0.7;
+}
+
 @media (max-width: 720px) {
   .gallery {
     grid-template-columns: 1fr;

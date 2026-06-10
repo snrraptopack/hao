@@ -34,7 +34,8 @@ export const runtimeState = {
  */
 export function __wrapCompilerEvent(handler: (event: Event) => unknown): EventListener {
   const wrap = runtimeState.activeEventWrapper ?? ((eventHandler) => eventHandler);
-  return wrap(handler, currentComponentId());
+  const ownerId = runtimeState.activeSetupComponentId ?? currentComponentId();
+  return wrap(handler, ownerId);
 }
 
 /** Return the ID of the component at the top of the render stack. */

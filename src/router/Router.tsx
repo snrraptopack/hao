@@ -13,7 +13,9 @@ import type { TrackHandle } from "auwla/events"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
 import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { fireAfterEach } from "./hooks"
-import type { Route, RouteContext, TypedTrackHandle } from "./types"
+import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
+import type { SuspendConfig } from "./suspend"
+import type { Route, RouteContext, TypedTrackHandle, MatchedRoute } from "./types"
 
 // ---------------------------------------------------------------------------
 // Module-level route context
@@ -27,6 +29,7 @@ import type { Route, RouteContext, TypedTrackHandle } from "./types"
 // ---------------------------------------------------------------------------
 
 let _currentContext: RouteContext | null = null
+let _pendingContext: RouteContext | null = null
 let _currentLoader: TrackHandle | null = null
 let _currentMeta: Record<string, unknown> | null = null
 
@@ -68,6 +71,17 @@ export type RouterProps = {
   // Optional local route set. When provided the Router matches against these
   // routes instead of the global registry.
   routes?: Route[]
+  /**
+   * When true, navigating to a route with a loader will defer rendering the
+   * new route component until the loader resolves. While suspended, a global
+   * CSS class is applied to `<html>` so the application can dim opacity or
+   * show loading chrome.
+   *
+   * If an object is provided, it configures suspension behaviour:
+   *   - className: CSS class added to `<html>` (default: 'suspended')
+   *   - attr: data attribute name added to `<html>` (default: 'data-suspended')
+   */
+  suspend?: boolean | SuspendConfig
 }
 
 export function Router(props: RouterProps = {}) {
@@ -80,8 +94,15 @@ export function Router(props: RouterProps = {}) {
   // Per-instance state kept alive across re-renders by closure.
   let cachedPath: string | null = null
   let cachedLoader: TrackHandle | null = null
+  let previousMatched: MatchedRoute | null = null
+  let isSuspended = false
 
-  const { routes } = props
+  const { routes, suspend } = props
+  const suspendEnabled = !!suspend
+
+  if (suspend && typeof suspend === 'object') {
+    configureSuspense(suspend)
+  }
 
   // The render closure. Re-runs whenever the reactive path cell changes (or
   // whenever a parent component re-renders and includes this component).
@@ -91,7 +112,11 @@ export function Router(props: RouterProps = {}) {
     const currentPath = getCurrentPath()
     const matched = routes ? matchRoutes(routes, currentPath) : matchRoute(currentPath)
 
-    if (!matched) return <div>404 — page not found</div>
+    if (!matched) {
+      if (isSuspended) { exitSuspense(); isSuspended = false }
+      previousMatched = null
+      return <div>404 — page not found</div>
+    }
 
     const { route, params, query } = matched
 
@@ -118,34 +143,80 @@ export function Router(props: RouterProps = {}) {
       // Scroll to top on push/replace; let the browser restore position for pops.
       if (!isPopNavigation()) window.scrollTo(0, 0)
 
-      _currentContext = { path: currentPath, params, query }
-      _currentMeta = route.meta ?? null
+      const nextContext: RouteContext = { path: currentPath, params, query }
 
-      if (route.loader) {
-        // event.track uses the fixed name '__loader' so that re-navigating to
-        // a different route automatically cancels the previous in-flight request.
-        // The handle is stored at module level so any component in the tree can
-        // read it via getLoaderHandle() even during setup.
+      if (suspendEnabled && route.loader && !isSuspended) {
+        // Enter suspension: start the loader but keep the current route visible.
+        isSuspended = true
+        enterSuspense()
+        _pendingContext = nextContext
         cachedLoader = event.track("__loader", (signal) =>
-          route.loader!(_currentContext!, signal)
+          route.loader!(_pendingContext!, signal)
         )
       } else {
-        cachedLoader = null
+        if (isSuspended) {
+          // Navigating away from a suspended state — clean up.
+          exitSuspense()
+          isSuspended = false
+          _pendingContext = null
+          cachedLoader?.cancel()
+        }
+        _currentContext = nextContext
+        _currentMeta = route.meta ?? null
+
+        if (route.loader) {
+          cachedLoader = event.track("__loader", (signal) =>
+            route.loader!(_currentContext!, signal)
+          )
+        } else {
+          cachedLoader = null
+        }
       }
 
-      fireAfterEach(previousContext, _currentContext)
+      fireAfterEach(previousContext, nextContext)
     }
 
-    // Always refresh the module-level accessors so nested routers and reused
-    // component instances see the current match.
+    // Check if an active suspension has just resolved or rejected.
+    if (isSuspended && cachedLoader && !cachedLoader.pending) {
+      isSuspended = false
+      exitSuspense()
+      _currentContext = _pendingContext!
+      _pendingContext = null
+      // Fall through to normal render with the now-resolved loader.
+    }
+
+    // During suspension, keep showing the previously matched route so the user
+    // still sees content (dimmed via global CSS) while data loads.
+    if (isSuspended) {
+      _currentLoader = cachedLoader
+      // Child components still see the old context while suspended.
+
+      if (route.pendingComponent) {
+        return route.pendingComponent()
+      }
+
+      if (previousMatched) {
+        const PrevComp = previousMatched.route.component
+        return <PrevComp />
+      }
+
+      // First-ever render and it has a loader — nothing previous to show.
+      return <div>Loading…</div>
+    }
+
+    // Normal render path — refresh accessors for the current match.
     _currentContext = { path: currentPath, params, query }
     _currentMeta = route.meta ?? null
     _currentLoader = cachedLoader
 
     // Loader fallbacks — re-evaluated on every render so they react to loader
     // state transitions (pending → resolved / rejected) automatically.
-    if (cachedLoader?.pending && route.pendingComponent) {
-      return route.pendingComponent()
+    // These only fire when suspend is NOT enabled; with suspend, the blocking
+    // behaviour above handles pending states.
+    if (!suspendEnabled) {
+      if (cachedLoader?.pending && route.pendingComponent) {
+        return route.pendingComponent()
+      }
     }
     if (cachedLoader?.rejected && route.errorComponent) {
       return route.errorComponent(cachedLoader.reason)
@@ -162,6 +233,10 @@ export function Router(props: RouterProps = {}) {
     // in the dirty set — only the Router's ID is.
     const RouteComp = route.component
     const loaderStatus = cachedLoader?.status ?? 'idle'
-    return <RouteComp key={`${encodeURIComponent(currentPath)}:${loaderStatus}`} />
+    const output = <RouteComp key={`${encodeURIComponent(currentPath)}:${loaderStatus}`} />
+
+    // Cache this match so it can be kept visible during a future suspension.
+    previousMatched = matched
+    return output
   }
 }

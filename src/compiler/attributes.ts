@@ -4,6 +4,7 @@
 
 import ts from 'typescript';
 import { DynamicPatch, CompileContext, TemplateContext, PROPERTY_PROPS } from './types';
+import type { DerivedContext } from './derived';
 import { expressionText, stringLiteral, escapeHtml, isStaticExpression, childExpression } from './utils';
 
 /** Convert a camelCase CSS property name to kebab-case. */
@@ -142,11 +143,13 @@ function compileEventHandler(
   elementVar: string,
   eventName: string,
   value: string,
+  derivedCtx: DerivedContext | null,
 ): number {
+  const expandedValue = derivedCtx ? derivedCtx.expand(value) : value;
   const handlerVar = `eventHandler${textId}`;
-  setup.push(`let ${handlerVar} = ${value};`);
+  setup.push(`let ${handlerVar} = ${expandedValue};`);
   setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
-  patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
+  patches.push({ code: `${handlerVar} = ${expandedValue};`, deps: [expandedValue] });
   return textId + 1;
 }
 
@@ -260,7 +263,7 @@ export function compileAttribute(
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value);
+    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null);
     return true;
   }
 
@@ -338,7 +341,7 @@ export function compileTemplateAttribute(
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value);
+    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null);
     return '';
   }
 

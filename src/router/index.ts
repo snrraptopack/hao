@@ -13,6 +13,7 @@ export {
 export type { RouterProps } from "./Router"
 export { Link } from "./Link"
 export { afterEach, resetHooks } from "./hooks"
+export { configureSuspense, isSuspended, enterSuspense, exitSuspense } from "./suspend"
 export type { LinkProps } from "./Link"
 export type { NavigationHookFn } from "./hooks"
 export type {
@@ -25,5 +26,6 @@ export type {
   GroupOptions,
   PathParams,
   RouteGuard,
-  RouteComponent
+  RouteComponent,
+  SuspendConfig,
 } from "./types"
