@@ -181,6 +181,19 @@ export function runInComponent<T>(id: string, render: () => T): T {
 }
 
 /** @internal */
+function hasDirtySource(id: string): boolean {
+  const state = runtimeState.activeRenderState;
+  if (!state || state.dirtySources === null) return true;
+  if (state.dirtySources.size === 0) return false;
+
+  const deps = state.sourceDeps.get(id);
+  if (!deps) return false;
+  for (const source of state.dirtySources) {
+    if (deps.has(source)) return true;
+  }
+  return false;
+}
+
 export function updateProps(target: Record<string, unknown>, next: Record<string, unknown>) {
   for (const key of Object.keys(target)) {
     if (!(key in next)) delete target[key];
@@ -254,7 +267,7 @@ export function createComponentClosure(
     }
 
     state.seen.add(id);
-    if (state.dirty && !state.dirty.has(id) && 'value' in instance) {
+    if (state.dirty && !state.dirty.has(id) && !hasDirtySource(id) && 'value' in instance) {
       return instance.value;
     }
 

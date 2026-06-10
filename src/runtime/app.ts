@@ -108,7 +108,9 @@ export function createMemoApp<TModel>(
   const cache = new Map<string | number, MemoEntry>();
   const componentInstances = new Map<string, ComponentInstance>();
   const memoBlocks = new Map<string, import('./types').MemoBlock>();
+  const componentSourceDeps = new Map<string, Set<string>>();
   let dirtyComponents: Set<string> | null = null;
+  let dirtySources: Set<string> | null = null;
   let scheduled = false;
   let destroyed = false;
   const model = view ? modelOrApp as TModel : undefined;
@@ -134,9 +136,12 @@ export function createMemoApp<TModel>(
        */
       counters: new Map(),
       dirty: dirtyComponents,
+      dirtySources,
+      sourceDeps: componentSourceDeps,
       invalidate,
     };
     dirtyComponents = new Set();
+    dirtySources = new Set();
     runtimeState.activeEventWrapper = (handler, ownerId) => createEventListener((event) => handler(event), ownerId);
     runtimeState.activeRenderState = renderState;
     try {
@@ -172,6 +177,7 @@ export function createMemoApp<TModel>(
       for (const [id] of toDelete) {
         componentInstances.delete(id);
         runtimeState.componentHosts.delete(id);
+        componentSourceDeps.delete(id);
         cleanupComponentTracks(id);
       }
       for (const id of memoBlocks.keys()) {
@@ -188,14 +194,8 @@ export function createMemoApp<TModel>(
     }
   };
 
-  const markDirty = (ownerId: string | null | undefined) => {
-    // Falsy OR the '__root' sentinel (top-level component with no real tree position)
-    // both trigger a full invalidation — every component re-renders on the next pass.
-    if (!ownerId || ownerId === '__root') {
-      dirtyComponents = null;
-      return;
-    }
-    if (dirtyComponents === null) return;
+  const markDirtyPath = (ownerId: string | null | undefined) => {
+    if (!ownerId || dirtyComponents === null) return;
     let id = ownerId;
     while (id && id !== 'root') {
       dirtyComponents.add(id);
@@ -203,6 +203,31 @@ export function createMemoApp<TModel>(
       if (separator < 0) break;
       id = id.slice(0, separator);
     }
+  };
+
+  const consumePendingDirtySources = () => {
+    if (dirtySources === null) return;
+    for (const source of runtimeState.pendingDirtySources) {
+      dirtySources.add(source);
+      if (dirtyComponents === null) continue;
+      for (const [componentId, deps] of componentSourceDeps) {
+        if (deps.has(source)) markDirtyPath(componentId);
+      }
+    }
+    runtimeState.pendingDirtySources.clear();
+  };
+
+  const markDirty = (ownerId: string | null | undefined) => {
+    consumePendingDirtySources();
+    // Falsy OR the '__root' sentinel (top-level component with no real tree position)
+    // both trigger a full invalidation — every component re-renders on the next pass.
+    if (!ownerId || ownerId === '__root') {
+      dirtyComponents = null;
+      dirtySources = null;
+      return;
+    }
+    if (dirtyComponents === null) return;
+    markDirtyPath(ownerId);
   };
 
   const invalidate = (ownerId?: string | null) => {

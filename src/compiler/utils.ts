@@ -280,6 +280,23 @@ export function findComponentDefinition(
   return result;
 }
 
+function containsEventAttribute(node: ts.Node): boolean {
+  if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+    for (const attr of node.attributes.properties) {
+      if (ts.isJsxSpreadAttribute(attr)) continue;
+      if (!ts.isIdentifier(attr.name) && !ts.isJsxNamespacedName(attr.name)) continue;
+      const name = ts.isIdentifier(attr.name)
+        ? attr.name.text
+        : `${attr.name.namespace.text}:${attr.name.name.text}`;
+      if ((name.startsWith('on') && name.length > 2) || name.startsWith('emit:')) {
+        return true;
+      }
+    }
+  }
+
+  return node.getChildren().some(containsEventAttribute);
+}
+
 /** Check whether a function is a simple inlinable component (returns JSX, no setup state). */
 export function isInlinableComponent(
   node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
@@ -321,7 +338,7 @@ export function isInlinableComponent(
     jsx = unwrapJsxExpression(body);
   }
 
-  return !!jsx;
+  return !!jsx && !containsEventAttribute(jsx);
 }
 
 /** Extract the returned JSX from an inlinable component. */

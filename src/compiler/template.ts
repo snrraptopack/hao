@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { TemplateContext, isSvgTag } from './types';
 import { compileTemplateAttribute } from './attributes';
 import type { DerivedContext } from './derived';
+import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 import {
   expressionText,
   stringLiteral,
@@ -188,17 +189,18 @@ export function compileTemplateRowBlock(
   const patches = derivedCtx
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
+  const dirtyAware = usesDirtyTracking(ctx.elementSetup, patches);
   const updatePatches = patches.filter((patch) => !patch.initOnly);
   const init = patches.length
     ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
-  const update = updatePatches.length
-    ? updatePatches.map((patch) => `              ${patch.code}`).join('\n')
-    : '              // Static row; no dynamic fields to patch.';
+  const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
   return {
     deps: rowDependencies(ctx.deps, itemName),
     block: `__createBlock(() => {
+            ${dirtySetupLine(ctx.elementSetup, patches).join('\n            ')}
+            ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             const el0 = __cloneTemplate(${stringLiteral(html)});
             ${ctx.elementSetup.join('\n            ')}
             ${ctx.textSetup.join('\n            ')}
@@ -218,6 +220,8 @@ export function compileTemplateRootBlock(
   source: ts.SourceFile,
   node: ts.JsxElement | ts.JsxSelfClosingElement,
   derivedCtx: DerivedContext | null = null,
+  forceAllUpdate = false,
+  preUpdateStatements: readonly string[] = [],
 ): string | null {
   const ctx: TemplateContext = {
     source,
@@ -239,12 +243,17 @@ export function compileTemplateRootBlock(
   const patches = derivedCtx
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
+  const dirtyAware = usesDirtyTracking(ctx.elementSetup, patches);
 
-  const update = patches.length
-    ? patches.map((patch) => `          ${patch.code}`).join('\n')
-    : '          // Static block; no dynamic fields to patch.';
+  const patchUpdate = renderUpdateBody(patches, derivedCtx, '          ', dirtyAware, forceAllUpdate);
+  const update = [
+    ...preUpdateStatements.map((line) => `          ${line}`),
+    patchUpdate,
+  ].filter(Boolean).join('\n');
 
   const setupLines = [
+    ...dirtySetupLine(ctx.elementSetup, patches),
+    ...sourceTrackingLines(patches, derivedCtx),
     `const el0 = __cloneTemplate(${stringLiteral(html)});`,
     ...ctx.elementSetup,
     ...ctx.textSetup,

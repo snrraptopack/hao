@@ -21,6 +21,7 @@ export const runtimeState = {
   activeSetupComponentId: null as string | null,
   activeHandlerComponentId: null as string | null,
   pendingCleanups: null as (() => void)[] | null,
+  pendingDirtySources: new Set<string>(),
   mountedApps: new Set<MountedApp>(),
   componentHosts: new Map<string, Node>(),
 };
@@ -50,4 +51,20 @@ export function registerComponentHost(ownerId: string | null | undefined, node: 
   if (!ownerId) return;
   runtimeState.componentHosts.set(ownerId, node);
    (node as AuwlaNode).__auwlaOwnerId = ownerId; // Safely typed
+}
+
+/** @internal */
+export function markDirtySource(source: string): void {
+  runtimeState.pendingDirtySources.add(source);
+}
+
+/** @internal */
+export function registerComponentSources(sources: readonly string[]): void {
+  const state = runtimeState.activeRenderState;
+  const id = currentComponentId();
+  if (!state || !id || sources.length === 0) return;
+
+  const deps = state.sourceDeps.get(id) ?? new Set<string>();
+  for (const source of sources) deps.add(source);
+  state.sourceDeps.set(id, deps);
 }

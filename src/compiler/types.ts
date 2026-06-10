@@ -48,6 +48,7 @@ export const COMPILER_IMPORT = [
   '__componentBlock',
   '__cloneTemplate',
   '__createBlock',
+  '__dirtySource',
   '__event',
   '__keyedMap',
   '__setAttribute',
@@ -58,6 +59,7 @@ export const COMPILER_IMPORT = [
   '__setStyle',
   '__setText',
   '__spreadProps',
+  '__trackSources',
 ].join(', ');
 
 export const PROPERTY_PROPS = new Set([

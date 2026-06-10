@@ -15,6 +15,7 @@ export {
   __componentBlock,
   __cloneTemplate,
   __createBlock,
+  __dirtySource,
   __event,
   __keyedMap,
   __setAttribute,
@@ -25,6 +26,7 @@ export {
   __setStyle,
   __setText,
   __spreadProps,
+  __trackSources,
 } from './compiler-runtime/index';
 
 export type {

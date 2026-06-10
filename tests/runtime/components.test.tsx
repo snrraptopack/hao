@@ -1,6 +1,6 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test } from 'vitest';
-import { createMemoApp } from 'auwla';
+import { commit, createMemoApp } from 'auwla';
 
 describe('component basics & lifecycle', () => {
   test('setup runs once, render runs on every invalidation', async () => {
@@ -137,6 +137,62 @@ describe('component basics & lifecycle', () => {
     expect(input.selectionStart).toBe(8);
     expect(input.value).toBe('Edit me!');
     root.remove();
+  });
+
+  test('keeps unrelated sibling components cached unless a full commit is requested', async () => {
+    const root = document.createElement('div');
+    const shared = { count: 0 };
+    let readerRenders = 0;
+
+    function Reader() {
+      return () => {
+        readerRenders++;
+        return <span id="reader">Reader: {shared.count}</span>;
+      };
+    }
+
+    function ScopedMutator() {
+      return () => (
+        <button id="scoped" onClick={() => { shared.count++; }}>
+          Scoped: {shared.count}
+        </button>
+      );
+    }
+
+    function FullMutator() {
+      return () => (
+        <button id="full" onClick={() => { shared.count++; commit(); }}>
+          Full: {shared.count}
+        </button>
+      );
+    }
+
+    function App() {
+      return () => (
+        <section>
+          <Reader />
+          <ScopedMutator />
+          <FullMutator />
+        </section>
+      );
+    }
+
+    createMemoApp(root, <App />);
+
+    expect(root.querySelector('#reader')!.textContent).toBe('Reader: 0');
+    expect(readerRenders).toBe(1);
+
+    root.querySelector('#scoped')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('#reader')!.textContent).toBe('Reader: 0');
+    expect(readerRenders).toBe(1);
+
+    root.querySelector('#full')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('#reader')!.textContent).toBe('Reader: 2');
+    expect(readerRenders).toBe(2);
   });
 
   test('types common JSX props as plain values', () => {

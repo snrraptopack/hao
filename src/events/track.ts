@@ -198,7 +198,7 @@ function runAsyncTrack(
         return undefined;
       }
       transition(key, 'rejected', undefined, reason);
-      throw reason;
+      return undefined;
     },
   );
 
@@ -236,7 +236,7 @@ export function track(
       },
       (reason) => {
         transition(key, 'rejected', undefined, reason);
-        throw reason;
+        return undefined;
       },
     );
     state.promise = promise;
@@ -267,7 +267,7 @@ export function track(
       },
       (reason) => {
         transition(key, 'rejected', undefined, reason);
-        throw reason;
+        return undefined;
       },
     );
     state.promise = promise;

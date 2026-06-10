@@ -78,6 +78,8 @@ export type RenderState = {
    */
   counters: Map<string, number>;
   dirty: Set<string> | null;
+  dirtySources: Set<string> | null;
+  sourceDeps: Map<string, Set<string>>;
   invalidate: (ownerId?: string | null) => void;
 };
 

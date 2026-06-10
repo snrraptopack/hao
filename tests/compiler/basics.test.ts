@@ -167,6 +167,25 @@ describe('basic render closure compilation', () => {
     expect(compiled).toContain('__setChild');
   });
 
+  test('keeps render-local variables in scope for compiled patches', async () => {
+    const source = `
+      function LinkLike(props) {
+        return () => {
+          const classes = props.active ? 'active' : undefined;
+          return <a class={classes}>{props.label}</a>;
+        };
+      }
+      exports.LinkLike = LinkLike;
+    `;
+
+    const { LinkLike } = evaluateCompiled(compileAuwla(source)) as { LinkLike: (props: unknown) => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(LinkLike as any, { active: true, label: 'Docs' }));
+
+    expect(root.querySelector('a')!.className).toBe('active');
+    expect(root.textContent).toBe('Docs');
+  });
+
   test('preserves pre-return statements in block-bodied render closures', () => {
     const source = `
       function App() {

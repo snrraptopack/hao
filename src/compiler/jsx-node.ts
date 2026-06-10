@@ -5,6 +5,7 @@
 import ts from 'typescript';
 import { CompileContext, CompileResult, isSvgTag } from './types';
 import type { DerivedContext } from './derived';
+import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 import { compileAttribute } from './attributes';
 import { compileTemplateRowBlock } from './template';
 import {
@@ -403,21 +404,25 @@ export function compileRowBlock(
   const result = compileJsxNode(ctx, row);
   if (!result) return null;
 
-  const updatePatches = ctx.patches.filter((patch) => {
+  const patches = derivedCtx
+    ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
+    : ctx.patches;
+  const dirtyAware = usesDirtyTracking(ctx.setup, patches);
+  const updatePatches = patches.filter((patch) => {
     const deps = patch.deps.flatMap((dep) => expressionDependencies(dep, itemName));
     return deps.length !== 1 || deps[0] !== keyText;
   });
 
-  const init = ctx.patches.length
-    ? ctx.patches.map((patch) => `            ${patch.code}`).join('\n')
+  const init = patches.length
+    ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
-  const update = updatePatches.length
-    ? updatePatches.map((patch) => `              ${patch.code}`).join('\n')
-    : '              // Static row; no dynamic fields to patch.';
+  const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
   return {
     deps: rowDependencies(ctx.deps, itemName),
     block: `__createBlock(() => {
+            ${dirtySetupLine(ctx.setup, patches).join('\n            ')}
+            ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             ${ctx.setup.join('\n            ')}
 ${init ? `\n${init}\n` : ''}
 

@@ -11,13 +11,16 @@ import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
 import { unwrapJsxReturn, unwrapJsxBody } from './utils';
 import { buildDerivedContext, DerivedContext } from './derived';
+import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 
 function compileRenderClosure(
   source: ts.SourceFile,
   jsx: ts.JsxElement | ts.JsxSelfClosingElement,
   derivedCtx: DerivedContext | null,
+  forceAllUpdate = false,
+  preUpdateStatements: readonly string[] = [],
 ): string | null {
-  const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx);
+  const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx, forceAllUpdate, preUpdateStatements);
   if (templateResult) return templateResult;
 
   const ctx: CompileContext = {
@@ -37,13 +40,21 @@ function compileRenderClosure(
   const patches = derivedCtx
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
+  const dirtyAware = usesDirtyTracking(ctx.setup, patches);
+  const setupLines = [
+    ...dirtySetupLine(ctx.setup, patches),
+    ...sourceTrackingLines(patches, derivedCtx),
+    ...ctx.setup,
+  ];
 
-  const update = patches.length
-    ? patches.map((patch) => `          ${patch.code}`).join('\n')
-    : '          // Static block; no dynamic fields to patch.';
+  const patchUpdate = renderUpdateBody(patches, derivedCtx, '          ', dirtyAware, forceAllUpdate);
+  const update = [
+    ...preUpdateStatements.map((line) => `          ${line}`),
+    patchUpdate,
+  ].filter(Boolean).join('\n');
 
   return `__componentBlock(() => {
-${ctx.setup.map((line) => `        ${line}`).join('\n')}
+${setupLines.map((line) => `        ${line}`).join('\n')}
 
         return __createBlock(() => ({
           node: ${result.root},
@@ -52,6 +63,18 @@ ${update}
           },
         }));
       })`;
+}
+
+function containsMapCall(node: ts.Node): boolean {
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === 'map'
+  ) {
+    return true;
+  }
+
+  return node.getChildren().some(containsMapCall);
 }
 
 function transformReturn(
@@ -73,6 +96,12 @@ function transformReturn(
       if (ts.isReturnStatement(stmt)) break;
       leadingStatements.push(stmt.getText(source));
     }
+
+    // Locals declared before the JSX return live inside the render callback.
+    // Keyed-map setup currently runs in the compiled block factory, so a map
+    // that reads those locals would be hoisted out of scope (`posts is not defined`).
+    // Keep this shape on the runtime JSX path until map setup can be split safely.
+    if (leadingStatements.length > 0 && containsMapCall(body)) return null;
   } else {
     body = unwrapJsxBody(expression.body);
     if (!body) return null;
@@ -92,16 +121,8 @@ function transformReturn(
     }
   }
 
-  const compiled = compileRenderClosure(source, body, derivedCtx);
+  const compiled = compileRenderClosure(source, body, derivedCtx, leadingStatements.length > 0, leadingStatements);
   if (!compiled) return null;
-
-  if (leadingStatements.length > 0) {
-    const params = expression.parameters.length > 0
-      ? expression.parameters.map((p) => p.getText(source)).join(', ')
-      : '';
-    const paramsWithParens = params ? `(${params})` : '()';
-    return `return ${paramsWithParens} => {\n        ${leadingStatements.join('\n        ')}\n        return ${compiled};\n      };`;
-  }
 
   return `return ${compiled};`;
 }

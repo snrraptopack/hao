@@ -327,6 +327,65 @@ describe('fine-grained DOM patching', () => {
     expect(compiled).toContain('__dirty.add("count")');
   });
 
+  test('external shared state updates subscribers without rerendering unrelated siblings', async () => {
+    const source = `
+      const state = { count: 0 };
+
+      function Counter() {
+        return () => <button id="counter" onClick={() => { state.count++; }}>Counter: {state.count}</button>;
+      }
+
+      function NestedReader() {
+        return () => <button id="nested" onClick={() => { state.count++; }}>Nested: {state.count}</button>;
+      }
+
+      function Nested() {
+        return () => <section><NestedReader /></section>;
+      }
+
+      function InputPatch() {
+        let text = 'Edit me';
+        let renders = 0;
+        return () => {
+          renders++;
+          return (
+            <section>
+              <input id="input" value={text} onInput={(event) => { text = (event.target as HTMLInputElement).value; }} />
+              <p id="renders">Renders: {renders}</p>
+            </section>
+          );
+        };
+      }
+
+      function App() {
+        return () => <main><Counter /><Nested /><InputPatch /></main>;
+      }
+      exports.App = App;
+    `;
+
+    const { App } = evaluateCompiled(compileAuwla(source)) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('#counter')!.textContent).toBe('Counter: 0');
+    expect(root.querySelector('#nested')!.textContent).toBe('Nested: 0');
+    expect(root.querySelector('#renders')!.textContent).toBe('Renders: 1');
+
+    root.querySelector('#nested')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('#counter')!.textContent).toBe('Counter: 1');
+    expect(root.querySelector('#nested')!.textContent).toBe('Nested: 1');
+    expect(root.querySelector('#renders')!.textContent).toBe('Renders: 1');
+
+    const input = root.querySelector('#input') as HTMLInputElement;
+    input.value = 'Changed';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+
+    expect(root.querySelector('#renders')!.textContent).toBe('Renders: 2');
+  });
+
   test('handler that mutates via property assignment falls back to __all', () => {
     const source = `
       function App() {

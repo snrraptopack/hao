@@ -7,7 +7,15 @@
  */
 
 import type { RenderClosure } from '../runtime/types';
-import { currentComponentId, registerComponentHost } from '../runtime/state';
+import { currentComponentId, markDirtySource, registerComponentHost, registerComponentSources } from '../runtime/state';
+
+export function __dirtySource(source: string): void {
+  markDirtySource(source);
+}
+
+export function __trackSources(sources: readonly string[]): void {
+  registerComponentSources(sources);
+}
 
 export type CompiledBlock<TArgs extends readonly unknown[] = readonly unknown[]> = {
   readonly node: Node;

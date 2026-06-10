@@ -4,6 +4,7 @@
 
 import ts from 'typescript';
 import { DynamicPatch, CompileContext, TemplateContext, PROPERTY_PROPS } from './types';
+import { findMutatedVariables, needsFullDirty } from './derived';
 import type { DerivedContext } from './derived';
 import { expressionText, stringLiteral, escapeHtml, isStaticExpression, childExpression } from './utils';
 
@@ -136,6 +137,61 @@ function jsxAttributeName(name: ts.JsxAttributeName): string | null {
   return null;
 }
 
+function propertySourceName(node: ts.Expression, derivedCtx: DerivedContext | null): string | null {
+  if (!ts.isPropertyAccessExpression(node)) return null;
+
+  let root: ts.Expression = node.expression;
+  let firstProp = node.name.text;
+  while (ts.isPropertyAccessExpression(root)) {
+    firstProp = root.name.text;
+    root = root.expression;
+  }
+
+  if (!ts.isIdentifier(root)) return null;
+  if (derivedCtx?.locals.has(root.text)) return null;
+  return `${root.text}.${firstProp}`;
+}
+
+function dirtySourcesForHandler(expression: ts.Expression, derivedCtx: DerivedContext | null): string[] {
+  const sources = new Set<string>();
+
+  function walk(node: ts.Node): void {
+    if (ts.isBinaryExpression(node)) {
+      const source = propertySourceName(node.left, derivedCtx);
+      if (source) sources.add(source);
+    }
+
+    if (ts.isPostfixUnaryExpression(node) || ts.isPrefixUnaryExpression(node)) {
+      const source = propertySourceName(node.operand, derivedCtx);
+      if (source) sources.add(source);
+    }
+
+    ts.forEachChild(node, walk);
+  }
+
+  walk(expression);
+  return Array.from(sources);
+}
+
+function dirtyMarksForHandler(expression: ts.Expression, derivedCtx: DerivedContext | null): string[] {
+  if (!derivedCtx) return [];
+  if (needsFullDirty(expression)) return ['__all'];
+
+  const mutated = findMutatedVariables(expression);
+  if (mutated === null || mutated.some((name) => !derivedCtx.locals.has(name))) {
+    return ['__all'];
+  }
+
+  return mutated;
+}
+
+function dirtyWrappedHandler(value: string, marks: string[], sources: string[]): string {
+  if (marks.length === 0 && sources.length === 0) return value;
+  const markCode = marks.map((name) => `__dirty.add(${stringLiteral(name)});`).join(' ');
+  const sourceCode = sources.map((source) => `__dirtySource(${stringLiteral(source)});`).join(' ');
+  return `((handler) => (event) => { ${markCode} ${sourceCode} return handler(event); })(${value})`;
+}
+
 function compileEventHandler(
   setup: string[],
   patches: DynamicPatch[],
@@ -143,13 +199,17 @@ function compileEventHandler(
   elementVar: string,
   eventName: string,
   value: string,
+  expression: ts.Expression,
   derivedCtx: DerivedContext | null,
 ): number {
   const expandedValue = derivedCtx ? derivedCtx.expand(value) : value;
+  const marks = dirtyMarksForHandler(expression, derivedCtx);
+  const sources = dirtySourcesForHandler(expression, derivedCtx);
+  const handlerValue = dirtyWrappedHandler(expandedValue, marks, sources);
   const handlerVar = `eventHandler${textId}`;
-  setup.push(`let ${handlerVar} = ${expandedValue};`);
+  setup.push(`let ${handlerVar} = ${handlerValue};`);
   setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
-  patches.push({ code: `${handlerVar} = ${expandedValue};`, deps: [expandedValue] });
+  patches.push({ code: `${handlerVar} = ${handlerValue};`, deps: [expandedValue] });
   return textId + 1;
 }
 
@@ -263,7 +323,7 @@ export function compileAttribute(
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null);
+    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value, expression, ctx.derivedCtx ?? null);
     return true;
   }
 
@@ -341,7 +401,7 @@ export function compileTemplateAttribute(
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null);
+    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, expression, ctx.derivedCtx ?? null);
     return '';
   }
 
