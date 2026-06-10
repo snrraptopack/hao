@@ -109,7 +109,7 @@ export function normalizeStyleObject(style: Record<string, any>): Record<string,
 
     // Use Object.hasOwn to avoid inheriting Object.prototype properties
     // like 'toString' or 'constructor' as shorthand mappings.
-    const standardKey = Object.hasOwn(SHORTHAND_MAP, key) ? SHORTHAND_MAP[key] : key;
+    const standardKey = Object.hasOwn(SHORTHAND_MAP, key) ? SHORTHAND_MAP[key]! : key;
     if (typeof value === 'object' && value !== null && !('_tag' in value) && !Array.isArray(value)) {
       if (isResponsiveObject(value)) {
         normalized[standardKey] = value;

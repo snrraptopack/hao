@@ -1,6 +1,6 @@
 import type { Plugin, ViteDevServer, ModuleNode } from 'vite';
 import { compileAuwla } from './compiler';
-import { ViteCSSHandler } from './vite-css';
+import { ViteCSSHandler, RESOLVED_ID } from './vite-css';
 import { clearThemeCache } from './css/compiler/css-compiler';
 
 export type AuwlaViteOptions = {
@@ -67,7 +67,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         }
       }
 
-      const cssMod = server?.moduleGraph?.getModuleById('virtual:auwla.css');
+      const cssMod = server?.moduleGraph?.getModuleById(RESOLVED_ID);
       if (cssMod) {
         server.moduleGraph.invalidateModule(cssMod);
         return [...modules, cssMod];

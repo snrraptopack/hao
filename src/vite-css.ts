@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 
 const VIRTUAL_ID = 'virtual:auwla.css';
-const RESOLVED_ID = '\0' + VIRTUAL_ID;
+export const RESOLVED_ID = '\0' + VIRTUAL_ID;
 
 export class ViteCSSHandler {
   private registry = new Map<string, Map<string, string>>();
@@ -172,20 +172,11 @@ export class ViteCSSHandler {
   }
 
   triggerHMR() {
-    const mod = this.server?.moduleGraph.getModuleById(RESOLVED_ID);
+    if (!this.server) return;
+    const clientEnv = this.server.environments.client;
+    const mod = clientEnv.moduleGraph.getModuleById(RESOLVED_ID);
     if (mod) {
-      this.server?.moduleGraph.invalidateModule(mod);
-      this.server?.ws.send({
-        type: 'update',
-        updates: [
-          {
-            type: 'js-update',
-            path: mod.url,
-            acceptedPath: mod.url,
-            timestamp: Date.now(),
-          },
-        ],
-      });
+      clientEnv.reloadModule(mod).catch(() => {});
     }
   }
 }

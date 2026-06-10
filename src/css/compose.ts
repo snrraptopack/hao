@@ -25,7 +25,7 @@
 
 import type { StyleObject } from './types';
 import { BREAKPOINTS } from './breakpoints';
-import { getBreakpointValue, above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from './shared/breakpoints';
+
 
 // ---------------------------------------------------------------------------
 // merge
@@ -156,6 +156,14 @@ export function pseudo(name: string): string {
 
 
 
+/**
+ * A chainable selector builder used for nested style keys.
+ *
+ * **Type note:** The `string & {...}` intersection is a TypeScript-level
+ * convenience so that `[css.child('li')]` works as a computed property key.
+ * At runtime this is a plain object; JS coerces it to a string via
+ * `Symbol.toPrimitive` / `toString()` when used as a property name.
+ */
 export type SelectorBuilder = string & {
   readonly first: SelectorBuilder;
   readonly last: SelectorBuilder;
@@ -192,6 +200,10 @@ class SelectorBuilderImpl {
   }
 
   toString(): string {
+    return this.parts.join('');
+  }
+
+  [Symbol.toPrimitive](_hint: string): string {
     return this.parts.join('');
   }
 }

@@ -3,8 +3,7 @@ import { color } from '../color';
 import { child, descendant, sibling } from '../compose';
 import { flexProperties, gridProperties } from '../layout';
 import { computeSpring } from '../shared/spring';
-import { getBreakpointValue, above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from '../shared/breakpoints';
-import { parseLength as sharedParseLength } from '../shared/length';
+import { above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from '../shared/breakpoints';
 
 /**
  * A conditional style value produced by css.when() or css.match() where the

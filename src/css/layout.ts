@@ -146,13 +146,13 @@ export function gridProperties(options: GridOptions): Record<string, string> {
 
   if (options.columns !== undefined) {
     props['gridTemplateColumns'] = Array.isArray(options.columns)
-      ? options.columns.map(formatLength).join(' ')
+      ? options.columns.map((col) => formatLength(col)).join(' ')
       : formatLength(options.columns);
   }
 
   if (options.rows !== undefined) {
     props['gridTemplateRows'] = Array.isArray(options.rows)
-      ? options.rows.map(formatLength).join(' ')
+      ? options.rows.map((row) => formatLength(row)).join(' ')
       : formatLength(options.rows);
   }
 
@@ -177,13 +177,13 @@ export function gridProperties(options: GridOptions): Record<string, string> {
 
   if (options.autoColumns !== undefined) {
     props['gridAutoColumns'] = Array.isArray(options.autoColumns)
-      ? options.autoColumns.map(formatLength).join(' ')
+      ? options.autoColumns.map((col) => formatLength(col)).join(' ')
       : formatLength(options.autoColumns);
   }
 
   if (options.autoRows !== undefined) {
     props['gridAutoRows'] = Array.isArray(options.autoRows)
-      ? options.autoRows.map(formatLength).join(' ')
+      ? options.autoRows.map((row) => formatLength(row)).join(' ')
       : formatLength(options.autoRows);
   }
 

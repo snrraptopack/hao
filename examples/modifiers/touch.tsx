@@ -1,6 +1,5 @@
 import { component, commit } from 'auwla';
 import { event } from 'auwla/events';
-import type { } from 'auwla/jsx-runtime';
 import { css,} from "auwla/css"
 
 
@@ -92,7 +91,7 @@ export function TouchModifiersDemo() {
               height: '80px',
               background: 'linear-gradient(135deg, var(--color-accent), #4f46e5)',
               color: '#ffffff',
-              borderRadius: '8px',
+              borderRadius: '10px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

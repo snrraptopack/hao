@@ -297,6 +297,13 @@ export type CSSValue =
 export type ResolvedStyle = Record<string, string>;
 
 /**
+ * The union of all values that can appear on the right-hand side of a style
+ * property or inside a nested selector block.  Covers primitives, typed CSS
+ * objects, responsive wrappers, and nested StyleObjects.
+ */
+export type StyleValue = CSSValue | StyleObject;
+
+/**
  * A style object where values are typed Auwla CSS primitives.
  * This is what you write; the runtime and compiler both accept it.
  * Keys are camelCase CSS property names (same as React's CSSProperties).

@@ -6,6 +6,7 @@
 
 import { Fragment as Frag } from './index';
 import { jsx } from './runtime';
+import type { JSX } from './types';
 
 export const Fragment = Frag;
 
@@ -20,6 +21,8 @@ export function jsxDEV(
   _isStaticChildren?: boolean,
   _source?: any,
   _self?: any
-): any {
+): JSX.Element {
   return jsx(type, props, key);
 }
+
+export type { JSX } from './types';

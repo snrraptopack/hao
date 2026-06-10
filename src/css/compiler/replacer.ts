@@ -800,8 +800,36 @@ export function findCSSReplacements(
                 } else if (evalRes.value || hasExtracted) {
                   // Case 2: Partially Dynamic (or static with inline CSS variables)
                   const staticStyles = evalRes.value || {};
-                  const compiled = compileStyle(staticStyles);
+
+                  // Extract ConditionalValue properties from static styles
+                  const { cleaned, conditionals } = extractConditionals(staticStyles, source);
+                  const compiled = compileStyle(cleaned);
                   compiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
+
+                  // Compile each conditional branch and build expressions
+                  const conditionalExprs: string[] = [];
+                  for (const { value: condVal } of conditionals) {
+                    const branchClasses: Record<string, string> = {};
+                    for (const [branchKey, branchStyle] of Object.entries(condVal.branches)) {
+                      const branchCompiled = compileStyle(branchStyle as Record<string, any>);
+                      branchCompiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
+                      branchClasses[branchKey] = branchCompiled.classes.join(' ');
+                    }
+
+                    const condText = condVal.condition.getText(source);
+                    if (condVal.type === 'when') {
+                      const trueClasses = branchClasses['true'] || '';
+                      const falseClasses = branchClasses['false'] || branchClasses['default'] || '';
+                      conditionalExprs.push(`${condText} ? ${JSON.stringify(trueClasses)} : ${JSON.stringify(falseClasses)}`);
+                    } else {
+                      const entries = Object.entries(branchClasses)
+                        .map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`)
+                        .join(', ');
+                      conditionalExprs.push(`({ ${entries} })[${condText}]`);
+                    }
+                  }
+
+                  const staticClasses = compiled.classes.join(' ');
 
                   const dynamicPropsText = [
                     ...(evalRes.dynamicProps || []).map((prop) => prop.getText(source)),
@@ -809,7 +837,6 @@ export function findCSSReplacements(
                   ].join(', ');
 
                   const existing = findExistingClassAttr(node, source);
-                  const newClasses = compiled.classes.join(' ');
 
                   if (existing) {
                     replacements.push({
@@ -818,15 +845,26 @@ export function findCSSReplacements(
                       text: `style={{ ${dynamicPropsText} }}`,
                     });
 
-                    if (newClasses) {
-                      let replacementText = '';
-                      if (existing.isExpression) {
-                        replacementText = `class={\`${newClasses} \${${existing.text}}\`}`;
+                    let replacementText = '';
+                    if (existing.isExpression) {
+                      const exprParts = [existing.text, ...conditionalExprs];
+                      const prefix = staticClasses ? staticClasses + ' ' : '';
+                      if (exprParts.length === 1 && !prefix) {
+                        replacementText = `class={${exprParts[0]}}`;
                       } else {
-                        const merged = existing.text ? `${existing.text} ${newClasses}` : newClasses;
-                        replacementText = `class="${merged}"`;
+                        replacementText = `class={\`${prefix}\${${exprParts.join('} \${')}}\`}`;
                       }
+                    } else {
+                      const staticPart = [existing.text, staticClasses].filter(Boolean).join(' ');
+                      if (conditionalExprs.length === 0) {
+                        replacementText = `class="${staticPart}"`;
+                      } else {
+                        const prefix = staticPart ? staticPart + ' ' : '';
+                        replacementText = `class={\`${prefix}\${${conditionalExprs.join('} \${')}}\`}`;
+                      }
+                    }
 
+                    if (replacementText) {
                       replacements.push({
                         start: existing.node.getStart(source),
                         end: existing.node.getEnd(),
@@ -834,13 +872,19 @@ export function findCSSReplacements(
                       });
                     }
                   } else {
-                    const staticClassAttr = newClasses
-                      ? `class="${newClasses}"`
-                      : '';
-                    const dynamicStyleAttr = `style={{ ${dynamicPropsText} }}`;
+                    let classAttrText = '';
+                    if (conditionalExprs.length === 0) {
+                      if (staticClasses) {
+                        classAttrText = `class="${staticClasses}"`;
+                      }
+                    } else {
+                      const prefix = staticClasses ? staticClasses + ' ' : '';
+                      classAttrText = `class={\`${prefix}\${${conditionalExprs.join('} \${')}}\`}`;
+                    }
 
-                    const replacementText = staticClassAttr
-                      ? `${staticClassAttr} ${dynamicStyleAttr}`
+                    const dynamicStyleAttr = `style={{ ${dynamicPropsText} }}`;
+                    const replacementText = classAttrText
+                      ? `${classAttrText} ${dynamicStyleAttr}`
                       : dynamicStyleAttr;
 
                     replacements.push({

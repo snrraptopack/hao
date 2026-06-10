@@ -131,6 +131,11 @@ export function compileStyle(
       continue;
     }
 
+    // Skip ConditionalValue objects — handled by the replacer
+    if (typeof value === 'object' && value !== null && (value as any).__conditional === true) {
+      continue;
+    }
+
     // Check if it's a responsive value object (e.g., { base: '16px', md: '24px' })
     if (
       typeof value === 'object' &&
