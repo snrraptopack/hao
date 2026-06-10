@@ -40,6 +40,8 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
     const expression = childExpression(child);
     if (!expression) return true;
 
+    if (ctx.renderScoped && compileDeferredKeyedMap(ctx, expression, parentVar)) return true;
+
     const map = compileKeyedMap(ctx, expression);
     if (map) {
       ctx.setup.push(`${parentVar}.append(${map}.node);`);
@@ -252,6 +254,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
       deps: [],
       setup: [],
       derivedCtx: ctx.derivedCtx,
+      renderScoped: ctx.renderScoped,
     };
 
     let root: string;
@@ -436,6 +439,71 @@ ${update}
   };
 }
 
+export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expression, parentVar: string): boolean {
+  while (ts.isParenthesizedExpression(expression)) {
+    expression = expression.expression;
+  }
+  if (!ts.isCallExpression(expression)) return false;
+  if (!ts.isPropertyAccessExpression(expression.expression)) return false;
+  if (expression.expression.name.text !== 'map') return false;
+  if (expression.arguments.length !== 1) return false;
+
+  const callback = expression.arguments[0]!;
+  if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) return false;
+  const itemParam = callback.parameters[0];
+  if (!itemParam || !ts.isIdentifier(itemParam.name)) return false;
+  const indexParam = callback.parameters[1];
+  const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
+
+  const row = ts.isBlock(callback.body)
+    ? unwrapJsxReturn(callback.body)
+    : unwrapJsxExpression(callback.body);
+  if (!row) return false;
+
+  const key = keyAttribute(row);
+  const isUnkeyed = !key;
+  const keyText = key ? expressionText(ctx.source, key) : indexName;
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx);
+  if (!rowBlock) return false;
+
+  const mapVar = `map${ctx.mapId++}`;
+  const childVar = `child${ctx.textId++}`;
+  const items = expressionText(ctx.source, expression.expression.expression);
+  const itemName = itemParam.name.text;
+  const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
+  const deps = rowDeps.length === 0
+    ? 'null'
+    : rowDeps.length === 1
+      ? rowDeps[0]!
+      : `[${rowDeps.join(', ')}]`;
+
+  const keyOf = isUnkeyed
+    ? `(${itemName}, ${indexName}) => ${indexName}`
+    : `(${itemName}) => ${keyText}`;
+
+  ctx.setup.push(`let ${mapVar}: any = null;`);
+  ctx.setup.push(`let ${childVar} = document.createComment("auwla:keyed-map");`);
+  ctx.setup.push(`${parentVar}.append(${childVar});`);
+  ctx.patches.push({
+    code: `if (!${mapVar}) {
+            ${mapVar} = __keyedMap(
+              ${items},
+              ${keyOf},
+              (${itemName}, ${indexName}) => ${rowBlock.block},
+              (block, ${itemName}, index) => block.update(${itemName}, index),
+              (${itemName}) => ${deps},
+              false,
+            );
+            ${childVar} = __setChild(${parentVar}, ${childVar}, ${mapVar}.node);
+          } else {
+            ${mapVar}.update(${items});
+          }`,
+    deps: [items],
+  });
+  return true;
+}
+
 export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string | null {
   while (ts.isParenthesizedExpression(expression)) {
     expression = expression.expression;
@@ -549,6 +617,7 @@ export function tryInlineComponent(
     deps: [],
     setup: [],
     derivedCtx: ctx.derivedCtx,
+    renderScoped: ctx.renderScoped,
   };
 
   const result = compileJsxNode(childCtx, componentJsx);

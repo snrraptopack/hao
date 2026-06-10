@@ -19,6 +19,7 @@ export type CompileContext = {
   deps: string[];
   setup: string[];
   derivedCtx?: DerivedContext | null;
+  renderScoped?: boolean;
 };
 
 export type CompileResult = {

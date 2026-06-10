@@ -32,6 +32,7 @@ function compileRenderClosure(
     deps: [],
     setup: [],
     derivedCtx,
+    renderScoped: preUpdateStatements.length > 0,
   };
 
   const result = compileJsxNode(ctx, jsx);
@@ -65,18 +66,6 @@ ${update}
       })`;
 }
 
-function containsMapCall(node: ts.Node): boolean {
-  if (
-    ts.isCallExpression(node) &&
-    ts.isPropertyAccessExpression(node.expression) &&
-    node.expression.name.text === 'map'
-  ) {
-    return true;
-  }
-
-  return node.getChildren().some(containsMapCall);
-}
-
 function transformReturn(
   source: ts.SourceFile,
   node: ts.ReturnStatement,
@@ -97,11 +86,6 @@ function transformReturn(
       leadingStatements.push(stmt.getText(source));
     }
 
-    // Locals declared before the JSX return live inside the render callback.
-    // Keyed-map setup currently runs in the compiled block factory, so a map
-    // that reads those locals would be hoisted out of scope (`posts is not defined`).
-    // Keep this shape on the runtime JSX path until map setup can be split safely.
-    if (leadingStatements.length > 0 && containsMapCall(body)) return null;
   } else {
     body = unwrapJsxBody(expression.body);
     if (!body) return null;

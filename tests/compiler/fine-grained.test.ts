@@ -386,6 +386,34 @@ describe('fine-grained DOM patching', () => {
     expect(root.querySelector('#renders')!.textContent).toBe('Renders: 2');
   });
 
+  test('compiles render-local keyed maps without hoisting locals out of scope', async () => {
+    const source = `
+      function PostList() {
+        const loader = { value: [{ id: 1, title: 'Hello' }, { id: 2, title: 'World' }] };
+        return () => {
+          const posts = loader.value ?? [];
+          return (
+            <ul>
+              {posts.map((post) => <li key={post.id}>{post.title}</li>)}
+            </ul>
+          );
+        };
+      }
+      exports.PostList = PostList;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__keyedMap');
+    expect(compiled).toContain('let map');
+
+    const { PostList } = evaluateCompiled(compiled) as { PostList: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(PostList as any));
+
+    expect(root.querySelectorAll('li')).toHaveLength(2);
+    expect(root.textContent).toBe('HelloWorld');
+  });
+
   test('handler that mutates via property assignment falls back to __all', () => {
     const source = `
       function App() {
