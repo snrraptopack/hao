@@ -62,12 +62,17 @@ export function extractIdentifiers(code: string): string[] {
 /** True if the expression looks side-effect free (no calls, no `new`). */
 function looksPure(expression: string): boolean {
   const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-  // Reject function calls, new, template literals with tag, assignments
+  // Reject function calls, new, template literals with interpolation
   if (/\b\w+\s*\(/.test(withoutStrings)) return false;
   if (/\bnew\s+/.test(withoutStrings)) return false;
-  if (/`[^`]*\${/.test(expression)) return false; // template literal with interpolation — may call toString
-  if (/[=!<>]?=/.test(withoutStrings)) return false; // assignments or comparators with side effects? actually comparators are fine
-  // More precise: reject `=` that's not `==` or `===` or `!=` or `!==`
+  if (/`[^`]*\${/.test(expression)) return false;
+  // Reject optional chaining (?.) — the value depends on runtime nullability
+  // and is not safe to inline into multiple patch sites.
+  if (/\?\./.test(withoutStrings)) return false;
+  // Reject nullish coalescing (??) for the same reason — it pairs with ?. and
+  // implies the left operand may be null/undefined at runtime.
+  if (/\?\?/.test(withoutStrings)) return false;
+  // Reject assignments (but allow == / === / != / !==)
   const hasAssignment = /(?<![=!])=(?![=])/.test(withoutStrings);
   if (hasAssignment) return false;
   return true;
@@ -165,11 +170,18 @@ export function buildDerivedContext(
   function expandOnce(expr: string): string {
     let result = expr;
     for (const [name, init] of derived) {
-      // Replace whole-word references only
+      // Only expand whole-word identifier references. To avoid matching the
+      // variable name coincidentally inside a quoted string (e.g. 'posts' in
+      // the literal "/loader/posts/"), we test against the string-stripped
+      // version of the expression but perform the replacement on the original.
+      const withoutStrings = result.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, "''");
       const re = new RegExp(`\\b${name}\\b`, 'g');
-      if (re.test(result)) {
-        result = result.replace(re, `(${init})`);
-      }
+      if (!re.test(withoutStrings)) continue;
+      // Rebuild result, skipping quoted regions for replacement.
+      result = result.replace(
+        /(['"`])(?:\\.|(?!\1).)*\1|\b(PLACEHOLDER)\b/g.source.replace('PLACEHOLDER', name),
+        (match, quoted) => (quoted !== undefined ? match : `(${init})`),
+      );
     }
     return result;
   }

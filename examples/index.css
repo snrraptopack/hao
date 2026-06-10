@@ -59,7 +59,7 @@ body {
 }
 
 /* Premium suspension UX — dim the app while a route loader resolves */
-html.suspended {
+html.suspended .loader-example {
   opacity: 0.55;
   transition: opacity 0.25s ease;
 }
