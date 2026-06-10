@@ -5,7 +5,6 @@
 import ts from 'typescript';
 import { DynamicPatch, CompileContext, TemplateContext, PROPERTY_PROPS } from './types';
 import type { DerivedContext } from './derived';
-import { findMutatedVariables } from './derived';
 import { expressionText, stringLiteral, escapeHtml, isStaticExpression, childExpression } from './utils';
 
 /** Convert a camelCase CSS property name to kebab-case. */
@@ -145,31 +144,12 @@ function compileEventHandler(
   eventName: string,
   value: string,
   derivedCtx: DerivedContext | null,
-  mutatedVars: string[] | null,
 ): number {
   const expandedValue = derivedCtx ? derivedCtx.expand(value) : value;
   const handlerVar = `eventHandler${textId}`;
-
-  // Wrap handler with dirty tracking for fine-grained patching
-  if (mutatedVars && mutatedVars.length > 0) {
-    const dirtyFlags = mutatedVars.map((v) => `__dirty.add(${stringLiteral(v)});`).join(' ');
-    const wrapped = `(() => { const _h = ${expandedValue}; return (...args) => { const _r = _h(...args); ${dirtyFlags} return _r; }; })()`;
-    setup.push(`let ${handlerVar} = ${wrapped};`);
-    setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
-    patches.push({ code: `${handlerVar} = ${wrapped};`, deps: [expandedValue] });
-  } else if (mutatedVars === null) {
-    // Uncertain mutations — fall back to full update
-    const wrapped = `(() => { const _h = ${expandedValue}; return (...args) => { const _r = _h(...args); __dirty.add(${stringLiteral('__all')}); return _r; }; })()`;
-    setup.push(`let ${handlerVar} = ${wrapped};`);
-    setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
-    patches.push({ code: `${handlerVar} = ${wrapped};`, deps: [expandedValue] });
-  } else {
-    // No mutations detected — plain handler
-    setup.push(`let ${handlerVar} = ${expandedValue};`);
-    setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
-    patches.push({ code: `${handlerVar} = ${expandedValue};`, deps: [expandedValue] });
-  }
-
+  setup.push(`let ${handlerVar} = ${expandedValue};`);
+  setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
+  patches.push({ code: `${handlerVar} = ${expandedValue};`, deps: [expandedValue] });
   return textId + 1;
 }
 
@@ -283,8 +263,7 @@ export function compileAttribute(
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    const mutatedVars = expression ? findMutatedVariables(expression) : [];
-    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null, mutatedVars);
+    ctx.textId = compileEventHandler(ctx.setup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null);
     return true;
   }
 
@@ -362,8 +341,7 @@ export function compileTemplateAttribute(
 
   if (name.startsWith('on') && name.length > 2) {
     const eventName = name.slice(2).toLowerCase();
-    const mutatedVars = expression ? findMutatedVariables(expression) : [];
-    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null, mutatedVars);
+    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, ctx.derivedCtx ?? null);
     return '';
   }
 

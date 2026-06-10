@@ -10,7 +10,7 @@ import { COMPILER_IMPORT, CompileContext } from './types';
 import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
 import { unwrapJsxReturn, unwrapJsxBody } from './utils';
-import { buildDerivedContext, DerivedContext, groupPatches, buildConditionalUpdate } from './derived';
+import { buildDerivedContext, DerivedContext } from './derived';
 
 function compileRenderClosure(
   source: ts.SourceFile,
@@ -38,30 +38,17 @@ function compileRenderClosure(
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
 
-  // Build conditional update with fine-grained dirty tracking
-  let updateBody: string;
-  if (derivedCtx && patches.length > 0) {
-    const groups = groupPatches(patches, derivedCtx.localVars);
-    if (groups.size > 1 || (groups.size === 1 && !groups.has('__all'))) {
-      updateBody = buildConditionalUpdate(groups);
-    } else {
-      // Only __all patches — keep flat update
-      updateBody = patches.map((patch) => `          ${patch.code}`).join('\n');
-    }
-  } else {
-    updateBody = patches.length
-      ? patches.map((patch) => `          ${patch.code}`).join('\n')
-      : '          // Static block; no dynamic fields to patch.';
-  }
+  const update = patches.length
+    ? patches.map((patch) => `          ${patch.code}`).join('\n')
+    : '          // Static block; no dynamic fields to patch.';
 
   return `__componentBlock(() => {
-        let __dirty = new Set<string>();
 ${ctx.setup.map((line) => `        ${line}`).join('\n')}
 
         return __createBlock(() => ({
           node: ${result.root},
           update() {
-${updateBody}
+${update}
           },
         }));
       })`;

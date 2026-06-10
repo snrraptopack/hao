@@ -11,8 +11,7 @@ function CounterExample() {
   let out = one * 2
   let inner = () => state.count * 2
 
-  return () => {
-    return (
+  return () =>(
       <section class="panel">
         <h2>Counter</h2>
         <p>State is a local variable in setup.</p>
@@ -22,7 +21,7 @@ function CounterExample() {
         <p>outer { out}</p>
       </section>
     );
-  }
+
 }
 
 function TodoExample() {

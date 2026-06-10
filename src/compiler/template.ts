@@ -20,7 +20,6 @@ import {
   expressionDependencies,
   rowDependencies,
 } from './utils';
-import { groupPatches, buildConditionalUpdate } from './derived';
 
 export function templateElementVar(ctx: TemplateContext, path: number[]): string {
   if (path.length === 0) return 'el0';
@@ -241,20 +240,9 @@ export function compileTemplateRootBlock(
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
 
-  // Build conditional update with fine-grained dirty tracking
-  let updateBody: string;
-  if (derivedCtx && patches.length > 0) {
-    const groups = groupPatches(patches, derivedCtx.localVars);
-    if (groups.size > 1 || (groups.size === 1 && !groups.has('__all'))) {
-      updateBody = buildConditionalUpdate(groups);
-    } else {
-      updateBody = patches.map((patch) => `          ${patch.code}`).join('\n');
-    }
-  } else {
-    updateBody = patches.length
-      ? patches.map((patch) => `          ${patch.code}`).join('\n')
-      : '          // Static block; no dynamic fields to patch.';
-  }
+  const update = patches.length
+    ? patches.map((patch) => `          ${patch.code}`).join('\n')
+    : '          // Static block; no dynamic fields to patch.';
 
   const setupLines = [
     `const el0 = __cloneTemplate(${stringLiteral(html)});`,
@@ -263,13 +251,12 @@ export function compileTemplateRootBlock(
   ];
 
   return `__componentBlock(() => {
-        let __dirty = new Set<string>();
 ${setupLines.map((line) => `        ${line}`).join('\n')}
 
         return __createBlock(() => ({
           node: el0,
           update() {
-${updateBody}
+${update}
           },
         }));
       })`;
