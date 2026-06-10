@@ -96,6 +96,15 @@ export function Router(props: RouterProps = {}) {
   let cachedLoader: TrackHandle | null = null
   let previousMatched: MatchedRoute | null = null
   let isSuspended = false
+  // The exact key prop used for the most recently rendered RouteComp.
+  // Preserved when suspension starts so we can render <PrevComp key={suspendPrevKey} />
+  // and hit the existing instance in the component cache — preventing re-setup
+  // and keeping the already-resolved loader data visible during the transition.
+  let suspendPrevKey: string | null = null
+  // The loader handle that was active before suspension started. Passed as
+  // _currentLoader while the old component is being shown so that any
+  // getLoaderHandle() call during that render sees the resolved data.
+  let prevCachedLoader: TrackHandle | null = null
 
   const { routes, suspend } = props
   const suspendEnabled = !!suspend
@@ -138,6 +147,10 @@ export function Router(props: RouterProps = {}) {
 
     // Path changed — run one-time navigation side effects.
     if (cachedPath !== currentPath) {
+      // Save the previous path BEFORE overwriting cachedPath. We need it to
+      // reconstruct the key that was used to render the previous RouteComp so
+      // the component cache serves the existing instance during suspension.
+      const prevPath = cachedPath
       cachedPath = currentPath
 
       // Scroll to top on push/replace; let the browser restore position for pops.
@@ -150,6 +163,15 @@ export function Router(props: RouterProps = {}) {
         isSuspended = true
         enterSuspense()
         _pendingContext = nextContext
+
+        // Snapshot the key and loader from the previous render so the suspension
+        // branch can render <PrevComp key={suspendPrevKey} /> and reuse the
+        // cached instance — preserving the resolved data the user is looking at.
+        suspendPrevKey = prevPath !== null
+          ? `${encodeURIComponent(prevPath)}:${cachedLoader?.status ?? 'idle'}`
+          : null
+        prevCachedLoader = cachedLoader
+
         cachedLoader = event.track("__loader", (signal) =>
           route.loader!(_pendingContext!, signal)
         )
@@ -159,6 +181,8 @@ export function Router(props: RouterProps = {}) {
           exitSuspense()
           isSuspended = false
           _pendingContext = null
+          suspendPrevKey = null
+          prevCachedLoader = null
           cachedLoader?.cancel()
         }
         _currentContext = nextContext
@@ -182,14 +206,16 @@ export function Router(props: RouterProps = {}) {
       exitSuspense()
       _currentContext = _pendingContext!
       _pendingContext = null
+      suspendPrevKey = null
+      prevCachedLoader = null
       // Fall through to normal render with the now-resolved loader.
     }
 
     // During suspension, keep showing the previously matched route so the user
     // still sees content (dimmed via global CSS) while data loads.
     if (isSuspended) {
+      // Expose the new pending loader for any route.pendingComponent that needs it.
       _currentLoader = cachedLoader
-      // Child components still see the old context while suspended.
 
       if (route.pendingComponent) {
         return route.pendingComponent()
@@ -197,7 +223,15 @@ export function Router(props: RouterProps = {}) {
 
       if (previousMatched) {
         const PrevComp = previousMatched.route.component
-        return <PrevComp />
+        // Restore the previous (resolved) loader BEFORE rendering the old component
+        // so that getLoaderHandle() inside it returns the correct data.
+        // Using suspendPrevKey is what actually prevents re-setup: it matches the
+        // key from the last normal render, so createComponentClosure finds the
+        // existing instance in the cache and skips setup entirely.
+        _currentLoader = prevCachedLoader
+        return suspendPrevKey !== null
+          ? <PrevComp key={suspendPrevKey} />
+          : <PrevComp />
       }
 
       // First-ever render and it has a loader — nothing previous to show.
