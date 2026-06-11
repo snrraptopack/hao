@@ -58,8 +58,9 @@ export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
 /**
  * Typed accessor for the active `routed` data handle.
  *
- * Pass the page's `routed` function — TypeScript infers the resolved data
- * type `T` from its return type so no manual generic is needed:
+ * ── Typed call (recommended) ─────────────────────────────────────────────────
+ * Pass the page's `routed` function. TypeScript infers the resolved data type
+ * `T` from its return type — no manual generic is needed:
  *
  *   export const routed = async (ctx, signal) => ({
  *     post: await fetchPost(ctx.params.id, signal),
@@ -67,18 +68,26 @@ export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
  *
  *   function PostDetail() {
  *     const data = getRouted(routed)
- *     // data.value → { post: Post }  — fully typed
+ *     // data.value → { post: Post }  — fully inferred
  *     return () => <h1>{data?.value?.post.title}</h1>
  *   }
  *
- * The function argument is only used by TypeScript for type inference —
- * it is never called at runtime.
+ * ── Untyped call ─────────────────────────────────────────────────────────────
+ * Omit the argument to get a handle typed as `unknown`. Useful in shared
+ * utility code that doesn't know the specific route's data shape:
+ *
+ *   const data = getRouted()
+ *   // data.value → unknown
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The function argument, when provided, is used by TypeScript for type
+ * inference only — it is never called at runtime.
  *
  * Returns null when no routed function is active on the current route.
  */
-export function getRouted<T>(
+export function getRouted<T = unknown>(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inference only
-  _fn: (ctx: RouteContext, signal: AbortSignal) => Promise<T>,
+  _fn?: (ctx: RouteContext, signal: AbortSignal) => Promise<T>,
 ): TypedTrackHandle<T> | null {
   return _currentLoader as TypedTrackHandle<T> | null
 }
