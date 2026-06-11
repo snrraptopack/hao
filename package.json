@@ -34,6 +34,10 @@
     "./css": {
       "types": "./dist/css/index.d.ts",
       "import": "./dist/css/index.js"
+    },
+    "./router": {
+      "types": "./dist/router/index.d.ts",
+      "import": "./dist/router/index.js"
     }
   },
   "files": [

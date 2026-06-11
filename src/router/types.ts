@@ -4,6 +4,20 @@ import type { SuspendConfig } from './suspend'
 
 export type { SuspendConfig }
 
+/**
+ * Structured error context set whenever the Router renders an error component.
+ * Read it inside an error component via getRouteError().
+ *
+ * - reason  — the raw rejection value from the loader (or future error sources)
+ * - source  — where the error originated; currently always 'loader', extensible later
+ * - context — the route context (path, params, query) that failed
+ */
+export type RouteError = {
+  reason: unknown
+  source: 'loader'
+  context: RouteContext
+}
+
 // A function that returns the component's render closure.
 // Accepts optional props so route components can be rendered as first-class
 // JSX elements by the runtime's createComponentClosure.
@@ -43,10 +57,16 @@ export type Route = {
   // component). Called as a plain render function — no setup scope.
   // Example: () => <Skeleton />
   pendingComponent?: () => any
-  // Rendered by the Router when the loader rejects. Receives the rejection
-  // reason so the component can display a meaningful error.
-  // Example: (reason) => <ErrorBanner message={String(reason)} />
-  errorComponent?: (reason: unknown) => any
+  // Rendered by the Router when the loader rejects. Treated as a full
+  // RouteComponent so it has access to all router APIs: getLoaderHandle()
+  // carries the rejected handle (loader.rejected = true, loader.reason = error),
+  // getParams(), getQuery(), getRouteMeta() all work as normal.
+  // Example:
+  //   function PostError() {
+  //     const loader = getLoaderHandle()
+  //     return () => <p>Failed: {String(loader?.reason)}</p>
+  //   }
+  errorComponent?: RouteComponent
   // Arbitrary route-level metadata. Read from any component via getRouteMeta().
   // The router never inspects these values — they are purely for application use
   // (e.g. { requiresAuth: true }, { title: 'Dashboard' }, { layout: 'admin' }).

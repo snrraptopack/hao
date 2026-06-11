@@ -67,21 +67,24 @@ function UserList() {
     commit(self)
   })
 
-  return () => {
-    if (state.status === "loading") return <p>Loading users...</p>
-    if (state.status === "error") return <p>Error: {state.message}</p>
-    return (
-      <section>
-        <h1>Users</h1>
-        {state.users.map(u => (
-          <div key={u.id}>
-            <a href={`/child/user/${u.id}`}>{u.name}</a>
-            <span> — {u.role}</span>
-          </div>
-        ))}
+
+  return () =>(
+    <section>
+      {state.status === "loading" && <p>Loading...</p>}
+      {state.status === "error" && <p>Error: {state.message}</p>}
+      {state.status === "done" && (
+        <>
+          <h1>Users</h1>
+          {state.users.map(u => (
+            <div key={u.id}>
+              <a href={`/child/user/${u.id}`}>{u.name}</a>
+              <span> — {u.role}</span>
+            </div>
+          ))}
+        </>
+      )}
       </section>
     )
-  }
 }
 
 function UserDetail() {
@@ -112,22 +115,24 @@ function UserDetail() {
 
   load()
 
-  return () => {
-    if (state.status === "loading") return <p>Loading user {params.id}...</p>
-    if (state.status === "error") return <p>Error: {state.message}</p>
-    const u = state.user
-    return (
-      <section>
-        <button onClick={() => back()}>Back</button>
-        <h1>{u.name}</h1>
-        <p>{u.bio}</p>
-        <p>Role: {u.role}</p>
-        <a href={`/child/user/${u.id}/posts`}>View posts</a>
-        <br />
-        <button onClick={load}>Refetch</button>
+
+  return () => (
+    <section>
+      {state.status === "loading" && <p>Loading user {params.id}...</p>}
+      {state.status === "error" && <p>Error: {state.message}</p>}
+      {state.status === "done" && (
+        <>
+          <button onClick={() => back()}>Back</button>
+          <h1>{state.user.name}</h1>
+          <p>{state.user.bio}</p>
+          <p>Role: {state.user.role}</p>
+          <a href={`/child/user/${state.user.id}/posts`}>View posts</a>
+          <br />
+          <button onClick={load}>Refetch</button>
+        </>
+      )}
       </section>
     )
-  }
 }
 
 function UserPosts() {
@@ -157,24 +162,26 @@ function UserPosts() {
     commit(self)
   })
 
-  return () => {
-    if (state.status === "loading") return <p>Loading...</p>
-    if (state.status === "error") return <p>Error: {state.message}</p>
-    const { user, posts } = state
-    return (
-      <section>
-        <button onClick={() => back()}>Back</button>
-        <h1>{user.name}'s posts</h1>
-        {posts.length === 0 && <p>No posts yet</p>}
-        {posts.map(post => (
-          <div key={post.id}>
-            <h2>{post.title}</h2>
-            <p>{post.body}</p>
-          </div>
-        ))}
+
+  return () => (
+    <section>
+      {state.status === "loading" && <p>Loading...</p>}
+      {state.status === "error" && <p>Error: {state.message}</p>}
+      {state.status === "done" && (
+        <>
+          <button onClick={() => back()}>Back</button>
+          <h1>{state.user.name}'s posts</h1>
+          {state.posts.length === 0 && <p>No posts yet</p>}
+          {state.posts.map(post => (
+            <div key={post.id}>
+              <h2>{post.title}</h2>
+              <p>{post.body}</p>
+            </div>
+          ))}
+        </>
+      )}
       </section>
     )
-  }
 }
 
 function NotFound() {

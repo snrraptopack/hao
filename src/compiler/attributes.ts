@@ -175,6 +175,16 @@ function dirtySourcesForHandler(expression: ts.Expression, derivedCtx: DerivedCo
 
 function dirtyMarksForHandler(expression: ts.Expression, derivedCtx: DerivedContext | null): string[] {
   if (!derivedCtx) return [];
+
+  // If the handler value is a call expression (e.g. event.touch.sync(obj, 'x').handler(fn)),
+  // it invokes modifier functions that may mutate their arguments directly
+  // (rawPosition.x = ...) without those mutations appearing in the JSX source text.
+  // The compiler cannot statically trace cross-function mutations, so default to
+  // full-dirty to ensure all dependent style/attribute patches still run.
+  // Direct function literals (arrow functions, function expressions) and plain
+  // identifiers are still eligible for the optimised granular-dirty path.
+  if (ts.isCallExpression(expression)) return ['__all'];
+
   if (needsFullDirty(expression)) return ['__all'];
 
   const mutated = findMutatedVariables(expression);

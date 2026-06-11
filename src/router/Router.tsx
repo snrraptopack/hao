@@ -15,7 +15,7 @@ import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
 import type { SuspendConfig } from "./suspend"
-import type { Route, RouteContext, TypedTrackHandle, MatchedRoute } from "./types"
+import type { Route, RouteContext, RouteError, TypedTrackHandle, MatchedRoute, RouteComponent } from "./types"
 
 // ---------------------------------------------------------------------------
 // Module-level route context
@@ -32,6 +32,12 @@ let _currentContext: RouteContext | null = null
 let _pendingContext: RouteContext | null = null
 let _currentLoader: TrackHandle | null = null
 let _currentMeta: Record<string, unknown> | null = null
+/**
+ * Set before every error component render, cleared after every normal render.
+ * Readable via getRouteError() inside any error component so the component
+ * can surface the reason, source, and route context without receiving props.
+ */
+let _currentError: RouteError | null = null
 
 export function getParams(): Record<string, string> {
   return _currentContext?.params ?? {}
@@ -47,6 +53,28 @@ export function getLocation(): string {
 
 export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
   return _currentLoader as TypedTrackHandle<T> | null
+}
+
+/**
+ * Returns the current error context when an error component is rendering.
+ * Returns null in any other context.
+ *
+ * Call this in the setup of an error component (route-level or global) to
+ * read the structured error regardless of whether it came from a loader or
+ * another source:
+ *
+ *   function MyError() {
+ *     const err = getRouteError()
+ *     return () => (
+ *       <div>
+ *         <h1>Something went wrong</h1>
+ *         <p>{String(err?.reason)}</p>
+ *       </div>
+ *     )
+ *   }
+ */
+export function getRouteError(): RouteError | null {
+  return _currentError
 }
 
 export function getRouteMeta<T extends Record<string, unknown> = Record<string, unknown>>(): T {
@@ -82,6 +110,23 @@ export type RouterProps = {
    *   - attr: data attribute name added to `<html>` (default: 'data-suspended')
    */
   suspend?: boolean | SuspendConfig
+  /**
+   * Global fallback error component rendered when a matched route's loader
+   * rejects and the route does not define its own errorComponent.
+   *
+   * Behaves exactly like a per-route errorComponent: it is a full RouteComponent
+   * with access to getRouteError(), getLoaderHandle(), getParams(), getQuery().
+   *
+   * Per-route errorComponent always takes priority over this global fallback.
+   *
+   * Example:
+   *   function AppError() {
+   *     const err = getRouteError()
+   *     return () => <div>Error on {err?.context.path}: {String(err?.reason)}</div>
+   *   }
+   *   <Router routes={routes} errorComponent={AppError} />
+   */
+  errorComponent?: RouteComponent
 }
 
 export function Router(props: RouterProps = {}) {
@@ -110,7 +155,7 @@ export function Router(props: RouterProps = {}) {
   // honours the same rule as immediate navigation: don't scroll on pop.
   let suspendWasPopNav = false
 
-  const { routes, suspend } = props
+  const { routes, suspend, errorComponent: globalErrorComponent } = props
   const suspendEnabled = !!suspend
 
   if (suspend && typeof suspend === 'object') {
@@ -256,6 +301,8 @@ export function Router(props: RouterProps = {}) {
     _currentContext = { path: currentPath, params, query }
     _currentMeta = route.meta ?? null
     _currentLoader = cachedLoader
+    // Clear any stale error context from a previous error render on this route.
+    _currentError = null
 
     // Loader fallbacks — re-evaluated on every render so they react to loader
     // state transitions (pending → resolved / rejected) automatically.
@@ -266,8 +313,22 @@ export function Router(props: RouterProps = {}) {
         return route.pendingComponent()
       }
     }
-    if (cachedLoader?.rejected && route.errorComponent) {
-      return route.errorComponent(cachedLoader.reason)
+
+    // Resolve which error component to render (route-level wins over global).
+    const errorComp = cachedLoader?.rejected
+      ? (route.errorComponent ?? globalErrorComponent)
+      : null
+
+    if (errorComp) {
+      // Build structured error context and expose it via getRouteError() so the
+      // component can read it without receiving props.
+      _currentError = {
+        reason: cachedLoader!.reason,
+        source: 'loader',
+        context: { path: currentPath, params, query },
+      }
+      const ErrorComp = errorComp
+      return <ErrorComp key={`${encodeURIComponent(currentPath)}:error`} />
     }
 
     // Render the matched component through the JSX runtime so that

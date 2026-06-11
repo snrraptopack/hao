@@ -84,7 +84,7 @@ export function TouchModifiersDemo() {
         >
           {/* Card synced with offset */}
           <div
-            style={css({
+            style={{
               position: 'absolute',
               left: css.px(rawPosition.x),
               top: css.px(rawPosition.y),
@@ -100,8 +100,8 @@ export function TouchModifiersDemo() {
               cursor: 'grab',
               userSelect: 'none',
               boxShadow: '0 4px 12px rgba(31, 111, 235, 0.3)',
-              width: css.when(isMoving,{true:css.px(100),false:css.px(80)})
-            })}
+              width: isMoving ? "100px" : "80px"
+            }}
             onTouch={event.touch.sync(rawPosition, 'x', 'y').handler(() => {
               isMoving = true
             })}
