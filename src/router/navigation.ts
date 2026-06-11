@@ -1,4 +1,5 @@
 // navigation.ts
+/// <reference path="./navigation-api.d.ts" />
 //
 // URL state management for the Auwla router.
 //
