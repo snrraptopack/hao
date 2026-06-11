@@ -6,6 +6,7 @@ export {
   getQuery,
   getLocation,
   getLoaderHandle,
+  getRouted,
   getRouteError,
   getRouteMeta,
   isActive,
@@ -30,4 +31,7 @@ export type {
   RouteGuard,
   RouteComponent,
   SuspendConfig,
+  Register,
+  ValidRoutePath,
+  Routed,
 } from "./types"

@@ -17,7 +17,8 @@
     "src/vite.ts",
     "src/events/**/*.ts",
     "src/css/index.ts",
-    "src/router/index.ts"
+    "src/router/index.ts",
+    "src/vite-router/**/*.ts"
   ],
   "exclude": [
     "node_modules",

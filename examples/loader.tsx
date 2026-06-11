@@ -29,14 +29,14 @@ export const loaderRoutes = [
   },
   {
     path: "/posts",
-    loader: (_context: { params: Record<string, string> }, signal: AbortSignal) =>
+    routed: (_context: { params: Record<string, string> }, signal: AbortSignal) =>
       fetch("https://jsonplaceholder.typicode.com/posts?_limit=15", { signal })
         .then((r) => r.json()),
     component: PostList,
   },
   {
     path: "/posts/:id",
-    loader: (ctx: { params: Record<string, string> }, signal: AbortSignal) =>
+    routed: (ctx: { params: Record<string, string> }, signal: AbortSignal) =>
       fetch(`https://jsonplaceholder.typicode.com/posts/${ctx.params.id}`, { signal })
         .then((r) => r.json()),
     component: PostDetail,

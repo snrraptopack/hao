@@ -38,6 +38,10 @@
     "./router": {
       "types": "./dist/router/index.d.ts",
       "import": "./dist/router/index.js"
+    },
+    "./vite-router": {
+      "types": "./dist/vite-router/index.d.ts",
+      "import": "./dist/vite-router/index.js"
     }
   },
   "files": [

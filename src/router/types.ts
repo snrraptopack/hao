@@ -4,6 +4,62 @@ import type { SuspendConfig } from './suspend'
 
 export type { SuspendConfig }
 
+// ---------------------------------------------------------------------------
+// Typed navigation registry
+// ---------------------------------------------------------------------------
+
+/**
+ * Augment this interface to enable type-safe navigation across the whole app.
+ *
+ * The simplest way is to add one declaration in your routes file:
+ *
+ *   import { defineRoutes } from 'auwla/router'
+ *
+ *   export const routes = defineRoutes([...])
+ *
+ *   declare module 'auwla/router' {
+ *     interface Register {
+ *       routes: typeof routes
+ *     }
+ *   }
+ *
+ * When using auwlaRouter() from 'auwla/vite-router', this is done
+ * automatically via the generated `auwla.gen.ts` file.
+ *
+ * Once registered, navigate(), isActive(), isExactActive(), and
+ * <Link href> all validate paths at compile time.
+ */
+export interface Register {}
+
+/**
+ * Union of all path literals from the registered route definitions.
+ *
+ * Falls back to `string` when no routes have been registered so that
+ * existing code that calls navigate('/any/string') keeps compiling.
+ */
+export type ValidRoutePath =
+  Register extends { routes: Array<{ path: infer P extends string }> }
+    ? P
+    : string
+
+/**
+ * Infer the resolved data type of a `routed` async function.
+ *
+ * Use this when you need to name the data shape outside the component:
+ *
+ *   export const routed = async (ctx, signal) => ({
+ *     post: await fetchPost(ctx.params.id, signal),
+ *   })
+ *
+ *   type PageData = Routed<typeof routed>
+ *   // = { post: Post }
+ *
+ * In getRouted(routed) the type is inferred automatically without
+ * this utility — it is only needed when the type must be named explicitly.
+ */
+export type Routed<F extends (...args: any[]) => Promise<any>> =
+  Awaited<ReturnType<F>>
+
 /**
  * Structured error context set whenever the Router renders an error component.
  * Read it inside an error component via getRouteError().
@@ -49,10 +105,11 @@ export type Route = {
   path: string
   name?: string
   component?: RouteComponent
-  // Optional async data loader. The Router runs it automatically when the
-  // route is matched and exposes the handle via getLoaderHandle(). The signal
-  // is wired to an AbortController so navigating away cancels in-flight work.
-  loader?: (context: RouteContext, signal: AbortSignal) => Promise<unknown>
+  // Optional async data fetcher. The Router runs it automatically when the
+  // route is matched, after any guard passes. The result is exposed via
+  // getRouted() / getLoaderHandle() in the component. The signal is wired
+  // to an AbortController so navigating away cancels in-flight work.
+  routed?: (context: RouteContext, signal: AbortSignal) => Promise<unknown>
   // Rendered by the Router while the loader is pending (instead of the main
   // component). Called as a plain render function — no setup scope.
   // Example: () => <Skeleton />

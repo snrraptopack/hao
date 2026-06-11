@@ -11,7 +11,8 @@
 // stored component handles.
 
 import { reactive } from 'auwla'
-import type { NavigateOptions } from "./types"
+import type { NavigateOptions, ValidRoutePath, PathParams } from "./types"
+import { pathFor } from "./routes"
 
 // ---------------------------------------------------------------------------
 // Reactive path cell
@@ -76,7 +77,58 @@ function setPath(next: string): void {
 // Unified navigation functions
 // ---------------------------------------------------------------------------
 
-export function navigate(path: string, options?: NavigateOptions): void {
+/**
+ * Navigate to a path.
+ *
+ * When the `Register` interface has been augmented (via `declare module
+ * 'auwla/router'`), TypeScript validates the path literal at compile time
+ * and requires the correct `params` object for any dynamic segments:
+ *
+ *   navigate('/')                              // ✅
+ *   navigate('/posts/:id', { id: '3' })        // ✅ params required and typed
+ *   navigate('/posts/:id', { wrong: '3' })     // ❌ wrong param key
+ *   navigate('/posts/:id')                     // ❌ missing params
+ *   navigate('/not-registered')                // ❌ unknown path
+ *
+ * Without augmentation, the function accepts any string (backward-compatible).
+ *
+ * When params are provided they are interpolated into the path via pathFor()
+ * before the browser navigation is triggered — the raw pattern string (e.g.
+ * '/posts/:id') is never pushed into history.
+ */
+export function navigate<P extends ValidRoutePath>(
+  path: P,
+  ...args: PathParams<P> extends Record<string, never>
+    ? [options?: NavigateOptions]
+    : [params: PathParams<P>, options?: NavigateOptions]
+): void {
+  // -----------------------------------------------------------------------
+  // Runtime: determine whether the first optional arg is a params object
+  // or a NavigateOptions object.
+  //
+  // A params object has at least one key that is NOT 'replace'.
+  // NavigateOptions only ever has 'replace'.
+  // -----------------------------------------------------------------------
+  let url: string = path
+  let options: NavigateOptions | undefined
+
+  if (args.length > 0 && args[0] != null && typeof args[0] === 'object') {
+    const first = args[0] as Record<string, unknown>
+    const isParams = Object.keys(first).some((k) => k !== 'replace')
+    if (isParams) {
+      // Interpolate ':param' segments and encode each value.
+      url = pathFor(path, first as PathParams<P>)
+      options = args[1] as NavigateOptions | undefined
+    } else {
+      options = first as NavigateOptions
+    }
+  }
+
+  _doNavigate(url, options)
+}
+
+/** Internal: drives the actual browser navigation without any type constraints. */
+function _doNavigate(path: string, options?: NavigateOptions): void {
   if (supportsNavigationAPI()) {
     window.navigation.navigate(path, {
       history: options?.replace ? "replace" : "auto",

@@ -3,13 +3,21 @@ import {} from "auwla/jsx-runtime"
 import type { MemoChild } from "auwla"
 import { navigate } from "./navigation"
 import { isActive, isExactActive } from "./Router"
+import type { ValidRoutePath } from "./types"
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type LinkProps = {
-  href: string
+  /**
+   * The target route path.
+   *
+   * When the `Register` interface has been augmented, TypeScript validates
+   * this value against the registered route path literals at compile time.
+   * Without augmentation it accepts any string (backward-compatible).
+   */
+  href: ValidRoutePath
   // Additional CSS classes always applied to the anchor.
   class?: string
   // Additional CSS inline styles always applied to the anchor.

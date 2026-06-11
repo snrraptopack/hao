@@ -12,7 +12,7 @@ export default defineConfig({
     },
     // Vite 8: rollupOptions is deprecated, use rolldownOptions
     rolldownOptions: {
-      external: ['typescript', 'path', 'fs'],
+      external: ['typescript', 'path', 'fs', 'node:fs', 'node:path', 'node:os'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
@@ -20,6 +20,7 @@ export default defineConfig({
         'events/index': resolve(__dirname, 'src/events/index.ts'),
         'router/index': resolve(__dirname, 'src/router/index.ts'),
         'css/index': resolve(__dirname, 'src/css/index.ts'),
+        'vite-router/index': resolve(__dirname, 'src/vite-router/index.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts')
       },

@@ -15,7 +15,7 @@ import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
 import type { SuspendConfig } from "./suspend"
-import type { Route, RouteContext, RouteError, TypedTrackHandle, MatchedRoute, RouteComponent } from "./types"
+import type { Route, RouteContext, RouteError, TypedTrackHandle, MatchedRoute, RouteComponent, ValidRoutePath } from "./types"
 
 // ---------------------------------------------------------------------------
 // Module-level route context
@@ -56,6 +56,34 @@ export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
 }
 
 /**
+ * Typed accessor for the active `routed` data handle.
+ *
+ * Pass the page's `routed` function — TypeScript infers the resolved data
+ * type `T` from its return type so no manual generic is needed:
+ *
+ *   export const routed = async (ctx, signal) => ({
+ *     post: await fetchPost(ctx.params.id, signal),
+ *   })
+ *
+ *   function PostDetail() {
+ *     const data = getRouted(routed)
+ *     // data.value → { post: Post }  — fully typed
+ *     return () => <h1>{data?.value?.post.title}</h1>
+ *   }
+ *
+ * The function argument is only used by TypeScript for type inference —
+ * it is never called at runtime.
+ *
+ * Returns null when no routed function is active on the current route.
+ */
+export function getRouted<T>(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inference only
+  _fn: (ctx: RouteContext, signal: AbortSignal) => Promise<T>,
+): TypedTrackHandle<T> | null {
+  return _currentLoader as TypedTrackHandle<T> | null
+}
+
+/**
  * Returns the current error context when an error component is rendering.
  * Returns null in any other context.
  *
@@ -81,14 +109,26 @@ export function getRouteMeta<T extends Record<string, unknown> = Record<string, 
   return (_currentMeta ?? {}) as T
 }
 
-export function isActive(path: string): boolean {
+/**
+ * Returns true when the current path starts with `path` at a segment boundary.
+ *
+ * Accepts any ValidRoutePath. When routes are registered via the Register
+ * interface, only known paths are accepted at compile time.
+ */
+export function isActive(path: ValidRoutePath): boolean {
   const current = normalizePath(getCurrentPath().split('?')[0]!)
-  const target  = normalizePath(path)
+  const target  = normalizePath(path as string)
   return current === target || current.startsWith(target + '/')
 }
 
-export function isExactActive(path: string): boolean {
-  return normalizePath(getCurrentPath().split('?')[0]!) === normalizePath(path)
+/**
+ * Returns true only when the current path is an exact match for `path`.
+ *
+ * Accepts any ValidRoutePath. When routes are registered via the Register
+ * interface, only known paths are accepted at compile time.
+ */
+export function isExactActive(path: ValidRoutePath): boolean {
+  return normalizePath(getCurrentPath().split('?')[0]!) === normalizePath(path as string)
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +244,7 @@ export function Router(props: RouterProps = {}) {
 
       const nextContext: RouteContext = { path: currentPath, params, query }
 
-      if (suspendEnabled && route.loader && !isSuspended) {
+      if (suspendEnabled && route.routed && !isSuspended) {
         // Enter suspension: start the loader but keep the current route visible.
         // Do NOT scroll yet — we are still showing the previous page content.
         // The scroll happens in the suspension-exit block below when the new
@@ -225,7 +265,7 @@ export function Router(props: RouterProps = {}) {
         prevCachedLoader = cachedLoader
 
         cachedLoader = event.track("__loader", (signal) =>
-          route.loader!(_pendingContext!, signal)
+          route.routed!(_pendingContext!, signal)
         )
       } else {
         if (isSuspended) {
@@ -243,9 +283,9 @@ export function Router(props: RouterProps = {}) {
         _currentContext = nextContext
         _currentMeta = route.meta ?? null
 
-        if (route.loader) {
+        if (route.routed) {
           cachedLoader = event.track("__loader", (signal) =>
-            route.loader!(_currentContext!, signal)
+            route.routed!(_currentContext!, signal)
           )
         } else {
           cachedLoader = null
