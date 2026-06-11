@@ -27,6 +27,10 @@ export default defineConfig({
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: '[name].js',
+        // Strip all comments (JSDoc, inline) from emitted .js files.
+        // The .d.ts files produced by tsc --emitDeclarationOnly are separate
+        // and retain full JSDoc for IDE hover support.
+        comments: false,
       }
     }
   },

@@ -23,8 +23,8 @@ import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import type { AuwlaRouterOptions } from './types'
-import { scanPages } from './scanner'
-import { generateVirtualModule, generateLazyVirtualModule, generateTypeFile } from './codegen'
+import { scanPagesAndLayouts, buildDirectoryTree } from './scanner'
+import { generateVirtualModule, generateLazyVirtualModule, generateVirtualModuleWithLayouts, generateTypeFile } from './codegen'
 
 /** The public import specifier users write in their app code. */
 const VIRTUAL_MODULE_ID = 'auwla:routes'
@@ -181,18 +181,34 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 /**
  * Scans the pages directory and produces the generated module + type file.
  * Extracted so that buildStart() and the watcher share identical logic.
+ *
+ * Selection order:
+ *   1. If any `_layout.tsx` files exist → layout-aware generator
+ *      (generateVirtualModuleWithLayouts, supports nested layouts + guards).
+ *   2. Else if lazy → lazy generator (dynamic imports per page with routed).
+ *   3. Else → static generator (static imports, simplest output).
  */
 function buildRoutes(
   pagesDir: string,
   lazy: boolean,
 ): { moduleCode: string; typeCode: string } {
-  const pages = scanPages(pagesDir)
-  return {
-    moduleCode: lazy
+  const { pages, layouts } = scanPagesAndLayouts(pagesDir)
+  const typeCode = generateTypeFile(pages)
+
+  let moduleCode: string
+  if (layouts.length > 0) {
+    // Layout-aware path: build directory tree and use the layout generator.
+    // The layout generator also handles the lazy flag internally.
+    const tree = buildDirectoryTree(pages, layouts)
+    moduleCode = generateVirtualModuleWithLayouts(tree, lazy)
+  } else {
+    // No layouts: use the simpler existing generators.
+    moduleCode = lazy
       ? generateLazyVirtualModule(pages)
-      : generateVirtualModule(pages),
-    typeCode: generateTypeFile(pages),
+      : generateVirtualModule(pages)
   }
+
+  return { moduleCode, typeCode }
 }
 
 /**

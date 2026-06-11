@@ -50,6 +50,74 @@ export type PageExports = {
 }
 
 // ---------------------------------------------------------------------------
+// Layout files
+// ---------------------------------------------------------------------------
+
+/**
+ * A `_layout.tsx` file discovered during scanning.
+ *
+ * Layout files are NOT treated as routes. Instead they are imported and
+ * applied as layout wrappers around all pages in their directory (and, if
+ * nested, inside any ancestor layouts too).
+ *
+ * Convention:
+ *   src/pages/_layout.tsx               → wraps all pages
+ *   src/pages/dashboard/_layout.tsx     → wraps /dashboard/* pages
+ *
+ * The layout file must export a default `LayoutComponent`:
+ *   export default function AppShell(content: RouteComponent) {
+ *     return () => <div><Nav />{content()}</div>
+ *   }
+ *
+ * It may also export a `guard` that is applied to all pages in the directory:
+ *   export const guard = (ctx) => auth.isLoggedIn() || '/login'
+ */
+export type LayoutFile = {
+  /** Absolute path on disk. */
+  filePath: string
+  /**
+   * Path relative to the pages directory, forward-slash separated.
+   * e.g. '_layout.tsx' or 'dashboard/_layout.tsx'.
+   */
+  relativePath: string
+  /**
+   * Directory path relative to the pages root ('' for root).
+   * e.g. '' or 'dashboard'.
+   */
+  dirPath: string
+  /**
+   * The route base path this layout covers.
+   * Root layout → '/'. Dashboard layout → '/dashboard'.
+   */
+  basePath: string
+  /**
+   * Whether the layout file exports a `guard` function.
+   * When true, the guard is applied to every page in the directory.
+   */
+  hasGuard: boolean
+}
+
+/**
+ * A node in the directory tree used for layout-aware code generation.
+ *
+ * The tree mirrors the `src/pages/` directory structure. Each node holds
+ * the pages directly in its directory and the layout (if any) that wraps
+ * them. Children represent sub-directories.
+ */
+export type DirectoryNode = {
+  /** Path relative to the pages root ('') or sub-directory ('dashboard'). */
+  dirPath: string
+  /** Absolute route base path ('/' or '/dashboard'). */
+  basePath: string
+  /** Layout for this directory, or null when none is present. */
+  layout: LayoutFile | null
+  /** Page files sitting directly in this directory (not in sub-directories). */
+  pages: PageFile[]
+  /** Immediate sub-directory nodes. */
+  children: DirectoryNode[]
+}
+
+// ---------------------------------------------------------------------------
 // Plugin options (public)
 // ---------------------------------------------------------------------------
 

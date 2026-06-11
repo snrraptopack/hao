@@ -11,7 +11,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, extname } from 'node:path'
-import type { PageFile, PageExports, AuwlaRouterOptions } from './types'
+import type { PageFile, PageExports, LayoutFile, DirectoryNode, AuwlaRouterOptions } from './types'
 
 /** Extensions considered page files when no override is provided. */
 const DEFAULT_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js']
@@ -45,6 +45,115 @@ export function scanPages(
   collectFiles(pagesDir, pagesDir, extensions, collected)
 
   return sortRoutes(collected)
+}
+
+/**
+ * Scans `pagesDir` recursively and returns page files AND layout files
+ * (`_layout.tsx`) separately.
+ *
+ * This is the layout-aware sibling of `scanPages()`. It uses the same
+ * detection logic for page exports, but additionally recognises files named
+ * `_layout.{tsx,ts,jsx,js}` and collects them as `LayoutFile` descriptors
+ * rather than route pages.
+ *
+ * The returned `pages` array is sorted (same rules as `scanPages()`).
+ * The returned `layouts` array is ordered parent-first (root before children)
+ * which matches the import order in generated code.
+ */
+export function scanPagesAndLayouts(
+  pagesDir: string,
+  options: Pick<AuwlaRouterOptions, 'extensions'> = {},
+): { pages: PageFile[]; layouts: LayoutFile[] } {
+  const extensions = options.extensions ?? DEFAULT_EXTENSIONS
+  const pages: PageFile[] = []
+  const layouts: LayoutFile[] = []
+
+  collectFilesAndLayouts(pagesDir, pagesDir, extensions, pages, layouts)
+
+  return { pages: sortRoutes(pages), layouts }
+}
+
+/**
+ * Builds a `DirectoryNode` tree from a flat list of pages and layouts.
+ *
+ * The tree mirrors the pages directory structure. Each node represents a
+ * single directory and holds the pages directly inside it, the layout for
+ * that directory (if any), and its child directory nodes.
+ *
+ * The root node always has `dirPath: ''` and `basePath: '/'`.
+ *
+ * Example — given:
+ *   pages: [index.tsx, about.tsx, dashboard/index.tsx, dashboard/users.tsx]
+ *   layouts: [_layout.tsx, dashboard/_layout.tsx]
+ *
+ * The resulting tree is:
+ *   { dirPath: '', basePath: '/', layout: rootLayout,
+ *     pages: [index, about],
+ *     children: [{
+ *       dirPath: 'dashboard', basePath: '/dashboard', layout: dashLayout,
+ *       pages: [dashboard/index, dashboard/users],
+ *       children: []
+ *     }]
+ *   }
+ */
+export function buildDirectoryTree(
+  pages: PageFile[],
+  layouts: LayoutFile[],
+): DirectoryNode {
+  // Index layouts by dirPath for O(1) lookup.
+  const layoutByDir = new Map<string, LayoutFile>()
+  for (const layout of layouts) {
+    layoutByDir.set(layout.dirPath, layout)
+  }
+
+  /**
+   * Collects the names of the direct child directories of `parentDir`
+   * from both the pages and layouts lists.
+   */
+  function immediateChildDirs(parentDir: string): string[] {
+    const seen = new Set<string>()
+    const all = [
+      ...pages.map((p) => posixDirname(p.relativePath)),
+      ...layouts.map((l) => l.dirPath),
+    ]
+
+    for (const dir of all) {
+      if (parentDir === '') {
+        // Root: immediate children are the first segment of any non-root dir.
+        const firstSeg = dir.split('/')[0]
+        if (firstSeg) seen.add(firstSeg)
+      } else {
+        if (dir.startsWith(parentDir + '/') && dir !== parentDir) {
+          // The next segment after the parent prefix.
+          const rest = dir.slice(parentDir.length + 1)
+          const next = rest.split('/')[0]
+          if (next) seen.add(next)
+        }
+      }
+    }
+
+    return [...seen].sort()
+  }
+
+  function buildNode(dirPath: string): DirectoryNode {
+    const basePath = dirPath === '' ? '/' : '/' + dirPath
+    const layout   = layoutByDir.get(dirPath) ?? null
+
+    // Pages whose dirname exactly matches this dirPath.
+    const dirPages = pages.filter(
+      (p) => posixDirname(p.relativePath) === dirPath,
+    )
+
+    // Recursively build child nodes.
+    const children = immediateChildDirs(dirPath).map((seg) => {
+      const childDirPath = dirPath === '' ? seg : `${dirPath}/${seg}`
+      return buildNode(childDirPath)
+    })
+
+    return { dirPath, basePath, layout, pages: dirPages, children }
+  }
+
+  return buildNode('')
 }
 
 /**
@@ -129,9 +238,36 @@ export function detectExports(source: string): PageExports {
 // ---------------------------------------------------------------------------
 
 /**
+ * Returns true when `filename` matches the layout file convention
+ * `_layout.{tsx,ts,jsx,js}` (case-sensitive, underscore-prefixed).
+ */
+export function isLayoutFile(filename: string): boolean {
+  return /^_layout\.[jt]sx?$/.test(filename)
+}
+
+/**
+ * Returns the dirname of a forward-slash-separated relative path,
+ * normalised to '' for root-level files (i.e. no directory prefix).
+ *
+ * Examples:
+ *   'index.tsx'             → ''
+ *   'about.tsx'             → ''
+ *   'dashboard/index.tsx'   → 'dashboard'
+ *   'dashboard/users.tsx'   → 'dashboard'
+ *   'a/b/c.tsx'             → 'a/b'
+ */
+export function posixDirname(relativePath: string): string {
+  const idx = relativePath.lastIndexOf('/')
+  return idx === -1 ? '' : relativePath.slice(0, idx)
+}
+
+/**
  * Recursively walks `currentDir`, collecting page files into `result`.
  * Silently returns when the directory does not exist (e.g. before the user
  * has created their pages folder).
+ *
+ * Layout files (`_layout.tsx`) are silently skipped here — they are handled
+ * by `collectFilesAndLayouts()` and should not appear as routes.
  */
 function collectFiles(
   rootDir: string,
@@ -143,7 +279,6 @@ function collectFiles(
   try {
     entries = readdirSync(currentDir)
   } catch {
-    // Directory does not exist yet — no routes to discover.
     return
   }
 
@@ -163,7 +298,9 @@ function collectFiles(
 
     if (!extensions.includes(extname(entry))) continue
 
-    // Normalise to forward-slashes for cross-platform consistency.
+    // Skip layout files — they are not routes.
+    if (isLayoutFile(entry)) continue
+
     const relativePath = relative(rootDir, fullPath).replace(/\\/g, '/')
 
     let source: string
@@ -174,11 +311,92 @@ function collectFiles(
     }
 
     const exports = detectExports(source)
-
-    // A page must export a default component — skip utility/shared files.
     if (!exports.hasDefault) continue
 
     result.push({
+      filePath: fullPath,
+      relativePath,
+      routePath: filePathToRoutePath(relativePath),
+      exports,
+    })
+  }
+}
+
+/**
+ * Recursively walks `currentDir`, separating page files from layout files.
+ *
+ * Layout files are identified by the `_layout.*` filename convention and are
+ * collected into `layouts` instead of `pages`.
+ */
+function collectFilesAndLayouts(
+  rootDir: string,
+  currentDir: string,
+  extensions: string[],
+  pages: PageFile[],
+  layouts: LayoutFile[],
+): void {
+  let entries: string[]
+  try {
+    entries = readdirSync(currentDir)
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    const fullPath = join(currentDir, entry)
+    let stat: ReturnType<typeof statSync>
+    try {
+      stat = statSync(fullPath)
+    } catch {
+      continue
+    }
+
+    if (stat.isDirectory()) {
+      collectFilesAndLayouts(rootDir, fullPath, extensions, pages, layouts)
+      continue
+    }
+
+    if (!extensions.includes(extname(entry))) continue
+
+    const relativePath = relative(rootDir, fullPath).replace(/\\/g, '/')
+
+    // -----------------------------------------------------------------
+    // Layout file
+    // -----------------------------------------------------------------
+    if (isLayoutFile(entry)) {
+      let source = ''
+      try {
+        source = readFileSync(fullPath, 'utf-8')
+      } catch {
+        continue
+      }
+
+      // Only a default export is required; guard export is optional.
+      const hasDefault = /\bexport\s+default\b/.test(source)
+      if (!hasDefault) continue
+
+      const hasGuard = /\bexport\s+(?:async\s+)?(?:const|function)\s+guard\b/.test(source)
+      const dirPath   = posixDirname(relativePath)
+      const basePath  = dirPath === '' ? '/' : '/' + dirPath
+
+      layouts.push({ filePath: fullPath, relativePath, dirPath, basePath, hasGuard })
+      continue
+    }
+
+    // -----------------------------------------------------------------
+    // Page file
+    // -----------------------------------------------------------------
+    let source: string
+    try {
+      source = readFileSync(fullPath, 'utf-8')
+    } catch {
+      continue
+    }
+
+    const exports = detectExports(source)
+    if (!exports.hasDefault) continue
+
+    pages.push({
       filePath: fullPath,
       relativePath,
       routePath: filePathToRoutePath(relativePath),
