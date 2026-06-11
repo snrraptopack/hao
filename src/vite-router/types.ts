@@ -93,4 +93,32 @@ export type AuwlaRouterOptions = {
    * @default ['.tsx', '.ts', '.jsx', '.js']
    */
   extensions?: string[]
+
+  /**
+   * Enable code splitting via dynamic imports.
+   *
+   * When true, pages that export a `routed` function are loaded lazily:
+   * the page JS chunk is fetched as part of the route's data load, so
+   * the component is guaranteed to be in memory by the time it renders.
+   * Pages without `routed` continue to use static imports.
+   *
+   * When false, all pages use static imports (everything in one bundle).
+   *
+   * @default false
+   */
+  lazy?: boolean
+
+  /**
+   * Enable `<Link prefetch>` support.
+   *
+   * When true, the router exposes a `prefetchRoute(path)` function that
+   * starts both the page chunk download and the routed data fetch for a
+   * given path. `<Link prefetch>` calls this on `mouseenter` so that by
+   * the time the user clicks, the page is already loading.
+   *
+   * Requires `lazy: true` to be meaningful for chunk prefetching.
+   *
+   * @default true
+   */
+  prefetch?: boolean
 }

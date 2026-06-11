@@ -14,6 +14,8 @@ export {
 } from "./Router"
 export type { RouterProps } from "./Router"
 export { Link } from "./Link"
+export { registerPrefetches, prefetchRoute } from "./prefetch"
+export type { PrefetchMap } from "./prefetch"
 export { afterEach, resetHooks } from "./hooks"
 export { configureSuspense, isSuspended, enterSuspense, exitSuspense } from "./suspend"
 export type { LinkProps } from "./Link"

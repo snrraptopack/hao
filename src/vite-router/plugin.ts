@@ -24,7 +24,7 @@ import { resolve, dirname } from 'node:path'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import type { AuwlaRouterOptions } from './types'
 import { scanPages } from './scanner'
-import { generateVirtualModule, generateTypeFile } from './codegen'
+import { generateVirtualModule, generateLazyVirtualModule, generateTypeFile } from './codegen'
 
 /** The public import specifier users write in their app code. */
 const VIRTUAL_MODULE_ID = 'auwla:routes'
@@ -67,6 +67,7 @@ const RESOLVED_VIRTUAL_ID = '\0auwla:routes'
 export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
   const pagesRelDir = options.dir     ?? 'src/pages'
   const genRelFile  = options.genFile ?? 'src/auwla.gen.ts'
+  const isLazy      = options.lazy    ?? false
 
   /** Resolved after Vite's `configResolved` hook fires. */
   let resolvedPagesDir = ''
@@ -102,7 +103,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     // -----------------------------------------------------------------------
 
     buildStart() {
-      const { moduleCode, typeCode } = build(resolvedPagesDir)
+      const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
       cachedVirtualModule = moduleCode
       writeSafe(resolvedGenFile, typeCode)
     },
@@ -122,7 +123,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
       // Cache miss: regenerate (possible if buildStart was skipped in tests).
       if (!cachedVirtualModule) {
-        const { moduleCode, typeCode } = build(resolvedPagesDir)
+        const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
         cachedVirtualModule = moduleCode
         writeSafe(resolvedGenFile, typeCode)
       }
@@ -144,7 +145,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const handleChange = (file: string) => {
         if (!isPageFile(file, resolvedPagesDir, extensions)) return
 
-        const { moduleCode, typeCode } = build(resolvedPagesDir)
+        const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
         cachedVirtualModule = null // force next load() to serve fresh code
 
         // Write updated types so the editor picks them up immediately.
@@ -181,11 +182,16 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
  * Scans the pages directory and produces the generated module + type file.
  * Extracted so that buildStart() and the watcher share identical logic.
  */
-function build(pagesDir: string): { moduleCode: string; typeCode: string } {
+function buildRoutes(
+  pagesDir: string,
+  lazy: boolean,
+): { moduleCode: string; typeCode: string } {
   const pages = scanPages(pagesDir)
   return {
-    moduleCode: generateVirtualModule(pages),
-    typeCode:   generateTypeFile(pages),
+    moduleCode: lazy
+      ? generateLazyVirtualModule(pages)
+      : generateVirtualModule(pages),
+    typeCode: generateTypeFile(pages),
   }
 }
 

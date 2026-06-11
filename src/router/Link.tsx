@@ -3,6 +3,7 @@ import {} from "auwla/jsx-runtime"
 import type { MemoChild } from "auwla"
 import { navigate } from "./navigation"
 import { isActive, isExactActive } from "./Router"
+import { prefetchRoute } from "./prefetch"
 import type { ValidRoutePath } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -28,6 +29,17 @@ export type LinkProps = {
   // Class applied only when the current path is an exact match for href.
   // Defaults to "exact-active" when not provided.
   exactActiveClass?: string
+  /**
+   * When true (the default), hovering the link calls prefetchRoute(href),
+   * which starts the page chunk download and the route's data fetch before
+   * the user clicks. This makes navigation feel instant on fast connections.
+   *
+   * Set to false to opt out, e.g. for links that are hovered frequently
+   * but rarely clicked (navigation menus with many items).
+   *
+   * @default true
+   */
+  prefetch?: boolean
   children?: MemoChild | MemoChild[]
 }
 
@@ -38,8 +50,9 @@ export type LinkProps = {
 export function Link(props: LinkProps) {
   const {
     href,
-    activeClass     = "active",
+    activeClass      = "active",
     exactActiveClass = "exact-active",
+    prefetch         = true,
   } = props
 
   return () => {
@@ -62,6 +75,12 @@ export function Link(props: LinkProps) {
         href={href}
         class={classes}
         style={props.style}
+        onMouseEnter={() => {
+          // Pre-warm the page chunk and routed data so navigation feels instant.
+          // prefetchRoute() is a no-op when no prefetch map has been registered
+          // (i.e. when lazy: false or registerPrefetches() was not called).
+          if (prefetch) prefetchRoute(href as string)
+        }}
         onClick={(e: MouseEvent) => {
           // Pass through modified clicks (new tab, etc.) and any link that
           // points outside the app — let the browser handle those normally.
