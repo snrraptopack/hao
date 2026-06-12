@@ -4,7 +4,7 @@ import { createEventChain } from './chain';
 
 export const event = createEventChain();
 
-export { track, pending, resolved, rejected, value, reason, cancel } from './track';
+export { track, pending, resolved, rejected, value, reason, cancel, __resetTrackRegistry } from './track';
 
 export type {
   EventChain,

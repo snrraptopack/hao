@@ -1,31 +1,30 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, beforeEach } from 'vitest';
 import { createMemoApp, h } from '../../src';
-import { event } from '../../src/events';
+import { event, __resetTrackRegistry } from '../../src/events';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe('event.track', () => {
+  beforeEach(() => {
+    __resetTrackRegistry();
+  });
+
   test('track handle reflects pending and resolved state', async () => {
     const root = document.createElement('div');
     let loadUser: ReturnType<typeof event.track>;
 
     function App() {
-      let user = '';
       loadUser = event.track('user', Promise.resolve('Alice'));
-      loadUser.then((data: string) => {
-        user = data;
-      });
 
-      return () => h('div', {}, loadUser.pending ? 'Loading...' : user);
+      return () => h('div', {}, loadUser.pending ? 'Loading...' : loadUser.value ?? '');
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     expect(root.textContent).toBe('Loading...');
 
     await sleep(10);
-    app.render();
 
     expect(root.textContent).toBe('Alice');
     expect(loadUser!.resolved).toBe(true);
@@ -37,22 +36,17 @@ describe('event.track', () => {
     let loadHandle: ReturnType<typeof event.track>;
 
     function App() {
-      let error = '';
       loadHandle = event.track('load', Promise.reject(new Error('fail')));
-      loadHandle.catch((err: Error) => {
-        error = err.message;
-      });
 
-      return () => h('div', {}, loadHandle.rejected ? `Error: ${error}` : loadHandle.pending ? 'Loading...' : 'Done');
+      return () => h('div', {}, loadHandle.rejected ? `Error: ${String(loadHandle.reason)}` : loadHandle.pending ? 'Loading...' : 'Done');
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     expect(root.textContent).toBe('Loading...');
 
     await sleep(10);
-    app.render();
 
-    expect(root.textContent).toBe('Error: fail');
+    expect(root.textContent).toBe('Error: Error: fail');
     expect(loadHandle!.rejected).toBe(true);
   });
 
@@ -60,21 +54,18 @@ describe('event.track', () => {
     const root = document.createElement('div');
 
     function App() {
-      let result = '';
-
       const search = event.track('search', async (signal) => {
         await sleep(50);
-        result = 'done';
+        return 'done';
       });
 
-      return () => h('div', {}, search.pending ? 'pending' : result);
+      return () => h('div', {}, search.pending ? 'pending' : search.value ?? '');
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     expect(root.textContent).toBe('pending');
 
     await sleep(60);
-    app.render();
 
     expect(root.textContent).toBe('done');
   });
@@ -84,14 +75,12 @@ describe('event.track', () => {
     let aborted = false;
 
     function App() {
-      let result = '';
-
       const start = () => {
         event.track('search', async (signal) => {
           signal.addEventListener('abort', () => { aborted = true; });
           await sleep(100);
           if (signal.aborted) return;
-          result = 'completed';
+          return 'completed';
         });
       };
 
@@ -99,17 +88,17 @@ describe('event.track', () => {
 
       return () => h('div', {},
         h('button', { onClick: start }, 'Search'),
-        h('span', {}, event.pending('search') ? 'pending' : result),
+        h('span', {}, event.pending('search') ? 'pending' : event.value('search') ?? ''),
       );
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     const button = root.querySelector('button')!;
 
     expect(root.querySelector('span')!.textContent).toBe('pending');
 
     button.click();
-    app.render();
+    await sleep(10);
     expect(aborted).toBe(true);
     expect(root.querySelector('span')!.textContent).toBe('pending');
   });
@@ -130,11 +119,11 @@ describe('event.track', () => {
       );
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     const button = root.querySelector('button')!;
 
     button.click();
-    app.render();
+    await sleep(10);
 
     expect(aborted).toBe(true);
     expect(slowHandle!.pending).toBe(false);
@@ -150,11 +139,10 @@ describe('event.track', () => {
       return () => h('div', {}, t1.pending || t2.pending ? 'any-loading' : 'all-done');
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     expect(root.textContent).toBe('any-loading');
 
     await sleep(50);
-    app.render();
 
     expect(root.textContent).toBe('all-done');
   });
@@ -164,14 +152,13 @@ describe('event.track', () => {
 
     function App() {
       const loadData = event.track('data', Promise.resolve({ name: 'Bob' }));
-      return () => h('div', {}, loadData.value?.name ?? 'none');
+      return () => h('div', {}, loadData.resolved ? loadData.value?.name ?? 'none' : 'none');
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     expect(root.textContent).toBe('none');
 
     await sleep(10);
-    app.render();
 
     expect(root.textContent).toBe('Bob');
   });
@@ -180,27 +167,24 @@ describe('event.track', () => {
     const root = document.createElement('div');
 
     function App() {
-      let status = 'idle';
-
       return () => h('div', {},
         h('button', {
           onClick: () => {
-            event.track('clickSave', Promise.resolve().then(() => { status = 'saved'; }));
+            event.track('clickSave', sleep(20).then(() => 'saved'));
           },
         }, 'Save'),
-        h('span', {}, event.pending('clickSave') ? 'saving' : status),
+        h('span', {}, event.pending('clickSave') ? 'saving' : event.value('clickSave') ?? 'idle'),
       );
     }
 
-    const app = createMemoApp(root, h(App as any));
+    const app = createMemoApp(root, () => h(App as any));
     const button = root.querySelector('button')!;
 
     button.click();
-    app.render();
+    await sleep(10);
     expect(root.querySelector('span')!.textContent).toBe('saving');
 
-    await sleep(10);
-    app.render();
+    await sleep(30);
 
     expect(root.querySelector('span')!.textContent).toBe('saved');
   });

@@ -313,7 +313,11 @@ export function createMemoApp<TModel>(
   return {
     ...(view ? { model: model as TModel } : {}),
     root,
-    render: renderNow,
+    render: () => {
+      if (destroyed) return;
+      scheduled = true;
+      renderNow();
+    },
     destroy() {
       destroyed = true;
       scheduled = false;
