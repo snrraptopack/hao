@@ -186,6 +186,7 @@ export function initNavigation(): void {
        // 1. Update path synchronously so reactivity schedules immediately
        setPath(url.pathname + url.search)
       e.intercept({
+        scroll:"manual",
         // Yield to let the Auwla microtask render complete first,
         // so the DOM matches the new state before the browser commits
         async handler() {
