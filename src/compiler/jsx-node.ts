@@ -54,7 +54,7 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
 
     if (compileConditionalJsx(ctx, expression, parentVar)) return true;
 
-    if (needsChildPatch(expression)) {
+    if (needsChildPatch(expression) || isPropsChildrenExpression(expression)) {
       const childVar = `child${ctx.textId++}`;
       ctx.setup.push(`let ${childVar} = document.createComment("auwla:child");`);
       ctx.setup.push(`${parentVar}.append(${childVar});`);
@@ -110,7 +110,26 @@ function singleDynamicTextChild(
   const expression = childExpression(only);
   if (!expression || isMapCall(expression) || needsChildPatch(expression)) return null;
 
+  // props.children is typed as MemoChild | MemoChild[]; it may be an element,
+  // an array of elements, or a string. __setElementText would stringify an
+  // element into "[object Object]", so we must route it through __setChild.
+  if (isPropsChildrenExpression(expression)) return null;
+
   return { expression, value: expressionText(source, expression) };
+}
+
+function isPropsChildrenExpression(expression: ts.Expression): boolean {
+  // props.children
+  if (ts.isPropertyAccessExpression(expression)) {
+    return ts.isIdentifier(expression.expression) && expression.expression.text === 'props' && expression.name.text === 'children';
+  }
+  // props['children'] or props["children"]
+  if (ts.isElementAccessExpression(expression)) {
+    if (!ts.isIdentifier(expression.expression) || expression.expression.text !== 'props') return false;
+    const arg = expression.argumentExpression;
+    return ts.isStringLiteral(arg) && arg.text === 'children';
+  }
+  return false;
 }
 
 /**

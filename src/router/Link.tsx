@@ -77,7 +77,6 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
       exact   && exactActiveClass,
     ].filter(Boolean).join(" ") || undefined
 
-    console.log("Link update", href, "classes", classes)
     return (
       <a
         href={actualUrl}
@@ -88,7 +87,6 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
           // render cycle wrapper. This prevents the Link from unnecessarily re-rendering
           // on hover, which would otherwise rip the DOM node out mid-click.
           el.addEventListener("mouseenter", () => {
-            console.log("mouseenter")
             if (prefetch) prefetchRoute(actualUrl)
           }, { passive: true })
         }}
