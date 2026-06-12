@@ -82,6 +82,29 @@ function isResponsiveObject(value: any): boolean {
 }
 
 /**
+ * Values that should never be recursed into by the normalizer.
+ *
+ * - ConditionalValue objects (__conditional) are handled by the compiler replacer
+ *   before compileStyle/normalizeStyleObject is called. If one leaks through (e.g.
+ *   because a css.define prop domain could not be enumerated), normalizing it would
+ *   walk into the raw TypeScript AST node stored on `condition`, which has circular
+ *   parent references and causes a stack overflow.
+ * - Tagged values (_tag), arrays, functions, and TS AST nodes are also not style
+ *   objects and must be treated as leaf values.
+ */
+function isPlainStyleObject(value: any): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  if (Array.isArray(value)) return false;
+  if (value === null || value === undefined) return false;
+  if ('_tag' in value) return false;
+  if ((value as any).__conditional === true) return false;
+  if (typeof (value as any).toProperties === 'function') return false;
+  // TypeScript AST nodes have `kind` and `pos`; never recurse into them.
+  if (typeof (value as any).kind === 'number' && typeof (value as any).pos === 'number') return false;
+  return true;
+}
+
+/**
  * Parses sequential modifiers and expands developer-experience shorthands
  * to standard CSS properties.
  */
@@ -110,7 +133,7 @@ export function normalizeStyleObject(style: Record<string, any>): Record<string,
     // Use Object.hasOwn to avoid inheriting Object.prototype properties
     // like 'toString' or 'constructor' as shorthand mappings.
     const standardKey = Object.hasOwn(SHORTHAND_MAP, key) ? SHORTHAND_MAP[key]! : key;
-    if (typeof value === 'object' && value !== null && !('_tag' in value) && !Array.isArray(value)) {
+    if (isPlainStyleObject(value)) {
       if (isResponsiveObject(value)) {
         normalized[standardKey] = value;
       } else {

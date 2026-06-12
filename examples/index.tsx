@@ -107,7 +107,7 @@ function Gallery() {
               activeClass="active"
               exactActiveClass="active"
             >
-              {ex.label}
+              <span>{ex.label}</span>
             </Link>
           ))}
         </nav>

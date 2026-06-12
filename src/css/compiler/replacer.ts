@@ -76,6 +76,65 @@ function wrapBranchStyle(keyPath: string, value: any): Record<string, any> {
   return obj;
 }
 
+
+/**
+ * Resolve a type reference to its aliased type declaration.
+ * Looks for `type Name = ...` declarations in the same source file.
+ */
+function resolveTypeAlias(typeNode: ts.TypeNode, source: ts.SourceFile): ts.TypeNode | null {
+  if (!ts.isTypeReferenceNode(typeNode)) return null;
+  const typeName = typeNode.typeName.getText(source).trim();
+
+  for (const stmt of source.statements) {
+    if (ts.isTypeAliasDeclaration(stmt) && stmt.name.text === typeName) {
+      return stmt.type;
+    }
+  }
+  return null;
+}
+
+/**
+ * Collect primitive literal values from a union/literal/boolean type node,
+ * following one level of type-alias indirection.
+ */
+function collectTypeValues(typeNode: ts.TypeNode, source: ts.SourceFile): any[] {
+  const vals: any[] = [];
+  const type = resolveTypeAlias(typeNode, source) ?? typeNode;
+
+  if (ts.isUnionTypeNode(type)) {
+    for (const el of type.types) {
+      const resolvedEl = resolveTypeAlias(el, source) ?? el;
+      if (ts.isLiteralTypeNode(resolvedEl)) {
+        if (ts.isStringLiteral(resolvedEl.literal)) {
+          vals.push(resolvedEl.literal.text);
+        } else if (ts.isNumericLiteral(resolvedEl.literal)) {
+          vals.push(Number(resolvedEl.literal.text));
+        } else if (resolvedEl.literal.kind === ts.SyntaxKind.TrueKeyword) {
+          vals.push(true);
+        } else if (resolvedEl.literal.kind === ts.SyntaxKind.FalseKeyword) {
+          vals.push(false);
+        }
+      } else if (resolvedEl.kind === ts.SyntaxKind.BooleanKeyword) {
+        vals.push(true, false);
+      }
+    }
+  } else if (ts.isLiteralTypeNode(type)) {
+    if (ts.isStringLiteral(type.literal)) {
+      vals.push(type.literal.text);
+    } else if (ts.isNumericLiteral(type.literal)) {
+      vals.push(Number(type.literal.text));
+    } else if (type.literal.kind === ts.SyntaxKind.TrueKeyword) {
+      vals.push(true);
+    } else if (type.literal.kind === ts.SyntaxKind.FalseKeyword) {
+      vals.push(false);
+    }
+  } else if (type.kind === ts.SyntaxKind.BooleanKeyword) {
+    vals.push(true, false);
+  }
+
+  return vals;
+}
+
 function extractPropsDomain(typeNode: ts.TypeNode, source: ts.SourceFile): Record<string, any[]> {
   const domain: Record<string, any[]> = {};
 
@@ -83,40 +142,10 @@ function extractPropsDomain(typeNode: ts.TypeNode, source: ts.SourceFile): Recor
     for (const member of typeNode.members) {
       if (ts.isPropertySignature(member) && member.name) {
         const name = member.name.getText(source).trim();
-        const vals: any[] = [];
+        let vals: any[] = [];
 
         if (member.type) {
-          const type = member.type;
-
-          if (ts.isUnionTypeNode(type)) {
-            for (const el of type.types) {
-              if (ts.isLiteralTypeNode(el)) {
-                if (ts.isStringLiteral(el.literal)) {
-                  vals.push(el.literal.text);
-                } else if (ts.isNumericLiteral(el.literal)) {
-                  vals.push(Number(el.literal.text));
-                } else if (el.literal.kind === ts.SyntaxKind.TrueKeyword) {
-                  vals.push(true);
-                } else if (el.literal.kind === ts.SyntaxKind.FalseKeyword) {
-                  vals.push(false);
-                }
-              } else if (el.kind === ts.SyntaxKind.BooleanKeyword) {
-                vals.push(true, false);
-              }
-            }
-          } else if (ts.isLiteralTypeNode(type)) {
-            if (ts.isStringLiteral(type.literal)) {
-              vals.push(type.literal.text);
-            } else if (ts.isNumericLiteral(type.literal)) {
-              vals.push(Number(type.literal.text));
-            } else if (type.literal.kind === ts.SyntaxKind.TrueKeyword) {
-              vals.push(true);
-            } else if (type.literal.kind === ts.SyntaxKind.FalseKeyword) {
-              vals.push(false);
-            }
-          } else if (type.kind === ts.SyntaxKind.BooleanKeyword) {
-            vals.push(true, false);
-          }
+          vals = collectTypeValues(member.type, source);
         } else if (member.questionToken) {
           vals.push(true, false);
         }
