@@ -98,9 +98,11 @@ function setPath(next: string): void {
  */
 export function navigate<P extends ValidRoutePath>(
   path: P,
-  ...args: PathParams<P> extends Record<string, never>
-    ? [options?: NavigateOptions]
-    : [params: PathParams<P>, options?: NavigateOptions]
+  ...args: string extends P
+    ? [paramsOrOptions?: Record<string, string> | NavigateOptions, options?: NavigateOptions]
+    : PathParams<P> extends Record<string, never>
+      ? [options?: NavigateOptions]
+      : [params: PathParams<P>, options?: NavigateOptions]
 ): void {
   // -----------------------------------------------------------------------
   // Runtime: determine whether the first optional arg is a params object
@@ -186,7 +188,7 @@ export function initNavigation(): void {
        // 1. Update path synchronously so reactivity schedules immediately
        setPath(url.pathname + url.search)
       e.intercept({
-        scroll:"manual",
+        scroll: "manual",
         // Yield to let the Auwla microtask render complete first,
         // so the DOM matches the new state before the browser commits
         async handler() {

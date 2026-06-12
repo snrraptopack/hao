@@ -91,11 +91,13 @@ export type LayoutComponent = (child: RouteComponent) => () => any
 // ---------------------------------------------------------------------------
 
 export type PathParams<Path extends string> =
-  Path extends `${infer _}:${infer Param}/${infer Rest}`
-    ? { [K in Param]: string } & PathParams<Rest>
-    : Path extends `${infer _}:${infer Param}`
-      ? { [K in Param]: string }
-      : Record<string, never>
+  string extends Path
+    ? Record<string, string>
+    : Path extends `${infer _}:${infer Param}/${infer Rest}`
+      ? { [K in Param]: string } & PathParams<Rest>
+      : Path extends `${infer _}:${infer Param}`
+        ? { [K in Param]: string }
+        : Record<string, never>
 
 // A function that decides whether navigation to a route is allowed.
 // Returning false blocks navigation; returning a string redirects to that path.
@@ -154,9 +156,9 @@ export type ResolvedRoute = Omit<Route, "component"> & {
   component: RouteComponent
 }
 
-export type RouteContext = {
+export type RouteContext<P extends ValidRoutePath = ValidRoutePath> = {
   path: string
-  params: Record<string, string>
+  params: PathParams<P>
   query: Record<string, string>
 }
 

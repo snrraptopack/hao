@@ -15,7 +15,7 @@ import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
 import type { SuspendConfig } from "./suspend"
-import type { Route, RouteContext, RouteError, TypedTrackHandle, MatchedRoute, RouteComponent, ValidRoutePath } from "./types"
+import type { Route, RouteContext, RouteError, TypedTrackHandle, MatchedRoute, RouteComponent, ValidRoutePath, PathParams } from "./types"
 
 // ---------------------------------------------------------------------------
 // Module-level route context
@@ -39,8 +39,8 @@ let _currentMeta: Record<string, unknown> | null = null
  */
 let _currentError: RouteError | null = null
 
-export function getParams(): Record<string, string> {
-  return _currentContext?.params ?? {}
+export function getParams<P extends ValidRoutePath>(path?: P): PathParams<P> {
+  return (_currentContext?.params ?? {}) as PathParams<P>
 }
 
 export function getQuery(): Record<string, string> {
@@ -230,7 +230,7 @@ export function Router(props: RouterProps = {}) {
     // Navigation guard
     const guard = route.beforeEnter || route.guard
     if (guard) {
-      const context: RouteContext = { path: currentPath, params, query }
+      const context = { path: currentPath, params, query } as RouteContext<any>
       const result = guard(context)
       if (result === false) return <div>403 — access denied</div>
       if (typeof result === "string") {
@@ -251,7 +251,7 @@ export function Router(props: RouterProps = {}) {
       const prevPath = cachedPath
       cachedPath = currentPath
 
-      const nextContext: RouteContext = { path: currentPath, params, query }
+      const nextContext = { path: currentPath, params, query } as RouteContext<any>
 
       if (suspendEnabled && route.routed && !isSuspended && previousMatched) {
         // Enter suspension: start the loader but keep the current route visible.
@@ -350,7 +350,7 @@ export function Router(props: RouterProps = {}) {
     }
 
     // Normal render path — refresh accessors for the current match.
-    _currentContext = { path: currentPath, params, query }
+    _currentContext = { path: currentPath, params, query } as RouteContext<any>
     _currentMeta = route.meta ?? null
     _currentLoader = cachedLoader
     // Clear any stale error context from a previous error render on this route.
@@ -375,7 +375,7 @@ export function Router(props: RouterProps = {}) {
       _currentError = {
         reason: cachedLoader!.reason,
         source: 'loader',
-        context: { path: currentPath, params, query },
+        context: { path: currentPath, params, query } as RouteContext<any>,
       }
       const ErrorComp = errorComp
       return <ErrorComp key={`${encodeURIComponent(currentPath)}:error`} />
