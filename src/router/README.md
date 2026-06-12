@@ -343,7 +343,7 @@ When `suspend` is enabled, the router **blocks rendering of the new route** unti
 With custom CSS class / attribute names:
 
 ```tsx
-<Router suspend={{ className: "suspended", attr: "data-suspended" }} />
+<Router suspend={{ className: "suspended", attr: "data-suspended", viewTransition:true }} />
 ```
 
 ### Styling the Suspended State

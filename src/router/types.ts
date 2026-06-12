@@ -156,10 +156,15 @@ export type ResolvedRoute = Omit<Route, "component"> & {
   component: RouteComponent
 }
 
-export type RouteContext<P extends ValidRoutePath = ValidRoutePath> = {
+export type RouteContext<
+  P extends ValidRoutePath = ValidRoutePath,
+  State = Record<string, any>
+> = {
   path: string
   params: PathParams<P>
   query: Record<string, string>
+  state: Partial<State>
+  tag: (...tags: string[]) => void
 }
 
 export type MatchedRoute = {

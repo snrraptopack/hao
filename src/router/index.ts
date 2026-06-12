@@ -1,5 +1,7 @@
 export { defineRoutes, resetRoutes, group, composeRoutes, pathFor } from "./routes"
 export { navigate, back, forward } from "./navigation"
+export { invalidate } from "./cache"
+export type { InvalidateOptions } from "./cache"
 export {
   Router,
   getParams,

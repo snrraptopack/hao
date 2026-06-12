@@ -12,6 +12,7 @@ import { event } from "auwla/events"
 import type { TrackHandle } from "auwla/events"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
 import { matchRoute, matchRoutes, normalizePath } from "./routes"
+import { getRouteState, tagRoute } from "./cache"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
 import type { SuspendConfig } from "./suspend"
@@ -270,7 +271,13 @@ export function Router(props: RouterProps = {}) {
       const prevPath = cachedPath
       cachedPath = currentPath
 
-      const nextContext = { path: currentPath, params, query } as RouteContext<any>
+      const nextContext = { 
+        path: currentPath, 
+        params, 
+        query,
+        state: getRouteState(currentPath),
+        tag: (...tags: string[]) => tagRoute(currentPath, tags)
+      } as RouteContext<any>
 
       if (suspendEnabled && route.routed && !isSuspended && previousMatched) {
         // Enter suspension: start the loader but keep the current route visible.

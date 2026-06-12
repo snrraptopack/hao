@@ -223,6 +223,54 @@ These two paths never overlap. The router guarantees the main component only ren
 
 ---
 
+## Caching & Route State
+
+Every route comes with a built-in, zero-abstraction cache. The `RouteContext` provides a `state` object that is permanently tied to the exact URL path (e.g., `/posts/123`).
+
+By writing to `ctx.state`, data survives navigations without needing a global state manager or query client.
+
+```ts
+import type { RouteContext } from 'auwla/router'
+
+type PostState = { post: Post }
+
+export const routed = async (ctx: RouteContext<'/posts/:id', PostState>, signal: AbortSignal) => {
+  // 1. Tag this route so it can be easily invalidated globally
+  ctx.tag('posts')
+
+  // 2. Return cached data immediately if we already fetched it
+  if (ctx.state.post) return ctx.state.post
+
+  // 3. Fetch and write to the state object to cache it
+  const post = await fetchPost(ctx.params.id, signal)
+  ctx.state.post = post
+
+  return post
+}
+```
+
+### Invalidation
+
+To force a route to refetch, you use the `invalidate()` function from the core router. It safely clears the cache for tags or specific paths.
+
+```ts
+import { invalidate } from 'auwla/router'
+
+// In your form submission handler:
+async function deletePost() {
+  await api.delete(postId)
+
+  // Wipes the cache for ANY route that called ctx.tag('posts')
+  invalidate({ tags: ['posts'] })
+
+  // Or wipe an exact URL
+  invalidate({ path: `/posts/${postId}` })
+  invalidate({ path: `/posts/*` })
+}
+```
+
+---
+
 ## Layouts
 
 A `_layout.tsx` file in any pages directory automatically wraps all pages in that directory (and all subdirectories).
