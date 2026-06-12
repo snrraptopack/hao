@@ -265,6 +265,7 @@ async function deletePost() {
 
   // Or wipe an exact URL
   invalidate({ path: `/posts/${postId}` })
+
   invalidate({ path: `/posts/*` })
 }
 ```

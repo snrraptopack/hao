@@ -1,7 +1,5 @@
 // Link.tsx
-import {} from "auwla/jsx-runtime"
 import type { MemoChild } from "auwla"
-import { navigate } from "./navigation"
 import { isActive, isExactActive } from "./Router"
 import { prefetchRoute } from "./prefetch"
 import { pathFor } from "./routes"

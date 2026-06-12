@@ -8,7 +8,7 @@
 // over from there.
 
 import {} from "auwla/jsx-runtime"
-import { event } from "auwla/events"
+import { track } from "auwla/events"
 import type { TrackHandle } from "auwla/events"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
 import { matchRoute, matchRoutes, normalizePath } from "./routes"
@@ -49,7 +49,7 @@ let _currentMeta: Record<string, unknown> | null = null
  */
 let _currentError: RouteError | null = null
 
-export function getParams<P extends ValidRoutePath>(path?: P): PathParams<P> {
+export function getParams<P extends ValidRoutePath>(_path?: P): PathParams<P> {
   return (_currentContext?.params ?? {}) as PathParams<P>
 }
 
@@ -271,9 +271,9 @@ export function Router(props: RouterProps = {}) {
       const prevPath = cachedPath
       cachedPath = currentPath
 
-      const nextContext = { 
-        path: currentPath, 
-        params, 
+      const nextContext = {
+        path: currentPath,
+        params,
         query,
         state: getRouteState(currentPath),
         tag: (...tags: string[]) => tagRoute(currentPath, tags)
@@ -299,7 +299,7 @@ export function Router(props: RouterProps = {}) {
           : null
         prevCachedLoader = cachedLoader
 
-        cachedLoader = event.track("__loader", (signal) =>
+        cachedLoader = track("__loader", (signal) =>
           route.routed!(_pendingContext!, signal),
           { viewTransition: useViewTransition }
         )
@@ -320,7 +320,7 @@ export function Router(props: RouterProps = {}) {
         _currentMeta = route.meta ?? null
 
         if (route.routed) {
-          cachedLoader = event.track("__loader", (signal) =>
+          cachedLoader = track("__loader", (signal) =>
             route.routed!(_currentContext!, signal),
             { viewTransition: useViewTransition }
           )
