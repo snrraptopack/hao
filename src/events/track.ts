@@ -131,6 +131,7 @@ function applyTransition(key: string, status: TrackStatus, value?: unknown, reas
   }
 }
 
+
 /** @internal */
 export function cleanupComponentTracks(componentId: string): void {
   const names = componentTracks.get(componentId);
@@ -144,6 +145,17 @@ export function cleanupComponentTracks(componentId: string): void {
     registry.delete(key);
   }
   componentTracks.delete(componentId);
+}
+
+/** @internal Reset the track registry. Used by tests and HMR to avoid stale state. */
+export function __resetTrackRegistry(): void {
+  for (const state of registry.values()) {
+    if (state.controller) {
+      state.controller.abort();
+    }
+  }
+  registry.clear();
+  componentTracks.clear();
 }
 
 function createHandle(key: string, promise: Promise<unknown>): TrackHandle {

@@ -230,14 +230,21 @@ in the resolved state — `data.rejected` is always false inside it.
 // The error component uses getRouteError() for the structured error
 function PostDetailError() {
   const err = getRouteError()
-  // err.reason  — the raw thrown value
-  // err.source  — currently always 'loader'
-  // err.context — { path, params, query } of the failed route
+  // err.reason   — the raw thrown value
+  // err.message  — human-readable message (Error.message when available)
+  // err.stack    — stack trace when reason is an Error
+  // err.isAbort  — true when the loader was aborted (e.g. navigation away)
+  // err.source   — currently always 'loader'
+  // err.context  — { path, params, query } of the failed route
+  // err.route    — the matched route that failed
+  // err.loader   — the rejected loader handle
+  // err.retry    — call to retry the failed loader
 
   return () => (
     <div>
       <h2>Could not load post</h2>
       <p>{String(err?.reason)}</p>
+      <button onClick={() => err?.retry()}>Try again</button>
     </div>
   )
 }
@@ -279,7 +286,8 @@ When suspend is enabled and a route has a `routed` function:
 
 - The old route stays visible while loading (dimmed via `html.suspended` CSS class)
 - The new route only commits after `routed` resolves
-- On reject: old route stays, `onError` fires, error state is exposed
+- On reject: old route stays, error state is exposed; the new route commits only after you retry or navigate away
+- On initial hard refresh there is no "old route", so the route's `pendingComponent` (or the Router's global `pendingComponent`) is shown
 
 ```tsx
 <Router
@@ -303,7 +311,10 @@ html.is-loading main {
 
 ### `pendingComponent` under suspend
 
-Under suspend, `pendingComponent` is ignored — the old route IS the pending state.
+Under suspend, `pendingComponent` is ignored during navigations — the old route
+IS the pending state. On the initial hard refresh there is no old route, so the
+pending fallback is rendered while the first loader runs.
+
 `errorComponent` still works: when `routed` rejects, the new route commits but
 shows `errorComponent` instead of the main component.
 
@@ -563,7 +574,7 @@ The import is explicit. The plugin does not invisibly rewire the `<Router>` comp
 |---|---|
 | `Route` | Route definition object |
 | `RouteContext` | `{ path, params, query }` |
-| `RouteError` | `{ reason, source, context }` from getRouteError() |
+| `RouteError` | `{ reason, message, stack, isAbort, source, context, route, loader, retry }` from getRouteError() |
 | `RouteComponent` | Component function returning a render closure |
 | `RouteGuard` | `(ctx) => boolean \| string \| void` |
 | `RouteParams<P>` | Param object type for a path string |

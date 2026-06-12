@@ -64,14 +64,26 @@ export type Routed<F extends (...args: any[]) => Promise<any>> =
  * Structured error context set whenever the Router renders an error component.
  * Read it inside an error component via getRouteError().
  *
- * - reason  — the raw rejection value from the loader (or future error sources)
- * - source  — where the error originated; currently always 'loader', extensible later
- * - context — the route context (path, params, query) that failed
+ * - reason    — the raw rejection value from the loader (or future error sources)
+ * - source    — where the error originated; currently always 'loader', extensible later
+ * - context   — the route context (path, params, query) that failed
+ * - message   — human-readable message (Error.message when available)
+ * - stack     — stack trace when reason is an Error
+ * - isAbort   — true when the loader was aborted (e.g. navigation away)
+ * - route     — the matched route that failed
+ * - loader    — the rejected loader handle (with .reason, .status, etc.)
+ * - retry     — call to retry the failed loader
  */
 export type RouteError = {
   reason: unknown
   source: 'loader'
   context: RouteContext
+  message: string
+  stack?: string
+  isAbort: boolean
+  route: ResolvedRoute
+  loader: TrackHandle | null
+  retry: () => void
 }
 
 import type { JSX } from '../jsx/types'
@@ -113,7 +125,7 @@ export type Route = {
   // route is matched, after any guard passes. The result is exposed via
   // getRouted() / getLoaderHandle() in the component. The signal is wired
   // to an AbortController so navigating away cancels in-flight work.
-  routed?: (context: RouteContext, signal: AbortSignal) => Promise<unknown>
+  routed?(context: RouteContext, signal: AbortSignal): Promise<unknown>
   // Rendered by the Router while the loader is pending (instead of the main
   // component). Called as a plain render function — no setup scope.
   // Example: () => <Skeleton />

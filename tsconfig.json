@@ -9,6 +9,7 @@
     "jsxImportSource": "auwla",
     "allowJs": true,
     "types": ["node"],
+    "ignoreDeprecations": "6.0", // baseurl is deprecated this is a fallback
     "baseUrl": ".",
     "paths": {
       "auwla": ["src/index.ts"],

@@ -3,13 +3,15 @@
 // The Router is now a pure function of getCurrentPath(). It has no component
 // handle, no commit() call, no registerRouter() — it simply reads the reactive
 // path cell during each render pass. When the URL changes, the reactive cell
-// invalidates every component that read it (the Router and any parent that
+// invalidates only the components that read it (the Router and any parent that
 // called getCurrentPath() or isActive()), and the normal render loop takes
 // over from there.
 
 import {} from "auwla/jsx-runtime"
 import { track } from "auwla/events"
 import type { TrackHandle } from "auwla/events"
+import { component } from "../runtime/component"
+import type { ComponentHandle } from "../runtime/types"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
 import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { getRouteState, tagRoute } from "./cache"
@@ -190,11 +192,39 @@ export type RouterProps = {
    * Global fallback pending component rendered when a matched route has a loader
    * but does not define its own pendingComponent.
    *
+   * It is called as a plain render function (the same shape as route.pendingComponent)
+   * and should return renderable content (e.g. `() => <Skeleton />`).
+   *
    * This is shown during initial hard-refreshes or non-suspended navigations.
    * Note that during suspended navigations, the router intentionally keeps the
    * old page visible instead of showing this component.
    */
-  pendingComponent?: () => RouteComponent
+  pendingComponent?: () => any
+}
+
+type PreviousRender = {
+  matched: MatchedRoute
+  loader: TrackHandle | null
+  render: () => any
+}
+
+function isAbortError(reason: unknown): boolean {
+  return (
+    typeof DOMException !== "undefined" &&
+    reason instanceof DOMException &&
+    reason.name === "AbortError"
+  )
+}
+
+function scrollToTop(): void {
+  try {
+    if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+      window.scrollTo(0, 0)
+    }
+  } catch {
+    // Some test environments (jsdom) stub scrollTo and log warnings.
+    // Silently ignore — the visual scroll is not critical in those contexts.
+  }
 }
 
 export function Router(props: RouterProps = {}) {
@@ -204,24 +234,25 @@ export function Router(props: RouterProps = {}) {
   // handles invalidation automatically.
   initNavigation()
 
+  // Capture a handle so we can invalidate this Router for retries.
+  const routerHandle = component()
+
   // Per-instance state kept alive across re-renders by closure.
   let cachedPath: string | null = null
   let cachedLoader: TrackHandle | null = null
-  let previousMatched: MatchedRoute | null = null
+  let previousRender: PreviousRender | null = null
   let isSuspended = false
-  // The exact key prop used for the most recently rendered RouteComp.
-  // Preserved when suspension starts so we can render <PrevComp key={suspendPrevKey} />
-  // and hit the existing instance in the component cache — preventing re-setup
-  // and keeping the already-resolved loader data visible during the transition.
-  let suspendPrevKey: string | null = null
   // The loader handle that was active before suspension started. Passed as
   // _currentLoader while the old component is being shown so that any
-  // getLoaderHandle() call during that render sees the resolved data.
+  // getLoaderHandle() call during that render sees the correct data.
   let prevCachedLoader: TrackHandle | null = null
   // Whether the navigation that triggered suspension was a pop (back/forward).
   // Saved at suspension entry so the deferred scroll-to-top on suspension exit
   // honours the same rule as immediate navigation: don't scroll on pop.
   let suspendWasPopNav = false
+  // Set by error context retry(); picked up on the next Router render to restart
+  // the loader with the correct Router component ID (not the error component's).
+  let shouldRetry = false
 
   const { routes, suspend, errorComponent: globalErrorComponent, pendingComponent: globalPendingComponent } = props
   const suspendEnabled = !!suspend
@@ -229,6 +260,13 @@ export function Router(props: RouterProps = {}) {
 
   if (suspend && typeof suspend === 'object') {
     configureSuspense(suspend)
+  }
+
+  function startLoader(routeToLoad: Route, context: RouteContext<any>): TrackHandle {
+    return track("__loader", (signal) =>
+      routeToLoad.routed!(context, signal),
+      { viewTransition: useViewTransition }
+    )
   }
 
   // The render closure. Re-runs whenever the reactive path cell changes (or
@@ -241,21 +279,36 @@ export function Router(props: RouterProps = {}) {
 
     if (!matched) {
       if (isSuspended) { exitSuspense(); isSuspended = false }
-      previousMatched = null
+      previousRender = null
       return <div>404 — page not found</div>
     }
 
     const { route, params, query } = matched
+
+    // Retry requested by the error component: restart the loader for the current
+    // route. We do this inside the Router render so the track is keyed under the
+    // Router's component ID, not the error component's.
+    if (shouldRetry) {
+      shouldRetry = false
+      if (route.routed && cachedLoader?.rejected) {
+        cachedLoader.cancel()
+        cachedLoader = startLoader(route, _currentContext ?? { path: currentPath, params, query, state: getRouteState(currentPath), tag: () => {} } as RouteContext<any>)
+      }
+    }
 
     // Navigation guard
     const guard = route.beforeEnter || route.guard
     if (guard) {
       const context = { path: currentPath, params, query } as RouteContext<any>
       const result = guard(context)
-      if (result === false) return <div>403 — access denied</div>
+      if (result === false) {
+        previousRender = null
+        return <div>403 — access denied</div>
+      }
       if (typeof result === "string") {
         // Defer so the redirect does not happen mid-render.
         Promise.resolve().then(() => navigate(result, { replace: true }))
+        previousRender = null
         return <div>Redirecting…</div>
       }
     }
@@ -265,11 +318,9 @@ export function Router(props: RouterProps = {}) {
 
     // Path changed — run one-time navigation side effects.
     if (cachedPath !== currentPath) {
-      // Save the previous path BEFORE overwriting cachedPath. We need it to
-      // reconstruct the key that was used to render the previous RouteComp so
-      // the component cache serves the existing instance during suspension.
-      const prevPath = cachedPath
       cachedPath = currentPath
+      // A navigation cancels any pending retry from the previous route.
+      shouldRetry = false
 
       const nextContext = {
         path: currentPath,
@@ -279,7 +330,7 @@ export function Router(props: RouterProps = {}) {
         tag: (...tags: string[]) => tagRoute(currentPath, tags)
       } as RouteContext<any>
 
-      if (suspendEnabled && route.routed && !isSuspended && previousMatched) {
+      if (suspendEnabled && route.routed && !isSuspended && previousRender) {
         // Enter suspension: start the loader but keep the current route visible.
         // Do NOT scroll yet — we are still showing the previous page content.
         // The scroll happens in the suspension-exit block below when the new
@@ -291,39 +342,26 @@ export function Router(props: RouterProps = {}) {
         // make the same decision without racing against a future navigation.
         suspendWasPopNav = isPopNavigation()
 
-        // Snapshot the key and loader from the previous render so the suspension
-        // branch can render <PrevComp key={suspendPrevKey} /> and reuse the
-        // cached instance — preserving the resolved data the user is looking at.
-        suspendPrevKey = prevPath !== null
-          ? `${encodeURIComponent(prevPath)}:${cachedLoader?.status ?? 'idle'}`
-          : null
         prevCachedLoader = cachedLoader
 
-        cachedLoader = track("__loader", (signal) =>
-          route.routed!(_pendingContext!, signal),
-          { viewTransition: useViewTransition }
-        )
+        cachedLoader = startLoader(route, nextContext)
       } else {
         if (isSuspended) {
           // Navigating away from a suspended state — clean up.
           exitSuspense()
           isSuspended = false
           _pendingContext = null
-          suspendPrevKey = null
           prevCachedLoader = null
           suspendWasPopNav = false
           cachedLoader?.cancel()
         }
         // Scroll to top now: the new content renders immediately in this branch.
-        if (!isPopNavigation()) window.scrollTo(0, 0)
+        if (!isPopNavigation()) scrollToTop()
         _currentContext = nextContext
         _currentMeta = route.meta ?? null
 
         if (route.routed) {
-          cachedLoader = track("__loader", (signal) =>
-            route.routed!(_currentContext!, signal),
-            { viewTransition: useViewTransition }
-          )
+          cachedLoader = startLoader(route, nextContext)
         } else {
           cachedLoader = null
         }
@@ -338,41 +376,34 @@ export function Router(props: RouterProps = {}) {
       exitSuspense()
       _currentContext = _pendingContext!
       _pendingContext = null
-      suspendPrevKey = null
+      // Cancel the loader for the previous page — we are committing the new
+      // route now, so any in-flight work for the old page is no longer needed.
+      prevCachedLoader?.cancel()
       prevCachedLoader = null
       // Deferred scroll: the new content is about to be painted for the first
       // time, so this is the correct moment to reset the scroll position.
-      if (!suspendWasPopNav) window.scrollTo(0, 0)
+      if (!suspendWasPopNav) scrollToTop()
       suspendWasPopNav = false
       // Fall through to normal render with the now-resolved loader.
     }
 
-    // During suspension, keep showing the previously matched route so the user
-    // still sees content (dimmed via global CSS) while data loads.
+    // During suspension, keep showing the previous render so the user still
+    // sees content (dimmed via global CSS) while data loads.
     if (isSuspended) {
       // Expose the new pending loader for any route.pendingComponent that needs it.
       _currentLoader = cachedLoader
 
-      // if suspended the prev match should stay
-
-      if (previousMatched) {
-        const PrevComp = previousMatched.route.component
-        // Restore the previous (resolved) loader BEFORE rendering the old component
-        // so that getLoaderHandle() inside it returns the correct data.
-        // Using suspendPrevKey is what actually prevents re-setup: it matches the
-        // key from the last normal render, so createComponentClosure finds the
-        // existing instance in the cache and skips setup entirely.
-        _currentLoader = prevCachedLoader
-        return suspendPrevKey !== null
-          ? <PrevComp key={suspendPrevKey} />
-          : <PrevComp />
+      if (previousRender) {
+        // Restore the previous (resolved/pending/error) loader BEFORE rendering
+        // the old UI so that getLoaderHandle() inside it returns the correct data.
+        _currentLoader = previousRender.loader
+        return previousRender.render()
       }
 
       const pendingComp = route.pendingComponent ?? globalPendingComponent
       if (pendingComp) {
         return pendingComp()
       }
-
 
       // First-ever render and it has a loader — nothing previous to show.
       return <div>Loading… (Your route has a loader but didnt provide a pending component)</div>
@@ -391,6 +422,11 @@ export function Router(props: RouterProps = {}) {
     // which is exactly what we want since we can't defer the first render.
     const pendingComp = route.pendingComponent ?? globalPendingComponent
     if (cachedLoader?.pending && pendingComp) {
+      previousRender = {
+        matched,
+        loader: cachedLoader,
+        render: () => pendingComp(),
+      }
       return pendingComp()
     }
 
@@ -402,13 +438,34 @@ export function Router(props: RouterProps = {}) {
     if (errorComp) {
       // Build structured error context and expose it via getRouteError() so the
       // component can read it without receiving props.
+      const reason = cachedLoader!.reason
+      const errorRoute = route
+      const errorContext = _currentContext
+      const retry = () => {
+        if (!errorRoute.routed || !cachedLoader?.rejected) return
+        shouldRetry = true
+        routerHandle._invalidate(routerHandle._id)
+      }
+
       _currentError = {
-        reason: cachedLoader!.reason,
+        reason,
         source: 'loader',
-        context: { path: currentPath, params, query } as RouteContext<any>,
+        context: errorContext!,
+        message: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+        isAbort: isAbortError(reason),
+        route: errorRoute,
+        loader: cachedLoader,
+        retry,
       }
       const ErrorComp = errorComp
-      return <ErrorComp key={`${encodeURIComponent(currentPath)}:error`} />
+      const errorKey = `${encodeURIComponent(currentPath)}:error`
+      previousRender = {
+        matched,
+        loader: cachedLoader,
+        render: () => <ErrorComp key={errorKey} />,
+      }
+      return <ErrorComp key={errorKey} />
     }
 
     // Render the matched component through the JSX runtime so that
@@ -422,10 +479,17 @@ export function Router(props: RouterProps = {}) {
     // in the dirty set — only the Router's ID is.
     const RouteComp = route.component
     const loaderStatus = cachedLoader?.status ?? 'idle'
-    const output = <RouteComp key={`${encodeURIComponent(currentPath)}:${loaderStatus}`} />
+    const routeKey = `${encodeURIComponent(currentPath)}:${loaderStatus}`
+    const output = <RouteComp key={routeKey} />
 
-    // Cache this match so it can be kept visible during a future suspension.
-    previousMatched = matched
+    // Cache this match and the exact render function so it can be kept visible
+    // during a future suspension, even if the last normal render was a pending
+    // or error fallback.
+    previousRender = {
+      matched,
+      loader: cachedLoader,
+      render: () => <RouteComp key={routeKey} />,
+    }
     return output
   }
 }
