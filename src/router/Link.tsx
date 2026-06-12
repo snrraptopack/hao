@@ -4,13 +4,14 @@ import type { MemoChild } from "auwla"
 import { navigate } from "./navigation"
 import { isActive, isExactActive } from "./Router"
 import { prefetchRoute } from "./prefetch"
-import type { ValidRoutePath } from "./types"
+import { pathFor } from "./routes"
+import type { ValidRoutePath, PathParams } from "./types"
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type LinkProps = {
+export type LinkProps<P extends ValidRoutePath = ValidRoutePath> = {
   /**
    * The target route path.
    *
@@ -18,7 +19,11 @@ export type LinkProps = {
    * this value against the registered route path literals at compile time.
    * Without augmentation it accepts any string (backward-compatible).
    */
-  href: ValidRoutePath
+  href: P
+  // If the route has dynamic segments (e.g. /users/:id), pass them here.
+  params?: string extends P ? Record<string, string> : PathParams<P>
+  // Optional query string parameters.
+  query?: Record<string, string | number | boolean>
   // Additional CSS classes always applied to the anchor.
   class?: string
   // Additional CSS inline styles always applied to the anchor.
@@ -47,7 +52,7 @@ export type LinkProps = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function Link(props: LinkProps) {
+export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
   const {
     href,
     activeClass      = "active",
@@ -57,10 +62,13 @@ export function Link(props: LinkProps) {
   // Active class computation must happen inside the render closure so it
   // re-evaluates on every navigation commit, not just on component setup.
   return () => {
+    // Generate the real URL by interpolating params and query.
+    const actualUrl = pathFor(href as string, props.params as any, props.query)
+
     // Active class computation must happen inside the render closure so it
     // re-evaluates on every navigation commit, not just on component setup.
-    const exact   = isExactActive(href)
-    const partial = isActive(href)
+    const exact   = isExactActive(actualUrl)
+    const partial = isActive(actualUrl)
 
     // Build the final class string by combining the static class with any
     // active classes that currently apply. Filter out falsy entries so the
@@ -74,7 +82,7 @@ export function Link(props: LinkProps) {
     console.log("Link update", href, "classes", classes)
     return (
       <a
-        href={href}
+        href={actualUrl}
         class={classes}
         style={props.style}
         ref={(el) => {
@@ -83,7 +91,7 @@ export function Link(props: LinkProps) {
           // on hover, which would otherwise rip the DOM node out mid-click.
           el.addEventListener("mouseenter", () => {
             console.log("mouseenter")
-            if (prefetch) prefetchRoute(href as string)
+            if (prefetch) prefetchRoute(actualUrl)
           }, { passive: true })
         }}
       >

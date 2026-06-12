@@ -113,7 +113,10 @@ function Gallery() {
         </nav>
       </aside>
       <div class="gallery-content">
-        <Router routes={routes}  suspend />
+        <Router
+          routes={routes}
+          suspend
+        />
       </div>
     </div>
   )

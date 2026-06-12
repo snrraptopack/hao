@@ -176,6 +176,15 @@ export type RouterProps = {
    *   <Router routes={routes} errorComponent={AppError} />
    */
   errorComponent?: RouteComponent
+  /**
+   * Global fallback pending component rendered when a matched route has a loader
+   * but does not define its own pendingComponent.
+   *
+   * This is shown during initial hard-refreshes or non-suspended navigations.
+   * Note that during suspended navigations, the router intentionally keeps the
+   * old page visible instead of showing this component.
+   */
+  pendingComponent?: () => RouteComponent
 }
 
 export function Router(props: RouterProps = {}) {
@@ -204,7 +213,7 @@ export function Router(props: RouterProps = {}) {
   // honours the same rule as immediate navigation: don't scroll on pop.
   let suspendWasPopNav = false
 
-  const { routes, suspend, errorComponent: globalErrorComponent } = props
+  const { routes, suspend, errorComponent: globalErrorComponent, pendingComponent: globalPendingComponent } = props
   const suspendEnabled = !!suspend
 
   if (suspend && typeof suspend === 'object') {
@@ -340,8 +349,9 @@ export function Router(props: RouterProps = {}) {
           : <PrevComp />
       }
 
-      if (route.pendingComponent) {
-        return route.pendingComponent()
+      const pendingComp = route.pendingComponent ?? globalPendingComponent
+      if (pendingComp) {
+        return pendingComp()
       }
 
 
@@ -360,8 +370,9 @@ export function Router(props: RouterProps = {}) {
     // state transitions (pending → resolved / rejected) automatically.
     // If suspend is enabled, this will only hit on the initial page load (hard refresh),
     // which is exactly what we want since we can't defer the first render.
-    if (cachedLoader?.pending && route.pendingComponent) {
-      return route.pendingComponent()
+    const pendingComp = route.pendingComponent ?? globalPendingComponent
+    if (cachedLoader?.pending && pendingComp) {
+      return pendingComp()
     }
 
     // Resolve which error component to render (route-level wins over global).
