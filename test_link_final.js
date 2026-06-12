@@ -1,3 +1,4 @@
+import { __componentBlock, __cloneTemplate, __createBlock, __dirtySource, __event, __keyedMap, __setAttribute, __setChild, __setClass, __setElementText, __setProperty, __setStyle, __setText, __spreadProps, __trackSources } from 'auwla';
 // Link.tsx
 import {} from "auwla/jsx-runtime"
 import type { MemoChild } from "auwla"
@@ -56,28 +57,11 @@ export function Link(props: LinkProps) {
   } = props
   // Active class computation must happen inside the render closure so it
   // re-evaluates on every navigation commit, not just on component setup.
-  return () => {
-    // Active class computation must happen inside the render closure so it
-    // re-evaluates on every navigation commit, not just on component setup.
-    const exact   = isExactActive(href)
-    const partial = isActive(href)
-
-    // Build the final class string by combining the static class with any
-    // active classes that currently apply. Filter out falsy entries so the
-    // attribute is omitted entirely when no classes are present.
-    const classes = [
-      props.class,
-      partial && activeClass,
-      exact   && exactActiveClass,
-    ].filter(Boolean).join(" ") || undefined
-
-    console.log("Link update", href, "classes", classes)
-    return (
-      <a
-        href={href}
-        class={classes}
-        style={props.style}
-        ref={(el) => {
+  const exact   = isExactActive(href)
+  return __componentBlock(() => {
+        __trackSources(['props.style', 'props.children']);
+        const el0 = document.createElement("a");
+        ((el) => {
           // Attach mouseenter directly to the DOM node to bypass Auwla's automatic
           // render cycle wrapper. This prevents the Link from unnecessarily re-rendering
           // on hover, which would otherwise rip the DOM node out mid-click.
@@ -85,10 +69,24 @@ export function Link(props: LinkProps) {
             console.log("mouseenter")
             if (prefetch) prefetchRoute(href as string)
           }, { passive: true })
-        }}
-      >
-        {props.children}
-      </a>
-    )
-  }
+        })(el0);
+
+        return __createBlock(() => ({
+          node: el0,
+          update() {
+          const exact   = isExactActive(href)
+          const partial = isActive(href)
+          const classes = [
+      props.class,
+      partial && activeClass,
+      exact   && exactActiveClass,
+    ].filter(Boolean).join(" ") || undefined
+          console.log("Link update", href, "classes", classes)
+          __setAttribute(el0, "href", href);
+          __setClass(el0, classes);
+          __setStyle(el0, props.style);
+          __setElementText(el0, props.children);
+          },
+        }));
+      });
 }
