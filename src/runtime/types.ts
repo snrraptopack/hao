@@ -126,6 +126,7 @@ export type MountedApp = {
   // ownerId is optional — omitting it triggers a full-app invalidation,
   // passing a component ID limits the dirty set to that subtree.
   invalidate(ownerId?: string | null): void;
+  flushSync(): void;
 };
 
 /** @internal */

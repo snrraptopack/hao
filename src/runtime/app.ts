@@ -111,13 +111,13 @@ export function createMemoApp<TModel>(
   const componentSourceDeps = new Map<string, Set<string>>();
   let dirtyComponents: Set<string> | null = null;
   let dirtySources: Set<string> | null = null;
-  let scheduled = false;
+  let scheduled = true;
   let destroyed = false;
   const model = view ? modelOrApp as TModel : undefined;
   const app = view ? null : modelOrApp as MemoChild | RenderClosure;
 
   const renderNow = () => {
-    if (destroyed) return;
+    if (!scheduled || destroyed) return;
     scheduled = false;
     const previousWrapper = runtimeState.activeEventWrapper;
     const previousRenderState = runtimeState.activeRenderState;
@@ -237,7 +237,10 @@ export function createMemoApp<TModel>(
     scheduled = true;
     queueMicrotask(renderNow);
   };
-  const mountedApp: import('./types').MountedApp = { invalidate };
+  const flushSync = () => {
+    if (scheduled && !destroyed) renderNow();
+  };
+  const mountedApp: import('./types').MountedApp = { invalidate, flushSync };
 
   const createEventListener = (
     handler: (event: Event, model: TModel) => unknown,
@@ -328,3 +331,14 @@ export function createMemoApp<TModel>(
     },
   };
 }
+
+/** 
+ * Synchronously flushes all pending DOM updates across all mounted apps.
+ * Useful when integrating with native APIs like document.startViewTransition.
+ */
+export function flushSync(): void {
+  for (const app of runtimeState.mountedApps) {
+    app.flushSync();
+  }
+}
+

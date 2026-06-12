@@ -115,7 +115,9 @@ function Gallery() {
       <div class="gallery-content">
         <Router
           routes={routes}
-          suspend
+          suspend={{
+            viewTransition:true
+          }}
         />
       </div>
     </div>

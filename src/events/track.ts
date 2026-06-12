@@ -21,8 +21,13 @@
 import { runtimeState, currentComponentId } from '../runtime/state';
 import { reactive } from '../runtime/reactive';
 import type { ReactiveCell } from '../runtime/reactive';
+import { flushSync } from '../runtime/app';
 
 export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
+
+export type TrackOptions = {
+  viewTransition?: boolean;
+};
 
 export type TrackHandle = {
   readonly name: string;
@@ -115,6 +120,17 @@ function transition(key: string, status: TrackStatus, value?: unknown, reason?: 
   state.statusCell.set(status);
 }
 
+function applyTransition(key: string, status: TrackStatus, value?: unknown, reason?: unknown, options?: TrackOptions) {
+  if (options?.viewTransition && typeof document !== 'undefined' && 'startViewTransition' in document) {
+    (document as any).startViewTransition(() => {
+      transition(key, status, value, reason);
+      flushSync();
+    });
+  } else {
+    transition(key, status, value, reason);
+  }
+}
+
 /** @internal */
 export function cleanupComponentTracks(componentId: string): void {
   const names = componentTracks.get(componentId);
@@ -195,6 +211,7 @@ function createHandle(key: string, promise: Promise<unknown>): TrackHandle {
 function runAsyncTrack(
   key: string,
   fn: (signal: AbortSignal) => Promise<unknown>,
+  options?: TrackOptions,
 ): Promise<unknown> {
   const state = getOrCreate(key);
   if (state.controller) {
@@ -216,7 +233,7 @@ function runAsyncTrack(
       if (controller.signal.aborted) {
         return undefined;
       }
-      transition(key, 'resolved', value);
+      applyTransition(key, 'resolved', value, undefined, options);
       return value;
     },
     (reason) => {
@@ -224,7 +241,7 @@ function runAsyncTrack(
       if (controller.signal.aborted) {
         return undefined;
       }
-      transition(key, 'rejected', undefined, reason);
+      applyTransition(key, 'rejected', undefined, reason, options);
       return undefined;
     },
   );
@@ -244,13 +261,24 @@ function runAsyncTrack(
  * during a render pass automatically subscribes the component — no manual
  * `commit()` calls needed.
  */
-export function track(name: string, promise: Promise<unknown>): TrackHandle;
-export function track(name: string, fn: (signal: AbortSignal) => Promise<unknown>): TrackHandle;
-export function track(promise: Promise<unknown>): TrackHandle;
+export function track(name: string, promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+export function track(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions): TrackHandle;
+export function track(promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
 export function track(
   nameOrPromise: string | Promise<unknown>,
-  maybePromiseOrFn?: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>),
+  maybePromiseOrFnOrOptions?: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>) | TrackOptions,
+  maybeOptions?: TrackOptions,
 ): TrackHandle {
+  let options: TrackOptions | undefined;
+  let maybePromiseOrFn: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>) | undefined;
+
+  if (typeof nameOrPromise !== 'string') {
+    options = maybePromiseOrFnOrOptions as TrackOptions | undefined;
+  } else {
+    maybePromiseOrFn = maybePromiseOrFnOrOptions as any;
+    options = maybeOptions;
+  }
+
   // Overload: track(promise) — anonymous, auto-generated name
   if (typeof nameOrPromise !== 'string') {
     const name = `__auto_${Math.random().toString(36).slice(2)}`;
@@ -261,11 +289,11 @@ export function track(
     state.statusCell = reactive<TrackStatus>('pending');
     const promise = nameOrPromise.then(
       (value) => {
-        transition(key, 'resolved', value);
+        applyTransition(key, 'resolved', value, undefined, options);
         return value;
       },
       (reason) => {
-        transition(key, 'rejected', undefined, reason);
+        applyTransition(key, 'rejected', undefined, reason, options);
         return undefined;
       },
     );
@@ -287,13 +315,13 @@ export function track(
     }
     // Fresh cell — cuts off any stale subscribers from the previous run.
     state.statusCell = reactive<TrackStatus>('pending');
-    const promise = maybePromiseOrFn.then(
+    const promise = (maybePromiseOrFn as Promise<unknown>).then(
       (value) => {
-        transition(key, 'resolved', value);
+        applyTransition(key, 'resolved', value, undefined, options);
         return value;
       },
       (reason) => {
-        transition(key, 'rejected', undefined, reason);
+        applyTransition(key, 'rejected', undefined, reason, options);
         return undefined;
       },
     );
@@ -303,7 +331,7 @@ export function track(
 
   // Overload: track(name, asyncFn) — starts immediately with AbortSignal
   const fn = maybePromiseOrFn as (signal: AbortSignal) => Promise<unknown>;
-  const promise = runAsyncTrack(key, fn);
+  const promise = runAsyncTrack(key, fn, options);
   return createHandle(key, promise);
 }
 

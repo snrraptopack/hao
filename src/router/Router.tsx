@@ -15,7 +15,16 @@ import { matchRoute, matchRoutes, normalizePath } from "./routes"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
 import type { SuspendConfig } from "./suspend"
-import type { Route, RouteContext, RouteError, TypedTrackHandle, MatchedRoute, RouteComponent, ValidRoutePath, PathParams } from "./types"
+import type {
+  Route,
+  RouteContext,
+  RouteError,
+  TypedTrackHandle,
+  MatchedRoute,
+  RouteComponent,
+  ValidRoutePath,
+  PathParams
+} from "./types"
 
 // ---------------------------------------------------------------------------
 // Module-level route context
@@ -215,6 +224,7 @@ export function Router(props: RouterProps = {}) {
 
   const { routes, suspend, errorComponent: globalErrorComponent, pendingComponent: globalPendingComponent } = props
   const suspendEnabled = !!suspend
+  const useViewTransition = typeof suspend === 'object' ? !!suspend.viewTransition : false
 
   if (suspend && typeof suspend === 'object') {
     configureSuspense(suspend)
@@ -283,7 +293,8 @@ export function Router(props: RouterProps = {}) {
         prevCachedLoader = cachedLoader
 
         cachedLoader = event.track("__loader", (signal) =>
-          route.routed!(_pendingContext!, signal)
+          route.routed!(_pendingContext!, signal),
+          { viewTransition: useViewTransition }
         )
       } else {
         if (isSuspended) {
@@ -303,7 +314,8 @@ export function Router(props: RouterProps = {}) {
 
         if (route.routed) {
           cachedLoader = event.track("__loader", (signal) =>
-            route.routed!(_currentContext!, signal)
+            route.routed!(_currentContext!, signal),
+            { viewTransition: useViewTransition }
           )
         } else {
           cachedLoader = null

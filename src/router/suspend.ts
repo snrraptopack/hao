@@ -29,6 +29,11 @@ export type SuspendConfig = {
    * @default 'data-suspended'
    */
   attr?: string
+  /**
+   * When true, exiting suspension wraps the DOM update in document.startViewTransition
+   * to automatically cross-fade the old and new pages.
+   */
+  viewTransition?: boolean
 }
 
 let _className = 'suspended'
