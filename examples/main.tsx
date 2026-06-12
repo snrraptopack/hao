@@ -9,15 +9,12 @@ const state:any = {
 function CounterExample() {
   let one = 0
   let out = one * 2
-  let inner = () => state.count * 2
-
   return () =>(
       <section class="panel">
         <h2>Counter</h2>
         <p>State is a local variable in setup.</p>
         <button onClick={() => { state.count++; one++ }}>Count: {state.count}</button>
         <p>double {state.double()}</p>
-        <p> inner {inner()}</p>
         <p>outer { out}</p>
       </section>
     );

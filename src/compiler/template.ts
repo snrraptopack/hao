@@ -190,7 +190,8 @@ export function compileTemplateRowBlock(
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
   const dirtyAware = usesDirtyTracking(ctx.elementSetup, patches);
-  const updatePatches = patches.filter((patch) => !patch.initOnly);
+  const updatePatches = patches.filter((p) => p.deps.length > 0 && !p.initOnly);
+
   const init = patches.length
     ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
@@ -245,7 +246,10 @@ export function compileTemplateRootBlock(
     : ctx.patches;
   const dirtyAware = usesDirtyTracking(ctx.elementSetup, patches);
 
-  const patchUpdate = renderUpdateBody(patches, derivedCtx, '          ', dirtyAware, forceAllUpdate);
+  const dynamicPatches = patches.filter((p) => p.deps.length > 0 && !p.initOnly);
+  const staticPatches = patches.filter((p) => p.deps.length === 0 || p.initOnly);
+
+  const patchUpdate = renderUpdateBody(dynamicPatches, derivedCtx, '          ', dirtyAware, forceAllUpdate);
   const update = [
     ...preUpdateStatements.map((line) => `          ${line}`),
     patchUpdate,
@@ -262,9 +266,14 @@ export function compileTemplateRootBlock(
   return `__componentBlock(() => {
 ${setupLines.map((line) => `        ${line}`).join('\n')}
 
+        let _init = false;
         return __createBlock(() => ({
           node: el0,
           update() {
+            if (!_init) {
+${staticPatches.map((p) => `              ${p.code}`).join('\n')}
+              _init = true;
+            }
 ${update}
           },
         }));

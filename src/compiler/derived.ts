@@ -47,7 +47,7 @@ export function extractIdentifiers(code: string): string[] {
     .replace(/\b\d+(?:\.\d+)?\b/g, '')
     .replace(/\b(?:true|false|null|undefined|NaN|Infinity)\b/g, '');
 
-  const re = /\b([A-Za-z_$][\w$]*)\b/g;
+  const re = /(?<!\.)\b([A-Za-z_$][\w$]*)\b(?!\s*:)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(cleaned)) !== null) {
     const id = m[1]!;
@@ -179,7 +179,7 @@ export function buildDerivedContext(
       if (!re.test(withoutStrings)) continue;
       // Rebuild result, skipping quoted regions for replacement.
       result = result.replace(
-        /(['"`])(?:\\.|(?!\1).)*\1|\b(PLACEHOLDER)\b/g.source.replace('PLACEHOLDER', name),
+        new RegExp(/(['"`])(?:\\.|(?!\1).)*\1|(?<!\.)\b(PLACEHOLDER)\b(?!\s*:)/g.source.replace('PLACEHOLDER', name), 'g'),
         (match, quoted) => (quoted !== undefined ? match : `(${init})`),
       );
     }

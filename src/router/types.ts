@@ -74,10 +74,12 @@ export type RouteError = {
   context: RouteContext
 }
 
-// A function that returns the component's render closure.
+import type { JSX } from '../jsx/types'
+
+// A function that returns the component's render closure or an element.
 // Accepts optional props so route components can be rendered as first-class
 // JSX elements by the runtime's createComponentClosure.
-export type RouteComponent = (props?: Record<string, unknown>) => () => any
+export type RouteComponent = (props?: Record<string, unknown>) => JSX.Element
 
 // Layout wrapper applied around a route's render closure.
 // Receives the child render closure. If the layout needs params or query,

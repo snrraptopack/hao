@@ -253,7 +253,7 @@ export function Router(props: RouterProps = {}) {
 
       const nextContext: RouteContext = { path: currentPath, params, query }
 
-      if (suspendEnabled && route.routed && !isSuspended) {
+      if (suspendEnabled && route.routed && !isSuspended && previousMatched) {
         // Enter suspension: start the loader but keep the current route visible.
         // Do NOT scroll yet — we are still showing the previous page content.
         // The scroll happens in the suspension-exit block below when the new
@@ -325,9 +325,7 @@ export function Router(props: RouterProps = {}) {
       // Expose the new pending loader for any route.pendingComponent that needs it.
       _currentLoader = cachedLoader
 
-      if (route.pendingComponent) {
-        return route.pendingComponent()
-      }
+      // if suspended the prev match should stay
 
       if (previousMatched) {
         const PrevComp = previousMatched.route.component
@@ -342,8 +340,13 @@ export function Router(props: RouterProps = {}) {
           : <PrevComp />
       }
 
+      if (route.pendingComponent) {
+        return route.pendingComponent()
+      }
+
+
       // First-ever render and it has a loader — nothing previous to show.
-      return <div>Loading…</div>
+      return <div>Loading… (Your route has a loader but didnt provide a pending component)</div>
     }
 
     // Normal render path — refresh accessors for the current match.
@@ -355,12 +358,10 @@ export function Router(props: RouterProps = {}) {
 
     // Loader fallbacks — re-evaluated on every render so they react to loader
     // state transitions (pending → resolved / rejected) automatically.
-    // These only fire when suspend is NOT enabled; with suspend, the blocking
-    // behaviour above handles pending states.
-    if (!suspendEnabled) {
-      if (cachedLoader?.pending && route.pendingComponent) {
-        return route.pendingComponent()
-      }
+    // If suspend is enabled, this will only hit on the initial page load (hard refresh),
+    // which is exactly what we want since we can't defer the first render.
+    if (cachedLoader?.pending && route.pendingComponent) {
+      return route.pendingComponent()
     }
 
     // Resolve which error component to render (route-level wins over global).

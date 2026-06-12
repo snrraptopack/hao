@@ -37,7 +37,7 @@ import { showcaseRoutes, ShowcaseShell } from "./showcase"
 
 
 
-defineRoutes(
+let routes = defineRoutes(
   composeRoutes(
     // Simple examples — no group, no layout
     [
@@ -101,6 +101,7 @@ function Gallery() {
         <h1>Auwla Examples</h1>
         <nav>
           {examples.map((ex) => (
+            //<a href={ex.path}>{ ex.label}</a>
             <Link
               href={ex.path}
               activeClass="active"
@@ -112,7 +113,7 @@ function Gallery() {
         </nav>
       </aside>
       <div class="gallery-content">
-        <Router  suspend />
+        <Router routes={routes}  suspend />
       </div>
     </div>
   )

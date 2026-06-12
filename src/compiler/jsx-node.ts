@@ -377,8 +377,19 @@ export function compileJsxNode(
       ctx.deps.push(textOnly.value);
       ctx.patches.push({ code: `__setElementText(${elementVar}, ${textOnly.value});`, deps: [textOnly.value] });
     } else {
+      // 1. Take a snapshot of the context state
+      const snapshotSetup = ctx.setup.length;
+      const snapshotPatches = ctx.patches.length;
+      const snapshotDeps = ctx.deps.length;
+
       for (const child of node.children) {
-        if (!compileJsxChild(ctx, child, elementVar)) return null;
+        if (!compileJsxChild(ctx, child, elementVar)) {
+          // 2. If it fails, restore the arrays before returning null!
+          ctx.setup.length = snapshotSetup;
+          ctx.patches.length = snapshotPatches;
+          ctx.deps.length = snapshotDeps;
+          return null;
+        }
       }
     }
   }
@@ -413,6 +424,7 @@ export function compileRowBlock(
   const dirtyAware = usesDirtyTracking(ctx.setup, patches);
   const updatePatches = patches.filter((patch) => {
     const deps = patch.deps.flatMap((dep) => expressionDependencies(dep, itemName));
+    if (deps.length === 0) return false;
     return deps.length !== 1 || deps[0] !== keyText;
   });
 
