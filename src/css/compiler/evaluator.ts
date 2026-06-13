@@ -163,7 +163,12 @@ export function evalNode(
         }
       } else if (ts.isSpreadAssignment(prop)) {
         const spreadRes = evalNode(prop.expression, source, themeValues, selectorContext, localScope);
-        if (spreadRes.isStatic && spreadRes.value && typeof spreadRes.value === 'object') {
+        if (
+          spreadRes.isStatic &&
+          spreadRes.value &&
+          typeof spreadRes.value === 'object' &&
+          !(spreadRes.value as any).__conditional
+        ) {
           Object.assign(staticObj, spreadRes.value);
           if (spreadRes.extractedVars) {
             extractedVars.push(...spreadRes.extractedVars);

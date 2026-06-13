@@ -52,6 +52,7 @@ export type {
   Transform,
   Transition,
   TransitionEntry,
+  LooseStyleObject,
 } from './types';
 
 // Conditional types — useful for typing css.when/css.match arguments

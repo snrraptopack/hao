@@ -39,7 +39,14 @@ function extractConditionals(
   for (const [key, value] of Object.entries(styleObj)) {
     if (isConditionalValue(value)) {
       conditionals.push({ key, value });
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    } else if (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      // Never recurse into TypeScript AST nodes or conditional metadata.
+      !(typeof value.kind === 'number' && typeof value.pos === 'number') &&
+      value.__conditional !== true
+    ) {
       // Recurse into nested objects (pseudo-selectors, media queries)
       const nested = extractConditionals(value, source);
       if (Object.keys(nested.cleaned).length > 0) {
@@ -754,6 +761,75 @@ export function findCSSReplacements(
                         start: node.getStart(source),
                         end: node.getEnd(),
                         text: `class={${lookupExpr}}`,
+                      });
+                    }
+                  }
+                }
+              }
+            } else if (funcName === 'css.mergeWhen' || funcName === 'mergeWhen') {
+              const pairsArg = expr.arguments[0];
+              if (pairsArg && ts.isArrayLiteralExpression(pairsArg)) {
+                const pairExprs: string[] = [];
+                let allStatic = true;
+
+                for (const pair of pairsArg.elements) {
+                  if (ts.isArrayLiteralExpression(pair) && pair.elements.length === 2) {
+                    const condExpr = pair.elements[0]!;
+                    const styleExpr = pair.elements[1]!;
+                    const styleRes = evalNode(styleExpr, source, themeValues, undefined, localScope);
+                    if (!styleRes.isStatic) {
+                      allStatic = false;
+                      break;
+                    }
+                    const compiled = compileStyle(styleRes.value);
+                    compiled.rules.forEach((r) => onCssRule(r.className, r.declaration, r.mediaQuery));
+                    const classes = compiled.classes.join(' ');
+                    pairExprs.push(`${condExpr.getText(source)} ? ${JSON.stringify(classes)} : ""`);
+                  } else {
+                    allStatic = false;
+                    break;
+                  }
+                }
+
+                if (allStatic && pairExprs.length > 0) {
+                  const existing = findExistingClassAttr(node, source);
+                  if (attrName === 'style') {
+                    if (existing) {
+                      replacements.push({ start: node.getStart(source), end: node.getEnd(), text: '' });
+                      let replacementText = '';
+                      if (existing.isExpression) {
+                        const exprParts = [existing.text, ...pairExprs];
+                        replacementText = `class={\`\${${exprParts.join('} \${')}}\`}`;
+                      } else {
+                        const prefix = existing.text ? existing.text + ' ' : '';
+                        replacementText = `class={\`${prefix}\${${pairExprs.join('} \${')}}\`}`;
+                      }
+                      replacements.push({ start: existing.node.getStart(source), end: existing.node.getEnd(), text: replacementText });
+                    } else {
+                      replacements.push({
+                        start: node.getStart(source),
+                        end: node.getEnd(),
+                        text: `class={\`\${${pairExprs.join('} \${')}}\`}`,
+                      });
+                    }
+                  } else {
+                    // className={css.mergeWhen(...)}
+                    if (existing) {
+                      replacements.push({ start: node.getStart(source), end: node.getEnd(), text: '' });
+                      let replacementText = '';
+                      if (existing.isExpression) {
+                        const exprParts = [existing.text, ...pairExprs];
+                        replacementText = `class={\`\${${exprParts.join('} \${')}}\`}`;
+                      } else {
+                        const prefix = existing.text ? existing.text + ' ' : '';
+                        replacementText = `class={\`${prefix}\${${pairExprs.join('} \${')}}\`}`;
+                      }
+                      replacements.push({ start: existing.node.getStart(source), end: existing.node.getEnd(), text: replacementText });
+                    } else {
+                      replacements.push({
+                        start: node.getStart(source),
+                        end: node.getEnd(),
+                        text: `class={\`\${${pairExprs.join('} \${')}}\`}`,
                       });
                     }
                   }

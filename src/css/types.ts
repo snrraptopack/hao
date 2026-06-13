@@ -386,28 +386,30 @@ export interface DxShorthands {
   us?: ResponsiveValue<UserSelectValue>;
   v?: ResponsiveValue<VisibilityValue>;
 
-  // Autocomplete support for sequential modifiers
-  hover?: any;
-  focus?: any;
-  active?: any;
-  visited?: any;
-  disabled?: any;
-  checked?: any;
-  focusWithin?: any;
-  focusVisible?: any;
-  target?: any;
-  empty?: any;
-  first?: any;
-  last?: any;
-  odd?: any;
-  even?: any;
-  sm?: any;
-  md?: any;
-  lg?: any;
-  xl?: any;
-  '2xl'?: any;
-  dark?: any;
-  light?: any;
+  // Autocomplete support for sequential modifiers.
+  // Each key nests a StyleObject under the corresponding pseudo-class,
+  // pseudo-element, breakpoint, or color-scheme media query.
+  hover?: StyleObject | undefined;
+  focus?: StyleObject | undefined;
+  active?: StyleObject | undefined;
+  visited?: StyleObject | undefined;
+  disabled?: StyleObject | undefined;
+  checked?: StyleObject | undefined;
+  focusWithin?: StyleObject | undefined;
+  focusVisible?: StyleObject | undefined;
+  target?: StyleObject | undefined;
+  empty?: StyleObject | undefined;
+  first?: StyleObject | undefined;
+  last?: StyleObject | undefined;
+  odd?: StyleObject | undefined;
+  even?: StyleObject | undefined;
+  sm?: StyleObject | undefined;
+  md?: StyleObject | undefined;
+  lg?: StyleObject | undefined;
+  xl?: StyleObject | undefined;
+  '2xl'?: StyleObject | undefined;
+  dark?: StyleObject | undefined;
+  light?: StyleObject | undefined;
 }
 
 interface PropertyValueMap extends
@@ -441,6 +443,15 @@ type StyleObjectBase = Partial<{
     : K]: ResponsiveValue<K extends keyof PropertyValueMap ? PropertyValueMap[K] : string | number>;
 }>;
 
-export interface StyleObject extends StyleObjectBase {
-  [key: string]: any;
-}
+/**
+ * Strict style object type. Only known CSS properties, DX shorthands, and
+ * nested selector keys are allowed. If you need arbitrary or third-party
+ * property names, use `LooseStyleObject`.
+ */
+export interface StyleObject extends StyleObjectBase {}
+
+/**
+ * Permissive style object type with an index signature. Use when accepting
+ * user-defined or future CSS properties that are not in the typed map.
+ */
+export type LooseStyleObject = StyleObject & Record<string, any>;

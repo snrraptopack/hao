@@ -30,7 +30,7 @@ export function clearThemeCache(): void {
 export function compileCSS(
   sourceText: string,
   fileName: string,
-  onCssRule: CSSRuleCallback
+  onCssRule: CSSRuleCallback = () => {}
 ): string {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const replacements = findCSSReplacements(source, fileName, onCssRule);

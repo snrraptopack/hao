@@ -41,8 +41,17 @@ import {
  * Properties from later arguments override earlier ones.
  * Returns a new object — inputs are never mutated.
  *
+ * ## Shallow behavior note
+ * Nested selectors (e.g. `:hover`, `& > li`, `@media...`) are replaced as
+ * whole objects; their contents are **not** deep-merged. If both inputs
+ * define the same nested key, the later input wins completely.
+ *
  * @example
  * const cardWithFocus = css.merge(withCard, withFocusRing, { maxWidth: css.px(400) })
+ *
+ * // Nested selector replacement, not deep merge:
+ * css.merge({ ':hover': { color: 'blue' } }, { ':hover': { background: 'red' } })
+ * // → { ':hover': { background: 'red' } }
  */
 export function merge(...styles: StyleObject[]): StyleObject {
   return Object.assign({}, ...styles);
@@ -168,6 +177,11 @@ export function pseudo(name: string): string {
  * convenience so that `[css.child('li')]` works as a computed property key.
  * At runtime this is a plain object; JS coerces it to a string via
  * `Symbol.toPrimitive` / `toString()` when used as a property name.
+ *
+ * The `string &` intersection is intentional: it lets TypeScript accept the
+ * builder as a computed property key while still exposing the chainable
+ * methods for autocomplete. At runtime the value is not actually a string
+ * primitive; it only needs to be string-coercible.
  */
 export type SelectorBuilder = string & {
   readonly first: SelectorBuilder;
