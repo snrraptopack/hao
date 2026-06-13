@@ -4,6 +4,26 @@ import { child, descendant, sibling } from '../compose';
 import { flexProperties, gridProperties } from '../layout';
 import { computeSpring } from '../shared/spring';
 import { above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from '../shared/breakpoints';
+import { parseLength, toLength, formatLength } from '../shared/length';
+
+function buildBorder(opts: any, forceNone = false): any {
+  const style = forceNone ? 'none' : (opts.style ?? 'solid');
+  const width = forceNone
+    ? '0px'
+    : (opts.width !== undefined ? formatLength(opts.width) : '1px');
+  const color = opts.color !== undefined ? formatLength(opts.color) : '';
+  return {
+    _tag: 'Border',
+    width,
+    style,
+    color,
+    toString() {
+      if (style === 'none') return 'none';
+      const parts = [width, style, color].filter(Boolean);
+      return parts.join(' ');
+    },
+  };
+}
 
 /**
  * A conditional style value produced by css.when() or css.match() where the
@@ -40,16 +60,6 @@ export function cleanVarName(selector: string, prop: string): string {
     .replace(/^-|-$/g, '');
   const cleanProp = prop.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
   return `--${cleanSel}-${cleanProp}`;
-}
-
-export function parseLength(val: any): { value: number; unit: string } {
-  if (typeof val === 'number') return { value: val, unit: 'px' };
-  const str = String(val);
-  const match = str.match(/^([\d.-]+)([a-zA-Z%]*)$/);
-  if (match) {
-    return { value: parseFloat(match[1] || '0'), unit: match[2] || 'px' };
-  }
-  return { value: 0, unit: 'px' };
 }
 
 /**
@@ -476,15 +486,7 @@ export function evalNode(
       if (funcName === 'css.define' || funcName === 'define') {
         return { isStatic: true, value: staticArgs[0] };
       }
-      if (funcName === 'css.border.none' || funcName === 'border.none') {
-        return {
-          isStatic: true,
-          value: {
-            _tag: 'Border',
-            toString() { return 'none'; }
-          }
-        };
-      }
+
       if (funcName === 'css.shadow' || funcName === 'shadow') {
         const opts = staticArgs[0] || {};
         const x = opts.x !== undefined ? String(opts.x) : '0px';
@@ -638,40 +640,30 @@ export function evalNode(
         };
       }
 
-      // Outline Mock
+      // Outline
       if (funcName === 'css.outline' || funcName === 'outline') {
         const opts = staticArgs[0] || {};
-        const width = opts.width !== undefined ? String(opts.width) : '1px';
-        const style = opts.style || 'solid';
-        const color = opts.color || '';
-        const outlineVal = `${width} ${style} ${color}`.trim();
-        const outlineOffset = opts.offset !== undefined ? String(opts.offset) : undefined;
+        const width = formatLength(opts.width !== undefined ? opts.width : 1);
+        const style = opts.style ?? 'solid';
+        const color = opts.color !== undefined ? formatLength(opts.color) : '';
+        const outline = [width, style, color].filter(Boolean).join(' ');
+        const outlineOffset = opts.offset !== undefined ? formatLength(opts.offset) : undefined;
         return {
           isStatic: true,
           value: {
-            outline: outlineVal,
+            outline,
             outlineOffset,
             toString() { return this.outline; },
           },
         };
       }
 
-      // Border Mock
+      // Border + border.none
       if (funcName === 'css.border' || funcName === 'border') {
-        const opts = staticArgs[0] || {};
-        return {
-          isStatic: true,
-          value: {
-            _tag: 'Border',
-            width: opts.width,
-            style: opts.style,
-            color: opts.color,
-            toString() {
-              const parts = [opts.width, opts.style, opts.color].filter(Boolean);
-              return parts.join(' ');
-            },
-          },
-        };
+        return { isStatic: true, value: buildBorder(staticArgs[0] || {}) };
+      }
+      if (funcName === 'css.border.none' || funcName === 'border.none') {
+        return { isStatic: true, value: buildBorder({}, true) };
       }
     }
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { compileStyle } from '../../../src/css/compiler/index';
-import { css } from '../../../src/css/index';
+import { css, color } from '../../../src/css/index';
 
 describe('compileStyle engine', () => {
   it('should compile flat styles with shorthand expansion', () => {
@@ -351,6 +351,35 @@ describe('compileStyle engine', () => {
     expect(mdHoverRule?.property).toBe('background');
     expect(mdHoverRule?.value).toBe('#1d4ed8');
     expect(mdHoverRule?.mediaQuery).toBe('(min-width: 768px)');
+  });
+
+  it('should compile border.none into atomic width/style classes', () => {
+    const input = { border: css.border.none() };
+    const { classes } = compileStyle(input);
+
+    expect(classes.sort()).toEqual(['border-s_none', 'border-w_0'].sort());
+  });
+
+  it('should compile border({ style: "none" }) into atomic width/style classes', () => {
+    const input = { border: css.border({ style: 'none', width: 0 }) };
+    const { classes } = compileStyle(input);
+
+    expect(classes.sort()).toEqual(['border-s_none', 'border-w_0'].sort());
+  });
+
+  it('should compile outline with numeric width to px', () => {
+    const input = { ...css.outline({ width: 2, color: color('#2563eb'), offset: 1 }) };
+    const { classes, rules } = compileStyle(input);
+
+    expect(classes).toContain('outline-w_2px');
+    expect(classes).toContain('outline-s_solid');
+    expect(classes).toContain('outline-c_2563eb');
+    expect(classes).toContain('outline-off_1px');
+
+    expect(rules.find((r) => r.property === 'outline-width')).toMatchObject({ value: '2px' });
+    expect(rules.find((r) => r.property === 'outline-style')).toMatchObject({ value: 'solid' });
+    expect(rules.find((r) => r.property === 'outline-color')).toMatchObject({ value: '#2563eb' });
+    expect(rules.find((r) => r.property === 'outline-offset')).toMatchObject({ value: '1px' });
   });
 });
 

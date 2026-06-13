@@ -114,6 +114,9 @@ export function normalizeStyleObject(style: Record<string, any>): Record<string,
 
   for (const [key, value] of Object.entries(style)) {
     if (value === undefined || value === null) continue;
+    // Ignore inherited/non-style keys like toString/toProperties that leak from
+    // composite value objects (outline, shadow, etc.) when spread into a style.
+    if (typeof value === 'function') continue;
 
     if (key.startsWith(':') || key.startsWith('&') || key.startsWith('@media ')) {
       normalized[key] = normalizeStyleObject(value);

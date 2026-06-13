@@ -23,6 +23,7 @@ import type {
   TransitionEntry,
 } from './types';
 import { px } from './units';
+import { toLength } from './shared/length';
 
 // ---------------------------------------------------------------------------
 // Border
@@ -93,11 +94,6 @@ export type ShadowOptions = {
   color: Color;
   inset?: boolean;
 };
-
-function toLength(v: number | Length | undefined, fallback = 0): Length {
-  if (v === undefined) return px(fallback);
-  return typeof v === 'number' ? px(v) : v;
-}
 
 /**
  * Create a typed CSS box-shadow value.
