@@ -20,7 +20,7 @@
  */
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { resolve, dirname, basename } from 'node:path'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import type { AuwlaRouterOptions } from './types'
 import { scanPagesAndLayouts, buildDirectoryTree } from './scanner'
@@ -141,10 +141,16 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       // Ensure Vite watches the pages directory even if it is empty or missing.
       server.watcher.add(resolvedPagesDir)
 
-      /** Rebuild routes and hot-reload the app when a page file changes. */
-      const handleChange = (file: string) => {
-        if (!isPageFile(file, resolvedPagesDir, extensions)) return
+      const isLayoutPath = (file: string): boolean =>
+        /^_layout\.[jt]sx?$/.test(basename(file))
 
+      /** Rebuild routes and hot-reload the app when a page file changes. */
+      const handleChange = (file: string, event: 'add' | 'unlink' | 'change') => {
+        const isPage = isPageFile(file, resolvedPagesDir, extensions)
+        const isLayout = isLayoutPath(file)
+        if (!isPage && !isLayout) return
+
+        const oldModuleCode = cachedVirtualModule
         const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
         cachedVirtualModule = null // force next load() to serve fresh code
 
@@ -160,18 +166,24 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           moduleGraph.invalidateModule(mod)
         }
 
-        // A full page reload is the safest strategy: route additions or
-        // removals change the route table shape, not just component internals.
-        server.hot?.send({ type: 'full-reload' })
+        // Only force a full page reload when the route table shape actually
+        // changes (add/remove/rename) or a layout file is edited. Pure
+        // component edits inside a page file are left to Vite's normal HMR.
+        const routeTableChanged = oldModuleCode !== moduleCode
+        const needsReload = event !== 'change' || isLayout || routeTableChanged
 
-        // Store fresh code after triggering reload so it is available on the
-        // next `load()` call from the reloaded client.
+        if (needsReload) {
+          server.hot?.send({ type: 'full-reload' })
+        }
+
+        // Store fresh code after handling the update so it is available on the
+        // next `load()` call from the client.
         cachedVirtualModule = moduleCode
       }
 
-      server.watcher.on('add',    handleChange)
-      server.watcher.on('unlink', handleChange)
-      server.watcher.on('change', handleChange)
+      server.watcher.on('add',    (file: string) => handleChange(file, 'add'))
+      server.watcher.on('unlink', (file: string) => handleChange(file, 'unlink'))
+      server.watcher.on('change', (file: string) => handleChange(file, 'change'))
     },
   }
 }
