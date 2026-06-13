@@ -4,7 +4,7 @@ import { child, descendant, sibling } from '../compose';
 import { flexProperties, gridProperties } from '../layout';
 import { computeSpring } from '../shared/spring';
 import { above as bpAbove, below as bpBelow, matchBreakpoint as bpMatch, between as bpBetween } from '../shared/breakpoints';
-import { parseLength, toLength, formatLength } from '../shared/length';
+import { parseLength, formatLength } from '../shared/length';
 
 function buildBorder(opts: any, forceNone = false): any {
   const style = forceNone ? 'none' : (opts.style ?? 'solid');

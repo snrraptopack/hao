@@ -25,6 +25,8 @@ import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import type { AuwlaRouterOptions } from './types'
 import { scanPagesAndLayouts, buildDirectoryTree } from './scanner'
 import { generateVirtualModule, generateLazyVirtualModule, generateVirtualModuleWithLayouts, generateTypeFile } from './codegen'
+import { scanServerModules, SERVER_EXTENSIONS } from './server-scanner'
+import { buildServerManifest, writeServerManifest } from './manifest'
 
 /** The public import specifier users write in their app code. */
 const VIRTUAL_MODULE_ID = 'auwla:routes'
@@ -35,6 +37,13 @@ const VIRTUAL_MODULE_ID = 'auwla:routes'
  * trying to process this module as a real file.
  */
 const RESOLVED_VIRTUAL_ID = '\0auwla:routes'
+
+/** Virtual module for the server manifest consumed by client RPC. */
+const MANIFEST_VIRTUAL_MODULE_ID = 'auwla:server-manifest'
+const RESOLVED_MANIFEST_VIRTUAL_ID = '\0auwla:server-manifest'
+
+/** In-memory cache of the generated server manifest JS source. */
+let cachedManifestModule: string | null = null
 
 // ---------------------------------------------------------------------------
 // Plugin factory
@@ -65,13 +74,17 @@ const RESOLVED_VIRTUAL_ID = '\0auwla:routes'
  *   }
  */
 export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
-  const pagesRelDir = options.dir     ?? 'src/pages'
-  const genRelFile  = options.genFile ?? 'src/auwla.gen.ts'
-  const isLazy      = options.lazy    ?? false
+  const pagesRelDir     = options.dir         ?? 'src/pages'
+  const genRelFile      = options.genFile     ?? 'src/auwla.gen.ts'
+  const serverRelDir    = options.serverDir   ?? 'src/server'
+  const manifestRelDir  = options.manifestDir ?? '.auwla'
+  const isLazy          = options.lazy        ?? false
 
   /** Resolved after Vite's `configResolved` hook fires. */
   let resolvedPagesDir = ''
   let resolvedGenFile  = ''
+  let resolvedServerDir = ''
+  let resolvedManifestDir = ''
 
   /**
    * In-memory cache of the last generated virtual module source.
@@ -94,8 +107,10 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     // -----------------------------------------------------------------------
 
     configResolved(config: ResolvedConfig) {
-      resolvedPagesDir = resolve(config.root, pagesRelDir)
-      resolvedGenFile  = resolve(config.root, genRelFile)
+      resolvedPagesDir     = resolve(config.root, pagesRelDir)
+      resolvedGenFile      = resolve(config.root, genRelFile)
+      resolvedServerDir    = resolve(config.root, serverRelDir)
+      resolvedManifestDir  = resolve(config.root, manifestRelDir)
     },
 
     // -----------------------------------------------------------------------
@@ -106,6 +121,9 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
       cachedVirtualModule = moduleCode
       writeSafe(resolvedGenFile, typeCode)
+
+      // Generate the fullstack server manifest.
+      generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir)
     },
 
     // -----------------------------------------------------------------------
@@ -114,10 +132,28 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
     resolveId(source: string): string | null {
       if (source === VIRTUAL_MODULE_ID) return RESOLVED_VIRTUAL_ID
+      if (source === MANIFEST_VIRTUAL_MODULE_ID) return RESOLVED_MANIFEST_VIRTUAL_ID
       return null
     },
 
     load(id: string): string | null {
+      // Prevent server-only files from ever entering the client bundle.
+      // Returning an empty module keeps imports from throwing at runtime.
+      if (this.environment?.name === 'client' && isServerFile(id)) {
+        return 'export {};'
+      }
+
+      // Server manifest virtual module.
+      if (id === RESOLVED_MANIFEST_VIRTUAL_ID) {
+        // Cache miss: regenerate if needed (e.g. tests skip buildStart).
+        if (!cachedManifestModule) {
+          const serverModules = scanServerModules(resolvedPagesDir, resolvedServerDir)
+          const manifest = buildServerManifest(serverModules)
+          cachedManifestModule = `export default ${JSON.stringify(manifest, null, 2)};`
+        }
+        return cachedManifestModule
+      }
+
       // Returning null tells Vite this plugin does not handle the module.
       if (id !== RESOLVED_VIRTUAL_ID) return null
 
@@ -126,6 +162,8 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
         cachedVirtualModule = moduleCode
         writeSafe(resolvedGenFile, typeCode)
+
+        generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir)
       }
 
       return cachedVirtualModule
@@ -140,6 +178,9 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
       // Ensure Vite watches the pages directory even if it is empty or missing.
       server.watcher.add(resolvedPagesDir)
+      if (resolvedServerDir) {
+        server.watcher.add(resolvedServerDir)
+      }
 
       const isLayoutPath = (file: string): boolean =>
         /^_layout\.[jt]sx?$/.test(basename(file))
@@ -181,9 +222,23 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         cachedVirtualModule = moduleCode
       }
 
-      server.watcher.on('add',    (file: string) => handleChange(file, 'add'))
-      server.watcher.on('unlink', (file: string) => handleChange(file, 'unlink'))
-      server.watcher.on('change', (file: string) => handleChange(file, 'change'))
+      /** Regenerate the server manifest when a .server.ts file changes. */
+      const handleServerChange = () => {
+        generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir)
+      }
+
+      server.watcher.on('add',    (file: string) => {
+        if (isServerFile(file)) handleServerChange()
+        else handleChange(file, 'add')
+      })
+      server.watcher.on('unlink', (file: string) => {
+        if (isServerFile(file)) handleServerChange()
+        else handleChange(file, 'unlink')
+      })
+      server.watcher.on('change', (file: string) => {
+        if (isServerFile(file)) handleServerChange()
+        else handleChange(file, 'change')
+      })
     },
   }
 }
@@ -202,6 +257,17 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
  *   2. Else if lazy → lazy generator (dynamic imports per page with routed).
  *   3. Else → static generator (static imports, simplest output).
  */
+function generateServerManifest(
+  pagesDir: string,
+  serverDir: string,
+  manifestDir: string,
+): void {
+  const serverModules = scanServerModules(pagesDir, serverDir)
+  const manifest = buildServerManifest(serverModules)
+  writeServerManifest(manifestDir, manifest)
+  cachedManifestModule = null // force virtual module reload on next request
+}
+
 function buildRoutes(
   pagesDir: string,
   lazy: boolean,
@@ -236,6 +302,13 @@ function writeSafe(filePath: string, content: string): void {
     mkdirSync(dir, { recursive: true })
   }
   writeFileSync(filePath, content, 'utf-8')
+}
+
+/**
+ * Returns true when `file` is a server-only file.
+ */
+function isServerFile(file: string): boolean {
+  return SERVER_EXTENSIONS.some((ext) => file.endsWith(ext))
 }
 
 /**

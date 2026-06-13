@@ -35,6 +35,9 @@ export default defineConfig({
       'tests/runtime/**/*.test.tsx',
       'tests/css/**/*.test.ts',
       'tests/router/**/*.test.ts',
+      'tests/vite-router/**/*.test.ts',
+      'tests/server/**/*.test.ts',
+      'tests/adapters/**/*.test.ts',
       'tests/perf.test.tsx',
     ],
     coverage: {
@@ -51,6 +54,9 @@ export default defineConfig({
         'src/vite.ts',
         'src/events/**/*.ts',
         'src/css/**/*.ts',
+        'src/server/**/*.ts',
+        'src/client/**/*.ts',
+        'src/adapters/**/*.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

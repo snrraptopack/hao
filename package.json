@@ -42,6 +42,30 @@
     "./vite-router": {
       "types": "./dist/vite-router/index.d.ts",
       "import": "./dist/vite-router/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/rpc.d.ts",
+      "import": "./dist/client/rpc.js"
+    },
+    "./adapters/fetch": {
+      "types": "./dist/adapters/fetch.d.ts",
+      "import": "./dist/adapters/fetch.js"
+    },
+    "./adapters/hono": {
+      "types": "./dist/adapters/hono.d.ts",
+      "import": "./dist/adapters/hono.js"
+    },
+    "./adapters/bun": {
+      "types": "./dist/adapters/bun.d.ts",
+      "import": "./dist/adapters/bun.js"
+    },
+    "./adapters/express": {
+      "types": "./dist/adapters/express.d.ts",
+      "import": "./dist/adapters/express.js"
     }
   },
   "files": [
@@ -80,5 +104,8 @@
     "typescript": "^5.9.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "devalue": "^5.8.1"
   }
 }

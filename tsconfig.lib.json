@@ -18,7 +18,11 @@
     "src/events/**/*.ts",
     "src/css/index.ts",
     "src/router/index.ts",
-    "src/vite-router/**/*.ts"
+    "src/vite-router/**/*.ts",
+    "src/server/**/*.ts",
+    "src/client/rpc.ts",
+    "src/adapters/**/*.ts",
+    "src/server-manifest.d.ts"
   ],
   "exclude": [
     "node_modules",

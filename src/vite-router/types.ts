@@ -189,4 +189,27 @@ export type AuwlaRouterOptions = {
    * @default true
    */
   prefetch?: boolean
+
+  /**
+   * Directory to scan for shared server-only files, relative to the Vite
+   * project root. Files ending in `.server.ts` inside this directory are
+   * exposed as remote functions keyed by their path.
+   *
+   * In addition, any `.server.ts` file co-located with a page inside `dir`
+   * is automatically scanned.
+   *
+   * @default 'src/server'
+   */
+  serverDir?: string
+
+  /**
+   * Output directory for generated fullstack artifacts:
+   *   - server-manifest.json   (runtime manifest)
+   *   - server-manifest.d.ts   (generated types)
+   *
+   * Relative to the Vite project root.
+   *
+   * @default '.auwla'
+   */
+  manifestDir?: string
 }

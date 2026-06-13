@@ -22,6 +22,8 @@ import { runtimeState, currentComponentId } from '../runtime/state';
 import { reactive } from '../runtime/reactive';
 import type { ReactiveCell } from '../runtime/reactive';
 import { flushSync } from '../runtime/app';
+import { rpcCall, getCurrentRoutePath } from '../client/rpc';
+import type { ServerManifestTypes } from 'auwla/server-manifest';
 
 export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
 
@@ -29,23 +31,23 @@ export type TrackOptions = {
   viewTransition?: boolean;
 };
 
-export type TrackHandle = {
+export type TrackHandle<T = unknown> = {
   readonly name: string;
   readonly status: TrackStatus;
   readonly pending: boolean;
   readonly resolved: boolean;
   readonly rejected: boolean;
-  readonly value: unknown;
+  readonly value: T | undefined;
   readonly reason: unknown;
   cancel(): void;
-  then<TResult1 = unknown, TResult2 = never>(
-    onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+  then<TResult1 = T, TResult2 = never>(
+    onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | undefined | null,
   ): Promise<TResult1 | TResult2>;
   catch<TResult = never>(
     onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | undefined | null,
-  ): Promise<unknown | TResult>;
-  finally(onfinally?: (() => void) | undefined | null): Promise<unknown>;
+  ): Promise<T | TResult>;
+  finally(onfinally?: (() => void) | undefined | null): Promise<T | undefined>;
 };
 
 /** Internal track state stored in the global registry. */
@@ -158,7 +160,7 @@ export function __resetTrackRegistry(): void {
   componentTracks.clear();
 }
 
-function createHandle(key: string, promise: Promise<unknown>): TrackHandle {
+function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
   const handle = {
     get name() {
       return key.split('::')[1]!;
@@ -181,8 +183,8 @@ function createHandle(key: string, promise: Promise<unknown>): TrackHandle {
     get rejected() {
       return this.status === 'rejected';
     },
-    get value() {
-      return registry.get(key)?.value;
+    get value(): T | undefined {
+      return registry.get(key)?.value as T | undefined;
     },
     get reason() {
       return registry.get(key)?.reason;
@@ -196,8 +198,8 @@ function createHandle(key: string, promise: Promise<unknown>): TrackHandle {
         state.statusCell.set('idle');
       }
     },
-    then<TResult1 = unknown, TResult2 = never>(
-      onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+    then<TResult1 = T, TResult2 = never>(
+      onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | undefined | null,
     ) {
       return promise.then(onfulfilled, onrejected);
@@ -212,7 +214,7 @@ function createHandle(key: string, promise: Promise<unknown>): TrackHandle {
     },
   };
 
-  return handle as TrackHandle;
+  return handle as TrackHandle<T>;
 }
 
 /**
@@ -273,10 +275,10 @@ function runAsyncTrack(
  * during a render pass automatically subscribes the component — no manual
  * `commit()` calls needed.
  */
-export function track(name: string, promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
-export function track(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions): TrackHandle;
-export function track(promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
-export function track(
+function trackImpl(name: string, promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+function trackImpl(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions): TrackHandle;
+function trackImpl(promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+function trackImpl(
   nameOrPromise: string | Promise<unknown>,
   maybePromiseOrFnOrOptions?: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>) | TrackOptions,
   maybeOptions?: TrackOptions,
@@ -410,7 +412,147 @@ export function cancel(name?: string): void {
   if (state?.controller) {
     state.controller.abort();
     state.controller = null;
-    // Notify subscribers that the track is no longer active.
+    // Notify subscribers that the track is no longer in-flight.
     state.statusCell.set('idle');
   }
 }
+
+// -----------------------------------------------------------------------------
+// Fullstack remote functions
+// -----------------------------------------------------------------------------
+
+export type TrackRemoteOptions = {
+  signal?: AbortSignal;
+};
+
+/**
+ * Keys in the server manifest that are declared as GET.
+ */
+type GetKeys = {
+  [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'GET' }
+    ? K
+    : never;
+}[keyof ServerManifestTypes];
+
+/**
+ * Keys in the server manifest that are declared as POST.
+ */
+type PostKeys = {
+  [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'POST' }
+    ? K
+    : never;
+}[keyof ServerManifestTypes];
+
+/**
+ * Lazy command handle returned by track.post().
+ *
+ * `.run()` triggers the RPC. `.result` exposes the underlying TrackHandle so
+ * post-mutation state can be rendered reactively.
+ */
+export type CommandHandle<TArgs extends unknown[] = unknown[], TReturn = unknown> = {
+  readonly status: TrackStatus;
+  readonly pending: boolean;
+  readonly resolved: boolean;
+  readonly rejected: boolean;
+  readonly value: TReturn | undefined;
+  readonly reason: unknown;
+  /** The TrackHandle from the last .run() call, or null before any run. */
+  readonly result: TrackHandle<TReturn> | null;
+  /** Trigger the mutation with either the declared args or a FormData body. */
+  run(...args: TArgs | [FormData]): Promise<TReturn>;
+  /** No-op for commands; present for API symmetry. */
+  refresh(): void;
+};
+
+/**
+ * Run a GET remote function immediately and return a reactive TrackHandle.
+ */
+function trackGet<K extends GetKeys>(
+  key: K,
+  options?: TrackRemoteOptions,
+): TrackHandle<ServerManifestTypes[K]['return']> {
+  const promise = rpcCall(key, [], getCurrentRoutePath(), options) as Promise<
+    ServerManifestTypes[K]['return']
+  >;
+  return trackImpl(`remote:${key}`, promise) as TrackHandle<ServerManifestTypes[K]['return']>;
+}
+
+function createCommandHandle<TArgs extends unknown[], TReturn>(
+  key: string,
+): CommandHandle<TArgs, TReturn> {
+  const resultCell = reactive<TrackHandle<TReturn> | null>(null);
+
+  return {
+    get status(): TrackStatus {
+      return resultCell.get()?.status ?? 'idle';
+    },
+    get pending(): boolean {
+      return this.status === 'pending';
+    },
+    get resolved(): boolean {
+      return this.status === 'resolved';
+    },
+    get rejected(): boolean {
+      return this.status === 'rejected';
+    },
+    get value(): TReturn | undefined {
+      return resultCell.get()?.value;
+    },
+    get reason(): unknown {
+      return resultCell.get()?.reason;
+    },
+    get result(): TrackHandle<TReturn> | null {
+      return resultCell.get();
+    },
+    async run(...args: TArgs | [FormData]): Promise<TReturn> {
+      const promise = rpcCall(key, args, getCurrentRoutePath()) as Promise<TReturn>;
+      const handle = trackImpl(`remote:${key}`, promise) as TrackHandle<TReturn>;
+      resultCell.set(handle);
+      return promise;
+    },
+    refresh(): void {
+      // Commands do not auto-refresh.
+    },
+  };
+}
+
+/**
+ * Create a lazy POST command handle for a remote mutation.
+ */
+function trackPost<K extends PostKeys>(
+  key: K,
+): CommandHandle<
+  ServerManifestTypes[K]['args'],
+  ServerManifestTypes[K]['return']
+> {
+  return createCommandHandle<
+    ServerManifestTypes[K]['args'],
+    ServerManifestTypes[K]['return']
+  >(key);
+}
+
+/**
+ * Combined track interface: the existing local track primitive plus remote
+ * query (track.get) and mutation (track.post) methods.
+ */
+export interface TrackFn {
+  (name: string, promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+  (name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions): TrackHandle;
+  (promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+  /** Run a GET remote function immediately. */
+  get: typeof trackGet;
+  /** Create a lazy POST command handle. */
+  post: typeof trackPost;
+}
+
+/**
+ * The public track primitive. Use it for local async work, or call
+ * track.get() / track.post() for remote server functions.
+ */
+export const track: TrackFn = Object.assign(trackImpl, {
+  get: trackGet,
+  post: trackPost,
+});
+
+/** @internal Re-export for tests that need the un-augmented function. */
+export { trackImpl };

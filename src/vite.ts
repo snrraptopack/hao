@@ -1,4 +1,4 @@
-import type { Plugin, ViteDevServer, ModuleNode, HotUpdateOptions, EnvironmentModuleNode } from 'vite';
+import type { Plugin } from 'vite';
 import { compileAuwla } from './compiler';
 import { ViteCSSHandler, RESOLVED_ID } from './vite-css';
 import { clearThemeCache } from './css/compiler/css-compiler';

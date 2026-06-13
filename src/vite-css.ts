@@ -114,7 +114,7 @@ export class ViteCSSHandler {
 
       this.cssCache = cssContent;
       this.isDirty = false;
-      return { code: cssContent, moduleType: 'css' };
+      return cssContent;
     }
     return null;
   }
@@ -184,13 +184,10 @@ export class ViteCSSHandler {
     clientEnv.moduleGraph.invalidateModule(mod);
 
     const timestamp = Date.now();
-    const sendResult = clientEnv.hot.send({
+    clientEnv.hot.send('custom', {
       type: 'css-update',
       path: mod.url,
       timestamp,
     });
-    if (sendResult && typeof sendResult.catch === 'function') {
-      sendResult.catch(() => {});
-    }
   }
 }
