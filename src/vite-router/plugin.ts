@@ -151,16 +151,18 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         // Write updated types so the editor picks them up immediately.
         writeSafe(resolvedGenFile, typeCode)
 
-        // Invalidate the virtual module in Vite's module graph so its
-        // importers (the Router) are re-evaluated on the next HMR update.
-        const mod = server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID)
+        // Invalidate the virtual module in the client environment's module graph
+        // so its importers (the Router) are re-evaluated on the next HMR update.
+        const clientEnv = server.environments?.client
+        const moduleGraph = clientEnv?.moduleGraph ?? server.moduleGraph
+        const mod = moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID)
         if (mod) {
-          server.moduleGraph.invalidateModule(mod)
+          moduleGraph.invalidateModule(mod)
         }
 
         // A full page reload is the safest strategy: route additions or
         // removals change the route table shape, not just component internals.
-        server.hot.send({ type: 'full-reload' })
+        server.hot?.send({ type: 'full-reload' })
 
         // Store fresh code after triggering reload so it is available on the
         // next `load()` call from the reloaded client.

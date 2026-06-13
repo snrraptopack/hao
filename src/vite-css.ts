@@ -30,6 +30,10 @@ export class ViteCSSHandler {
     this.server = server;
   }
 
+  isEnabled(): boolean {
+    return this.enabled;
+  }
+
   resolveId(id: string): string | null {
     if (this.enabled && (id === VIRTUAL_ID || id === RESOLVED_ID)) {
       return RESOLVED_ID;
@@ -110,7 +114,7 @@ export class ViteCSSHandler {
 
       this.cssCache = cssContent;
       this.isDirty = false;
-      return cssContent;
+      return { code: cssContent, moduleType: 'css' };
     }
     return null;
   }
@@ -175,8 +179,18 @@ export class ViteCSSHandler {
     if (!this.server) return;
     const clientEnv = this.server.environments.client;
     const mod = clientEnv.moduleGraph.getModuleById(RESOLVED_ID);
-    if (mod) {
-      clientEnv.reloadModule(mod).catch(() => {});
+    if (!mod) return;
+
+    clientEnv.moduleGraph.invalidateModule(mod);
+
+    const timestamp = Date.now();
+    const sendResult = clientEnv.hot.send({
+      type: 'css-update',
+      path: mod.url,
+      timestamp,
+    });
+    if (sendResult && typeof sendResult.catch === 'function') {
+      sendResult.catch(() => {});
     }
   }
 }

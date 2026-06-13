@@ -9,6 +9,16 @@ function transform(plugin: ReturnType<typeof auwla>, code: string, id: string) {
   return hook.call({} as any, code, id);
 }
 
+function loadCSS(plugin: ReturnType<typeof auwla>): string {
+  const hook = plugin.load;
+  if (typeof hook !== 'function') throw new Error('Expected load function hook');
+  const result = hook.call({} as any, '\0virtual:auwla.css');
+  if (result && typeof result === 'object' && 'code' in result) {
+    return result.code as string;
+  }
+  return result as string;
+}
+
 describe('auwla vite plugin - css extraction', () => {
   test('skips CSS extraction if css option is false/undefined', () => {
     const plugin = auwla();
@@ -48,9 +58,7 @@ describe('auwla vite plugin - css extraction', () => {
     expect(resolveHook.call({} as any, 'virtual:auwla.css', '', {})).toBe('\0virtual:auwla.css');
     expect(resolveHook.call({} as any, '\0virtual:auwla.css', '', {})).toBe('\0virtual:auwla.css');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css');
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.pt_16px { padding-top: 16px; }');
   });
 
@@ -96,9 +104,7 @@ describe('auwla vite plugin - css extraction', () => {
 
     transform(plugin, code, '/project/src/Card.tsx');
     
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     
     const baseIdx = cssContent.indexOf('.pt_16px { padding-top: 16px; }');
     const mediaIdx = cssContent.indexOf('@media (min-width: 768px)');
@@ -127,9 +133,7 @@ describe('auwla vite plugin - css extraction', () => {
     `;
     transform(plugin, code2, '/project/src/Card.tsx');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
 
     expect(cssContent).toContain('.pt_24px { padding-top: 24px; }');
     expect(cssContent).not.toContain('.pt_16px { padding-top: 16px; }');
@@ -152,9 +156,7 @@ describe('auwla vite plugin - css extraction', () => {
     expect(codeStr).toContain('pt_1rem');
     expect(codeStr).not.toContain('style=');
     
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.pt_1rem { padding-top: 1rem; }');
     expect(cssContent).toContain('color: #3b82f6;');
   });
@@ -177,9 +179,7 @@ describe('auwla vite plugin - css extraction', () => {
 
     transform(plugin, code, path.resolve(__dirname, '../compiler/Card.tsx'));
     
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     
     expect(cssContent).toContain('background: #5aa2ff;');
     expect(cssContent).toContain('padding-left: calc(1rem + 4px)');
@@ -200,9 +200,7 @@ describe('auwla vite plugin - css extraction', () => {
     `;
     transform(plugin, code, path.resolve(__dirname, '../compiler/Card.tsx'));
     
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    let cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    let cssContent = loadCSS(plugin);
     expect(cssContent).toContain('color: #3b82f6;');
 
     // 2. Change mock-theme.ts on disk to a different color, but do not trigger HMR yet
@@ -213,7 +211,7 @@ describe('auwla vite plugin - css extraction', () => {
     try {
       // 3. Transform again - should still use cached color (#3b82f6)
       transform(plugin, code, path.resolve(__dirname, '../compiler/Card.tsx'));
-      cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+      cssContent = loadCSS(plugin);
       expect(cssContent).toContain('color: #3b82f6;');
 
       // 4. Trigger HMR on the theme file
@@ -223,7 +221,7 @@ describe('auwla vite plugin - css extraction', () => {
 
       // 5. Transform again - should now use the updated color (#ff0000)
       transform(plugin, code, path.resolve(__dirname, '../compiler/Card.tsx'));
-      cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+      cssContent = loadCSS(plugin);
       expect(cssContent).toContain('color: #ff0000;');
     } finally {
       // 6. Restore original theme file
@@ -255,9 +253,7 @@ describe('auwla vite plugin - css extraction', () => {
     const codeStrClassName = resultClassName && 'code' in resultClassName ? resultClassName.code : '';
     expect(codeStrClassName).toContain('__setClass(el0, `btn ${props.active ? "text_white" : ""}`)');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.bg_blue { background: blue; }');
     expect(cssContent).toContain('.bg_gray { background: gray; }');
     expect(cssContent).toContain('.text_white { color: white; }');
@@ -309,9 +305,7 @@ describe('auwla vite plugin - css extraction', () => {
     expect(codeStr).toContain('hover:text_var_-hover-color');
     expect(codeStr).toContain('__setStyle(el0, "--hover-color", props.hoverColor);');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     
     expect(cssContent).toContain('.hover\\:text_var_-hover-color:hover { color: var(--hover-color); }');
   });
@@ -332,9 +326,7 @@ describe('auwla vite plugin - css extraction', () => {
     const codeStr = result && 'code' in result ? result.code : '';
     expect(codeStr).toContain('styles = "pt_16px pr_16px pb_16px pl_16px bg_blue"');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.pt_16px { padding-top: 16px; }');
   });
 
@@ -358,9 +350,7 @@ describe('auwla vite plugin - css extraction', () => {
     expect(codeStr).toContain('"size=sm"');
     expect(codeStr).toContain('"pt_8px pr_8px pb_8px pl_8px rounded-tl_8px rounded-tr_8px rounded-br_8px rounded-bl_8px"');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.pt_8px { padding-top: 8px; }');
     expect(cssContent).toContain('.pt_24px { padding-top: 24px; }');
   });
@@ -449,9 +439,7 @@ describe('auwla vite plugin - css extraction', () => {
     expect(codeStr).toContain('"active=true"');
     expect(codeStr).toContain('"bg_0000ff"');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.pt_16px { padding-top: 16px; }');
     expect(cssContent).toContain('.text_ff0000 { color: #ff0000; }');
     expect(cssContent).toContain('.bg_0000ff { background: #0000ff; }');
@@ -499,9 +487,7 @@ describe('auwla vite plugin - css extraction', () => {
     expect(codeStr).toContain('styles = "text_');
     expect(codeStr).toContain('bg_');
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     expect(cssContent).toContain('.text_');
     expect(cssContent).toContain('.bg_');
   });
@@ -525,9 +511,7 @@ describe('auwla vite plugin - css extraction', () => {
 
     transform(plugin, code, path.resolve(__dirname, 'NestedMediaCard.tsx'));
 
-    const loadHook = plugin.load;
-    if (typeof loadHook !== 'function') throw new Error('Expected load function hook');
-    const cssContent = loadHook.call({} as any, '\0virtual:auwla.css') || '';
+    const cssContent = loadCSS(plugin);
     
     expect(cssContent).toContain('@media ((min-width: 500px) and (max-width: 800px))');
     expect(cssContent).toContain('color: red;');
