@@ -41,7 +41,10 @@ export interface ServerRouteInfo {
  *   - src/pages/posts/[...slug].server.ts → { slug: string[] }
  *   - src/pages/posts/index.server.ts → {}
  */
-export interface ServerContext<Params = Record<string, string | string[]>> {
+export interface ServerContext<
+  Params = Record<string, string | string[]>,
+  Platform = Record<string, any>
+> {
   /** The incoming request. */
   request: Request
   /** Typed route params. */
@@ -59,6 +62,8 @@ export interface ServerContext<Params = Record<string, string | string[]>> {
    * Parse the request body as JSON or FormData depending on the Content-Type.
    */
   parseBody(): Promise<unknown>
+  /** Native platform-specific context (e.g. Hono's Context c) */
+  platform?: Platform
 }
 
 /**
@@ -66,8 +71,11 @@ export interface ServerContext<Params = Record<string, string | string[]>> {
  * modify ctx.locals, short-circuit with a redirect/error, or call next()
  * to continue to the next middleware/handler.
  */
-export type Middleware<TParams = Record<string, string | string[]>> = (
-  ctx: ServerContext<TParams>,
+export type Middleware<
+  TParams = Record<string, string | string[]>,
+  TPlatform = Record<string, any>
+> = (
+  ctx: ServerContext<TParams, TPlatform>,
   next: () => Promise<unknown>,
 ) => Promise<unknown>
 
@@ -80,11 +88,12 @@ export interface RemoteFunction<
   TReturn = unknown,
   TMethod extends RemoteMethod = RemoteMethod,
   TParams = Record<string, string | string[]>,
+  TPlatform = Record<string, any>,
 > {
   __auwla_remote: true
   method: TMethod
-  middleware: Middleware<TParams>[]
-  handler: (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>
+  middleware: Middleware<TParams, TPlatform>[]
+  handler: (ctx: ServerContext<TParams, TPlatform>, ...args: TArgs) => Promise<TReturn>
 }
 
 /**

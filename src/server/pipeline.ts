@@ -26,8 +26,15 @@ export async function runMiddleware(
   handler: () => Promise<unknown>,
 ): Promise<unknown> {
   let index = 0
+  let lastCalledIndex = -1
 
   async function next(): Promise<unknown> {
+    const currentIndex = index
+    if (currentIndex <= lastCalledIndex) {
+      throw new Error('Auwla: next() called multiple times in middleware chain.')
+    }
+    lastCalledIndex = currentIndex
+
     if (index >= middleware.length) {
       return handler()
     }

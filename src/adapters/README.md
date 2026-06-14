@@ -59,3 +59,21 @@ instead of WinterCG `Request`/`Response`, and the request stream is usually
 consumed by body-parser before the adapter can read the raw body. A shim
 adapter will be added later; for now use `createFetchAdapter` or
 `createHonoAdapter`.
+
+## Platform Context Injection
+
+To prevent reinventing security, session management, or rate limiting inside Auwla, the framework adapters expose native platform parameters under `ctx.platform` inside remote handlers.
+
+When mounting the adapter, it automatically injects:
+- **Hono**: `ctx.platform.hono` contains the full Hono Context (`c`).
+- **Bun**: `ctx.platform.bun` contains `{ request }`.
+- **Vite (Dev mode)**: `ctx.platform.vite` contains `{ server, req, res }`.
+
+Example: Accessing a session user set by Hono Auth middleware:
+```ts
+export const getDashboard = remote.get([], async (ctx) => {
+  const user = ctx.platform?.hono?.get('user')
+  if (!user) throw new Error('Unauthorized')
+  return { stats: getStatsForUser(user.id) }
+})
+```

@@ -249,9 +249,8 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       // adapter is run inside the user's Bun/Node server.
       // -----------------------------------------------------------------------
       server.middlewares.use('/_auwla/rpc', async (req, res, next) => {
-        // Connect strips the mount path from req.url, so a POST to /_auwla/rpc
-        // appears here as req.url === '/'.
-        if (req.method !== 'POST' || req.url !== '/') {
+        const url = new URL(req.url ?? '/', `http://${req.headers.host || 'localhost'}`)
+        if (req.method !== 'POST' || url.pathname !== '/') {
           return next()
         }
 
@@ -266,7 +265,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
             load: (modulePath) => server.ssrLoadModule(modulePath),
           })
           const request = await nodeRequestToRequest(req)
-          const response = await adapter(request)
+          const response = await adapter(request, { vite: { server, req, res } })
 
           if (!response) {
             return next()

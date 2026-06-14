@@ -18,8 +18,6 @@ const schema: StandardSchema = {
 
 export default function NewPostPage() {
   const create = track.form('posts.createPost', { schema })
-
-
   return () => {
     if (create.resolved && create.value?.id) {
       navigate(`/posts/:id`, { id: create.value.id })

@@ -145,3 +145,19 @@ You never edit it by hand. In development it is served as the virtual module
 4. Adapter extracts params from `routePath` using the entry's `routePattern`.
 5. Adapter builds `ServerContext`, runs middleware, and calls the function.
 6. Result is serialized as JSON and returned.
+
+## Security & Reliability Safeguards
+
+Auwla includes built-in security features to protect fullstack entrypoints:
+
+### CSRF Protection
+Auwla verifies `Origin` and `Referer` headers on all incoming POST requests (mutations) to block Cross-Site Request Forgery. Programmatic background fetches also supply an explicit `accept: application/json` header to strictly segment RPC traffic from standard navigation form posts.
+
+### Prototype Pollution Protection
+The manifest lookup utilizes `Object.hasOwn` rather than direct object indexing, preventing attackers from accessing prototype properties (like `__proto__` or `constructor`) and crashing the server process.
+
+### Error Sanitization
+In production (`process.env.NODE_ENV === 'production'`), generic runtime exceptions are sanitized to return `'Internal Server Error'` to prevent exposing internal stack traces, DB connection strings, or system paths. Validation errors (`ValidationError`) are still cleanly sent to the browser for client feedback.
+
+### Middleware Double-Invocation Guard
+To protect against state-corruption or duplicate mutation triggers, calling `next()` twice in the same middleware function will immediately throw a runtime error.

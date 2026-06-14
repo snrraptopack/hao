@@ -58,7 +58,10 @@ function buildRequest(
   const payload: RpcPayload = { key, args, routePath }
   return {
     body: JSON.stringify(payload),
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'accept': 'application/json',
+    },
   }
 }
 

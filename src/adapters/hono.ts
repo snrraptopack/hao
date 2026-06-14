@@ -37,7 +37,7 @@ export function createHonoAdapter(options: HonoAdapterOptions): HonoMiddlewareHa
   const handle = createFetchAdapter(options)
 
   return async function auwlaHonoMiddleware(c) {
-    const response = await handle(c.req.raw)
+    const response = await handle(c.req.raw, { hono: c })
     if (response) return response
     return c.next()
   }

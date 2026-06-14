@@ -172,6 +172,7 @@ function createContext(
   entry: ServerManifestEntry,
   params: Record<string, string | string[]>,
   args: unknown[],
+  platform?: Record<string, unknown>,
 ): ServerContext {
   const req = buildMiddlewareRequest(request, args)
   return {
@@ -188,6 +189,7 @@ function createContext(
     parseBody() {
       return parseBody(req)
     },
+    platform,
   }
 }
 
@@ -229,12 +231,18 @@ function serialize(result: unknown): Response {
 function errorResponse(error: unknown): Response {
   if (error instanceof Response) return error
 
-  const status = error instanceof ValidationError ? 400 : 500
-  const message = error instanceof Error ? error.message : String(error)
+  const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+  const isValidation = error instanceof ValidationError
+  const status = isValidation ? 400 : 500
+
+  const message = (isValidation || !isProd)
+    ? (error instanceof Error ? error.message : String(error))
+    : 'Internal Server Error'
+
   const payload = {
     message,
-    name: error instanceof Error ? error.name : 'Error',
-    issues: error instanceof ValidationError ? error.issues : undefined,
+    name: (isValidation || !isProd) ? (error instanceof Error ? error.name : 'Error') : 'Error',
+    issues: isValidation ? error.issues : undefined,
   }
 
   return new Response(JSON.stringify(payload), {
@@ -260,11 +268,32 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
   const rpcPath = options.rpcPath ?? DEFAULT_RPC_PATH
   const onError = options.onError
 
-  return async function handle(request: Request): Promise<Response | undefined> {
+  return async function handle(
+    request: Request,
+    platform?: Record<string, unknown>,
+  ): Promise<Response | undefined> {
     const url = new URL(request.url)
     if (url.pathname !== rpcPath) return undefined
     if (request.method !== 'POST') {
       return new Response('Method not allowed', { status: 405 })
+    }
+
+    // CSRF check: verify Origin and Referer for mutations/POST calls
+    const origin = request.headers.get('origin')
+    const referer = request.headers.get('referer')
+    const requestOrigin = new URL(request.url, 'http://localhost').origin
+
+    if (origin && origin !== requestOrigin) {
+      return errorResponse(new Error('CSRF Blocked: Origin mismatch'))
+    } else if (!origin && referer) {
+      try {
+        const refererOrigin = new URL(referer).origin
+        if (refererOrigin !== requestOrigin) {
+          return errorResponse(new Error('CSRF Blocked: Referer mismatch'))
+        }
+      } catch {
+        // Ignore parsing issues, but if it successfully parsed ensure origin matches
+      }
     }
 
     let payload: ParsedRpc
@@ -275,10 +304,11 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
       return errorResponse(error)
     }
 
-    const entry = manifest[payload.key]
-    if (!entry) {
+    // Prototype Pollution Guard: enforce direct properties only
+    if (!payload.key || !Object.hasOwn(manifest, payload.key)) {
       return errorResponse(new Error(`Remote key not found: ${payload.key}`))
     }
+    const entry = manifest[payload.key]!
 
     const params = extractRouteParams(entry.routePattern, payload.routePath, entry.params)
     if (params === null) {
@@ -295,9 +325,13 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
       return errorResponse(error)
     }
 
-    const ctx = createContext(request, entry, params, payload.args)
+    const ctx = createContext(request, entry, params, payload.args, platform)
+    const contentType = request.headers.get('content-type') ?? ''
     const accept = request.headers.get('accept') ?? ''
-    const isFetch = accept.includes('application/json') || request.headers.get('x-requested-with') === 'XMLHttpRequest'
+    const isFetch =
+      contentType.includes('application/json') ||
+      accept.includes('application/json') ||
+      request.headers.get('x-requested-with') === 'XMLHttpRequest'
 
     try {
       const result = await runWithContext(ctx, () =>
