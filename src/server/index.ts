@@ -5,7 +5,7 @@
 export { getContext, getParams, runWithContext } from './context'
 export { defineMiddleware, runMiddleware } from './pipeline'
 export { remote } from './remote'
-export { validate, ValidationError } from './validate'
+export { validate, ValidationError, parseBody } from './validate'
 export type {StandardSchema,StandardSchemaIssue} from "./validate"
 export type {
   Locals,

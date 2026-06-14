@@ -1,5 +1,8 @@
-import { remote, defineMiddleware } from 'auwla/server'
+import { remote, defineMiddleware, validate } from 'auwla/server'
+import type { StandardSchema } from 'auwla/server'
 import { getUserById } from './db.server'
+
+console.log('DEBUG: validate function is:', typeof validate, validate)
 
 export type SessionUser = { id: string; name: string; role: 'admin' | 'user' }
 
@@ -70,12 +73,26 @@ export const me = remote.get([sessionMiddleware], async (ctx) => {
   return ((ctx.locals.user as SessionUser | undefined) ?? null) as { id: string; name: string; role: 'admin' | 'user' } | null
 })
 
+const loginSchema: StandardSchema = {
+  '~standard': {
+    validate: (value: unknown) => {
+      const v = value as Record<string, unknown>
+      if (typeof v.username === 'string' && v.username.trim().length > 0) {
+        return { value: { username: v.username.trim() } }
+      }
+      return { issues: [{ message: 'username is required' }] }
+    },
+  },
+}
+
+console.log('DEBUG: validate(loginSchema) returned:', typeof validate(loginSchema), validate(loginSchema))
+
 /**
  * Signs in a demo user and sets the session cookie.
  * In a real app this would verify a password hash.
  */
-export const login = remote.post(async (ctx) => {
-  const body = (await ctx.request.json()) as { username?: string }
+export const login = remote.post([validate(loginSchema)], async (ctx) => {
+  const body = ctx.locals.input as { username?: string }
   const user = getUserById(body.username === 'admin' ? 'u1' : 'u2')
   if (!user) throw new Error('Invalid credentials')
 

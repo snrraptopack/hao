@@ -24,7 +24,7 @@ function formDataToObject(form: FormData): Record<string, unknown> {
   return obj
 }
 
-async function parseBody(request: Request): Promise<unknown> {
+export async function parseBody(request: Request): Promise<unknown> {
   const contentType = request.headers.get('content-type') ?? ''
   if (contentType.startsWith('multipart/form-data')) {
     return formDataToObject(await request.formData())

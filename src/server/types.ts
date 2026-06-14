@@ -55,6 +55,10 @@ export interface ServerContext<Params = Record<string, string | string[]>> {
    * recommended way to redirect from inside a remote function.
    */
   redirect(path: string): Response
+  /**
+   * Parse the request body as JSON or FormData depending on the Content-Type.
+   */
+  parseBody(): Promise<unknown>
 }
 
 /**

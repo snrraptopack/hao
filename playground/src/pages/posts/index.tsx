@@ -25,6 +25,8 @@ export default function PostsPage() {
   const me = track.get('auth.me')
   const create = track.form('posts.createPost', { schema })
 
+  console.log(create,"createPost")
+
   if (loader?.pending) return <div class="page">Loading posts…</div>
   if (loader?.rejected) return <div class="page error">Error: {String(loader.reason)}</div>
 

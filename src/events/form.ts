@@ -45,6 +45,16 @@ function formDataToObject(form: FormData): Record<string, unknown> {
   return obj
 }
 
+function hasFiles(form: FormData): boolean {
+  let found = false
+  form.forEach((value) => {
+    if (typeof value !== 'string') {
+      found = true
+    }
+  })
+  return found
+}
+
 function validateClientSide(
   schema: StandardSchema | undefined,
   args: unknown[],
@@ -93,8 +103,13 @@ export function trackForm<K extends PostKeys>(
       throw error
     }
 
+    let finalArgs = args
+    if (args.length === 1 && args[0] instanceof FormData && !hasFiles(args[0])) {
+      finalArgs = [formDataToObject(args[0])]
+    }
+
     try {
-      return await originalRun(...args)
+      return await originalRun(...finalArgs)
     } catch (err) {
       errorCell.set(err instanceof Error ? err : new Error(String(err)))
       throw err

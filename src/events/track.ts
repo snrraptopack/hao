@@ -63,6 +63,7 @@ type TrackState = {
   reason: unknown;
   controller: AbortController | null;
   promise: Promise<unknown> | null;
+  stale?: boolean;
 };
 
 /** Global track registry keyed by `${componentId}::${name}`. */
@@ -276,22 +277,29 @@ function runAsyncTrack(
  * during a render pass automatically subscribes the component — no manual
  * `commit()` calls needed.
  */
-function trackImpl(name: string, promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
-function trackImpl(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions): TrackHandle;
-function trackImpl(promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+function trackImpl(name: string, promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+function trackImpl(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+function trackImpl(promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
 function trackImpl(
   nameOrPromise: string | Promise<unknown>,
   maybePromiseOrFnOrOptions?: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>) | TrackOptions,
-  maybeOptions?: TrackOptions,
+  maybeOptionsOrIsGlobal?: TrackOptions | boolean,
+  isGlobalArg?: boolean,
 ): TrackHandle {
   let options: TrackOptions | undefined;
   let maybePromiseOrFn: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>) | undefined;
+  let isGlobal = isGlobalArg ?? false;
 
   if (typeof nameOrPromise !== 'string') {
     options = maybePromiseOrFnOrOptions as TrackOptions | undefined;
+    if (typeof maybeOptionsOrIsGlobal === 'boolean') {
+      isGlobal = maybeOptionsOrIsGlobal;
+    }
   } else {
     maybePromiseOrFn = maybePromiseOrFnOrOptions as any;
-    options = maybeOptions;
+    if (typeof maybeOptionsOrIsGlobal === 'object') {
+      options = maybeOptionsOrIsGlobal;
+    }
   }
 
   // Overload: track(promise) — anonymous, auto-generated name
@@ -317,13 +325,47 @@ function trackImpl(
   }
 
   const name = nameOrPromise;
-  const cid = getComponentId();
+  const cid = isGlobal ? '__global' : getComponentId();
   const key = makeKey(name, cid);
-  if (cid) registerForComponent(cid, name);
+  if (cid && cid !== '__global') registerForComponent(cid, name);
 
   // Overload: track(name, promise)
   if (maybePromiseOrFn && typeof maybePromiseOrFn === 'object' && 'then' in maybePromiseOrFn) {
     const state = getOrCreate(key);
+
+    if (isGlobal) {
+      // 1. Deduplicate concurrent in-flight requests
+      if (state.statusCell.get() === 'pending' && state.promise) {
+        return createHandle(key, state.promise);
+      }
+
+      // 2. Stale-While-Revalidate: return cached instantly, sync in background
+      if (state.statusCell.get() === 'resolved' && !state.stale) {
+        const existingPromise = state.promise!;
+        const newPromise = maybePromiseOrFn as Promise<unknown>;
+
+        newPromise.then(
+          (value) => {
+            // Only update and trigger re-render if the value changed
+            if (JSON.stringify(state.value) !== JSON.stringify(value)) {
+              applyTransition(key, 'resolved', value, undefined, options);
+            }
+            state.promise = Promise.resolve(value);
+          },
+          (reason) => {
+            console.error(`Background sync failed for query "${name}":`, reason);
+          }
+        );
+
+        return createHandle(key, existingPromise);
+      }
+
+      // If the cache was marked as stale, clear the flag and fall through to trigger a fresh request
+      if (state.stale) {
+        state.stale = false;
+      }
+    }
+
     if (state.controller) {
       state.controller.abort();
       state.controller = null;
@@ -422,7 +464,7 @@ export function cancel(name?: string): void {
 // Fullstack remote functions
 // -----------------------------------------------------------------------------
 
-export type TrackRemoteOptions = {
+export type TrackRemoteOptions = TrackOptions & {
   signal?: AbortSignal;
   /** Override the route path used to extract server params. Defaults to the current browser URL. */
   routePath?: string;
@@ -478,7 +520,16 @@ function trackGet<K extends GetKeys>(
   const promise = rpcCall(key, [], routePath, options) as Promise<
     ServerManifestTypes[K]['return']
   >;
-  return trackImpl(`remote:${key}`, promise) as TrackHandle<ServerManifestTypes[K]['return']>;
+  return trackImpl(`remote:${key}`, promise, options, true) as TrackHandle<ServerManifestTypes[K]['return']>;
+}
+
+/** Invalidate all cached global queries by marking them as stale. */
+function invalidateQueryCache(): void {
+  for (const [key, state] of registry.entries()) {
+    if (key.startsWith('__global::remote:')) {
+      state.stale = true;
+    }
+  }
 }
 
 function createCommandHandle<TArgs extends unknown[], TReturn>(
@@ -512,6 +563,11 @@ function createCommandHandle<TArgs extends unknown[], TReturn>(
       const promise = rpcCall(key, args, getCurrentRoutePath()) as Promise<TReturn>;
       const handle = trackImpl(`remote:${key}`, promise) as TrackHandle<TReturn>;
       resultCell.set(handle);
+      
+      promise.then(() => {
+        invalidateQueryCache();
+      });
+
       return promise;
     },
     refresh(): void {

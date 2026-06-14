@@ -17,7 +17,7 @@ import type { ServerContext, ServerManifest, ServerManifestEntry } from '../serv
 import { runWithContext } from '../server/context'
 import { runMiddleware } from '../server/pipeline'
 import type { RemoteFunction } from '../server/types'
-import { ValidationError } from '../server/validate'
+import { ValidationError, parseBody } from '../server/validate'
 
 const DEFAULT_RPC_PATH = '/_auwla/rpc'
 
@@ -169,8 +169,9 @@ function createContext(
   params: Record<string, string | string[]>,
   args: unknown[],
 ): ServerContext {
+  const req = buildMiddlewareRequest(request, args)
   return {
-    request: buildMiddlewareRequest(request, args),
+    request: req,
     params,
     route: {
       path: entry.routePattern || request.url,
@@ -179,6 +180,9 @@ function createContext(
     locals: {},
     redirect(path: string) {
       return new Response(null, { status: 302, headers: { location: path } })
+    },
+    parseBody() {
+      return parseBody(req)
     },
   }
 }

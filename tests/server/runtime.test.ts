@@ -20,12 +20,14 @@ function makeRequest(body?: unknown): Request {
 }
 
 function makeContext(params: Record<string, string> = {}): ServerContext {
+  const request = makeRequest()
   return {
-    request: makeRequest(),
+    request,
     params,
     route: { path: '/test', params },
     locals: {},
     redirect: (path: string) => new Response(null, { status: 302, headers: { location: path } }),
+    parseBody: () => request.json(),
   }
 }
 
