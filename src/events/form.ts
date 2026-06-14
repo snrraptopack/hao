@@ -12,6 +12,7 @@ import type { CommandHandle } from './track'
 import type { StandardSchema } from '../shared/standard-schema'
 import { ValidationError } from '../shared/validation-error'
 import type { ServerManifestTypes } from 'auwla/server-manifest'
+import type { RemoteFunction } from '../server/types'
 import { getCurrentRoutePath } from '../client/rpc'
 
 export type FormOptions = {
@@ -92,11 +93,24 @@ function validateClientSide(
 export function trackForm<K extends PostKeys>(
   key: K,
   options?: FormOptions,
-): FormHandle<ServerManifestTypes[K]['args'], ServerManifestTypes[K]['return']> {
-  const command = track.post(key) as CommandHandle<
-    ServerManifestTypes[K]['args'],
-    ServerManifestTypes[K]['return']
-  >
+): FormHandle<ServerManifestTypes[K]['args'], ServerManifestTypes[K]['return']>;
+export function trackForm<TArgs extends unknown[], TReturn>(
+  fn: RemoteFunction<TArgs, TReturn, any, any, any>,
+  options?: FormOptions,
+): FormHandle<TArgs, TReturn>;
+export function trackForm<TArgs extends unknown[], TReturn>(
+  fn: (...args: TArgs) => Promise<TReturn>,
+  options?: FormOptions,
+): FormHandle<TArgs, TReturn>;
+export function trackForm(
+  keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
+  options?: FormOptions,
+): FormHandle<any[], any> {
+  const key = typeof keyOrFn === 'function' ? (keyOrFn as any).__auwla_key : keyOrFn
+  if (typeof key !== 'string') {
+    throw new Error('Auwla: track.form expects a manifest key string or an imported server function reference.')
+  }
+  const command = track.post(key) as CommandHandle<any[], any>
   const originalRun = command.run as (...args: unknown[]) => Promise<unknown>
   const errorCell = reactive<ValidationError | Error | null>(null)
 
@@ -151,7 +165,7 @@ export function trackForm<K extends PostKeys>(
   })
 
   return Object.assign(command, {
-    run: run as FormHandle<ServerManifestTypes[K]['args'], ServerManifestTypes[K]['return']>['run'],
+    run: run as any,
     onSubmit,
-  }) as FormHandle<ServerManifestTypes[K]['args'], ServerManifestTypes[K]['return']>
+  }) as any
 }

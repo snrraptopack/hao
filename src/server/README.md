@@ -123,6 +123,34 @@ Route params are typed based on the file path:
 | `posts/[id].server.ts` | `{ id: string }` |
 | `posts/[...slug].server.ts` | `{ slug: string[] }` |
 
+## Internal Server Modules vs. Public RPC Endpoints
+
+To keep your server architecture secure and clean, you should distinguish between files that define public RPC API endpoints and files that initialize internal server resources (like databases or third-party email clients).
+
+### The Convention
+- **Use `*.server.ts`** ONLY for files that define public remote functions (`remote.get` / `remote.post`) that the browser client is allowed to call.
+- **Use plain `*.ts`** for files that configure internal server resources (like `src/server/db.ts` or `src/server/email.ts`). These are never scanned by Auwla, keeping their exports private to the server.
+
+### Example Architecture
+
+1. **Internal Server Resource (`src/server/db.ts`):**
+```ts
+import { PrismaClient } from '@prisma/client'
+// Not scanned for RPC, completely private to the server
+export const db = new PrismaClient()
+```
+
+2. **Public RPC Action (`src/pages/posts/index.server.ts`):**
+```ts
+import { remote } from 'auwla/server'
+import { db } from '../../server/db' // Import internal resource
+
+// Scanned and exposed as a public RPC endpoint
+export const getPosts = remote.get([], async () => {
+  return db.post.findMany()
+})
+```
+
 ## Server manifest
 
 The server manifest is the bridge between the client and the server. The Vite

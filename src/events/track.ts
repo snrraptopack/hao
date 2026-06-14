@@ -25,6 +25,7 @@ import { flushSync } from '../runtime/app';
 import { rpcCall, getCurrentRoutePath } from '../client/rpc';
 import { trackForm } from './form';
 import type { ServerManifestTypes } from 'auwla/server-manifest';
+import type { RemoteFunction } from '../server/types';
 
 export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
 
@@ -517,12 +518,26 @@ export type CommandHandle<TArgs extends unknown[] = unknown[], TReturn = unknown
 function trackGet<K extends GetKeys>(
   key: K,
   options?: TrackRemoteOptions,
-): TrackHandle<ServerManifestTypes[K]['return']> {
+): TrackHandle<ServerManifestTypes[K]['return']>;
+function trackGet<TReturn>(
+  fn: RemoteFunction<any[], TReturn, any, any, any>,
+  options?: TrackRemoteOptions,
+): TrackHandle<TReturn>;
+function trackGet<TReturn>(
+  fn: (...args: any[]) => Promise<TReturn>,
+  options?: TrackRemoteOptions,
+): TrackHandle<TReturn>;
+function trackGet(
+  keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
+  options?: TrackRemoteOptions,
+): TrackHandle<any> {
+  const key = typeof keyOrFn === 'function' ? (keyOrFn as any).__auwla_key : keyOrFn;
+  if (typeof key !== 'string') {
+    throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
+  }
   const routePath = options?.routePath ?? getCurrentRoutePath();
-  const promise = rpcCall(key, [], routePath, options) as Promise<
-    ServerManifestTypes[K]['return']
-  >;
-  return trackImpl(`remote:${key}`, promise, options, true) as TrackHandle<ServerManifestTypes[K]['return']>;
+  const promise = rpcCall(key, [], routePath, options);
+  return trackImpl(`remote:${key}`, promise, options, true) as any;
 }
 
 /** Invalidate all cached global queries by marking them as stale. */
@@ -586,11 +601,24 @@ function trackPost<K extends PostKeys>(
 ): CommandHandle<
   ServerManifestTypes[K]['args'],
   ServerManifestTypes[K]['return']
-> {
-  return createCommandHandle<
-    ServerManifestTypes[K]['args'],
-    ServerManifestTypes[K]['return']
-  >(key);
+>;
+function trackPost<TArgs extends unknown[], TReturn>(
+  fn: RemoteFunction<TArgs, TReturn, any, any, any>,
+): CommandHandle<TArgs, TReturn>;
+function trackPost<TArgs extends unknown[], TReturn>(
+  fn: (...args: TArgs) => Promise<TReturn>,
+): CommandHandle<TArgs, TReturn>;
+function trackPost(
+  key: string,
+): CommandHandle<any[], any>;
+function trackPost(
+  keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
+): CommandHandle<any[], any> {
+  const key = typeof keyOrFn === 'function' ? (keyOrFn as any).__auwla_key : keyOrFn;
+  if (typeof key !== 'string') {
+    throw new Error('Auwla: track.post expects a key string or an imported server function reference.');
+  }
+  return createCommandHandle(key);
 }
 
 /**

@@ -20,12 +20,13 @@
  */
 
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs'
-import { resolve, dirname, basename } from 'node:path'
+import { resolve, dirname, basename, relative } from 'node:path'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
+import * as ts from 'typescript'
 import type { AuwlaRouterOptions } from './types'
 import { scanPagesAndLayouts, buildDirectoryTree } from './scanner'
 import { generateVirtualModule, generateLazyVirtualModule, generateVirtualModuleWithLayouts, generateTypeFile } from './codegen'
-import { scanServerModules, SERVER_EXTENSIONS } from './server-scanner'
+import { scanServerModules, SERVER_EXTENSIONS, filePathToRouteName, filePathToServerRouteName } from './server-scanner'
 import { buildServerManifest, writeServerManifest } from './manifest'
 import type { ServerManifest } from '../server/types'
 
@@ -139,9 +140,28 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
     load(id: string): string | null {
       // Prevent server-only files from ever entering the client bundle.
-      // Returning an empty module keeps imports from throwing at runtime.
+      // Generate lightweight client-side proxy stubs instead of server logic.
       if (this.environment?.name === 'client' && isServerFile(id)) {
-        return 'export {};'
+        const normId = id.replace(/\\/g, '/')
+        const normPages = resolvedPagesDir.replace(/\\/g, '/')
+        const isPages = normId.startsWith(normPages)
+
+        const rootDir = isPages ? resolvedPagesDir : resolvedServerDir
+        const relativePath = relative(rootDir, id).replace(/\\/g, '/')
+
+        const routeName = isPages
+          ? filePathToRouteName(relativePath)
+          : filePathToServerRouteName(relativePath)
+
+        const exports = parseServerExports(id)
+
+        let code = `import { rpcCall } from 'auwla/client';\n`
+        for (const name of exports) {
+          const key = `${routeName}.${name}`
+          code += `export const ${name} = (...args) => rpcCall('${key}', args);\n`
+          code += `${name}.__auwla_key = '${key}';\n`
+        }
+        return code
       }
 
       // Server manifest virtual module.
@@ -408,4 +428,35 @@ function isPageFile(
     normFile.startsWith(normPagesDir) &&
     extensions.some((ext) => normFile.endsWith(ext))
   )
+}
+
+/**
+ * Scan a server module file for named exports.
+ */
+function parseServerExports(filePath: string): string[] {
+  const content = readFileSync(filePath, 'utf-8')
+  const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true)
+  const exports: string[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isExportDeclaration(statement)) {
+      if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        for (const element of statement.exportClause.elements) {
+          exports.push(element.name.text)
+        }
+      }
+    } else if ((ts.getCombinedModifierFlags(statement as any) & ts.ModifierFlags.Export) !== 0) {
+      if (ts.isFunctionDeclaration(statement) && statement.name) {
+        exports.push(statement.name.text)
+      } else if (ts.isVariableStatement(statement)) {
+        for (const decl of statement.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name)) {
+            exports.push(decl.name.text)
+          }
+        }
+      }
+    }
+  }
+
+  return exports
 }

@@ -1,6 +1,7 @@
 import { getParams, getRouted, Link, navigate, type RouteContext } from 'auwla/router'
 import { track } from 'auwla/events'
 import type { StandardSchema } from 'auwla/server'
+import {getPost} from "./[id].server"
 
 const updateSchema: StandardSchema = {
   '~standard': {
@@ -17,7 +18,7 @@ const updateSchema: StandardSchema = {
 }
 
 export async function routed(ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) {
-  return await track.get('posts.getPost', { signal })
+  return await track.get(getPost, { signal })
 }
 
 export default function PostPage() {
