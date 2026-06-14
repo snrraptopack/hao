@@ -87,7 +87,11 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
           // render cycle wrapper. This prevents the Link from unnecessarily re-rendering
           // on hover, which would otherwise rip the DOM node out mid-click.
           el.addEventListener("mouseenter", () => {
-            if (prefetch) prefetchRoute(actualUrl)
+            // Compute the URL lazily inside the event listener so the compiler does
+            // not need to hoist `actualUrl` into the setup closure.
+            if (prefetch) {
+              prefetchRoute(pathFor(href as string, props.params as any, props.query))
+            }
           }, { passive: true })
         }}
       >
