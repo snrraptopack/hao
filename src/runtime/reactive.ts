@@ -78,7 +78,7 @@ export function reactive<T>(initial: T): ReactiveCell<T> {
       // Only subscribe when inside an active render pass (activeRenderState is set)
       // and when there is a real component on the render stack (currentComponentId).
       const state = runtimeState.activeRenderState;
-      const id = currentComponentId();
+      const id = currentComponentId() ?? runtimeState.activeSetupComponentId;
       if (state && id) {
         subscribers.add({ invalidate: state.invalidate, id });
       }

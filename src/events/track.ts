@@ -186,9 +186,11 @@ function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandl
       return this.status === 'rejected';
     },
     get value(): T | undefined {
+      this.status
       return registry.get(key)?.value as T | undefined;
     },
     get reason() {
+      this.status
       return registry.get(key)?.reason;
     },
     cancel() {
@@ -563,7 +565,7 @@ function createCommandHandle<TArgs extends unknown[], TReturn>(
       const promise = rpcCall(key, args, getCurrentRoutePath()) as Promise<TReturn>;
       const handle = trackImpl(`remote:${key}`, promise) as TrackHandle<TReturn>;
       resultCell.set(handle);
-      
+
       promise.then(() => {
         invalidateQueryCache();
       });
