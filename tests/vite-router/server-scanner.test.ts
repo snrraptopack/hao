@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolve } from 'node:path'
+import * as ts from 'typescript'
 import {
   scanServerModules,
   filePathToRouteName,
@@ -7,10 +8,47 @@ import {
   filePathToRoutePattern,
   filePathToParamsType,
   filePathToParams,
-  extractServerExports,
+  extractServerExportsFromAST,
+  type ServerExport,
 } from '../../src/vite-router/server-scanner'
 
+function extractServerExports(source: string): ServerExport[] {
+  const fileName = 'temp.server.ts'
+  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true)
+
+  const compilerHost: ts.CompilerHost = {
+    fileExists: (filePath) => filePath === fileName || ts.sys.fileExists(filePath),
+    directoryExists: (dir) => ts.sys.directoryExists(dir),
+    getCurrentDirectory: () => process.cwd(),
+    getDirectories: (path) => ts.sys.getDirectories(path),
+    getCanonicalFileName: (f) => f,
+    getNewLine: () => '\n',
+    getDefaultLibFileName: (opt) => ts.getDefaultLibFilePath(opt),
+    getSourceFile: (filePath, languageVersion) => {
+      if (filePath === fileName) return sourceFile
+      return ts.sys.fileExists(filePath)
+        ? ts.createSourceFile(filePath, ts.sys.readFile(filePath) || '', languageVersion, true)
+        : undefined
+    },
+    readFile: (filePath) => (filePath === fileName ? source : ts.sys.readFile(filePath)),
+    writeFile: () => {},
+    useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
+  }
+
+  const program = ts.createProgram([fileName], {
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    allowJs: true,
+    strict: true,
+  }, compilerHost)
+  const checker = program.getTypeChecker()
+
+  return extractServerExportsFromAST(sourceFile, checker)
+}
+
 const fixturesDir = resolve(__dirname, '../router/server-fixtures')
+
 
 describe('server-scanner', () => {
   it('finds .server.ts files in pages and server dirs', () => {

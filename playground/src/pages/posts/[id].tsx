@@ -81,7 +81,7 @@ export default function PostPage() {
           </div>
           {update.error && <p class="error">{update.error.message}</p>}
           {update.resolved && <p class="success">Saved.</p>}
-          {remove.error && <p class="error">{remove.error.message}</p>}
+          {remove.rejected && <p class="error">{String(remove.reason)}</p>}
         </form>
       )}
 

@@ -6,8 +6,9 @@
  * params type, and exported remote functions discovered in the file.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import * as ts from 'typescript'
 import type { RemoteMethod } from '../server/types'
 
 /** Extensions recognised as server files. */
@@ -37,32 +38,29 @@ export interface ServerModule {
   relativePath: string
   /**
    * Dot-notation route name used as the prefix for remote keys.
-   *   src/pages/posts/index.server.ts        → "posts"
-   *   src/pages/posts/[id].server.ts         → "posts"
-   *   src/pages/posts/[id]/comments.server.ts → "posts.comments"
-   *   src/pages/about.server.ts              → "about"
-   *   src/server/auth.server.ts              → "auth"
-   *   src/server/billing/invoice.server.ts   → "billing.invoice"
    */
   routeName: string
   /**
    * URL route pattern used by the adapter to extract params.
-   *   src/pages/posts/index.server.ts        → "/posts"
-   *   src/pages/posts/[id].server.ts         → "/posts/:id"
-   *   src/pages/posts/[...slug].server.ts    → "*"
-   *   src/pages/about.server.ts              → "/about"
-   *   src/server/auth.server.ts              → ""
    */
   routePattern: string
   /**
    * Ordered param names extracted from the route pattern.
-   * Examples: ["id"], ["category", "id"], ["slug"], []
    */
   params: string[]
   /** Generated TypeScript type string for route params. */
   paramsType: string
   /** Discovered remote function exports. */
   exports: ServerExport[]
+}
+
+interface CollectedModule {
+  filePath: string
+  relativePath: string
+  routeName: string
+  routePattern: string
+  params: string[]
+  paramsType: string
 }
 
 /**
@@ -75,19 +73,41 @@ export function scanServerModules(
   pagesDir: string,
   serverDir: string | null,
 ): ServerModule[] {
-  const collected: ServerModule[] = []
+  const collected: CollectedModule[] = []
 
   if (pagesDir) collectModules(pagesDir, pagesDir, true, collected)
   if (serverDir) collectModules(serverDir, serverDir, false, collected)
 
-  return collected
+  if (collected.length === 0) return []
+
+  const filePaths = collected.map((m) => m.filePath)
+  const compilerOptions = loadCompilerOptions()
+  const program = ts.createProgram(filePaths, compilerOptions)
+  const checker = program.getTypeChecker()
+
+  const result: ServerModule[] = []
+
+  for (const item of collected) {
+    const sourceFile = program.getSourceFile(item.filePath)
+    if (!sourceFile) continue
+
+    const exports = extractServerExportsFromAST(sourceFile, checker)
+    if (exports.length === 0) continue
+
+    result.push({
+      ...item,
+      exports,
+    })
+  }
+
+  return result
 }
 
 function collectModules(
   rootDir: string,
   currentDir: string,
   isPages: boolean,
-  result: ServerModule[],
+  result: CollectedModule[],
 ): void {
   let entries: string[]
   try {
@@ -114,7 +134,6 @@ function collectModules(
     if (!ext) continue
 
     const relativePath = relative(rootDir, fullPath).replace(/\\/g, '/')
-    const source = readFileSync(fullPath, 'utf-8')
 
     const routeName = isPages
       ? filePathToRouteName(relativePath)
@@ -129,21 +148,19 @@ function collectModules(
       ? filePathToParamsType(relativePath)
       : 'Record<string, never>'
 
-    const exports = extractServerExports(source)
-    if (exports.length === 0) continue
-
-    result.push({ filePath: fullPath, relativePath, routeName, routePattern, params, paramsType, exports })
+    result.push({
+      filePath: fullPath,
+      relativePath,
+      routeName,
+      routePattern,
+      params,
+      paramsType,
+    })
   }
 }
 
 /**
  * Convert a pages-relative server file path into a dot-notation route name.
- *
- * Examples:
- *   posts/index.server.ts        → "posts"
- *   posts/[id].server.ts         → "posts"
- *   posts/[id]/comments.server.ts → "posts.comments"
- *   about.server.ts              → "about"
  */
 export function filePathToRouteName(relativePath: string): string {
   const withoutExt = relativePath.replace(/\.server\.[jt]sx?$/, '')
@@ -162,10 +179,6 @@ export function filePathToRouteName(relativePath: string): string {
 
 /**
  * Convert a server-dir-relative file path into a dot-notation route name.
- *
- * Examples:
- *   auth.server.ts             → "auth"
- *   billing/invoice.server.ts  → "billing.invoice"
  */
 export function filePathToServerRouteName(relativePath: string): string {
   const withoutExt = relativePath.replace(/\.server\.[jt]sx?$/, '')
@@ -174,14 +187,6 @@ export function filePathToServerRouteName(relativePath: string): string {
 
 /**
  * Convert a pages-relative server file path into a URL route pattern.
- *
- * Examples:
- *   index.server.ts              → "/"
- *   about.server.ts              → "/about"
- *   posts/index.server.ts        → "/posts"
- *   posts/[id].server.ts         → "/posts/:id"
- *   posts/[id]/comments.server.ts → "/posts/:id/comments"
- *   posts/[...slug].server.ts    → "*"
  */
 export function filePathToRoutePattern(relativePath: string): string {
   const withoutExt = relativePath.replace(/\.server\.[jt]sx?$/, '')
@@ -211,12 +216,6 @@ export function filePathToRoutePattern(relativePath: string): string {
 
 /**
  * Generate a TypeScript params type from a pages-relative server file path.
- *
- * Examples:
- *   posts/[id].server.ts         → "{ id: string }"
- *   posts/[...slug].server.ts    → "{ slug: string[] }"
- *   posts/[category]/[id].server.ts → "{ category: string; id: string }"
- *   posts/index.server.ts        → "Record<string, never>"
  */
 export function filePathToParamsType(relativePath: string): string {
   const withoutExt = relativePath.replace(/\.server\.[jt]sx?$/, '')
@@ -241,12 +240,6 @@ export function filePathToParamsType(relativePath: string): string {
 
 /**
  * Extract ordered param names from a pages-relative server file path.
- *
- * Examples:
- *   posts/[id].server.ts         → ["id"]
- *   posts/[...slug].server.ts    → ["slug"]
- *   posts/[category]/[id].server.ts → ["category", "id"]
- *   posts/index.server.ts        → []
  */
 export function filePathToParams(relativePath: string): string[] {
   const withoutExt = relativePath.replace(/\.server\.[jt]sx?$/, '')
@@ -269,32 +262,64 @@ export function filePathToParams(relativePath: string): string[] {
 }
 
 /**
- * Extract exported remote functions from a server file's source.
- *
- * Detection rules:
- *   - export async function name(...) → GET
- *   - export function name(...) → GET
- *   - export const name = remote.get(...) → GET
- *   - export const name = remote.post(...) → POST
- *
- * Argument and return types are extracted heuristically from the source.
- * When extraction fails, they fall back to "unknown".
+ * Loads compiler options from the nearest tsconfig.json, falling back to defaults.
  */
-export function extractServerExports(source: string): ServerExport[] {
+function loadCompilerOptions(): ts.CompilerOptions {
+  const tsconfigPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists, 'tsconfig.json')
+  if (tsconfigPath) {
+    const readResult = ts.readConfigFile(tsconfigPath, ts.sys.readFile)
+    if (!readResult.error && readResult.config) {
+      const parseResult = ts.parseJsonConfigFileContent(
+        readResult.config,
+        ts.sys,
+        process.cwd(),
+      )
+      return parseResult.options
+    }
+  }
+
+  return {
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    allowJs: true,
+    strict: true,
+  }
+}
+
+/**
+ * Parse a source file's AST using the TypeChecker to locate and resolve exports.
+ */
+export function extractServerExportsFromAST(
+  sourceFile: ts.SourceFile,
+  checker: ts.TypeChecker,
+): ServerExport[] {
   const exports: ServerExport[] = []
 
-  for (const chunk of splitExportChunks(source)) {
-    const fromFunction = parseFunctionExport(chunk)
-    if (fromFunction) {
-      exports.push(fromFunction)
-      continue
+  for (const statement of sourceFile.statements) {
+    if (!isExported(statement)) continue
+
+    // Case 1: Plain function declarations: export async function name(...)
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      const detail = parseFunctionDeclaration(statement, checker)
+      if (detail) {
+        exports.push(detail)
+      }
     }
 
-    const fromRemote = parseRemoteExport(chunk)
-    if (fromRemote) {
-      // Avoid duplicates if a function declaration was already captured.
-      if (!exports.some((e) => e.name === fromRemote.name)) {
-        exports.push(fromRemote)
+    // Case 2: Remote variable declarations: export const name = remote.get(...)
+    if (ts.isVariableStatement(statement)) {
+      for (const decl of statement.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.initializer) {
+          const name = decl.name.text
+          const remoteInfo = getRemoteMethodInfo(decl.initializer)
+          if (remoteInfo) {
+            const detail = parseRemoteCall(name, remoteInfo.method, remoteInfo.handler, checker)
+            if (detail) {
+              exports.push(detail)
+            }
+          }
+        }
       }
     }
   }
@@ -302,189 +327,109 @@ export function extractServerExports(source: string): ServerExport[] {
   return exports
 }
 
-/**
- * Split source text into individual export chunks. Each chunk starts with an
- * export keyword and ends just before the next export keyword (or EOF).
- * This prevents regexes from matching across multiple exports.
- */
-function splitExportChunks(source: string): string[] {
-  const exportRegex = /\bexport\s+(?:async\s+)?(?:const|function)\s+/g
-  const positions: number[] = []
-  let match: RegExpExecArray | null
-  while ((match = exportRegex.exec(source)) !== null) {
-    positions.push(match.index)
-  }
-  positions.push(source.length)
 
-  const chunks: string[] = []
-  for (let i = 0; i < positions.length - 1; i++) {
-    chunks.push(source.slice(positions[i], positions[i + 1]))
-  }
-  return chunks
+
+function isExported(node: ts.Node): boolean {
+  return (ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export) !== 0
 }
 
-/**
- * Parse a function declaration export chunk.
- * Supports return types that contain generic syntax and inline object types.
- */
-function parseFunctionExport(chunk: string): ServerExport | null {
-  const headMatch = chunk.match(/export\s+(?:async\s+)?function\s+(\w+)\s*\(/)
-  if (!headMatch) return null
+function getRemoteMethodInfo(
+  initializer: ts.Expression,
+): { method: RemoteMethod; handler: ts.Expression } | null {
+  if (!ts.isCallExpression(initializer)) return null
+  const expr = initializer.expression
+  if (!ts.isPropertyAccessExpression(expr)) return null
 
-  const name = headMatch[1]!
-  let idx = headMatch.index! + headMatch[0].length
+  const objText = expr.expression.getText()
+  const propText = expr.name.text
 
-  const argsResult = extractBalanced(chunk, idx, '(', ')')
-  if (!argsResult) return null
-  const argsSource = argsResult.content
-  idx = argsResult.endIdx
+  if (objText !== 'remote') return null
+  if (propText !== 'get' && propText !== 'post') return null
 
-  // Skip whitespace. Optional return type follows.
-  while (idx < chunk.length && /\s/.test(chunk[idx]!)) idx++
+  const method = propText.toUpperCase() as RemoteMethod
 
-  let returnType = 'unknown'
-  if (chunk[idx] === ':') {
-    idx++
-    while (idx < chunk.length && /\s/.test(chunk[idx]!)) idx++
-    const typeStart = idx
+  const args = initializer.arguments
+  if (args.length === 0) return null
+  const handler = args[args.length - 1]
+  if (!handler) return null
 
-    // Find the function body opening brace, ignoring braces inside <...>.
-    let angleDepth = 0
-    while (idx < chunk.length) {
-      const ch = chunk[idx]
-      if (ch === '<') {
-        angleDepth++
-      } else if (ch === '>') {
-        angleDepth--
-      } else if (ch === '{' && angleDepth === 0) {
-        break
-      }
-      idx++
-    }
+  return { method, handler }
+}
 
-    returnType = chunk.slice(typeStart, idx).trim()
+function parseFunctionDeclaration(
+  node: ts.FunctionDeclaration,
+  checker: ts.TypeChecker,
+): ServerExport | null {
+  if (!node.name) return null
+  const name = node.name.text
+
+  const signature = checker.getSignatureFromDeclaration(node)
+  if (!signature) return null
+
+  const argsType: string[] = []
+  for (const param of signature.getParameters()) {
+    const paramType = checker.getTypeOfSymbolAtLocation(param, node)
+    argsType.push(checker.typeToString(paramType))
   }
+
+  const returnType = unwrapPromiseType(signature.getReturnType(), checker)
 
   return {
     name,
     method: 'GET',
-    argsType: extractArgTypes(argsSource),
-    returnType: unwrapPromise(returnType),
+    argsType,
+    returnType,
   }
 }
 
-/**
- * Parse a remote.get / remote.post variable export chunk.
- */
-function parseRemoteExport(chunk: string): ServerExport | null {
-  const headMatch = chunk.match(/export\s+const\s+(\w+)\s*=\s*remote\.(get|post)\s*\(/)
-  if (!headMatch) return null
+function parseRemoteCall(
+  name: string,
+  method: RemoteMethod,
+  handler: ts.Expression,
+  checker: ts.TypeChecker,
+): ServerExport | null {
+  const handlerType = checker.getTypeAtLocation(handler)
+  const signatures = handlerType.getCallSignatures()
+  if (signatures.length === 0) return null
 
-  const name = headMatch[1]!
-  const method = headMatch[2]!.toUpperCase() as RemoteMethod
-  let idx = headMatch.index! + headMatch[0].length
+  const signature = signatures[0]!
+  const parameters = signature.getParameters()
 
-  // Skip middleware array / first argument and locate the async handler.
-  const handlerStart = chunk.indexOf('async', idx)
-  if (handlerStart === -1) return null
+  // Skip local context
+  const clientParams = parameters.slice(1)
 
-  const parenOpen = chunk.indexOf('(', handlerStart)
-  if (parenOpen === -1) return null
-
-  const argsResult = extractBalanced(chunk, parenOpen + 1, '(', ')')
-  if (!argsResult) return null
-  const argsSource = argsResult.content
-  idx = argsResult.endIdx
-
-  // Skip whitespace and optional return type.
-  while (idx < chunk.length && /\s/.test(chunk[idx]!)) idx++
-  let returnType = 'unknown'
-  if (chunk[idx] === ':') {
-    idx++
-    while (idx < chunk.length && /\s/.test(chunk[idx]!)) idx++
-    const typeStart = idx
-    let depth = 0
-    while (idx < chunk.length) {
-      const ch = chunk[idx]
-      if (ch === '(' || ch === '<' || ch === '{') depth++
-      else if (ch === ')' || ch === '>' || ch === '}') {
-        if (depth === 0) break
-        depth--
-      } else if ((ch === ';' || ch === '\n' || ch === '=' || ch === '-') && depth === 0) {
-        // Stop before `=>` or body `{`
-        break
-      }
-      idx++
-    }
-    returnType = chunk.slice(typeStart, idx).trim()
+  const argsType: string[] = []
+  for (const param of clientParams) {
+    const paramType = checker.getTypeOfSymbolAtLocation(param, handler)
+    argsType.push(checker.typeToString(paramType))
   }
+
+  const returnType = unwrapPromiseType(signature.getReturnType(), checker)
 
   return {
     name,
     method,
-    argsType: extractArgTypes(argsSource),
-    returnType: unwrapPromise(returnType),
+    argsType,
+    returnType,
   }
 }
 
-/**
- * Extract the content between balanced open/close characters starting at
- * `startIdx` (which should point just after the opening character).
- */
-function extractBalanced(
-  source: string,
-  startIdx: number,
-  openChar: string,
-  closeChar: string,
-): { content: string; endIdx: number } | null {
-  let depth = 1
-  let idx = startIdx
-  const contentStart = startIdx
-
-  while (idx < source.length && depth > 0) {
-    const ch = source[idx]
-    if (ch === openChar) depth++
-    else if (ch === closeChar) depth--
-    idx++
-  }
-
-  if (depth !== 0) return null
-  return { content: source.slice(contentStart, idx - 1), endIdx: idx }
-}
-
-/**
- * Split a parameter list source string into individual type strings.
- *
- * "id: string, limit?: number" → ["string", "number | undefined"]
- */
-function extractArgTypes(argsSource: string): string[] {
-  if (!argsSource.trim()) return []
-
-  const args: string[] = []
-  const parts = argsSource.split(',').map((p) => p.trim()).filter(Boolean)
-
-  for (const part of parts) {
-    // Strip destructuring and default values; keep the type annotation.
-    const typeMatch = part.match(/:\s*([\s\S]+)$/) ?? part.match(/\?\s*:\s*([\s\S]+)$/)
-    if (typeMatch) {
-      let type = typeMatch[1]!.trim()
-      if (part.includes('?') && !type.startsWith('(')) {
-        type = `${type} | undefined`
+function unwrapPromiseType(type: ts.Type, checker: ts.TypeChecker): string {
+  const symbol = type.getSymbol()
+  if (symbol && symbol.getName() === 'Promise') {
+    const typeRef = type as ts.TypeReference
+    if (typeRef.typeArguments && typeRef.typeArguments.length > 0) {
+      const typeArg = typeRef.typeArguments[0]
+      if (typeArg) {
+        return checker.typeToString(typeArg)
       }
-      args.push(type)
-    } else {
-      args.push('unknown')
     }
   }
 
-  return args
-}
-
-/**
- * Strip a wrapping Promise<T> if present.
- */
-function unwrapPromise(type: string): string {
-  const trimmed = type.trim()
-  const match = trimmed.match(/^Promise<(.+)>$/)
-  return match ? match[1]!.trim() : trimmed
+  const typeStr = checker.typeToString(type)
+  const match = typeStr.match(/^Promise<(.+)>$/)
+  if (match) {
+    return match[1]!.trim()
+  }
+  return typeStr
 }
