@@ -8,6 +8,7 @@ const posts = [
 export const getPost = remote.get(
   async (): Promise<{ id: string; title: string } | null> => {
     const { id } = getParams()
+    console.log(id)
     return posts.find((post) => post.id === id) ?? null
   },
 )

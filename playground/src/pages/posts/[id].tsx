@@ -2,7 +2,7 @@ import { getParams, getRouted, Link, type RouteContext } from 'auwla/router'
 import { track } from 'auwla/events'
 
 export async function routed(ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) {
-  return await track.get('posts.getPost')
+  return await track.get('posts.getPost',{signal})
 }
 
 export default function PostPage() {
