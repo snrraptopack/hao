@@ -433,8 +433,8 @@ export type TrackRemoteOptions = {
  */
 type GetKeys = {
   [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'GET' }
-    ? K
-    : never;
+  ? K
+  : never;
 }[keyof ServerManifestTypes];
 
 /**
@@ -442,8 +442,8 @@ type GetKeys = {
  */
 type PostKeys = {
   [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'POST' }
-    ? K
-    : never;
+  ? K
+  : never;
 }[keyof ServerManifestTypes];
 
 /**

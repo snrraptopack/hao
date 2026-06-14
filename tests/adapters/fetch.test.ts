@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { stringify, parse } from 'devalue'
 import { createFetchAdapter, extractRouteParams } from '../../src/adapters/fetch'
 import { remote, defineMiddleware, validate } from '../../src/server'
 import type { ServerManifest } from '../../src/server/types'
@@ -87,7 +86,7 @@ describe('fetch adapter', () => {
     return new Request('http://localhost/_auwla/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: stringify(payload),
+      body: JSON.stringify(payload),
     })
   }
 
@@ -155,7 +154,7 @@ describe('fetch adapter', () => {
     const handle = makeAdapter()
     const response = await handle(makeRpcRequest({ key: 'posts.createPost', args: [{}], routePath: '/posts' }))
     expect(response?.status).toBe(400)
-    const body = parse(await response!.text()) as { message: string }
+    const body = JSON.parse(await response!.text()) as { message: string }
     expect(body.message).toContain('title is required')
   })
 

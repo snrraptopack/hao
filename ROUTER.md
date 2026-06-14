@@ -27,7 +27,7 @@ function App() {
   return () => <Router routes={routes} />
 }
 
-createMemoApp(App, document.getElementById('app')!)
+createMemoApp(document.getElementById('app')!, <App />)
 ```
 
 ---
@@ -473,22 +473,25 @@ function PostsLayout() {
 
 ---
 
-## Vite plugin — file-based routing (planned)
+## Vite plugin — file-based routing
 
-> Status: planned. The explicit `defineRoutes()` API above is the current approach.
+The `auwlaRouter()` Vite plugin turns a `src/pages` directory into a typed route
+table. The explicit `defineRoutes()` API above still works if you prefer to write
+routes by hand.
 
 ### Config
 
 ```ts
 // vite.config.ts
+import { defineConfig } from 'vite'
 import { auwla } from 'auwla/vite'
+import { auwlaRouter } from 'auwla/vite-router'
 
 export default defineConfig({
   plugins: [
-    auwla({
-      router: 'src/pages',   // enables file-based routing
-    })
-  ]
+    auwla(),
+    auwlaRouter({ dir: 'src/pages' }),
+  ],
 })
 ```
 
@@ -508,19 +511,55 @@ src/pages/
 
 ### Named exports per page file
 
+The plugin reads these exports and wires them into the generated route table:
+
+| Export            | Maps to route field  |
+|-------------------|----------------------|
+| `default`         | `component`          |
+| `routed`          | `routed`             |
+| `pending`         | `pendingComponent`   |
+| `error`           | `errorComponent`     |
+| `guard`           | `guard`              |
+| `meta`            | `meta`               |
+
 ```ts
 // src/pages/posts/[id].tsx
+import { getRouted, Link, type RouteContext } from 'auwla/router'
+import { track } from 'auwla/events'
 
-export const guard    = (ctx) => { if (!auth.token) return '/login' }
-export const routed   = async (ctx, signal) => fetchPost(ctx.params.id, signal)
-export const pending  = () => <Skeleton />
-export function error() { ... }
-export const meta     = { title: 'Post' }
-export default function PostDetail() { ... }
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  return await track.get('posts.getPost', { signal })
+}
+
+export default function PostDetail() {
+  const data = getRouted(routed)
+
+  if (data?.pending)  return <p>Loading…</p>
+  if (data?.rejected) return <p>Error: {String(data.reason)}</p>
+
+  return () => <h1>{data?.value?.title}</h1>
+}
 ```
 
-The plugin reads these exports and wires them into the route definition automatically.
 No route table is written by hand.
+
+### Server files
+
+Place a `.server.ts` file next to a page to expose RPC functions for that route.
+The Vite plugin excludes `.server.ts` files from the client bundle and generates
+a manifest used by the dev server / production adapter.
+
+```ts
+// src/pages/posts/[id].server.ts
+import { remote, getParams } from 'auwla/server'
+
+export const getPost = remote.get(async () => {
+  const { id } = getParams()   // typed as { id: string }
+  return db.post.findById(id)
+})
+```
+
+See the **Server functions** section below for the full RPC API.
 
 ### What the plugin generates
 
@@ -528,7 +567,7 @@ No route table is written by hand.
 built from the pages directory with dynamic imports for code splitting.
 
 **`src/auwla.gen.ts`** — augments the `Register` interface automatically.
-Committed to version control. Enables type-safe navigation without a manual
+This file is generated for you and enables type-safe navigation without a manual
 `declare module` block.
 
 ### App entry with file-based routing

@@ -1,13 +1,11 @@
 /**
  * @fileoverview Client-side RPC dispatcher for Auwla fullstack.
  *
- * Called by track.get / track.post. Serializes arguments with devalue and
- * POSTs them to the adapter endpoint. The adapter resolves the remote key,
- * extracts route params from routePath, runs the server function, and returns
- * the serialized result.
+ * Called by track.get / track.post. Serializes arguments as JSON and POSTs
+ * them to the adapter endpoint. The adapter resolves the remote key, extracts
+ * route params from routePath, runs the server function, and returns the JSON
+ * result.
  */
-
-import { stringify, parse } from 'devalue'
 
 const RPC_ENDPOINT = '/_auwla/rpc'
 
@@ -29,7 +27,7 @@ export interface RpcOptions {
 
 /**
  * Determine whether the arguments should be sent as multipart/form-data
- * (single FormData body) instead of devalue JSON.
+ * (single FormData body) instead of JSON.
  */
 function isFormDataArgs(args: unknown[]): args is [FormData] {
   return args.length === 1 && args[0] instanceof FormData
@@ -38,9 +36,9 @@ function isFormDataArgs(args: unknown[]): args is [FormData] {
 /**
  * Build a request body for an RPC call.
  *
- * Plain object args are serialized with devalue and sent as JSON.
- * A single FormData argument is forwarded as multipart/form-data with the
- * remote key and route path attached as hidden fields.
+ * Plain object args are serialized with JSON. A single FormData argument is
+ * forwarded as multipart/form-data with the remote key and route path attached
+ * as hidden fields.
  */
 function buildRequest(
   key: string,
@@ -59,7 +57,7 @@ function buildRequest(
 
   const payload: RpcPayload = { key, args, routePath }
   return {
-    body: stringify(payload),
+    body: JSON.stringify(payload),
     headers: { 'content-type': 'application/json' },
   }
 }
@@ -67,18 +65,14 @@ function buildRequest(
 /**
  * Parse a successful RPC response.
  *
- * The adapter returns values serialized with devalue. Plain JSON responses
- * are accepted as a fallback for tests and simple adapters.
+ * The adapter returns JSON. The fallback to the raw text handles non-JSON
+ * responses from user-returned Responses.
  */
 function parseResponse(text: string): unknown {
   try {
-    return parse(text)
+    return JSON.parse(text)
   } catch {
-    try {
-      return JSON.parse(text)
-    } catch {
-      return text
-    }
+    return text
   }
 }
 

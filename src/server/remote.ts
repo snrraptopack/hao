@@ -28,15 +28,28 @@ function createRemote<
  * Plain async functions exported from a .server.ts file are also treated as
  * GET by default; remote.get is only needed when you want explicit typing or
  * when adding middleware.
+ *
+ * Usage:
+ *   remote.get(async (ctx) => { ... })
+ *   remote.get([sessionMiddleware], async (ctx) => { ... })
  */
 function get<
   TArgs extends unknown[] = [],
   TReturn = unknown,
   TParams = Record<string, string | string[]>,
 >(
-  handler: (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>,
+  middlewareOrHandler:
+    | Middleware<TParams>[]
+    | ((ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>),
+  maybeHandler?: (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>,
 ): RemoteFunction<TArgs, TReturn, 'GET', TParams> {
-  return createRemote('GET', [], handler)
+  const middleware: Middleware<TParams>[] = Array.isArray(middlewareOrHandler)
+    ? middlewareOrHandler
+    : []
+  const handler =
+    maybeHandler ??
+    (middlewareOrHandler as (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>)
+  return createRemote('GET', middleware, handler)
 }
 
 /**

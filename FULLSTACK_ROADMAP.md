@@ -6,7 +6,7 @@
 
 | Topic | Decision |
 |---|---|
-| **Serialization** | `devalue` |
+| **Serialization** | JSON (plain `JSON.stringify` / `JSON.parse`) |
 | **Manifest location** | `.auwla/server-manifest.json` + `.auwla/server-manifest.d.ts` |
 | **Default method for plain functions** | GET |
 | **Server file extension** | `.server.ts` |
@@ -129,7 +129,7 @@ Tasks:
 
 1. Add `track.get(key, ...args, options?)` and `track.post(key, ...args, options?)`.
 2. These return a `TrackHandle`.
-3. In the browser, they serialize args with `devalue` and POST to `/_auwla/rpc`.
+3. In the browser, they serialize args as JSON and POST to `/_auwla/rpc`.
 4. Pass `signal` through for cancellation.
 5. Handle RPC errors (network, validation, server error) and surface them on the handle.
 6. Method filtering at the type level: `track.get` only accepts keys declared as GET.
@@ -158,7 +158,7 @@ Tasks:
    - Verify method matches.
    - Extract params from `routePath` using the manifest route pattern.
    - Build `ServerContext` and run middleware stack.
-   - Call the handler and serialize the result with `devalue`.
+   - Call the handler and serialize the result as JSON.
    - Serialize errors with a stable shape.
 2. Build thin framework wrappers:
    - `src/adapters/hono.ts` — one-liner around fetch adapter.

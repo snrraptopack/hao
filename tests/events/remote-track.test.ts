@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { stringify } from 'devalue'
 import { track } from '../../src/events'
 import type { CommandHandle } from '../../src/events'
 
@@ -33,7 +32,7 @@ describe('remote track functions', () => {
   it('track.get sends RPC request and returns reactive handle', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify([{ id: 1, title: 'Hello' }]), { status: 200 }),
+      new Response(JSON.stringify([{ id: 1, title: 'Hello' }]), { status: 200 }),
     )
 
     const posts = track.get('posts.getPosts')
@@ -55,7 +54,7 @@ describe('remote track functions', () => {
   it('track.post creates a lazy command handle', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify({ id: 2, title: 'Created' }), { status: 200 }),
+      new Response(JSON.stringify({ id: 2, title: 'Created' }), { status: 200 }),
     )
 
     const create = track.post('posts.createPost')
@@ -73,7 +72,7 @@ describe('remote track functions', () => {
   it('track.post.run accepts FormData', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify({ id: 3, title: 'From form' }), { status: 200 }),
+      new Response(JSON.stringify({ id: 3, title: 'From form' }), { status: 200 }),
     )
 
     const create = track.post('posts.createPost')
@@ -91,7 +90,7 @@ describe('remote track functions', () => {
   it('track.get propagates RPC errors onto the handle', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify({ message: 'not found' }), { status: 404 }),
+      new Response(JSON.stringify({ message: 'not found' }), { status: 404 }),
     )
 
     const posts = track.get('posts.getPosts')

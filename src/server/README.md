@@ -144,4 +144,4 @@ You never edit it by hand. In development it is served as the virtual module
 3. Adapter looks up the manifest entry.
 4. Adapter extracts params from `routePath` using the entry's `routePattern`.
 5. Adapter builds `ServerContext`, runs middleware, and calls the function.
-6. Result is serialized with `devalue` and returned.
+6. Result is serialized as JSON and returned.

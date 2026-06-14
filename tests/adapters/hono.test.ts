@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest'
-import { stringify } from 'devalue'
 import { createHonoAdapter } from '../../src/adapters/hono'
 import type { ServerManifest } from '../../src/server/types'
 
@@ -23,7 +22,7 @@ describe('hono adapter', () => {
     return new Request('http://localhost/_auwla/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: stringify(payload),
+      body: JSON.stringify(payload),
     })
   }
 

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { stringify } from 'devalue'
 import { createBunAdapter } from '../../src/adapters/bun'
 import type { ServerManifest } from '../../src/server/types'
 
@@ -23,7 +22,7 @@ describe('bun adapter', () => {
     return new Request('http://localhost/_auwla/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: stringify(payload),
+      body: JSON.stringify(payload),
     })
   }
 

@@ -464,227 +464,233 @@ Auwla ships a client-side router as a separate entry point. Import everything fr
 import {
   Router, defineRoutes, navigate, back, forward,
   getParams, getQuery, getLocation,
-  getLoaderHandle, getRouteMeta,
+  getRouted, getRouteMeta,
   isActive, isExactActive,
   Link,
 } from 'auwla/router';
 ```
 
-### Core Architecture
+The router is built directly on the runtime's reactivity: URL changes invalidate only the components that read route state.
 
-The Auwla router is built directly on the runtime's reactivity:
-- **Single Source of Truth**: The current path is stored in a global reactive cell.
-- **Lockstep Updates**: Any component or router reading the path is automatically subscribed to path changes.
-- **Multiple Routers**: You can render more than one `<Router />` on the page. Since they all subscribe to the same reactive state, they all update synchronously in the same render tick without conflicts.
+### File-based routing
 
-### Defining Routes
+Use the `auwlaRouter()` Vite plugin to generate routes from a `src/pages` directory:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+import { auwla } from 'auwla/vite'
+import { auwlaRouter } from 'auwla/vite-router'
+
+export default defineConfig({
+  plugins: [auwla(), auwlaRouter({ dir: 'src/pages' })],
+})
+```
 
 ```tsx
-import { defineRoutes, Router } from 'auwla/router';
+// src/App.tsx
+import { Router } from 'auwla/router'
+import routes from 'auwla:routes'
 
-defineRoutes([
-  { path: '/',          component: Home     },
-  { path: '/posts',     component: PostList },
-  { path: '/posts/:id', component: PostDetail },
-  { path: '*',          component: NotFound },
-]);
-
-function App() {
-  return () => <Router />;
+export default function App() {
+  return () => <Router routes={routes} suspend />
 }
 ```
 
-`<Router />` renders the component for the currently matched path. A `*` route acts as a 404 fallback.
+Pages are matched by file name:
 
-### First-Class Layout Components
-
-Layouts are wrapped around routes (usually applied via `group()`). Layouts receive the route component constructor (`Child`) and render it natively as a standard JSX element:
-
-```tsx
-import { group, RouteComponent } from 'auwla/router';
-
-// 1. Define the layout shell rendering <Child />
-export function AppLayout(Child: RouteComponent) {
-  return () => (
-    <div class="app-layout">
-      <nav>...</nav>
-      <main>
-        <Child />
-      </main>
-    </div>
-  );
-}
-
-// 2. Apply it to a group of routes
-defineRoutes([
-  ...group('/admin', { layout: AppLayout }, [
-    { path: '/', component: Dashboard },
-    { path: '/settings', component: Settings },
-  ])
-]);
+```
+src/pages/
+  index.tsx          → /
+  about.tsx          → /about
+  posts/
+    index.tsx        → /posts
+    [id].tsx         → /posts/:id
+  [...404].tsx       → /*
 ```
 
-### Local / Scoped Routers
+Optional named exports become route fields: `routed`, `pending`, `error`, `guard`, `meta`.
 
-You can pass a local route list to a router using the `routes` prop. This is ideal for nested sub-layouts (like dashboard tabs) or isolated component testing:
-
-```tsx
-const tabRoutes = [
-  { path: '/dashboard/profile', component: ProfileTab },
-  { path: '/dashboard/billing', component: BillingTab }
-];
-
-function DashboardLayout() {
-  return () => (
-    <div class="dashboard">
-      <TabNav />
-      {/* Only matches and renders within tabRoutes */}
-      <Router routes={tabRoutes} />
-    </div>
-  );
-}
-```
-
-### Route Parameters and Query
+### Route parameters and query
 
 ```tsx
-import { getParams, getQuery, getLocation } from 'auwla/router';
-
 function PostDetail() {
-  // Safe to call anywhere in setup — the router creates a fresh component
-  // instance when the path changes, so these values are stable for the component lifecycle.
-  const { id } = getParams();     // /posts/42         → { id: '42' }
-  const query   = getQuery();     // ?tab=comments     → { tab: 'comments' }
-  const loc     = getLocation();   // '/posts/42?tab=comments'
+  const { id } = getParams('/posts/:id')  // { id: string }
+  const query = getQuery()                 // ?tab=comments → { tab: 'comments' }
+  const loc = getLocation()                // '/posts/42?tab=comments'
 
-  return () => <h1>Post {id}</h1>;
+  return () => <h1>Post {id}</h1>
 }
 ```
-
-`getParams()`, `getQuery()`, and `getLocation()` read from the reactive state the Router sets on every match.
 
 ### Navigation
 
 ```tsx
-import { navigate, back, forward } from 'auwla/router';
+<Link href="/posts">Posts</Link>
+<Link href="/posts/:id" params={{ id: '3' }}>View</Link>
 
-navigate('/posts');                    // push a new history entry
-navigate('/login', { replace: true }); // replace the current entry (no back-stack entry)
-back();
-forward();
+navigate('/posts')
+navigate('/login', { replace: true })
+back()
+forward()
 ```
 
-`navigate()` prefers the Navigation API where available and falls back to the History API automatically.
+### Route-level data loading with `routed`
 
-### Loaders
-
-Add a `loader` to a route to fetch data before the component renders. The router starts it immediately, wires a cancellation signal, and exposes the result via `getLoaderHandle<T>()`.
+Export an async `routed` function from a page file. The router runs it on navigation and exposes the result via `getRouted(routed)`:
 
 ```tsx
-defineRoutes([{
-  path: '/posts/:id',
-  loader: (ctx, signal) =>
-    fetch(`/api/posts/${ctx.params.id}`, { signal }).then(r => r.json()),
-  component: PostDetail,
-}]);
+import { getRouted, type RouteContext } from 'auwla/router'
+import { track } from 'auwla/events'
 
-function PostDetail() {
-  const loader = getLoaderHandle<Post>();
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  return await track.get('posts.getPost', { signal })
+}
 
-  if (loader?.pending)  return <p>Loading…</p>;
-  if (loader?.rejected) return <p>Error: {String(loader.reason)}</p>;
+export default function PostDetail() {
+  const data = getRouted(routed)
 
-  const post = loader?.value; // typed as Post | undefined
+  if (data?.pending)  return <p>Loading…</p>
+  if (data?.rejected) return <p>Error: {String(data.reason)}</p>
 
-  return () =>(
-    <h1>{post?.title}</h1>;
+  return () => <h1>{data?.value?.title}</h1>
+}
+```
+
+Navigating away cancels the in-flight loader. With `<Router suspend>` the previous route stays visible until the new route's data resolves.
+
+See [ROUTER.md](./ROUTER.md) for the full API (`group`, `Outlet`, guards, meta, typed navigation, etc.).
+
+---
+
+## Server functions
+
+Auwla gives you type-safe RPC without importing server files on the client.
+
+### Server files
+
+Files ending in `.server.ts` run only on the server. Each export becomes an RPC endpoint keyed as `fileName.exportName`.
+
+```ts
+// src/pages/posts/[id].server.ts
+import { remote, getParams } from 'auwla/server'
+
+export const getPost = remote.get(async () => {
+  const { id } = getParams()   // typed as { id: string }
+  return db.post.findById(id)
+})
+```
+
+Use `remote.get()`, `remote.post()` or a plain async function (defaults to GET). Pass middleware arrays to `remote.<method>()` for validation, auth, etc.
+
+### Validation middleware
+
+```ts
+import { remote, validate } from 'auwla/server'
+import * as v from 'valibot'
+
+const schema = v.object({ title: v.string() })
+
+export const createPost = remote.post(
+  [validate(schema)],
+  async (ctx) => {
+    const { title } = ctx.locals.input as { title: string }
+    return db.post.create({ title })
+  },
+)
+```
+
+### Calling server functions from the client
+
+Use `track.get()` / `track.post()` with the generated key:
+
+```tsx
+import { track } from 'auwla/events'
+
+const posts = track.get('posts.getPosts')
+
+return () => (
+  <main>
+    {posts.pending && <p>Loading…</p>}
+    {posts.resolved && posts.value.map((p) => <p>{p.title}</p>)}
+  </main>
+)
+```
+
+The returned `TrackHandle` is the same reactive primitive used for local async work: `.pending`, `.resolved`, `.rejected`, `.value`, `.reason`, `.refresh()`, `.cancel()`.
+
+### Forms
+
+Bind a form directly to a POST remote with `track.form()`:
+
+```tsx
+import { track } from 'auwla/events'
+import type { StandardSchema } from 'auwla/server'
+
+const schema: StandardSchema = {
+  '~standard': {
+    validate: (value) => {
+      if (value && typeof (value as any).title === 'string') {
+        return { value }
+      }
+      return { issues: [{ message: 'title is required' }] }
+    },
+  },
+}
+
+export default function NewPostPage() {
+  const create = track.form('posts.createPost', { schema })
+
+  return () => (
+    <form onSubmit={create.onSubmit}>
+      <input name="title" required />
+      <button disabled={create.pending}>
+        {create.pending ? 'Saving…' : 'Save'}
+      </button>
+      {create.error && <p>{create.error.message}</p>}
+      {create.resolved && <p>Created: {create.value.title}</p>}
+    </form>
   )
 }
 ```
 
-Navigating away while a load is in-flight automatically cancels it.
+`track.form()` intercepts submit, runs client-side schema validation, sends `FormData` to the server, and exposes the same lifecycle state as `track.post()`.
 
-### Navigation Guards
+### Mounting the RPC adapter
 
-`beforeEnter` runs before the component renders. Return `false` to block, or a path string to redirect:
-
-```tsx
-defineRoutes([{
-  path: '/dashboard',
-  beforeEnter: (ctx) => isLoggedIn() || '/login',
-  component: Dashboard,
-}]);
-```
-
-### Route Meta
-
-Attach arbitrary data to any route with `meta`:
-
-```tsx
-defineRoutes([{
-  path: '/admin',
-  meta: { requiresAuth: true, title: 'Admin Panel' },
-  component: Admin,
-}]);
-
-// Read in any component or beforeEnter guard:
-const { requiresAuth } = getRouteMeta<{ requiresAuth: boolean; title: string }>();
-```
-
-### Active Link Detection
-
-```tsx
-import { isActive, isExactActive } from 'auwla/router';
-
-// isActive('/posts') → true on /posts AND /posts/42 (prefix match)
-// isExactActive('/posts') → true only on /posts exactly
-```
-
-### Link Component
-
-`<Link>` is a drop-in replacement for `<a>` that calls `navigate()` on click and automatically applies active classes:
-
-```tsx
-import { Link } from 'auwla/router';
-
-// Renders with class="active exact-active" on /posts exactly
-<Link href="/posts">Posts</Link>
-
-// Custom class names:
-<Link href="/posts" activeClass="is-active" exactActiveClass="is-current">
-  Posts
-</Link>
-```
-
-Modifier-key clicks (Ctrl, Meta, Shift, Alt) are passed through to the browser so "open in new tab" keeps working.
-
-### Nested Routes
-
-A route with `children` is flattened. If the parent also has a `component`, it is kept as its own renderable entry:
-
-```tsx
-defineRoutes([{
-  path: '/settings',
-  children: [
-    { path: '/profile',  component: ProfilePage  },
-    { path: '/security', component: SecurityPage },
-  ],
-}]);
-// Registers /settings/profile and /settings/security
-```
-
-### Testing Utilities
+You own the server. Mount the adapter at `/_auwla/rpc`:
 
 ```ts
-import { resetRoutes } from 'auwla/router';
-
-beforeEach(() => resetRoutes()); // clear the registry between tests
+// Bun
+import { auwlaRpc } from 'auwla/adapters/bun'
+Bun.serve({ fetch: auwlaRpc() })
 ```
+
+```ts
+// Hono
+import { Hono } from 'hono'
+import { auwlaRpc } from 'auwla/adapters/hono'
+const app = new Hono()
+app.use('/_auwla/*', auwlaRpc())
+```
+
+```ts
+// Express
+import express from 'express'
+import { auwlaRpc } from 'auwla/adapters/express'
+const app = express()
+app.use('/_auwla', auwlaRpc())
+```
+
+During `vite dev`, `auwlaRouter()` handles the RPC endpoint automatically — no separate server is needed in development.
+
+---
 
 ## Codebase Docs
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) explains the runtime/compiler module boundaries and render flow.
 - [COMPILER.md](./COMPILER.md) describes the compiler strategy and generated helper targets.
+- [ROUTER.md](./ROUTER.md) is the full router reference.
 - [ROADMAP.md](./ROADMAP.md) tracks implementation priorities.
 
 The experimental compiler transform is available from `auwla/compiler` for tooling. Runtime apps do not need to import it.

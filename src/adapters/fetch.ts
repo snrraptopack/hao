@@ -2,7 +2,7 @@
  * @fileoverview WinterCG-compatible fetch adapter for Auwla fullstack.
  *
  * Exposes a single POST endpoint (default `/_auwla/rpc`) that receives:
- *   - JSON bodies serialized with devalue
+ *   - JSON bodies
  *   - multipart/form-data bodies for file uploads
  *
  * The adapter resolves the remote key, extracts route params from the current
@@ -13,7 +13,6 @@
  * any WinterCG runtime (Cloudflare Workers, Deno, Bun, Node 18+ fetch).
  */
 
-import { parse, stringify } from 'devalue'
 import type { ServerContext, ServerManifest, ServerManifestEntry } from '../server/types'
 import { runWithContext } from '../server/context'
 import { runMiddleware } from '../server/pipeline'
@@ -129,7 +128,7 @@ async function parseRpcRequest(request: Request): Promise<ParsedRpc> {
   }
 
   const text = await request.text()
-  const payload = parse(text) as RpcPayload
+  const payload = JSON.parse(text) as RpcPayload
   if (
     !payload ||
     typeof payload !== 'object' ||
@@ -214,7 +213,7 @@ function isRemoteFunction(value: unknown): value is RemoteFunction {
 
 function serialize(result: unknown): Response {
   if (result instanceof Response) return result
-  return new Response(stringify(result), {
+  return new Response(JSON.stringify(result), {
     headers: { 'content-type': 'application/json' },
   })
 }
@@ -230,7 +229,7 @@ function errorResponse(error: unknown): Response {
     issues: error instanceof ValidationError ? error.issues : undefined,
   }
 
-  return new Response(stringify(payload), {
+  return new Response(JSON.stringify(payload), {
     status,
     headers: { 'content-type': 'application/json' },
   })

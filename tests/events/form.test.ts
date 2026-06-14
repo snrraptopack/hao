@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { stringify } from 'devalue'
 import { track, __resetTrackRegistry } from '../../src/events'
 import type { StandardSchema } from '../../src/shared/standard-schema'
 
@@ -55,7 +54,7 @@ describe('track.form', () => {
   it('sends the request when client validation passes', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify({ id: 2, title: 'Created' }), { status: 200 }),
+      new Response(JSON.stringify({ id: 2, title: 'Created' }), { status: 200 }),
     )
 
     const form = track.form('posts.createPost', { schema })
@@ -70,7 +69,7 @@ describe('track.form', () => {
   it('handles onSubmit from a form element', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify({ id: 3, title: 'From DOM' }), { status: 200 }),
+      new Response(JSON.stringify({ id: 3, title: 'From DOM' }), { status: 200 }),
     )
 
     const formElement = document.createElement('form')

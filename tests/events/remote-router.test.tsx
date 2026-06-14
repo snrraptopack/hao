@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { stringify } from 'devalue'
 import { createMemoApp, h } from '../../src'
 import { Router, navigate } from '../../src/router'
 import { track, __resetTrackRegistry } from '../../src/events'
@@ -23,7 +22,7 @@ describe('track.get inside Router route', () => {
   it('renders resolved data after RPC succeeds', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce(
-      new Response(stringify([{ id: '1', title: 'Hello Router' }]), { status: 200 }),
+      new Response(JSON.stringify([{ id: '1', title: 'Hello Router' }]), { status: 200 }),
     )
 
     function PostsPage() {
