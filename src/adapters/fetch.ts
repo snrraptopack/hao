@@ -108,14 +108,18 @@ export function extractRouteParams(
 }
 
 async function parseRpcRequest(request: Request): Promise<ParsedRpc> {
+  const url = new URL(request.url)
+  const queryKey = url.searchParams.get('key')
+  const queryRoutePath = url.searchParams.get('routePath')
+
   const contentType = request.headers.get('content-type') ?? ''
 
-  if (contentType.startsWith('multipart/form-data')) {
+  if (contentType.startsWith('multipart/form-data') || contentType.startsWith('application/x-www-form-urlencoded')) {
     const form = await request.formData()
-    const key = form.get('__auwla_key')
-    const routePath = form.get('__auwla_routePath') ?? '/'
+    const key = queryKey ?? form.get('__auwla_key')
+    const routePath = queryRoutePath ?? form.get('__auwla_routePath') ?? '/'
     if (typeof key !== 'string') {
-      throw new Error('Missing __auwla_key in form-data request')
+      throw new Error('Missing remote function key in request')
     }
     // Attach the form fields needed by the remote function to a fresh FormData
     // instance so the single argument received by the handler is a clean body.
@@ -292,11 +296,20 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
     }
 
     const ctx = createContext(request, entry, params, payload.args)
+    const accept = request.headers.get('accept') ?? ''
+    const isFetch = accept.includes('application/json') || request.headers.get('x-requested-with') === 'XMLHttpRequest'
 
     try {
       const result = await runWithContext(ctx, () =>
         invokeRemote(entry, mod, ctx, payload.args),
       )
+      if (result instanceof Response) return result
+      if (!isFetch) {
+        return new Response(null, {
+          status: 303,
+          headers: { location: payload.routePath },
+        })
+      }
       return serialize(result)
     } catch (error) {
       onError?.(error, request)

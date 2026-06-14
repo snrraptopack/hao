@@ -289,3 +289,7 @@ body {
 .stat.accent {
   border-color: var(--brand);
 }
+
+html {
+  scrollbar-gutter: stable;
+}

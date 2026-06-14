@@ -28,7 +28,7 @@ export default function LoginPage() {
       <div class="page">
         <h1>Sign in</h1>
         <p class="hint">Try <strong>admin</strong> for Ada or any other name for Ugo.</p>
-        <form onSubmit={login.onSubmit} class="form card">
+        <form {...login.props} class="form card">
           <label>
             Username
             <input name="username" type="text" placeholder="admin" required />

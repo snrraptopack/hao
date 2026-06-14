@@ -19,12 +19,13 @@ const schema: StandardSchema = {
 export default function NewPostPage() {
   const create = track.form('posts.createPost', { schema })
 
-  if (create.resolved && create.value?.id) {
-    navigate(`/posts/${create.value.id}`)
-  }
 
-  return () => (
-    <div class="page">
+  return () => {
+    if (create.resolved && create.value?.id) {
+      navigate(`/posts/:id`, { id: create.value.id })
+    }
+
+    return (<div class="page">
       <h1>Create post</h1>
       <form onSubmit={create.onSubmit} class="form card">
         <label>
@@ -43,5 +44,6 @@ export default function NewPostPage() {
       </form>
       <Link href="/posts" class="btn">← Back to posts</Link>
     </div>
-  )
+    )
+  }
 }

@@ -12,6 +12,7 @@ import type { CommandHandle } from './track'
 import type { StandardSchema } from '../shared/standard-schema'
 import { ValidationError } from '../shared/validation-error'
 import type { ServerManifestTypes } from 'auwla/server-manifest'
+import { getCurrentRoutePath } from '../client/rpc'
 
 export type FormOptions = {
   /** Optional Standard Schema for client-side pre-flight validation. */
@@ -24,6 +25,11 @@ export type FormHandle<TArgs extends unknown[] = unknown[], TReturn = unknown> =
     readonly error: ValidationError | Error | null
     /** DOM submit handler. Prevents default and calls run(FormData). */
     onSubmit(event: SubmitEvent): void
+    readonly props: {
+      readonly action: string
+      readonly method: 'POST'
+      readonly onSubmit: (event: SubmitEvent) => void
+    }
   }
 
 type PostKeys = {
@@ -128,6 +134,19 @@ export function trackForm<K extends PostKeys>(
     configurable: true,
     get(): ValidationError | Error | null {
       return errorCell.get()
+    },
+  })
+
+  Object.defineProperty(command, 'props', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      const routePath = encodeURIComponent(getCurrentRoutePath())
+      return {
+        action: `/_auwla/rpc?key=${key}&routePath=${routePath}`,
+        method: 'POST' as const,
+        onSubmit,
+      }
     },
   })
 

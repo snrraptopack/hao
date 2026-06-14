@@ -89,4 +89,12 @@ describe('track.form', () => {
     expect(submitEvent.defaultPrevented).toBe(true)
     expect(form.resolved).toBe(true)
   })
+
+  it('provides props for progressive enhancement', () => {
+    const form = track.form('posts.createPost')
+    expect(form.props).toBeDefined()
+    expect(form.props.method).toBe('POST')
+    expect(form.props.action).toContain('/_auwla/rpc?key=posts.createPost')
+    expect(form.props.onSubmit).toBe(form.onSubmit)
+  })
 })
