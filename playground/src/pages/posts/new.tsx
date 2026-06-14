@@ -1,20 +1,17 @@
-import {} from 'auwla/jsx-runtime'
-import { Link } from 'auwla/router'
+import { Link, navigate } from 'auwla/router'
 import { track } from 'auwla/events'
 import type { StandardSchema } from 'auwla/server'
 
 const schema: StandardSchema = {
   '~standard': {
     validate: (value: unknown) => {
-      if (
-        typeof value === 'object' &&
-        value !== null &&
-        typeof (value as { title: unknown }).title === 'string' &&
-        (value as { title: string }).title.trim().length > 0
-      ) {
-        return { value }
+      const v = value as Record<string, unknown>
+      const title = typeof v.title === 'string' ? v.title.trim() : ''
+      const content = typeof v.content === 'string' ? v.content.trim() : ''
+      if (title.length > 0 && content.length > 0) {
+        return { value: { title, content } }
       }
-      return { issues: [{ message: 'title is required' }] }
+      return { issues: [{ message: 'title and content are required' }] }
     },
   },
 }
@@ -22,21 +19,29 @@ const schema: StandardSchema = {
 export default function NewPostPage() {
   const create = track.form('posts.createPost', { schema })
 
+  if (create.resolved && create.value?.id) {
+    navigate(`/posts/${create.value.id}`)
+  }
+
   return () => (
-    <div>
+    <div class="page">
       <h1>Create post</h1>
-      <form onSubmit={create.onSubmit}>
+      <form onSubmit={create.onSubmit} class="form card">
         <label>
           Title
           <input name="title" type="text" required />
         </label>
-        <button type="submit" disabled={create.pending}>
+        <label>
+          Content
+          <textarea name="content" rows={5} required />
+        </label>
+        <button type="submit" disabled={create.pending} class="btn primary">
           {create.pending ? 'Saving…' : 'Save'}
         </button>
-        {create.error && <p style="color:red">{create.error.message}</p>}
-        {create.resolved && <p>Created: {create.value?.title}</p>}
+        {create.error && <p class="error">{create.error.message}</p>}
+        {create.resolved && <p class="success">Created.</p>}
       </form>
-      <Link href="/posts">← Back to posts</Link>
+      <Link href="/posts" class="btn">← Back to posts</Link>
     </div>
   )
 }

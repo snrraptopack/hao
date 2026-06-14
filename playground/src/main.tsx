@@ -1,4 +1,5 @@
 import {} from 'auwla/jsx-runtime'
+import './index.css'
 import { createMemoApp } from 'auwla'
 import { Router } from 'auwla/router'
 import routes from 'auwla:routes'
