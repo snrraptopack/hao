@@ -65,8 +65,8 @@ import { getContext, getParams } from 'auwla/server'
 
 export async function getPost() {
   const { request, params, locals } = getContext()
-  const { id } = getParams() // typed from the route file location
-  return db.post.findById(params.id)
+  const { id } = getParams('/posts/:id') // same API as the client router
+  return db.post.findById(id)
 }
 ```
 
@@ -122,6 +122,20 @@ Route params are typed based on the file path:
 | `posts/index.server.ts` | `Record<string, never>` |
 | `posts/[id].server.ts` | `{ id: string }` |
 | `posts/[...slug].server.ts` | `{ slug: string[] }` |
+
+## Server manifest
+
+The server manifest is the bridge between the client and the server. The Vite
+plugin scans every `.server.ts` file and produces a JSON/JS module that tells
+the adapter:
+
+- which module and export to load for each remote key
+- the declared HTTP method (`GET` / `POST`)
+- the route pattern so params can be extracted from the current `routePath`
+- the ordered param names and TypeScript type strings for the generated types
+
+You never edit it by hand. In development it is served as the virtual module
+`auwla:server-manifest`; in production the plugin writes `.auwla/server-manifest.js`.
 
 ## RPC flow
 

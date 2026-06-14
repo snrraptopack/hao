@@ -1,0 +1,5 @@
+.auwla
+src/auwla.gen.ts
+dist
+node_modules
+bun.lockb

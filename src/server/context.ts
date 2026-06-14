@@ -7,8 +7,19 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { ServerContext } from './types'
+import type { ValidRoutePath, PathParams } from 'auwla/router'
 
-const asyncStorage = new AsyncLocalStorage<ServerContext>()
+// The dev server may load server files through Vite's SSR runner while the
+// adapter is loaded through Node's module system. That can create two copies of
+// this module and therefore two AsyncLocalStorage instances. Sharing one global
+// instance keeps getContext() working regardless of which loader imported it.
+const globalStore = (globalThis as Record<string, unknown>).__auwla_asyncStorage as
+  | AsyncLocalStorage<ServerContext>
+  | undefined
+const asyncStorage = globalStore ?? new AsyncLocalStorage<ServerContext>()
+if (!globalStore) {
+  ;(globalThis as Record<string, unknown>).__auwla_asyncStorage = asyncStorage
+}
 
 /**
  * Run `fn` with the provided server context. All calls to getContext()
@@ -37,8 +48,11 @@ export function getContext(): ServerContext {
 /**
  * Typed shortcut for getContext().params.
  *
- * Params type is inferred from the .server.ts file location by the Vite plugin.
+ * Uses the same route-path registry as the client router, so server and client
+ * get identical param types. The path argument is only for type inference.
+ *
+ *   const { id } = getParams('/posts/:id') // { id: string }
  */
-export function getParams<T = Record<string, string>>(): T {
-  return getContext().params as T
+export function getParams<P extends ValidRoutePath>(_path?: P): PathParams<P> {
+  return getContext().params as PathParams<P>
 }

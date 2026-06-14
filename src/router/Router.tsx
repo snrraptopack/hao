@@ -10,6 +10,7 @@
 import {} from "auwla/jsx-runtime"
 import { track } from "auwla/events"
 import type { TrackHandle } from "auwla/events"
+import { setRpcRoutePath } from "../client/rpc"
 import { component } from "../runtime/component"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
 import { matchRoute, matchRoutes, normalizePath } from "./routes"
@@ -98,7 +99,7 @@ export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
  */
 export function getRouted<T = unknown>(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inference only
-  _fn?: (ctx: RouteContext, signal: AbortSignal) => Promise<T>,
+  _fn?: (ctx: RouteContext<any>, signal: AbortSignal) => Promise<T>,
 ): TypedTrackHandle<T> | null {
   return _currentLoader as TypedTrackHandle<T> | null
 }
@@ -262,10 +263,14 @@ export function Router(props: RouterProps = {}) {
   }
 
   function startLoader(routeToLoad: Route, context: RouteContext<any>): TrackHandle {
-    return track("__loader", (signal) =>
-      routeToLoad.routed!(context, signal),
-      { viewTransition: useViewTransition }
-    )
+    return track("__loader", (signal) => {
+      const prevPath = setRpcRoutePath(context.path)
+      try {
+        return routeToLoad.routed!(context, signal)
+      } finally {
+        setRpcRoutePath(prevPath)
+      }
+    }, { viewTransition: useViewTransition })
   }
 
   // The render closure. Re-runs whenever the reactive path cell changes (or

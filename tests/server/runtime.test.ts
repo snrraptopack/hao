@@ -144,4 +144,35 @@ describe('server runtime', () => {
       ),
     ).rejects.toBeInstanceOf(ValidationError)
   })
+
+  it('validate middleware parses and validates FormData bodies', async () => {
+    const schema = {
+      '~standard': {
+        validate: (value: unknown) => {
+          if (typeof value === 'object' && value !== null && (value as { title: unknown }).title === 'Hello') {
+            return { value: 'validated' }
+          }
+          return { issues: [{ message: 'title must be Hello' }] }
+        },
+      },
+    }
+
+    const form = new FormData()
+    form.append('title', 'Hello')
+
+    const ctx = makeContext()
+    ctx.request = new Request('http://localhost/_auwla/rpc', {
+      method: 'POST',
+      body: form,
+    })
+
+    await runMiddleware(
+      ctx,
+      [validate(schema)],
+      async () => {
+        expect(ctx.locals.input).toBe('validated')
+        return 'ok'
+      },
+    )
+  })
 })

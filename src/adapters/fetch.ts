@@ -152,7 +152,11 @@ function buildMiddlewareRequest(request: Request, args: unknown[]): Request {
 
   const first = args[0]
   if (first instanceof FormData) {
-    return new Request(request, { body: first })
+    // Strip the original content-type so the new Request can compute the correct
+    // multipart boundary for the rewritten FormData body.
+    const headers = new Headers(request.headers)
+    headers.delete('content-type')
+    return new Request(request, { body: first, headers })
   }
 
   const headers = new Headers(request.headers)

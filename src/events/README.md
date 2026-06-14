@@ -67,6 +67,34 @@ const form = new FormData(e.currentTarget)
 await save.run(form)
 ```
 
+## Forms — `track.form`
+
+`track.form(key)` binds a server mutation to a `<form>`. It wraps `track.post`
+with an `onSubmit` handler and optional client-side Standard Schema validation.
+
+```ts
+import { track } from 'auwla'
+import * as v from 'valibot'
+
+const schema = v.object({ title: v.string() })
+
+const createPost = track.form('posts.createPost', { schema })
+```
+
+```tsx
+<form onSubmit={createPost.onSubmit}>
+  <input name="title" />
+  <button disabled={createPost.pending}>Save</button>
+
+  {createPost.error && <p>{createPost.error.message}</p>}
+
+  {createPost.resolved && <p>Saved: {createPost.value?.title}</p>}
+</form>
+```
+
+The schema is only for immediate UX — the server still re-validates with
+`validate(schema)` inside `remote.post`.
+
 ## Inside `routed`
 
 `routed` already receives `ctx` and `signal`. Use `track.get` to fetch server data during navigation:

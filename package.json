@@ -43,6 +43,9 @@
       "types": "./dist/vite-router/index.d.ts",
       "import": "./dist/vite-router/index.js"
     },
+    "./vite-router/client": {
+      "types": "./dist/vite-router/client.d.ts"
+    },
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
@@ -89,8 +92,8 @@
     "url": "https://github.com/snrraptopack/auwla/issues"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && tsc --project tsconfig.lib.json --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "vite playground",
+    "build": "vite build && tsc --project tsconfig.lib.json && cp src/vite-router/client.d.ts dist/vite-router/client.d.ts",
     "preview": "vite preview",
     "prepublishOnly": "bun run build",
     "test": "vitest run --coverage",

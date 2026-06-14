@@ -19,7 +19,7 @@
  * the file structure instead.
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve, dirname, basename } from 'node:path'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import type { AuwlaRouterOptions } from './types'
@@ -27,6 +27,7 @@ import { scanPagesAndLayouts, buildDirectoryTree } from './scanner'
 import { generateVirtualModule, generateLazyVirtualModule, generateVirtualModuleWithLayouts, generateTypeFile } from './codegen'
 import { scanServerModules, SERVER_EXTENSIONS } from './server-scanner'
 import { buildServerManifest, writeServerManifest } from './manifest'
+import type { ServerManifest } from '../server/types'
 
 /** The public import specifier users write in their app code. */
 const VIRTUAL_MODULE_ID = 'auwla:routes'
@@ -239,8 +240,89 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         if (isServerFile(file)) handleServerChange()
         else handleChange(file, 'change')
       })
+
+      // -----------------------------------------------------------------------
+      // Dev-only RPC handler
+      //
+      // Mounts the Auwla fetch adapter directly on Vite's server so a single
+      // dev process serves both HMR and server functions. In production the
+      // adapter is run inside the user's Bun/Node server.
+      // -----------------------------------------------------------------------
+      server.middlewares.use('/_auwla/rpc', async (req, res, next) => {
+        // Connect strips the mount path from req.url, so a POST to /_auwla/rpc
+        // appears here as req.url === '/'.
+        if (req.method !== 'POST' || req.url !== '/') {
+          return next()
+        }
+
+        try {
+          const { createFetchAdapter } = await import('auwla/adapters/fetch')
+          const manifestPath = resolve(resolvedManifestDir, 'server-manifest.json')
+          const manifest: ServerManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+          const adapter = createFetchAdapter({
+            manifest,
+            // Use Vite's SSR transform so .server.ts files can be loaded directly
+            // in dev without pre-compiling them.
+            load: (modulePath) => server.ssrLoadModule(modulePath),
+          })
+          const request = await nodeRequestToRequest(req)
+          const response = await adapter(request)
+
+          if (!response) {
+            return next()
+          }
+
+          await sendNodeResponse(res, response)
+        } catch (err) {
+          next(err)
+        }
+      })
     },
   }
+}
+
+async function nodeRequestToRequest(req: import('http').IncomingMessage): Promise<Request> {
+  const protocol = (req.headers['x-forwarded-proto'] as string) || 'http'
+  const host = req.headers.host || 'localhost'
+  // Connect strips the mount path from req.url. Prefer originalUrl (the full
+  // incoming path) so the fetch adapter can match the RPC endpoint correctly.
+  const pathname = (req as any).originalUrl ?? req.url ?? '/'
+  const url = `${protocol}://${host}${pathname}`
+
+  const headers = new Headers()
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      value.forEach((v) => headers.append(key, v))
+    } else {
+      headers.set(key, value)
+    }
+  }
+
+  const method = req.method || 'GET'
+  if (method === 'GET' || method === 'HEAD') {
+    return new Request(url, { method, headers })
+  }
+
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    chunks.push(chunk)
+  }
+  const body = Buffer.concat(chunks)
+
+  return new Request(url, { method, headers, body })
+}
+
+async function sendNodeResponse(
+  res: import('http').ServerResponse,
+  response: Response,
+): Promise<void> {
+  res.statusCode = response.status
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value)
+  })
+  const body = await response.arrayBuffer()
+  res.end(Buffer.from(body))
 }
 
 // ---------------------------------------------------------------------------

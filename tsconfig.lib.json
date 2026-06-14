@@ -4,6 +4,7 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "outDir": "./dist",
+    "rootDir": "./src",
     "skipLibCheck": true
   },
   "include": [
@@ -22,6 +23,7 @@
     "src/server/**/*.ts",
     "src/client/rpc.ts",
     "src/adapters/**/*.ts",
+    "src/shared/**/*.ts",
     "src/server-manifest.d.ts"
   ],
   "exclude": [

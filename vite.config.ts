@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { auwla } from './src/vite';
-
 export default defineConfig({
   build: {
     lib: {
@@ -12,7 +11,7 @@ export default defineConfig({
     },
     // Vite 8: rollupOptions is deprecated, use rolldownOptions
     rolldownOptions: {
-      external: ['typescript', 'path', 'fs', 'node:fs', 'node:path', 'node:os', 'node:async_hooks'],
+      external: ['typescript', 'path', 'fs', 'node:fs', 'node:path', 'node:os', 'node:async_hooks', 'node:url', 'auwla/adapters/fetch'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
@@ -45,7 +44,9 @@ export default defineConfig({
     open: true
   },
   appType: 'spa',
-  plugins: [auwla({ debugFlag: true, css: true })],
+  plugins: [
+    auwla({ debugFlag: true, css: true }),
+  ],
   assetsInclude: [],
   optimizeDeps: {
     exclude: [],

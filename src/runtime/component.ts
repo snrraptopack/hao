@@ -217,22 +217,22 @@ export function createComponentClosure(
   children: MemoChild[],
 ): RenderClosure {
   const nextProps = { ...(props ?? {}), children };
-  const id = createComponentId(type, props);
-
-  if (!id || !runtimeState.activeRenderState) {
-    const prevCleanups = runtimeState.pendingCleanups;
-    runtimeState.pendingCleanups = [];
-    const output = type(nextProps);
-    const cleanups = runtimeState.pendingCleanups.length > 0 ? runtimeState.pendingCleanups : undefined;
-    runtimeState.pendingCleanups = prevCleanups;
-    // Top-level cleanups stored via __pendingCleanups for createMemoApp to collect
-    if (cleanups) (output as any).__pendingCleanups = cleanups;
-    return isRenderClosure(output) ? output : () => output;
-  }
+  // Try to derive a real id from the current render stack. When a component is
+  // created at module-load time (e.g. the root <Router /> passed to
+  // createMemoApp), there is no active render pass yet, so createComponentId
+  // returns null. We still want that component to get a stable id and run its
+  // setup/render inside a real component context once the app mounts, otherwise
+  // reactive reads inside its render closure have no subscriber and the root
+  // of the app never re-renders.
+  const stackId = createComponentId(type, props);
+  const fallbackId = `root/${componentLabel(type)}:${props && 'key' in props ? String(props.key) : 0}`;
+  const id = stackId ?? fallbackId;
 
   return () => {
     const state = runtimeState.activeRenderState;
     if (!state) {
+      // Called outside of a render pass (shouldn't happen for mounted apps).
+      // Fall back to a one-off setup + render.
       const output = type(nextProps);
       return isRenderClosure(output) ? output() : output;
     }

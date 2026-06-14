@@ -126,11 +126,33 @@ export async function rpcCall(
   return parseResponse(text)
 }
 
+let _rpcRoutePath: string | null = null
+
 /**
- * Read the current route path from the browser location.
- * Falls back to "/" during SSR or when window is unavailable.
+ * Set the route path that track.get / track.post should use for the current
+ * RPC call. The Router calls this before invoking a route's `routed` loader so
+ * the server receives the exact path the loader was started for, even when the
+ * browser's URL has not fully committed yet.
+ *
+ * @returns The previous path so the caller can restore it.
+ * @internal
+ */
+export function setRpcRoutePath(path: string | null): string | null {
+  const prev = _rpcRoutePath
+  _rpcRoutePath = path
+  return prev
+}
+
+/**
+ * Read the current route path used for RPC calls.
+ *
+ * Priority:
+ *   1. Path explicitly set by the Router for the active loader.
+ *   2. window.location.pathname + search for direct track.get/track.post calls.
+ *   3. "/" during SSR or when window is unavailable.
  */
 export function getCurrentRoutePath(): string {
+  if (_rpcRoutePath !== null) return _rpcRoutePath
   if (typeof window === 'undefined') return '/'
   return window.location.pathname + window.location.search
 }

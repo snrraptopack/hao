@@ -23,6 +23,7 @@ import { reactive } from '../runtime/reactive';
 import type { ReactiveCell } from '../runtime/reactive';
 import { flushSync } from '../runtime/app';
 import { rpcCall, getCurrentRoutePath } from '../client/rpc';
+import { trackForm } from './form';
 import type { ServerManifestTypes } from 'auwla/server-manifest';
 
 export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
@@ -423,6 +424,8 @@ export function cancel(name?: string): void {
 
 export type TrackRemoteOptions = {
   signal?: AbortSignal;
+  /** Override the route path used to extract server params. Defaults to the current browser URL. */
+  routePath?: string;
 };
 
 /**
@@ -471,7 +474,8 @@ function trackGet<K extends GetKeys>(
   key: K,
   options?: TrackRemoteOptions,
 ): TrackHandle<ServerManifestTypes[K]['return']> {
-  const promise = rpcCall(key, [], getCurrentRoutePath(), options) as Promise<
+  const routePath = options?.routePath ?? getCurrentRoutePath();
+  const promise = rpcCall(key, [], routePath, options) as Promise<
     ServerManifestTypes[K]['return']
   >;
   return trackImpl(`remote:${key}`, promise) as TrackHandle<ServerManifestTypes[K]['return']>;
@@ -543,6 +547,8 @@ export interface TrackFn {
   get: typeof trackGet;
   /** Create a lazy POST command handle. */
   post: typeof trackPost;
+  /** Bind a POST remote function to a form. */
+  form: typeof trackForm;
 }
 
 /**
@@ -552,6 +558,7 @@ export interface TrackFn {
 export const track: TrackFn = Object.assign(trackImpl, {
   get: trackGet,
   post: trackPost,
+  form: trackForm,
 });
 
 /** @internal Re-export for tests that need the un-augmented function. */

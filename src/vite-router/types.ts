@@ -77,7 +77,7 @@ export type LayoutFile = {
   filePath: string
   /**
    * Path relative to the pages directory, forward-slash separated.
-   * e.g. '_layout.tsx' or 'dashboard/_layout.tsx'.
+ * e.g. '_layout.tsx' or 'dashboard/_layout.tsx'.
    */
   relativePath: string
   /**

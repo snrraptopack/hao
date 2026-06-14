@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    // Environment setup & latest features
+    "lib": ["ESNext","DOM"],
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "jsxImportSource": "auwla",
+    "allowJs": true,
+    "types": ["node", "bun-types"],
+    "baseUrl": ".",
+    "paths": {
+      "auwla": ["src/index.ts"],
+      "auwla/jsx-runtime": ["src/jsx-runtime.ts"],
+      "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"],
+      "auwla/compiler": ["src/compiler.ts"],
+      "auwla/events": ["src/events/index.ts"],
+      "auwla/router": ["src/router/index.ts"],
+      "auwla/css": ["src/css/index.ts"],
+    },
+
+    // Bundler mode
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+
+
+
+    // Declaration files
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "outDir": "./dist",
+
+    // Best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+
+    // Some stricter flags (disabled by default)
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // "noPropertyAccessFromIndexSignature": false
+
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "src/auwla.gen.ts", ".auwla/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "benchmark"]
+}
