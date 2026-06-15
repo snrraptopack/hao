@@ -13,13 +13,55 @@
  * any WinterCG runtime (Cloudflare Workers, Deno, Bun, Node 18+ fetch).
  */
 
-import type { ServerContext, ServerManifest, ServerManifestEntry } from '../server/types'
+import type { ServerContext, ServerManifest, ServerManifestEntry, CookieOptions } from '../server/types'
 import { runWithContext } from '../server/context'
 import { runMiddleware } from '../server/pipeline'
 import type { RemoteFunction } from '../server/types'
 import { ValidationError, parseBody } from '../server/validate'
+import { HttpError } from '../server/errors'
 
 const DEFAULT_RPC_PATH = '/_auwla/rpc'
+
+function parseCookies(cookieHeader: string | null): Record<string, string> {
+  const cookies: Record<string, string> = {}
+  if (!cookieHeader) return cookies
+  const pairs = cookieHeader.split(';')
+  for (const pair of pairs) {
+    const index = pair.indexOf('=')
+    if (index === -1) continue
+    const key = pair.substring(0, index).trim()
+    const val = pair.substring(index + 1).trim()
+    cookies[key] = decodeURIComponent(val)
+  }
+  return cookies
+}
+
+function serializeCookie(name: string, value: string, options: CookieOptions = {}): string {
+  let str = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`
+  if (options.maxAge !== undefined) {
+    str += `; Max-Age=${options.maxAge}`
+  }
+  if (options.expires) {
+    str += `; Expires=${options.expires.toUTCString()}`
+  }
+  if (options.path) {
+    str += `; Path=${options.path}`
+  }
+  if (options.domain) {
+    str += `; Domain=${options.domain}`
+  }
+  if (options.secure) {
+    str += '; Secure'
+  }
+  if (options.httpOnly) {
+    str += '; HttpOnly'
+  }
+  if (options.sameSite) {
+    str += `; SameSite=${options.sameSite}`
+  }
+  return str
+}
+
 
 export interface FetchAdapterOptions {
   /** Runtime server manifest (from `auwla:server-manifest`). */
@@ -175,6 +217,22 @@ function createContext(
   platform?: Record<string, unknown>,
 ): ServerContext {
   const req = buildMiddlewareRequest(request, args)
+  const responseHeaders = new Headers()
+  const cookieHeader = request.headers.get('cookie')
+  const parsedCookies = parseCookies(cookieHeader)
+
+  const cookies = {
+    get(name: string): string | undefined {
+      return parsedCookies[name]
+    },
+    set(name: string, value: string, options?: CookieOptions) {
+      responseHeaders.append('set-cookie', serializeCookie(name, value, options))
+    },
+    delete(name: string, options?: Omit<CookieOptions, 'expires' | 'maxAge'>) {
+      responseHeaders.append('set-cookie', serializeCookie(name, '', { ...options, maxAge: 0 }))
+    }
+  }
+
   return {
     request: req,
     params,
@@ -183,8 +241,12 @@ function createContext(
       params,
     },
     locals: {},
+    headers: responseHeaders,
+    cookies,
     redirect(path: string) {
-      return new Response(null, { status: 302, headers: { location: path } })
+      const mergedHeaders = new Headers(responseHeaders)
+      mergedHeaders.set('location', path)
+      return new Response(null, { status: 302, headers: mergedHeaders })
     },
     parseBody() {
       return parseBody(req)
@@ -233,16 +295,19 @@ function errorResponse(error: unknown): Response {
 
   const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
   const isValidation = error instanceof ValidationError
-  const status = isValidation ? 400 : 500
+  const isHttpError = error instanceof HttpError
+  
+  const status = isValidation ? 400 : isHttpError ? error.status : 500
 
-  const message = (isValidation || !isProd)
+  const message = (isValidation || isHttpError || !isProd)
     ? (error instanceof Error ? error.message : String(error))
     : 'Internal Server Error'
 
   const payload = {
     message,
-    name: (isValidation || !isProd) ? (error instanceof Error ? error.name : 'Error') : 'Error',
+    name: (isValidation || isHttpError || !isProd) ? (error instanceof Error ? error.name : 'Error') : 'Error',
     issues: isValidation ? error.issues : undefined,
+    details: isHttpError ? error.details : undefined,
   }
 
   return new Response(JSON.stringify(payload), {
@@ -337,14 +402,42 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
       const result = await runWithContext(ctx, () =>
         invokeRemote(entry, mod, ctx, payload.args),
       )
-      if (result instanceof Response) return result
-      if (!isFetch) {
-        return new Response(null, {
+      let response: Response
+      if (result instanceof Response) {
+        response = result
+      } else if (!isFetch) {
+        response = new Response(null, {
           status: 303,
           headers: { location: payload.routePath },
         })
+      } else {
+        response = serialize(result)
       }
-      return serialize(result)
+
+      try {
+        ctx.headers.forEach((value, name) => {
+          if (name.toLowerCase() === 'set-cookie') {
+            response.headers.append(name, value)
+          } else {
+            response.headers.set(name, value)
+          }
+        })
+      } catch {
+        const headers = new Headers(response.headers)
+        ctx.headers.forEach((value, name) => {
+          if (name.toLowerCase() === 'set-cookie') {
+            headers.append(name, value)
+          } else {
+            headers.set(name, value)
+          }
+        })
+        response = new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        })
+      }
+      return response
     } catch (error) {
       onError?.(error, request)
       return errorResponse(error)

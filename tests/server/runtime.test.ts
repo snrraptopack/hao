@@ -3,6 +3,7 @@ import {
   remote,
   defineMiddleware,
   runMiddleware,
+  composeMiddleware,
   runWithContext,
   getContext,
   getParams,
@@ -21,12 +22,19 @@ function makeRequest(body?: unknown): Request {
 
 function makeContext(params: Record<string, string> = {}): ServerContext {
   const request = makeRequest()
+  const responseHeaders = new Headers()
   return {
     request,
     params,
     route: { path: '/test', params },
     locals: {},
-    redirect: (path: string) => new Response(null, { status: 302, headers: { location: path } }),
+    headers: responseHeaders,
+    cookies: {
+      get: () => undefined,
+      set: () => {},
+      delete: () => {},
+    },
+    redirect: (path: string) => new Response(null, { status: 302, headers: responseHeaders }),
     parseBody: () => request.json(),
   }
 }
@@ -176,5 +184,27 @@ describe('server runtime', () => {
         return 'ok'
       },
     )
+  })
+
+  it('composeMiddleware chains multiple middleware functions', async () => {
+    const order: string[] = []
+    const mw1 = defineMiddleware(async (_ctx, next) => {
+      order.push('mw1')
+      return next()
+    })
+    const mw2 = defineMiddleware(async (_ctx, next) => {
+      order.push('mw2')
+      return next()
+    })
+
+    const composed = composeMiddleware(mw1, mw2)
+    const ctx = makeContext()
+
+    await runMiddleware(ctx, [composed], async () => {
+      order.push('handler')
+      return 'ok'
+    })
+
+    expect(order).toEqual(['mw1', 'mw2', 'handler'])
   })
 })

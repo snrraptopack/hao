@@ -39,7 +39,7 @@ export async function parseBody(request: Request): Promise<unknown> {
  */
 export function validate<TOutput>(
   schema: StandardSchema<unknown, TOutput>,
-): Middleware {
+): Middleware<{ input: TOutput }> {
   return async (ctx, next) => {
     let body: unknown
     try {

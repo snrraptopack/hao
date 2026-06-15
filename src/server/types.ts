@@ -41,9 +41,28 @@ export interface ServerRouteInfo {
  *   - src/pages/posts/[...slug].server.ts → { slug: string[] }
  *   - src/pages/posts/index.server.ts → {}
  */
+export interface CookieOptions {
+  domain?: string
+  expires?: Date
+  httpOnly?: boolean
+  maxAge?: number
+  path?: string
+  sameSite?: 'Lax' | 'Strict' | 'None'
+  secure?: boolean
+}
+
+/**
+ * Context available inside every server function and middleware.
+ *
+ * Params are typed based on the location of the .server.ts file:
+ *   - src/pages/posts/[id].server.ts  → { id: string }
+ *   - src/pages/posts/[...slug].server.ts → { slug: string[] }
+ *   - src/pages/posts/index.server.ts → {}
+ */
 export interface ServerContext<
   Params = Record<string, string | string[]>,
-  Platform = Record<string, any>
+  Platform = Record<string, any>,
+  TLocals = Locals,
 > {
   /** The incoming request. */
   request: Request
@@ -52,7 +71,15 @@ export interface ServerContext<
   /** Info about the matched route. */
   route: ServerRouteInfo
   /** Request-scoped bag for middleware-passed data. */
-  locals: Locals
+  locals: TLocals
+  /** Headers to be appended to the outgoing response. */
+  headers: Headers
+  /** Helper for reading and writing cookies. */
+  cookies: {
+    get(name: string): string | undefined
+    set(name: string, value: string, options?: CookieOptions): void
+    delete(name: string, options?: Omit<CookieOptions, 'expires' | 'maxAge'>): void
+  }
   /**
    * Produce a redirect response. Throwing the returned response is the
    * recommended way to redirect from inside a remote function.
@@ -72,12 +99,18 @@ export interface ServerContext<
  * to continue to the next middleware/handler.
  */
 export type Middleware<
+  TNewLocals = any,
   TParams = Record<string, string | string[]>,
-  TPlatform = Record<string, any>
-> = (
-  ctx: ServerContext<TParams, TPlatform>,
-  next: () => Promise<unknown>,
-) => Promise<unknown>
+  TPlatform = Record<string, any>,
+  TLocals = any,
+> = {
+  (
+    ctx: ServerContext<TParams, TPlatform, TLocals>,
+    next: () => Promise<unknown>,
+  ): Promise<unknown>
+  /** Phantom property used solely for compile-time type accumulation of locals. */
+  __newLocals?: TNewLocals
+}
 
 /**
  * Branded wrapper returned by remote.get / remote.post. The adapter uses
@@ -89,11 +122,12 @@ export interface RemoteFunction<
   TMethod extends RemoteMethod = RemoteMethod,
   TParams = Record<string, string | string[]>,
   TPlatform = Record<string, any>,
+  TLocals = any,
 > {
   __auwla_remote: true
   method: TMethod
-  middleware: Middleware<TParams, TPlatform>[]
-  handler: (ctx: ServerContext<TParams, TPlatform>, ...args: TArgs) => Promise<TReturn>
+  middleware: Middleware<any, TParams, TPlatform, any>[]
+  handler: (ctx: ServerContext<TParams, TPlatform, TLocals>, ...args: TArgs) => Promise<TReturn>
 }
 
 /**

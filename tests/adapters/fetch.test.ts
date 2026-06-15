@@ -188,6 +188,69 @@ describe('fetch adapter', () => {
     const response = await handle(makeRpcRequest({ key: 'missing.key', args: [], routePath: '/' }))
     expect(response?.status).toBe(500)
   })
+
+  it('handles HttpError exceptions and returns the correct status and details', async () => {
+    const modules = buildModules()
+    modules['mod:posts']!.getPost = remote.get(async () => {
+      const { NotFoundError } = await import('../../src/server')
+      throw new NotFoundError('Post not found')
+    })
+
+    const adapter = createFetchAdapter({
+      manifest: buildManifest(),
+      load: async (modulePath) => modules[modulePath]!,
+    })
+
+    const response = await adapter(makeRpcRequest({ key: 'posts.getPost', args: [], routePath: '/posts/42' }))
+    expect(response?.status).toBe(404)
+    const json = JSON.parse(await response!.text())
+    expect(json.name).toBe('NotFoundError')
+    expect(json.message).toBe('Post not found')
+  })
+
+  it('propagates custom headers from context.headers to the response', async () => {
+    const modules = buildModules()
+    modules['mod:posts']!.getPost = remote.get(async (ctx) => {
+      ctx.headers.set('X-Test-Header', 'custom-value')
+      return 'ok'
+    })
+
+    const adapter = createFetchAdapter({
+      manifest: buildManifest(),
+      load: async (modulePath) => modules[modulePath]!,
+    })
+
+    const response = await adapter(makeRpcRequest({ key: 'posts.getPost', args: [], routePath: '/posts/42' }))
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('X-Test-Header')).toBe('custom-value')
+  })
+
+  it('parses request cookies and appends Set-Cookie headers for set/delete', async () => {
+    const modules = buildModules()
+    modules['mod:posts']!.getPost = remote.get(async (ctx) => {
+      const val = ctx.cookies.get('user_session')
+      ctx.cookies.set('resp_cookie', `${val}-response`, { httpOnly: true })
+      ctx.cookies.delete('old_cookie')
+      return 'ok'
+    })
+
+    const adapter = createFetchAdapter({
+      manifest: buildManifest(),
+      load: async (modulePath) => modules[modulePath]!,
+    })
+
+    const request = makeRpcRequest({ key: 'posts.getPost', args: [], routePath: '/posts/42' })
+    request.headers.set('Cookie', 'user_session=token123; other=abc')
+
+    const response = await adapter(request)
+    expect(response?.status).toBe(200)
+    
+    const setCookie = response?.headers.get('set-cookie')
+    expect(setCookie).toContain('resp_cookie=token123-response')
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('old_cookie=')
+    expect(setCookie).toContain('Max-Age=0')
+  })
 })
 
 describe('extractRouteParams', () => {

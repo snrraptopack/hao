@@ -1,8 +1,6 @@
-import { remote, defineMiddleware, validate } from 'auwla/server'
+import { remote, defineMiddleware, validate, UnauthorizedError, ForbiddenError, ServerContext } from 'auwla/server'
 import type { StandardSchema } from 'auwla/server'
 import { getUserById } from './db.server'
-
-console.log('DEBUG: validate function is:', typeof validate, validate)
 
 export type SessionUser = { id: string; name: string; role: 'admin' | 'user' }
 
@@ -23,19 +21,12 @@ function decodeSession(token: string | null): SessionUser | null {
   }
 }
 
-function readCookie(request: Request, name: string): string | null {
-  const cookie = request.headers.get('cookie')
-  if (!cookie) return null
-  const match = cookie.match(new RegExp(`(?:^|;)\\s*${name}=([^;]+)`))
-  return match ? decodeURIComponent(match[1]!) : null
-}
-
 /**
  * Attaches the current session user to `ctx.locals.user` for every remote
  * function that includes it in its middleware chain.
  */
-export const sessionMiddleware = defineMiddleware(async (ctx, next) => {
-  const token = readCookie(ctx.request, SESSION_COOKIE)
+export const sessionMiddleware = defineMiddleware<{ user: SessionUser | null }>(async (ctx, next) => {
+  const token = ctx.cookies.get(SESSION_COOKIE) ?? null
   ctx.locals.user = decodeSession(token)
   return next()
 })
@@ -43,9 +34,12 @@ export const sessionMiddleware = defineMiddleware(async (ctx, next) => {
 /**
  * Blocks anonymous requests. Must run after `sessionMiddleware`.
  */
-export const requireAuthMiddleware = defineMiddleware(async (ctx, next) => {
+export const requireAuthMiddleware = defineMiddleware<{ user: SessionUser }>(async (
+  ctx: ServerContext<any, any, { user: SessionUser | null }>,
+  next,
+) => {
   if (!ctx.locals.user) {
-    throw new Error('Unauthorized')
+    throw new UnauthorizedError('Unauthorized')
   }
   return next()
 })
@@ -53,27 +47,24 @@ export const requireAuthMiddleware = defineMiddleware(async (ctx, next) => {
 /**
  * Blocks non-admin requests. Must run after `sessionMiddleware`.
  */
-export const requireAdminMiddleware = defineMiddleware(async (ctx, next) => {
-  if ((ctx.locals.user as SessionUser | undefined)?.role !== 'admin') {
-    throw new Error('Forbidden: admin only')
+export const requireAdminMiddleware = defineMiddleware(async (
+  ctx: ServerContext<any, any, { user: SessionUser }>,
+  next,
+) => {
+  if (ctx.locals.user.role !== 'admin') {
+    throw new ForbiddenError('Forbidden: admin only')
   }
   return next()
 })
-
-function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
-  const headers = new Headers(init.headers)
-  headers.set('content-type', 'application/json')
-  return new Response(JSON.stringify(body), { ...init, headers })
-}
 
 /**
  * Returns the currently logged-in user, or null if anonymous.
  */
 export const me = remote.get([sessionMiddleware], async (ctx) => {
-  return ((ctx.locals.user as SessionUser | undefined) ?? null) as { id: string; name: string; role: 'admin' | 'user' } | null
+  return ctx.locals.user
 })
 
-const loginSchema: StandardSchema = {
+const loginSchema = {
   '~standard': {
     validate: (value: unknown) => {
       const v = value as Record<string, unknown>
@@ -92,27 +83,26 @@ console.log('DEBUG: validate(loginSchema) returned:', typeof validate(loginSchem
  * In a real app this would verify a password hash.
  */
 export const login = remote.post([validate(loginSchema)], async (ctx) => {
-  const body = ctx.locals.input as { username?: string }
-  const user = getUserById(body.username === 'admin' ? 'u1' : 'u2')
-  if (!user) throw new Error('Invalid credentials')
+  const { username } = ctx.locals.input
+  const user = getUserById(username === 'admin' ? 'u1' : 'u2')
+  if (!user) throw new UnauthorizedError('Invalid credentials')
 
   const session: SessionUser = { id: user.id, name: user.name, role: user.role }
-  const headers = new Headers()
-  headers.set(
-    'set-cookie',
-    `${SESSION_COOKIE}=${encodeSession(session)}; Path=/; HttpOnly; SameSite=Strict`,
-  )
+  ctx.cookies.set(SESSION_COOKIE, encodeSession(session), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Strict',
+  })
 
-  return jsonResponse({ ok: true, user: session }, { headers })
+  return { ok: true, user: session }
 })
 
 /**
  * Clears the session cookie.
  */
-export const logout = remote.post([sessionMiddleware], async () => {
-  const headers = new Headers()
-  headers.set('set-cookie', `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Strict`)
-  return jsonResponse({ ok: true }, { headers })
+export const logout = remote.post([sessionMiddleware], async (ctx) => {
+  ctx.cookies.delete(SESSION_COOKIE, { path: '/' })
+  return { ok: true }
 })
 
 /**

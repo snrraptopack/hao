@@ -50,7 +50,8 @@ const schema = v.object({ title: v.string() })
 export const createPost = remote.post(
   [validate(schema)],
   async (ctx) => {
-    const { title } = ctx.locals.input as { title: string }
+    // ctx.locals.input is automatically typed as { title: string }
+    const { title } = ctx.locals.input
     return db.post.create({ title })
   }
 )
@@ -64,13 +65,42 @@ Inside any remote function or middleware you can read the request context:
 import { getContext, getParams } from 'auwla/server'
 
 export async function getPost() {
-  const { request, params, locals } = getContext()
+  const { request, params, locals, headers, cookies } = getContext()
   const { id } = getParams('/posts/:id') // same API as the client router
   return db.post.findById(id)
 }
 ```
 
 `getContext()` throws if called outside of `runWithContext()`.
+
+### Cookies and Custom Headers
+
+`ServerContext` provides standard-compliant, platform-agnostic headers and cookies helpers. Any cookies or custom headers set here are automatically merged into the final `Response` returned to the client.
+
+```ts
+import { remote } from 'auwla/server'
+
+export const login = remote.post(async (ctx) => {
+  // Read a cookie
+  const sessionToken = ctx.cookies.get('session_id')
+
+  // Set a cookie
+  ctx.cookies.set('session_id', 'new-token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    maxAge: 60 * 60 * 24 // 1 day
+  })
+
+  // Delete a cookie
+  ctx.cookies.delete('old_token')
+
+  // Set custom response headers
+  ctx.headers.set('Cache-Control', 'no-store')
+
+  return { success: true }
+})
+```
 
 ## Middleware
 
@@ -89,6 +119,23 @@ export const auth = defineMiddleware(async (ctx, next) => {
 
 Use `remote.get([auth], handler)` or `remote.post([auth, validate(schema)], handler)` to attach middleware.
 
+### Composing Middleware
+
+You can use `composeMiddleware` to bundle multiple middlewares into a single middleware while preserving type safety and locals type propagation:
+
+```ts
+import { composeMiddleware, validate } from 'auwla/server'
+
+export const authAndValidate = composeMiddleware(
+  auth,
+  validate(schema)
+)
+
+export const createPost = remote.post([authAndValidate], async (ctx) => {
+  // Both ctx.locals.user and ctx.locals.input are fully typed!
+})
+```
+
 ## Validation
 
 `validate(schema)` parses the request body as JSON and validates it with a Standard Schema library (Zod, Valibot, etc.). The validated value is stored in `ctx.locals.input`.
@@ -102,6 +149,7 @@ const schema = v.object({ title: v.string() })
 export const createPost = remote.post(
   [validate(schema)],
   async (ctx) => {
+    // Automatically inferred as { title: string }
     const { title } = ctx.locals.input
     // ...
   }
@@ -109,6 +157,36 @@ export const createPost = remote.post(
 ```
 
 If validation fails, a `ValidationError` is thrown.
+
+## Error Handling
+
+Auwla provides semantic HTTP error classes that developers can throw inside remote functions or middleware. These automatically translate into the correct HTTP status code in the RPC response:
+
+```ts
+import { remote, UnauthorizedError, NotFoundError } from 'auwla/server'
+
+export const getPost = remote.get(async (ctx) => {
+  const user = ctx.locals.user
+  if (!user) {
+    throw new UnauthorizedError('You must be logged in')
+  }
+
+  const post = await db.posts.findById(ctx.params.id)
+  if (!post) {
+    throw new NotFoundError('Post not found')
+  }
+
+  return post
+})
+```
+
+Available HTTP error classes:
+- `BadRequestError` (400)
+- `UnauthorizedError` (401)
+- `ForbiddenError` (403)
+- `NotFoundError` (404)
+- `HttpError` (generic base class for custom statuses, e.g. `new HttpError(418, "I'm a teapot")`)
+
 
 ## File location rules
 

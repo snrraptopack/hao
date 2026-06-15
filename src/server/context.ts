@@ -6,7 +6,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks'
-import type { ServerContext } from './types'
+import type { ServerContext, Locals } from './types'
 import type { ValidRoutePath, PathParams } from 'auwla/router'
 
 // The dev server may load server files through Vite's SSR runner while the
@@ -14,9 +14,9 @@ import type { ValidRoutePath, PathParams } from 'auwla/router'
 // this module and therefore two AsyncLocalStorage instances. Sharing one global
 // instance keeps getContext() working regardless of which loader imported it.
 const globalStore = (globalThis as Record<string, unknown>).__auwla_asyncStorage as
-  | AsyncLocalStorage<ServerContext>
+  | AsyncLocalStorage<ServerContext<any, any, any>>
   | undefined
-const asyncStorage = globalStore ?? new AsyncLocalStorage<ServerContext>()
+const asyncStorage = globalStore ?? new AsyncLocalStorage<ServerContext<any, any, any>>()
 if (!globalStore) {
   ;(globalThis as Record<string, unknown>).__auwla_asyncStorage = asyncStorage
 }
@@ -26,7 +26,7 @@ if (!globalStore) {
  * inside `fn` (and any async operations started from it) will see this context.
  */
 export function runWithContext<T>(
-  ctx: ServerContext,
+  ctx: ServerContext<any, any, any>,
   fn: () => T | Promise<T>,
 ): T | Promise<T> {
   return asyncStorage.run(ctx, fn)
@@ -37,12 +37,16 @@ export function runWithContext<T>(
  *
  * Throws if called outside of runWithContext().
  */
-export function getContext(): ServerContext {
+export function getContext<
+  Params = Record<string, string | string[]>,
+  Platform = Record<string, any>,
+  TLocals = Locals,
+>(): ServerContext<Params, Platform, TLocals> {
   const ctx = asyncStorage.getStore()
   if (!ctx) {
     throw new Error('[auwla/server] getContext() called outside of request context')
   }
-  return ctx
+  return ctx as any
 }
 
 /**

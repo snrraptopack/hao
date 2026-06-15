@@ -1,26 +1,16 @@
-/**
- * @fileoverview remote.get / remote.post helpers for declaring server functions.
- */
+import type { Middleware, RemoteFunction, Locals, ServerContext } from './types'
 
-import type { Middleware, RemoteFunction, RemoteMethod, ServerContext } from './types'
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never
 
-function createRemote<
-  TArgs extends unknown[],
-  TReturn,
-  TMethod extends RemoteMethod,
-  TParams = Record<string, string | string[]>,
->(
-  method: TMethod,
-  middleware: Middleware<TParams>[],
-  handler: (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>,
-): RemoteFunction<TArgs, TReturn, TMethod, TParams> {
-  return {
-    __auwla_remote: true,
-    method,
-    middleware,
-    handler,
-  }
-}
+type LocalsFromMiddleware<TMw> = TMw extends readonly Middleware<any, any, any, any>[]
+  ? UnionToIntersection<{
+      [K in keyof TMw]: TMw[K] extends Middleware<infer TNew, any, any, any> ? TNew : never
+    }[number]> extends never
+    ? Locals
+    : Locals & UnionToIntersection<{
+        [K in keyof TMw]: TMw[K] extends Middleware<infer TNew, any, any, any> ? TNew : never
+      }[number]>
+  : Locals
 
 /**
  * Declare a GET remote function.
@@ -38,18 +28,42 @@ function get<
   TReturn = unknown,
   TParams = Record<string, string | string[]>,
 >(
+  handler: (ctx: ServerContext<TParams, any, Locals>, ...args: TArgs) => Promise<TReturn>,
+): RemoteFunction<TArgs, TReturn, 'GET', TParams, any, Locals>
+
+function get<
+  TArgs extends unknown[] = [],
+  TReturn = unknown,
+  TParams = Record<string, string | string[]>,
+  const TMw extends readonly Middleware<any, TParams, any, any>[] = readonly Middleware<any, TParams, any, any>[],
+>(
+  middleware: TMw,
+  handler: (ctx: ServerContext<TParams, any, LocalsFromMiddleware<TMw>>, ...args: TArgs) => Promise<TReturn>,
+): RemoteFunction<TArgs, TReturn, 'GET', TParams, any, LocalsFromMiddleware<TMw>>
+
+function get<
+  TArgs extends unknown[] = [],
+  TReturn = unknown,
+  TParams = Record<string, string | string[]>,
+  const TMw extends readonly Middleware<any, TParams, any, any>[] = [],
+>(
   middlewareOrHandler:
-    | Middleware<TParams>[]
-    | ((ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>),
-  maybeHandler?: (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>,
-): RemoteFunction<TArgs, TReturn, 'GET', TParams> {
-  const middleware: Middleware<TParams>[] = Array.isArray(middlewareOrHandler)
+    | TMw
+    | ((ctx: ServerContext<TParams, any, Locals>, ...args: TArgs) => Promise<TReturn>),
+  maybeHandler?: (ctx: ServerContext<TParams, any, LocalsFromMiddleware<TMw>>, ...args: TArgs) => Promise<TReturn>,
+): RemoteFunction<TArgs, TReturn, 'GET', TParams, any, any> {
+  const middleware = Array.isArray(middlewareOrHandler)
     ? middlewareOrHandler
     : []
   const handler =
     maybeHandler ??
-    (middlewareOrHandler as (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>)
-  return createRemote('GET', middleware, handler)
+    (middlewareOrHandler as any)
+  return {
+    __auwla_remote: true,
+    method: 'GET',
+    middleware: middleware as any,
+    handler,
+  }
 }
 
 /**
@@ -64,18 +78,42 @@ function post<
   TReturn = unknown,
   TParams = Record<string, string | string[]>,
 >(
+  handler: (ctx: ServerContext<TParams, any, Locals>, ...args: TArgs) => Promise<TReturn>,
+): RemoteFunction<TArgs, TReturn, 'POST', TParams, any, Locals>
+
+function post<
+  TArgs extends unknown[] = [],
+  TReturn = unknown,
+  TParams = Record<string, string | string[]>,
+  const TMw extends readonly Middleware<any, TParams, any, any>[] = readonly Middleware<any, TParams, any, any>[],
+>(
+  middleware: TMw,
+  handler: (ctx: ServerContext<TParams, any, LocalsFromMiddleware<TMw>>, ...args: TArgs) => Promise<TReturn>,
+): RemoteFunction<TArgs, TReturn, 'POST', TParams, any, LocalsFromMiddleware<TMw>>
+
+function post<
+  TArgs extends unknown[] = [],
+  TReturn = unknown,
+  TParams = Record<string, string | string[]>,
+  const TMw extends readonly Middleware<any, TParams, any, any>[] = [],
+>(
   middlewareOrHandler:
-    | Middleware<TParams>[]
-    | ((ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>),
-  maybeHandler?: (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>,
-): RemoteFunction<TArgs, TReturn, 'POST', TParams> {
-  const middleware: Middleware<TParams>[] = Array.isArray(middlewareOrHandler)
+    | TMw
+    | ((ctx: ServerContext<TParams, any, Locals>, ...args: TArgs) => Promise<TReturn>),
+  maybeHandler?: (ctx: ServerContext<TParams, any, LocalsFromMiddleware<TMw>>, ...args: TArgs) => Promise<TReturn>,
+): RemoteFunction<TArgs, TReturn, 'POST', TParams, any, any> {
+  const middleware = Array.isArray(middlewareOrHandler)
     ? middlewareOrHandler
     : []
   const handler =
     maybeHandler ??
-    (middlewareOrHandler as (ctx: ServerContext<TParams>, ...args: TArgs) => Promise<TReturn>)
-  return createRemote('POST', middleware, handler)
+    (middlewareOrHandler as any)
+  return {
+    __auwla_remote: true,
+    method: 'POST',
+    middleware: middleware as any,
+    handler,
+  }
 }
 
 export const remote = { get, post }
