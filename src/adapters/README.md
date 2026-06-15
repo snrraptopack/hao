@@ -26,6 +26,27 @@ export default { fetch: handle }
 - `load(modulePath)` — optional module loader. Defaults to `import()`.
 - `rpcPath` — RPC endpoint path, defaults to `/_auwla/rpc`.
 - `onError(error, request)` — optional error logger.
+- `middlewares` — array of global middlewares executed around every remote function.
+
+### Global Middlewares Example
+
+Global middlewares allow you to register common audit or setup logic (such as logging, request tracking, or database session management) once at the adapter level:
+
+```ts
+import { createFetchAdapter } from 'auwla/adapters/fetch'
+import { defineMiddleware } from 'auwla/server'
+import manifest from './.auwla/server-manifest'
+
+const globalLogger = defineMiddleware(async (ctx, next) => {
+  console.log(`[RPC] Invoking: ${ctx.route.path}`)
+  return next()
+})
+
+const handle = createFetchAdapter({
+  manifest,
+  middlewares: [globalLogger]
+})
+```
 
 ## Hono
 

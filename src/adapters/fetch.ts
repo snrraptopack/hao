@@ -16,7 +16,7 @@
 import type { ServerContext, ServerManifest, ServerManifestEntry, CookieOptions } from '../server/types'
 import { runWithContext } from '../server/context'
 import { runMiddleware } from '../server/pipeline'
-import type { RemoteFunction } from '../server/types'
+import type { RemoteFunction, Middleware } from '../server/types'
 import { ValidationError, parseBody } from '../server/validate'
 import { HttpError } from '../server/errors'
 
@@ -75,6 +75,8 @@ export interface FetchAdapterOptions {
   rpcPath?: string
   /** Optional error logger. */
   onError?: (error: unknown, request: Request) => void
+  /** Global middlewares executed around every remote function. */
+  middlewares?: Middleware<any, any, any, any>[]
 }
 
 export interface RpcPayload {
@@ -260,6 +262,7 @@ async function invokeRemote(
   mod: Record<string, unknown>,
   ctx: ServerContext,
   args: unknown[],
+  globalMiddlewares: Middleware<any, any, any, any>[] = [],
 ): Promise<unknown> {
   const exported = mod[entry.exportName]
   if (typeof exported !== 'function' && !isRemoteFunction(exported)) {
@@ -267,11 +270,14 @@ async function invokeRemote(
   }
 
   if (isRemoteFunction(exported)) {
-    return runMiddleware(ctx, exported.middleware, () => exported.handler(ctx, ...args))
+    const stack = [...globalMiddlewares, ...exported.middleware]
+    return runMiddleware(ctx, stack, () => exported.handler(ctx, ...args))
   }
 
-  // Plain async function default: call with the declared arguments only.
-  return (exported as (...args: unknown[]) => unknown)(...args)
+  // Plain async function default: run global middlewares around it.
+  return runMiddleware(ctx, globalMiddlewares, async () =>
+    (exported as (...args: unknown[]) => unknown)(...args),
+  )
 }
 
 function isRemoteFunction(value: unknown): value is RemoteFunction {
@@ -332,6 +338,7 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
   const load = options.load ?? defaultLoad
   const rpcPath = options.rpcPath ?? DEFAULT_RPC_PATH
   const onError = options.onError
+  const globalMiddlewares = options.middlewares ?? []
 
   return async function handle(
     request: Request,
@@ -400,7 +407,7 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
 
     try {
       const result = await runWithContext(ctx, () =>
-        invokeRemote(entry, mod, ctx, payload.args),
+        invokeRemote(entry, mod, ctx, payload.args, globalMiddlewares),
       )
       let response: Response
       if (result instanceof Response) {

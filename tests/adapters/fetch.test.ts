@@ -251,6 +251,41 @@ describe('fetch adapter', () => {
     expect(setCookie).toContain('old_cookie=')
     expect(setCookie).toContain('Max-Age=0')
   })
+
+  it('executes global middlewares for both remote functions and plain async functions', async () => {
+    const modules = buildModules()
+    const log: string[] = []
+
+    const globalMw = defineMiddleware(async (ctx, next) => {
+      log.push('global-before')
+      await next()
+      log.push('global-after')
+    })
+
+    const localMw = defineMiddleware(async (ctx, next) => {
+      log.push('local')
+      return next()
+    })
+    modules['mod:posts']!.getPost = remote.get([localMw], async () => {
+      log.push('handler')
+      return 'ok'
+    })
+
+    const adapter = createFetchAdapter({
+      manifest: buildManifest(),
+      load: async (modulePath) => modules[modulePath]!,
+      middlewares: [globalMw],
+    })
+
+    const response1 = await adapter(makeRpcRequest({ key: 'posts.getPost', args: [], routePath: '/posts/42' }))
+    expect(response1?.status).toBe(200)
+    expect(log).toEqual(['global-before', 'local', 'handler', 'global-after'])
+
+    log.length = 0
+    const response2 = await adapter(makeRpcRequest({ key: 'index.greet', args: ['world'], routePath: '/' }))
+    expect(response2?.status).toBe(200)
+    expect(log).toEqual(['global-before', 'global-after'])
+  })
 })
 
 describe('extractRouteParams', () => {
