@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'vitest';
-import { createSsrFetchAdapter } from '../../src/ssr';
+import { createSsrAdapter } from '../../src/ssr';
 import { h } from '../../src';
 import type { RemoteFunction, ServerManifest } from '../../src/server/types';
 
-describe('createSsrFetchAdapter', () => {
+describe('createSsrAdapter', () => {
   test('renders HTML for page requests', async () => {
     function App() {
       return () => <main>Hello SSR</main>;
     }
 
-    const handler = createSsrFetchAdapter({
+    const handler = createSsrAdapter({
       manifest: {},
       ssr: { app: h(App) },
     });
@@ -19,6 +19,8 @@ describe('createSsrFetchAdapter', () => {
     expect(response.headers.get('content-type')).toContain('text/html');
     const html = await response.text();
     expect(html).toContain('<main>Hello SSR</main>');
+    expect(html).toContain('<div id="app">');
+    expect(html).toContain('<script type="module" src="/src/main.tsx"></script>');
   });
 
   test('handles RPC requests before rendering', async () => {
@@ -46,7 +48,7 @@ describe('createSsrFetchAdapter', () => {
       return () => <main>App</main>;
     }
 
-    const handler = createSsrFetchAdapter({
+    const handler = createSsrAdapter({
       manifest,
       load: async () => ({ check: remoteFn }),
       ssr: { app: h(App) },

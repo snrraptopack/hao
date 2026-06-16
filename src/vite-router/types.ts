@@ -212,4 +212,17 @@ export type AuwlaRouterOptions = {
    * @default '.auwla'
    */
   manifestDir?: string
+
+  /**
+   * Output path for the generated route tree module, relative to the Vite
+   * project root.
+   *
+   * The file exports the route table as its default export and can be
+   * imported directly from user code. The virtual module `auwla:routes`
+   * continues to resolve to the same generated source for backward
+   * compatibility.
+   *
+   * @default '.auwla/routes.ts'
+   */
+  routesFile?: string
 }

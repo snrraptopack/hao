@@ -21,6 +21,7 @@
     "src/router/index.ts",
     "src/vite-router/**/*.ts",
     "src/server/**/*.ts",
+    "src/ssr/**/*.ts",
     "src/client/rpc.ts",
     "src/adapters/**/*.ts",
     "src/shared/**/*.ts",

@@ -180,6 +180,16 @@ export function initNavigation(): void {
   if (_initialized) return
   _initialized = true
 
+  // SSR / non-browser environments: the shimmed window has no navigation or
+  // history API. Skip listener registration entirely so the same Router code
+  // runs unchanged on server and client.
+  if (
+    typeof window === 'undefined' ||
+    (!('navigation' in window) && !('history' in window))
+  ) {
+    return
+  }
+
   // Sync the reactive cell to the real URL now that we know we are in a
   // browser context. (The module-level initialiser covers most cases, but
   // SSR or test environments may mount the app later.)

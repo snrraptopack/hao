@@ -69,6 +69,10 @@
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
+    },
+    "./ssr": {
+      "types": "./dist/ssr/index.d.ts",
+      "import": "./dist/ssr/index.js"
     }
   },
   "files": [

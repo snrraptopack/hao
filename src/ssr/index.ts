@@ -7,5 +7,11 @@ export { createSsrContext, type SsrContext, type SsrContextOptions } from './con
 export { type SsrRpcInvoker } from './invoker';
 export { installDomShim } from './dom-shim';
 export { serializeNode, serializeChildren } from './serialize';
-export { createSsrFetchAdapter, type SsrOptions, type SsrFetchAdapterOptions } from './adapter';
+export {
+  createSsrAdapter,
+  createSsrFetchAdapter,
+  type SsrOptions,
+  type SsrAdapterOptions,
+  type SsrFetchAdapterOptions,
+} from './adapter';
 export { hydrate, type HydrateOptions } from './hydrate';
