@@ -110,13 +110,13 @@ describe('server-scanner', () => {
   })
 
   it('extracts remote.post exports', () => {
-    const source = `export const createPost = remote.post([validate(schema)], async (data: { title: string }): Promise<Post> => { return {} as Post })`
+    const source = `export const createPost = remote.post([validate(schema)], async (ctx: any, data: { title: string }): Promise<Post> => { return {} as Post })`
     const exports = extractServerExports(source)
     expect(exports).toHaveLength(1)
     expect(exports[0]).toMatchObject({
       name: 'createPost',
       method: 'POST',
-      argsType: ['{ title: string }'],
+      argsType: ['{ title: string; }'],
       returnType: 'Post',
     })
   })
@@ -125,5 +125,12 @@ describe('server-scanner', () => {
     const source = `export async function find(limit: number, offset?: number): Promise<Post[]> { return [] }`
     const exports = extractServerExports(source)
     expect(exports[0]!.argsType).toEqual(['number', 'number | undefined'])
+  })
+
+  it('throws an error on variable exports that are not wrapped in remote.get/post', () => {
+    const source = `export const helper = async (a: number) => a * 2;`
+    expect(() => extractServerExports(source)).toThrowError(
+      '[Auwla Server Scanner] Exported variable "helper"'
+    )
   })
 })

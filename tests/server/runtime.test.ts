@@ -207,4 +207,30 @@ describe('server runtime', () => {
 
     expect(order).toEqual(['mw1', 'mw2', 'handler'])
   })
+
+  it('validate middleware supports and awaits async standard validation schemas', async () => {
+    const schema = {
+      '~standard': {
+        validate: async (value: unknown) => {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          if (typeof value === 'object' && value !== null && 'title' in value) {
+            return { value: (value as { title: string }).title }
+          }
+          return { issues: [{ message: 'title is required' }] }
+        },
+      },
+    }
+
+    const ctx = makeContext()
+    ctx.request = makeRequest({ title: 'Async Hello' })
+
+    await runMiddleware(
+      ctx,
+      [validate(schema)],
+      async () => {
+        expect(ctx.locals.input).toBe('Async Hello')
+        return 'ok'
+      },
+    )
+  })
 })

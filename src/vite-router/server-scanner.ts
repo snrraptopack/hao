@@ -299,16 +299,30 @@ export function extractServerExportsFromAST(
   for (const statement of sourceFile.statements) {
     if (!isExported(statement)) continue
 
+    // Ignore type/interface/module exports as they don't produce runtime code
+    if (
+      ts.isInterfaceDeclaration(statement) ||
+      ts.isTypeAliasDeclaration(statement) ||
+      ts.isModuleDeclaration(statement)
+    ) {
+      continue
+    }
+
     // Case 1: Plain function declarations: export async function name(...)
-    if (ts.isFunctionDeclaration(statement) && statement.name) {
+    if (ts.isFunctionDeclaration(statement)) {
       const detail = parseFunctionDeclaration(statement, checker)
       if (detail) {
         exports.push(detail)
+      } else {
+        throw new Error(
+          `[Auwla Server Scanner] Exported function "${statement.name?.text}" in "${sourceFile.fileName}" is not valid. ` +
+          `Only remote functions and types can be exported from .server.ts files.`
+        )
       }
     }
 
     // Case 2: Remote variable declarations: export const name = remote.get(...)
-    if (ts.isVariableStatement(statement)) {
+    else if (ts.isVariableStatement(statement)) {
       for (const decl of statement.declarationList.declarations) {
         if (ts.isIdentifier(decl.name) && decl.initializer) {
           const name = decl.name.text
@@ -318,9 +332,19 @@ export function extractServerExportsFromAST(
             if (detail) {
               exports.push(detail)
             }
+          } else {
+            throw new Error(
+              `[Auwla Server Scanner] Exported variable "${name}" in "${sourceFile.fileName}" is not wrapped in "remote.get()" or "remote.post()". ` +
+              `Only remote endpoints and types can be exported from .server.ts files.`
+            )
           }
         }
       }
+    } else {
+      throw new Error(
+        `[Auwla Server Scanner] Unsupported export statement in "${sourceFile.fileName}". ` +
+        `Only remote functions and remote-wrapped variables can be exported from .server.ts files.`
+      )
     }
   }
 

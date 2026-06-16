@@ -153,12 +153,20 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           ? filePathToRouteName(relativePath)
           : filePathToServerRouteName(relativePath)
 
+        const manifestPath = resolve(resolvedManifestDir, 'server-manifest.json')
+        let manifest: ServerManifest = {}
+        try {
+          manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+        } catch {}
+
         const exports = parseServerExports(id)
 
         let code = `import { rpcCall } from 'auwla/client';\n`
         for (const name of exports) {
           const key = `${routeName}.${name}`
-          code += `export const ${name} = (...args) => rpcCall('${key}', args);\n`
+          const entry = manifest[key]
+          const method = entry?.method ?? 'GET'
+          code += `export const ${name} = (...args) => rpcCall('${key}', args, { method: '${method}' });\n`
           code += `${name}.__auwla_key = '${key}';\n`
         }
         return code

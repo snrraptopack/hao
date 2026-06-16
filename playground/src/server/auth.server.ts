@@ -1,6 +1,6 @@
 import { remote, defineMiddleware, validate, UnauthorizedError, ForbiddenError, ServerContext } from 'auwla/server'
 import type { StandardSchema } from 'auwla/server'
-import { getUserById } from './db.server'
+import { getUserById } from './db'
 
 export type SessionUser = { id: string; name: string; role: 'admin' | 'user' }
 

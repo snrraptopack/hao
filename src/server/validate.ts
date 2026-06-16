@@ -48,7 +48,7 @@ export function validate<TOutput>(
       throw new ValidationError([{ message: 'Request body is missing or invalid' }])
     }
 
-    const result = schema['~standard'].validate(body)
+    const result = await schema['~standard'].validate(body)
     if ('issues' in result) {
       throw new ValidationError(result.issues!)
     }

@@ -10,7 +10,7 @@
 import {} from "auwla/jsx-runtime"
 import { track } from "auwla/events"
 import type { TrackHandle } from "auwla/events"
-import { setRpcRoutePath } from "../client/rpc"
+import { setRpcRoutePath, setRpcRouteParams } from "../client/rpc"
 import { component } from "../runtime/component"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
 import { matchRoute, matchRoutes, normalizePath } from "./routes"
@@ -265,10 +265,12 @@ export function Router(props: RouterProps = {}) {
   function startLoader(routeToLoad: Route, context: RouteContext<any>): TrackHandle {
     return track("__loader", (signal) => {
       const prevPath = setRpcRoutePath(context.path)
+      const prevParams = setRpcRouteParams(context.params)
       try {
         return routeToLoad.routed!(context, signal)
       } finally {
         setRpcRoutePath(prevPath)
+        setRpcRouteParams(prevParams)
       }
     }, { viewTransition: useViewTransition })
   }
@@ -415,6 +417,7 @@ export function Router(props: RouterProps = {}) {
 
     // Normal render path — refresh accessors for the current match.
     _currentContext = { path: currentPath, params, query } as RouteContext<any>
+    setRpcRouteParams(params)
     _currentMeta = route.meta ?? null
     _currentLoader = cachedLoader
     // Clear any stale error context from a previous error render on this route.

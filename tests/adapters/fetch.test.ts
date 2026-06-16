@@ -8,7 +8,7 @@ describe('fetch adapter', () => {
     'index.greet': {
       modulePath: 'mod:index',
       exportName: 'greet',
-      method: 'GET',
+      method: 'POST',
       routePattern: '/',
       params: [],
       paramsType: 'Record<string, never>',
@@ -83,6 +83,23 @@ describe('fetch adapter', () => {
   }
 
   function makeRpcRequest(payload: { key: string; args: unknown[]; routePath: string }): Request {
+    const manifest = buildManifest()
+    const entry = manifest[payload.key]
+    const method = entry?.method ?? 'POST'
+
+    if (method === 'GET') {
+      const url = new URL('http://localhost/_auwla/rpc')
+      url.searchParams.set('key', payload.key)
+      url.searchParams.set('routePath', payload.routePath)
+      if (payload.args.length > 0) {
+        url.searchParams.set('args', JSON.stringify(payload.args))
+      }
+      return new Request(url.toString(), {
+        method: 'GET',
+        headers: { 'accept': 'application/json' },
+      })
+    }
+
     return new Request('http://localhost/_auwla/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -96,10 +113,20 @@ describe('fetch adapter', () => {
     expect(response).toBeUndefined()
   })
 
-  it('rejects non-POST methods', async () => {
+  it('rejects GET method on POST endpoints', async () => {
     const handle = makeAdapter()
-    const response = await handle(new Request('http://localhost/_auwla/rpc', { method: 'GET' }))
+    const response = await handle(new Request('http://localhost/_auwla/rpc?key=posts.createPost', { method: 'GET' }))
     expect(response?.status).toBe(405)
+  })
+
+  it('invokes a remote.get function via true GET method with param fallback', async () => {
+    const handle = makeAdapter()
+    const url = 'http://localhost/_auwla/rpc?key=posts.getPost&routePath=/dashboard&params=' +
+      encodeURIComponent(JSON.stringify({ id: '99' }))
+    const request = new Request(url, { method: 'GET' })
+    const response = await handle(request)
+    expect(response?.status).toBe(200)
+    expect(await response!.text()).toContain('post-99')
   })
 
   it('invokes a plain async function', async () => {
@@ -177,6 +204,7 @@ describe('fetch adapter', () => {
     const response = await handle(
       new Request('http://localhost/_auwla/rpc', {
         method: 'POST',
+        headers: { 'accept': 'application/json' },
         body: form,
       }),
     )

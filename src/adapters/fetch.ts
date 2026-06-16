@@ -1,16 +1,5 @@
 /**
  * @fileoverview WinterCG-compatible fetch adapter for Auwla fullstack.
- *
- * Exposes a single POST endpoint (default `/_auwla/rpc`) that receives:
- *   - JSON bodies
- *   - multipart/form-data bodies for file uploads
- *
- * The adapter resolves the remote key, extracts route params from the current
- * route path, runs the server function inside the AsyncLocalStorage request
- * context, and returns the serialized result.
- *
- * This adapter uses only Request/Response/URL/FormData and can be mounted in
- * any WinterCG runtime (Cloudflare Workers, Deno, Bun, Node 18+ fetch).
  */
 
 import type { ServerContext, ServerManifest, ServerManifestEntry, CookieOptions } from '../server/types'
@@ -62,20 +51,11 @@ function serializeCookie(name: string, value: string, options: CookieOptions = {
   return str
 }
 
-
 export interface FetchAdapterOptions {
-  /** Runtime server manifest (from `auwla:server-manifest`). */
   manifest: ServerManifest
-  /**
-   * Custom module loader. Receives the `modulePath` from the manifest and must
-   * return the module object. Defaults to a dynamic `import()`.
-   */
   load?: (modulePath: string) => Promise<Record<string, unknown>>
-  /** RPC endpoint path. Defaults to `/_auwla/rpc`. */
   rpcPath?: string
-  /** Optional error logger. */
   onError?: (error: unknown, request: Request) => void
-  /** Global middlewares executed around every remote function. */
   middlewares?: Middleware<any, any, any, any>[]
 }
 
@@ -100,16 +80,6 @@ function getPathname(routePath: string): string {
   return queryIndex === -1 ? routePath : routePath.slice(0, queryIndex)
 }
 
-/**
- * Extract typed params from the current route path using the manifest's
- * route pattern and ordered param names.
- *
- * Supports:
- *   - "/posts/:id" with ["id"]
- *   - "/posts/:category/:id" with ["category", "id"]
- *   - "/posts/*" with ["slug"] → { slug: string[] }
- *   - "" → {}
- */
 export function extractRouteParams(
   routePattern: string,
   routePath: string,
@@ -151,32 +121,50 @@ export function extractRouteParams(
   return params
 }
 
-async function parseRpcRequest(request: Request): Promise<ParsedRpc> {
+async function parseRpcRequest(request: Request): Promise<ParsedRpc & { routeParams?: Record<string, any> }> {
   const url = new URL(request.url)
+
+  if (request.method === 'GET') {
+    const key = url.searchParams.get('key')
+    const routePath = url.searchParams.get('routePath') ?? '/'
+    const rawParams = url.searchParams.get('params')
+    const rawArgs = url.searchParams.get('args')
+
+    if (!key) {
+      throw new Error('Missing remote function key in request')
+    }
+
+    const args = rawArgs ? JSON.parse(rawArgs) : []
+    const routeParams = rawParams ? JSON.parse(rawParams) : {}
+
+    return { key, args, routePath, routeParams }
+  }
+
   const queryKey = url.searchParams.get('key')
   const queryRoutePath = url.searchParams.get('routePath')
-
   const contentType = request.headers.get('content-type') ?? ''
 
   if (contentType.startsWith('multipart/form-data') || contentType.startsWith('application/x-www-form-urlencoded')) {
     const form = await request.formData()
     const key = queryKey ?? form.get('__auwla_key')
     const routePath = queryRoutePath ?? form.get('__auwla_routePath') ?? '/'
+    const rawParams = form.get('__auwla_routeParams')
+
     if (typeof key !== 'string') {
       throw new Error('Missing remote function key in request')
     }
-    // Attach the form fields needed by the remote function to a fresh FormData
-    // instance so the single argument received by the handler is a clean body.
+
+    const routeParams = typeof rawParams === 'string' ? JSON.parse(rawParams) : {}
     const clean = new FormData()
     form.forEach((value, name) => {
-      if (name === '__auwla_key' || name === '__auwla_routePath') return
+      if (name === '__auwla_key' || name === '__auwla_routePath' || name === '__auwla_routeParams') return
       clean.append(name, value)
     })
-    return { key, args: [clean], routePath: String(routePath) }
+    return { key, args: [clean], routePath: String(routePath), routeParams }
   }
 
   const text = await request.text()
-  const payload = JSON.parse(text) as RpcPayload
+  const payload = JSON.parse(text) as RpcPayload & { routeParams?: Record<string, any> }
   if (
     !payload ||
     typeof payload !== 'object' ||
@@ -186,21 +174,14 @@ async function parseRpcRequest(request: Request): Promise<ParsedRpc> {
   ) {
     throw new Error('Invalid RPC payload')
   }
-  return payload as ParsedRpc
+  return payload as ParsedRpc & { routeParams?: Record<string, any> }
 }
 
-/**
- * Build a request object that middleware sees. For POST calls the body is
- * rewritten to the first serialized argument so validation middleware can
- * use `ctx.request.json()` without knowing about the RPC transport envelope.
- */
 function buildMiddlewareRequest(request: Request, args: unknown[]): Request {
   if (args.length === 0) return request
 
   const first = args[0]
   if (first instanceof FormData) {
-    // Strip the original content-type so the new Request can compute the correct
-    // multipart boundary for the rewritten FormData body.
     const headers = new Headers(request.headers)
     headers.delete('content-type')
     return new Request(request, { body: first, headers })
@@ -274,7 +255,6 @@ async function invokeRemote(
     return runMiddleware(ctx, stack, () => exported.handler(ctx, ...args))
   }
 
-  // Plain async function default: run global middlewares around it.
   return runMiddleware(ctx, globalMiddlewares, async () =>
     (exported as (...args: unknown[]) => unknown)(...args),
   )
@@ -322,17 +302,6 @@ function errorResponse(error: unknown): Response {
   })
 }
 
-/**
- * Create a WinterCG fetch handler for Auwla RPC.
- *
- * Usage:
- *   const handle = createFetchAdapter({ manifest, load })
- *   export default { fetch: handle }
- *
- * The returned function ignores requests that do not match `rpcPath` and
- * returns `undefined` so upstream wrappers (Hono/Bun/Express) can fall through
- * to the next handler.
- */
 export function createFetchAdapter(options: FetchAdapterOptions) {
   const manifest = options.manifest
   const load = options.load ?? defaultLoad
@@ -346,29 +315,29 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
   ): Promise<Response | undefined> {
     const url = new URL(request.url)
     if (url.pathname !== rpcPath) return undefined
-    if (request.method !== 'POST') {
+    
+    if (request.method !== 'POST' && request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 })
     }
 
-    // CSRF check: verify Origin and Referer for mutations/POST calls
-    const origin = request.headers.get('origin')
-    const referer = request.headers.get('referer')
-    const requestOrigin = new URL(request.url, 'http://localhost').origin
+    if (request.method === 'POST') {
+      const origin = request.headers.get('origin')
+      const referer = request.headers.get('referer')
+      const requestOrigin = new URL(request.url, 'http://localhost').origin
 
-    if (origin && origin !== requestOrigin) {
-      return errorResponse(new Error('CSRF Blocked: Origin mismatch'))
-    } else if (!origin && referer) {
-      try {
-        const refererOrigin = new URL(referer).origin
-        if (refererOrigin !== requestOrigin) {
-          return errorResponse(new Error('CSRF Blocked: Referer mismatch'))
-        }
-      } catch {
-        // Ignore parsing issues, but if it successfully parsed ensure origin matches
+      if (origin && origin !== requestOrigin) {
+        return errorResponse(new Error('CSRF Blocked: Origin mismatch'))
+      } else if (!origin && referer) {
+        try {
+          const refererOrigin = new URL(referer).origin
+          if (refererOrigin !== requestOrigin) {
+            return errorResponse(new Error('CSRF Blocked: Referer mismatch'))
+          }
+        } catch {}
       }
     }
 
-    let payload: ParsedRpc
+    let payload: ParsedRpc & { routeParams?: Record<string, any> }
     try {
       payload = await parseRpcRequest(request)
     } catch (error) {
@@ -376,18 +345,18 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
       return errorResponse(error)
     }
 
-    // Prototype Pollution Guard: enforce direct properties only
     if (!payload.key || !Object.hasOwn(manifest, payload.key)) {
       return errorResponse(new Error(`Remote key not found: ${payload.key}`))
     }
     const entry = manifest[payload.key]!
 
-    const params = extractRouteParams(entry.routePattern, payload.routePath, entry.params)
-    if (params === null) {
-      return errorResponse(
-        new Error(`Route path "${payload.routePath}" does not match pattern "${entry.routePattern}"`),
-      )
+    if (entry.method !== request.method) {
+      return new Response(`Method not allowed: Endpoint expects ${entry.method}`, { status: 405 })
     }
+
+    const params = extractRouteParams(entry.routePattern, payload.routePath, entry.params)
+      ?? payload.routeParams
+      ?? {}
 
     let mod: Record<string, unknown>
     try {
@@ -401,6 +370,7 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
     const contentType = request.headers.get('content-type') ?? ''
     const accept = request.headers.get('accept') ?? ''
     const isFetch =
+      request.method === 'GET' ||
       contentType.includes('application/json') ||
       accept.includes('application/json') ||
       request.headers.get('x-requested-with') === 'XMLHttpRequest'
@@ -419,6 +389,10 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
         })
       } else {
         response = serialize(result)
+      }
+
+      if (request.method === 'GET') {
+        response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate')
       }
 
       try {

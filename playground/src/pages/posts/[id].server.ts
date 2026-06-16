@@ -1,5 +1,5 @@
 import { remote, validate, getParams, NotFoundError } from 'auwla/server'
-import { deletePost as deletePostDb, getPostById, updatePost as updatePostDb } from '../../server/db.server'
+import { deletePost as deletePostDb, getPostById, updatePost as updatePostDb } from '../../server/db'
 import { requireAuthMiddleware, sessionMiddleware } from '../../server/auth.server'
 
 const updateSchema = {
@@ -20,7 +20,7 @@ export const getPost = remote.get([sessionMiddleware], async () => {
   const { id } = getParams()
   const post = getPostById(id)
   if (!post) throw new NotFoundError('Post not found')
-  setTimeout(()=>{},2000)
+  await new Promise((resolve) => setTimeout(resolve, 2000))
   return post
 })
 
