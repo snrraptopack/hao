@@ -188,4 +188,24 @@ describe('event.track', () => {
 
     expect(root.querySelector('span')!.textContent).toBe('saved');
   });
+
+  test('track created in setup auto-subscribes component', async () => {
+    const root = document.createElement('div');
+    let renderCount = 0;
+
+    function App() {
+      event.track('auto', Promise.resolve('ok'));
+      return () => {
+        renderCount++;
+        return h('div', {}, 'app');
+      };
+    }
+
+    createMemoApp(root, () => h(App as any));
+    expect(renderCount).toBe(1);
+
+    await sleep(10);
+
+    expect(renderCount).toBe(2);
+  });
 });

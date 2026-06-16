@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { createMemoApp, h } from '../../src'
 import { track } from '../../src/events'
 import type { CommandHandle } from '../../src/events'
 
@@ -16,6 +17,12 @@ declare module 'auwla/server-manifest' {
       params: Record<string, never>
       args: [{ title: string }]
       return: { id: number; title: string }
+    }
+    'auth.me': {
+      method: 'GET'
+      params: Record<string, never>
+      args: []
+      return: { id: string; name: string }
     }
   }
 }
@@ -98,5 +105,58 @@ describe('remote track functions', () => {
 
     expect(posts.rejected).toBe(true)
     expect(posts.reason).toBeInstanceOf(Error)
+  })
+
+  it('track.get created in setup auto-subscribes component', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: '1', name: 'Ada' }), { status: 200 }),
+    )
+
+    const root = document.createElement('div')
+    let renderCount = 0
+
+    function App() {
+      track.get('auth.me')
+      return () => {
+        renderCount++
+        return h('div', {}, 'app')
+      }
+    }
+
+    createMemoApp(root, () => h(App as any))
+    expect(renderCount).toBe(1)
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(renderCount).toBe(2)
+  })
+
+  it('track.post created in setup auto-subscribes component', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 2, title: 'Created' }), { status: 200 }),
+    )
+
+    const root = document.createElement('div')
+    let renderCount = 0
+
+    function App() {
+      const save = track.post('posts.createPost')
+      save.run({ title: 'Hello' })
+      return () => {
+        renderCount++
+        return h('div', {}, 'app')
+      }
+    }
+
+    createMemoApp(root, () => h(App as any))
+    expect(renderCount).toBe(1)
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    // Subscribed both to the command resultCell and the internal track statusCell,
+    // so the component may render more than once; the important thing is it re-renders.
+    expect(renderCount).toBeGreaterThanOrEqual(2)
   })
 })

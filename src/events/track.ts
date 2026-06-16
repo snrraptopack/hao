@@ -102,6 +102,19 @@ function getOrCreate(key: string): TrackState {
   return state;
 }
 
+/**
+ * Subscribe the component whose setup function created this track to the
+ * track's reactive cell. This makes the component re-render when the track
+ * changes without requiring reactive reads inside the render callback.
+ */
+function subscribeSetupComponent<T>(cell: ReactiveCell<T>): void {
+  const state = runtimeState.activeRenderState;
+  const id = runtimeState.activeSetupComponentId;
+  if (state && id) {
+    cell.get();
+  }
+}
+
 function registerForComponent(componentId: string, name: string) {
   let set = componentTracks.get(componentId);
   if (!set) {
@@ -324,6 +337,7 @@ function trackImpl(
       },
     );
     state.promise = promise;
+    subscribeSetupComponent(state.statusCell);
     return createHandle(key, promise);
   }
 
@@ -339,6 +353,7 @@ function trackImpl(
     if (isGlobal) {
       // 1. Deduplicate concurrent in-flight requests
       if (state.statusCell.get() === 'pending' && state.promise) {
+        subscribeSetupComponent(state.statusCell);
         return createHandle(key, state.promise);
       }
 
@@ -360,6 +375,7 @@ function trackImpl(
           }
         );
 
+        subscribeSetupComponent(state.statusCell);
         return createHandle(key, existingPromise);
       }
 
@@ -386,12 +402,14 @@ function trackImpl(
       },
     );
     state.promise = promise;
+    subscribeSetupComponent(state.statusCell);
     return createHandle(key, promise);
   }
 
   // Overload: track(name, asyncFn) — starts immediately with AbortSignal
   const fn = maybePromiseOrFn as (signal: AbortSignal) => Promise<unknown>;
   const promise = runAsyncTrack(key, fn, options);
+  subscribeSetupComponent(getOrCreate(key).statusCell);
   return createHandle(key, promise);
 }
 
@@ -553,6 +571,7 @@ function createCommandHandle<TArgs extends unknown[], TReturn>(
   key: string,
 ): CommandHandle<TArgs, TReturn> {
   const resultCell = reactive<TrackHandle<TReturn> | null>(null);
+  subscribeSetupComponent(resultCell);
 
   return {
     get status(): TrackStatus {

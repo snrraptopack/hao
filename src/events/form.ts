@@ -7,6 +7,8 @@
  */
 
 import { reactive } from '../runtime/reactive'
+import type { ReactiveCell } from '../runtime/reactive'
+import { runtimeState } from '../runtime/state'
 import { track } from './track'
 import type { CommandHandle } from './track'
 import type { StandardSchema } from '../shared/standard-schema'
@@ -14,6 +16,14 @@ import { ValidationError } from '../shared/validation-error'
 import type { ServerManifestTypes } from 'auwla/server-manifest'
 import type { RemoteFunction } from '../server/types'
 import { getCurrentRoutePath } from '../client/rpc'
+
+function subscribeSetupComponent<T>(cell: ReactiveCell<T>): void {
+  const state = runtimeState.activeRenderState
+  const id = runtimeState.activeSetupComponentId
+  if (state && id) {
+    cell.get()
+  }
+}
 
 export type FormOptions = {
   /** Optional Standard Schema for client-side pre-flight validation. */
@@ -113,6 +123,7 @@ export function trackForm(
   const command = track.post(key) as CommandHandle<any[], any>
   const originalRun = command.run as (...args: unknown[]) => Promise<unknown>
   const errorCell = reactive<ValidationError | Error | null>(null)
+  subscribeSetupComponent(errorCell)
 
   async function run(...args: unknown[]): Promise<unknown> {
     errorCell.set(null)

@@ -192,7 +192,7 @@ function buildMiddlewareRequest(request: Request, args: unknown[]): Request {
   return new Request(request, { body: JSON.stringify(first), headers })
 }
 
-function createContext(
+export function createContext(
   request: Request,
   entry: ServerManifestEntry,
   params: Record<string, string | string[]>,
