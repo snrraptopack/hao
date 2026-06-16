@@ -73,6 +73,14 @@ function setPath(next: string): void {
   _path.set(next)
 }
 
+/**
+ * Seed the current path from the server during SSR. Exported for the SSR
+ * renderer only; client code should use navigate().
+ */
+export function setCurrentPath(next: string): void {
+  setPath(next)
+}
+
 // ---------------------------------------------------------------------------
 // Unified navigation functions
 // ---------------------------------------------------------------------------

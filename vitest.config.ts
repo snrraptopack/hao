@@ -38,6 +38,8 @@ export default defineConfig({
       'tests/vite-router/**/*.test.ts',
       'tests/server/**/*.test.ts',
       'tests/adapters/**/*.test.ts',
+      'tests/ssr/**/*.test.ts',
+      'tests/ssr/**/*.test.tsx',
       'tests/perf.test.tsx',
     ],
     coverage: {
