@@ -1,5 +1,5 @@
 import { remote } from 'auwla/server'
-import { getAllPosts, getPostsByAuthor } from '../../server/db.server'
+import { getAllPosts, getPostsByAuthor } from '../../server/db'
 import {
   requireAdminMiddleware,
   requireAuthMiddleware,

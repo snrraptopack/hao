@@ -3,13 +3,9 @@ import { track } from 'auwla/events'
 
 export default function Layout(Child: RouteComponent) {
   const me = track.get('auth.me')
-  console.log("data logged",me.value)
   const logout = track.post('auth.logout')
-
-  return () => {
-    const user = me.value as { id: string; name: string; role: string } | null | undefined
-
-    return (
+   const user = me.value as { id: string; name: string; role: string } | null | undefined
+  return () => (
       <div class="app">
         <header class="topbar">
           <Link href="/" class="brand">Auwla</Link>
@@ -38,5 +34,4 @@ export default function Layout(Child: RouteComponent) {
         </main>
       </div>
     )
-  }
 }
