@@ -96,7 +96,9 @@ export async function renderToString(
         break;
       }
 
-      await Promise.all(context.pending);
+      // Wait for all async work to settle. Loader rejections are rendered by
+      // the Router's errorComponent, so they must not abort the flush loop.
+      await Promise.allSettled(context.pending);
     }
 
     return html;

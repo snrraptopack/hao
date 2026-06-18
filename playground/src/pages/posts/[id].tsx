@@ -17,7 +17,7 @@ const updateSchema: StandardSchema = {
   },
 }
 
-export async function routed(ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) {
+export async function routed(_ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) {
   return await track.get(getPost, { signal })
 }
 

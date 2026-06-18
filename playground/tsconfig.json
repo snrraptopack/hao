@@ -41,6 +41,7 @@
     },
     // Bundler mode
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     // Declaration files
     "declaration": true,

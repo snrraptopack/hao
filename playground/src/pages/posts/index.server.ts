@@ -1,7 +1,7 @@
 import { remote, validate } from 'auwla/server'
 import type { StandardSchema } from 'auwla/server'
 import { createPost as createPostDb, getAllPosts } from '../../server/db'
-import { requireAuthMiddleware, sessionMiddleware } from '../../server/auth.server'
+import { requireAuthMiddleware, sessionMiddleware } from '../../server/auth.middleware'
 
 const createSchema: StandardSchema = {
   '~standard': {

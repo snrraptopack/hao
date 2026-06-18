@@ -1,6 +1,6 @@
 import { remote, validate, getParams, NotFoundError } from 'auwla/server'
 import { deletePost as deletePostDb, getPostById, updatePost as updatePostDb } from '../../server/db'
-import { requireAuthMiddleware, sessionMiddleware } from '../../server/auth.server'
+import { requireAuthMiddleware, sessionMiddleware } from '../../server/auth.middleware'
 
 const updateSchema = {
   '~standard': {

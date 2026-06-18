@@ -4,7 +4,7 @@ import {
   requireAdminMiddleware,
   requireAuthMiddleware,
   sessionMiddleware,
-} from '../../server/auth.server'
+} from '../../server/auth.middleware'
 
 export const getDashboard = remote.get(
   [sessionMiddleware, requireAuthMiddleware],
