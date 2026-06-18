@@ -554,7 +554,7 @@ function trackGet(
     throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
   }
   const routePath = options?.routePath ?? getCurrentRoutePath();
-  const promise = rpcCall(key, [], routePath, options);
+  const promise = rpcCall(key, [], routePath, { ...options, method: 'GET' });
   return trackImpl(`remote:${key}`, promise, options, true) as any;
 }
 

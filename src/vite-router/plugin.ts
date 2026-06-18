@@ -276,9 +276,9 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       // dev process serves both HMR and server functions. In production the
       // adapter is run inside the user's Bun/Node server.
       // -----------------------------------------------------------------------
-      server.middlewares.use('/_auwla/rpc', async (req, res, next) => {
+      server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? '/', `http://${req.headers.host || 'localhost'}`)
-        if (req.method !== 'POST' || url.pathname !== '/') {
+        if (url.pathname !== '/_auwla/rpc' || (req.method !== 'POST' && req.method !== 'GET')) {
           return next()
         }
 
