@@ -293,35 +293,3 @@ body {
 html {
   scrollbar-gutter: stable;
 }
-
-
-/* Premium suspension UX — dim the app while a route loader resolves */
-html.suspended {
-  opacity: 0.8;
-  transition: opacity 0.25s ease;
-}
-
-/* 1. Setup the invisible bar at the top of the screen */
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  /* Cool gradient */
-  z-index: 9999;
-  width: 0%;
-  opacity: 0;
-  /* Instantly reset width to 0 when loading finishes */
-  transition: width 0s, opacity 0.4s ease;
-}
-
-/* 2. When the router suspends, show the bar and animate its width! */
-html.suspended body::before {
-  opacity: 1;
-  /* Slowly animate to 85% to simulate network progress */
-  width: 85%;
-  /* Ease-out makes it start fast and slow down the longer it takes */
-  transition: width 10s cubic-bezier(0.1, 0.8, 0.2, 1), opacity 0.1s;
-}

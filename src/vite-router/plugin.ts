@@ -80,7 +80,6 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
   const genRelFile      = options.genFile     ?? 'src/auwla.gen.ts'
   const serverRelDir    = options.serverDir   ?? 'src/server'
   const manifestRelDir  = options.manifestDir ?? '.auwla'
-  const routesRelFile   = options.routesFile  ?? '.auwla/routes.ts'
   const isLazy          = options.lazy        ?? false
 
   /** Resolved after Vite's `configResolved` hook fires. */
@@ -88,7 +87,6 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
   let resolvedGenFile  = ''
   let resolvedServerDir = ''
   let resolvedManifestDir = ''
-  let resolvedRoutesFile = ''
 
   /**
    * In-memory cache of the last generated virtual module source.
@@ -115,7 +113,6 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       resolvedGenFile      = resolve(config.root, genRelFile)
       resolvedServerDir    = resolve(config.root, serverRelDir)
       resolvedManifestDir  = resolve(config.root, manifestRelDir)
-      resolvedRoutesFile   = resolve(config.root, routesRelFile)
     },
 
     // -----------------------------------------------------------------------
@@ -126,11 +123,6 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
       cachedVirtualModule = moduleCode
       writeSafe(resolvedGenFile, typeCode)
-
-      // Emit the route tree as a real file so apps can import it directly
-      // (e.g. `import routes from '../.auwla/routes.js'`). The virtual module
-      // `auwla:routes` continues to resolve to the same source.
-      writeSafe(resolvedRoutesFile, moduleCode)
 
       // Generate the fullstack server manifest.
       generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir)
@@ -198,7 +190,6 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       if (!cachedVirtualModule) {
         const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
         cachedVirtualModule = moduleCode
-        writeSafe(resolvedRoutesFile, moduleCode)
         writeSafe(resolvedGenFile, typeCode)
 
         generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir)
@@ -233,9 +224,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
         cachedVirtualModule = null // force next load() to serve fresh code
 
-        // Write updated route tree and types so the editor and direct imports
-        // pick them up immediately.
-        writeSafe(resolvedRoutesFile, moduleCode)
+        // Write updated types so the editor picks them up immediately.
         writeSafe(resolvedGenFile, typeCode)
 
         // Invalidate the virtual module in the client environment's module graph

@@ -62,8 +62,6 @@ export function getCurrentRoutePath(): string {
   return window.location.pathname + window.location.search
 }
 
-import { getSsrContext } from '../ssr/invoker'
-
 /**
  * Perform an RPC call to the server.
  */
@@ -73,14 +71,6 @@ export async function rpcCall(
   routePath: string,
   options?: RpcOptions & { method?: 'GET' | 'POST' },
 ): Promise<unknown> {
-  // During SSR, resolve directly to the server function instead of fetching.
-  const ssrContext = getSsrContext()
-  if (ssrContext) {
-    const result = ssrContext.invoker(key, args, routePath)
-    ssrContext.track(result)
-    return result
-  }
-
   const method = options?.method ?? 'POST'
   const routeParams = getCurrentRouteParams()
 

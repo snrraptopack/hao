@@ -73,14 +73,6 @@ function setPath(next: string): void {
   _path.set(next)
 }
 
-/**
- * Seed the current path from the server during SSR. Exported for the SSR
- * renderer only; client code should use navigate().
- */
-export function setCurrentPath(next: string): void {
-  setPath(next)
-}
-
 // ---------------------------------------------------------------------------
 // Unified navigation functions
 // ---------------------------------------------------------------------------
@@ -179,16 +171,6 @@ export function forward(): void {
 export function initNavigation(): void {
   if (_initialized) return
   _initialized = true
-
-  // SSR / non-browser environments: the shimmed window has no navigation or
-  // history API. Skip listener registration entirely so the same Router code
-  // runs unchanged on server and client.
-  if (
-    typeof window === 'undefined' ||
-    (!('navigation' in window) && !('history' in window))
-  ) {
-    return
-  }
 
   // Sync the reactive cell to the real URL now that we know we are in a
   // browser context. (The module-level initialiser covers most cases, but

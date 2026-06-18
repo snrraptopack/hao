@@ -136,69 +136,27 @@ export const createPost = remote.post([authAndValidate], async (ctx) => {
 })
 ```
 
-## Validation & The Standard Schema Protocol
+## Validation
 
-Auwla does not lock you into a specific validation library. Instead, it natively supports the **[Standard Schema](https://github.com/standard-schema/standard-schema)** specification. This allows you to use your favorite validation library (e.g., Zod, Valibot, ArkType, TypeBox) seamlessly.
+`validate(schema)` parses the request body as JSON and validates it with a Standard Schema library (Zod, Valibot, etc.). The validated value is stored in `ctx.locals.input`.
 
-### Why Standard Schema?
-
-1. **Zero Framework Bloat:** Auwla doesn't ship a heavy validation library out of the box.
-2. **Freedom of Choice:** Choose a library matching your requirements:
-   - **For bundle size & tree-shakability:** Use [Valibot](https://valibot.dev/).
-   - **For maximum JIT-compiled execution speed:** Use [ArkType](https://arktype.io/).
-   - **For ecosystem familiarity:** Use [Zod](https://zod.dev/).
-3. **Interoperability:** Any library conforming to the `~standard` interface works automatically.
-
-### Examples with Different Libraries
-
-#### 1. Using Valibot (Lightweight & Modular)
 ```ts
-import { remote, validate } from 'auwla/server'
+import { validate } from 'auwla/server'
 import * as v from 'valibot'
 
-const schema = v.object({
-  title: v.string(),
-})
+const schema = v.object({ title: v.string() })
 
-export const createPost = remote.post([validate(schema)], async (ctx) => {
-  // ctx.locals.input is automatically typed as { title: string }
-  const { title } = ctx.locals.input
-})
+export const createPost = remote.post(
+  [validate(schema)],
+  async (ctx) => {
+    // Automatically inferred as { title: string }
+    const { title } = ctx.locals.input
+    // ...
+  }
+)
 ```
 
-#### 2. Using Zod (Ecosystem Standard)
-```ts
-import { remote, validate } from 'auwla/server'
-import { z } from 'zod'
-
-const schema = z.object({
-  title: z.string(),
-})
-
-export const createPost = remote.post([validate(schema)], async (ctx) => {
-  const { title } = ctx.locals.input
-})
-```
-
-#### 3. Using ArkType (High-Performance JIT)
-```ts
-import { remote, validate } from 'auwla/server'
-import { type } from 'arktype'
-
-const schema = type({
-  title: 'string',
-})
-
-export const createPost = remote.post([validate(schema)], async (ctx) => {
-  const { title } = ctx.locals.input
-})
-```
-
-### Async Validation & Errors
-
-The `validate` middleware supports both **synchronous** and **asynchronous** validations out of the box (e.g., database uniqueness checks or async refinements).
-
-If validation fails, a `ValidationError` (400 Bad Request) is automatically thrown, and its structural error details are returned to the client.
+If validation fails, a `ValidationError` is thrown.
 
 ## Error Handling
 
@@ -249,7 +207,6 @@ To keep your server architecture secure and clean, you should distinguish betwee
 
 ### The Convention
 - **Use `*.server.ts`** ONLY for files that define public remote functions (`remote.get` / `remote.post`) that the browser client is allowed to call.
-- **Strict Export Enforcements:** Any exported variable inside a `.server.ts` file **must** be wrapped in `remote.get` or `remote.post`. Naked variable or constant exports will trigger a build-time compiler error to prevent accidental security slips. Non-exported helpers remain private and safe to define.
 - **Use plain `*.ts`** for files that configure internal server resources (like `src/server/db.ts` or `src/server/email.ts`). These are never scanned by Auwla, keeping their exports private to the server.
 
 ### Example Architecture
@@ -289,13 +246,11 @@ You never edit it by hand. In development it is served as the virtual module
 ## RPC flow
 
 1. Client calls `track.get('posts.getPost')` or `track.post('posts.createPost').run(data)`.
-2. Client sends the RPC request matching the endpoint's declared HTTP method:
-   - **GET (Queries):** The client sends a true HTTP `GET` request to `/_auwla/rpc?key=...&routePath=...&params=...&args=...` which is fully cacheable by CDNs and browsers.
-   - **POST (Mutations):** The client sends a `POST` request with JSON or FormData to `/_auwla/rpc`.
-3. Adapter looks up the manifest entry and verifies that the HTTP method matches.
-4. Adapter resolves route parameters from `routePath` using the entry's `routePattern`, and falls back to client-sent active `routeParams` if there is a route mismatch (e.g. when calling parent layouts or global files).
-5. Adapter builds `ServerContext` (populating `ctx.params` with route params), runs middleware, and calls the function.
-6. Result is serialized as JSON and returned (with `Cache-Control` header setup for GET queries).
+2. Client sends `{ key, args, routePath }` to `POST /_auwla/rpc`.
+3. Adapter looks up the manifest entry.
+4. Adapter extracts params from `routePath` using the entry's `routePattern`.
+5. Adapter builds `ServerContext`, runs middleware, and calls the function.
+6. Result is serialized as JSON and returned.
 
 ## Security & Reliability Safeguards
 

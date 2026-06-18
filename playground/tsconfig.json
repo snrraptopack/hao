@@ -41,7 +41,6 @@
     },
     // Bundler mode
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     // Declaration files
     "declaration": true,
@@ -65,7 +64,6 @@
   "include": [
     "src/**/*",
     "src/auwla.gen.ts",
-    ".auwla/**/*.ts",
     ".auwla/**/*.d.ts"
   ],
   "exclude": [

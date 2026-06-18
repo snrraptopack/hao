@@ -1,8 +1,10 @@
+import {} from 'auwla/jsx-runtime'
 import './index.css'
 import { createMemoApp } from 'auwla'
-import App from './app.js'
+import { Router } from 'auwla/router'
+import routes from 'auwla:routes'
 
 const root = document.getElementById('app')
 if (root) {
-  createMemoApp(root, <App />)
+  createMemoApp(root, <Router routes={routes} suspend/>)
 }
