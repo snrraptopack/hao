@@ -31,6 +31,8 @@ export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
 
 export type TrackOptions = {
   viewTransition?: boolean;
+  /** @internal Skip the stale-while-revalidate background sync for this call. */
+  skipBackgroundSync?: boolean;
 };
 
 export type TrackHandle<T = unknown> = {
@@ -65,6 +67,12 @@ type TrackState = {
   controller: AbortController | null;
   promise: Promise<unknown> | null;
   stale?: boolean;
+  /**
+   * The route path that was active when this global remote query was first
+   * started. Background syncs reuse this path so route-scoped queries don't
+   * break when the user navigates away.
+   */
+  routePath?: string;
 };
 
 /** Global track registry keyed by `${componentId}::${name}`. */
@@ -351,6 +359,12 @@ function trackImpl(
     const state = getOrCreate(key);
 
     if (isGlobal) {
+      // Remember the route path that this remote query was started with so
+      // background syncs don't accidentally switch to a different route.
+      if (!state.routePath) {
+        state.routePath = getCurrentRoutePath();
+      }
+
       // 1. Deduplicate concurrent in-flight requests
       if (state.statusCell.get() === 'pending' && state.promise) {
         subscribeSetupComponent(state.statusCell);
@@ -360,20 +374,22 @@ function trackImpl(
       // 2. Stale-While-Revalidate: return cached instantly, sync in background
       if (state.statusCell.get() === 'resolved' && !state.stale) {
         const existingPromise = state.promise!;
-        const newPromise = maybePromiseOrFn as Promise<unknown>;
 
-        newPromise.then(
-          (value) => {
-            // Only update and trigger re-render if the value changed
-            if (JSON.stringify(state.value) !== JSON.stringify(value)) {
-              applyTransition(key, 'resolved', value, undefined, options);
+        if (!options?.skipBackgroundSync) {
+          const newPromise = maybePromiseOrFn as Promise<unknown>;
+          newPromise.then(
+            (value) => {
+              // Only update and trigger re-render if the value changed
+              if (JSON.stringify(state.value) !== JSON.stringify(value)) {
+                applyTransition(key, 'resolved', value, undefined, options);
+              }
+              state.promise = Promise.resolve(value);
+            },
+            (reason) => {
+              console.error(`Background sync failed for query "${name}":`, reason);
             }
-            state.promise = Promise.resolve(value);
-          },
-          (reason) => {
-            console.error(`Background sync failed for query "${name}":`, reason);
-          }
-        );
+          );
+        }
 
         subscribeSetupComponent(state.statusCell);
         return createHandle(key, existingPromise);
@@ -554,8 +570,24 @@ function trackGet(
     throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
   }
   const routePath = options?.routePath ?? getCurrentRoutePath();
+  const remoteName = `remote:${key}`;
+
+  // If a resolved global query was started on a different route, don't fire
+  // a background sync with the current (wrong) route path. Just return the
+  // cached handle and let a future call on the original route refresh it.
+  const stateKey = makeKey(remoteName, '__global');
+  const existing = registry.get(stateKey);
+  if (
+    existing &&
+    existing.statusCell.get() === 'resolved' &&
+    existing.routePath &&
+    existing.routePath !== routePath
+  ) {
+    return createHandle(stateKey, existing.promise!) as any;
+  }
+
   const promise = rpcCall(key, [], routePath, { ...options, method: 'GET' });
-  return trackImpl(`remote:${key}`, promise, options, true) as any;
+  return trackImpl(remoteName, promise, options, true) as any;
 }
 
 /** Invalidate all cached global queries by marking them as stale. */

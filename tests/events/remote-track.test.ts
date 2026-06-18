@@ -48,10 +48,9 @@ describe('remote track functions', () => {
     await new Promise((r) => setTimeout(r, 10))
 
     expect(mockFetch).toHaveBeenCalledWith(
-      '/_auwla/rpc',
+      expect.stringContaining('/_auwla/rpc?key=posts.getPosts'),
       expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('posts.getPosts'),
+        method: 'GET',
       }),
     )
     expect(posts.resolved).toBe(true)
@@ -92,6 +91,27 @@ describe('remote track functions', () => {
     const body = callArgs[1]!.body as FormData
     expect(body.get('title')).toBe('From form')
     expect(body.get('__auwla_key')).toBe('posts.createPost')
+  })
+
+  it('track.get skips background sync when route path changes', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ id: '1', title: 'Hello' }), { status: 200 }),
+    )
+
+    const first = track.get('posts.getPost' as any, { routePath: '/posts/1' })
+    await new Promise((r) => setTimeout(r, 10))
+    expect(first.resolved).toBe(true)
+
+    mockFetch.mockClear()
+
+    // Simulate the same query being reached again after navigating away.
+    const second = track.get('posts.getPost' as any, { routePath: '/posts' })
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(second.resolved).toBe(true)
+    expect(second.value).toEqual({ id: '1', title: 'Hello' })
+    expect(mockFetch).toHaveBeenCalledTimes(0)
   })
 
   it('track.get propagates RPC errors onto the handle', async () => {
