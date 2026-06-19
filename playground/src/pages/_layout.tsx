@@ -3,7 +3,7 @@ import { track } from 'auwla/events'
 
 export default function Layout(Child: RouteComponent) {
   const me = track.get('auth.me')
-  console.log("data logged",me.value)
+  console.log("data logged", me.value)
   const logout = track.post('auth.logout')
   const user = me.value as { id: string; name: string; role: string } | null | undefined
   return () => {

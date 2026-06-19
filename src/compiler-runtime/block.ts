@@ -7,7 +7,7 @@
  */
 
 import type { RenderClosure } from '../runtime/types';
-import { currentComponentId, markDirtySource, registerComponentHost, registerComponentSources } from '../runtime/state';
+import { currentComponentId, markDirtySource, registerComponentHost, registerComponentSources, runtimeState } from '../runtime/state';
 
 export function __dirtySource(source: string): void {
   markDirtySource(source);
@@ -30,7 +30,31 @@ export type CompiledBlock<TArgs extends readonly unknown[] = readonly unknown[]>
 export function __createBlock<TArgs extends readonly unknown[]>(
   factory: () => CompiledBlock<TArgs>,
 ): CompiledBlock<TArgs> {
-  return factory();
+  const previous = runtimeState.activeBlockComponentIds;
+  const ids = new Set<string>();
+  runtimeState.activeBlockComponentIds = ids;
+  let block: CompiledBlock<TArgs>;
+  try {
+    block = factory();
+  } finally {
+    runtimeState.activeBlockComponentIds = previous;
+  }
+
+  const originalUpdate = block.update;
+  if (originalUpdate) {
+    block.update = function(this: any, ...args: TArgs) {
+      const prev = runtimeState.activeBlockComponentIds;
+      runtimeState.activeBlockComponentIds = ids;
+      try {
+        return originalUpdate.apply(this, args as any);
+      } finally {
+        runtimeState.activeBlockComponentIds = prev;
+      }
+    };
+  }
+
+  (block as any).__auwlaComponentIds = ids;
+  return block;
 }
 
 /**

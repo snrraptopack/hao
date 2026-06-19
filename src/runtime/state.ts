@@ -24,6 +24,7 @@ export const runtimeState = {
   pendingDirtySources: new Set<string>(),
   mountedApps: new Set<MountedApp>(),
   componentHosts: new Map<string, Node>(),
+  activeBlockComponentIds: null as Set<string> | null,
 };
 
 /**

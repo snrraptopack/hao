@@ -157,7 +157,14 @@ function transition(key: string, status: TrackStatus, value?: unknown, reason?: 
   if (status === 'rejected') state.reason = reason;
   // statusCell.set() snapshots subscribers, clears the live set, then calls
   // invalidate(id) on each — identical to how the path reactive cell works.
+  const oldStatus = state.statusCell.get();
   state.statusCell.set(status);
+  
+  // If the status was already the same, set() returns early, so we must manually notify subscribers
+  // to ensure components re-render with the updated value/reason.
+  if (oldStatus === status) {
+    state.statusCell.notify();
+  }
 }
 
 function applyTransition(key: string, status: TrackStatus, value?: unknown, reason?: unknown, options?: TrackOptions) {
@@ -434,6 +441,8 @@ function trackImpl(
             },
             (reason) => {
               console.error(`Background sync failed for query "${name}":`, reason);
+              applyTransition(key, 'rejected', undefined, reason, options);
+              state.promise = Promise.reject(reason);
             }
           );
         }
@@ -652,11 +661,31 @@ function trackGet(
   return trackImpl(remoteName, promise, options, true) as any;
 }
 
-/** Invalidate all cached global queries by marking them as stale. */
+/** Invalidate all cached global queries and actively refetch those that are already resolved. */
 function invalidateQueryCache(): void {
   for (const [key, state] of registry.entries()) {
     if (key.startsWith('__global::remote:')) {
       state.stale = true;
+
+      if (state.statusCell.get() === 'resolved' && state.routePath) {
+        state.stale = false;
+        const name = key.slice('__global::remote:'.length);
+        const newPromise = dispatchRpc(name, [], state.routePath, { method: 'GET' });
+
+        newPromise.then(
+          (value) => {
+            if (JSON.stringify(state.value) !== JSON.stringify(value)) {
+              applyTransition(key, 'resolved', value);
+            }
+            state.promise = Promise.resolve(value);
+          },
+          (reason) => {
+            console.error(`Background sync failed for invalidated query "${name}":`, reason);
+            applyTransition(key, 'rejected', undefined, reason);
+            state.promise = Promise.reject(reason);
+          }
+        );
+      }
     }
   }
 }

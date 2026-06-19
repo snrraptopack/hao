@@ -7,10 +7,23 @@
  */
 
 import type { CompiledBlock } from './block';
+import { runtimeState } from '../runtime/state';
 import { removeNode } from './dom-setters';
 import { NO_INDEX } from '../shared/constants';
 import { sameDeps } from '../shared/deps';
 import { longestIncreasingSubsequence } from '../shared/lis';
+
+function markBlockSeen(block: CompiledBlock<any>): void {
+  const state = runtimeState.activeRenderState;
+  if (state) {
+    const ids = (block as any).__auwlaComponentIds as Set<string> | undefined;
+    if (ids) {
+      for (const id of ids) {
+        state.seen.add(id);
+      }
+    }
+  }
+}
 
 /** @internal */
 type Row<TItem> = {
@@ -187,6 +200,8 @@ export function __keyedMap<TItem, TKey>(
           if (!depsOf || !sameDeps(row.deps, deps)) {
             updateRow(row.block, item, index);
             row.deps = deps;
+          } else {
+            markBlockSeen(row.block);
           }
           row.item = item;
         }
@@ -223,6 +238,8 @@ export function __keyedMap<TItem, TKey>(
             if (!depsOf || !sameDeps(row.deps, deps)) {
               updateRow(row.block, item, index);
               row.deps = deps;
+            } else {
+              markBlockSeen(row.block);
             }
             row.item = item;
             if (row.block.node.parentNode !== parent) needsPlacement = true;
@@ -260,12 +277,16 @@ export function __keyedMap<TItem, TKey>(
           if (!depsOf || !sameDeps(rightRow.deps, leftDeps)) {
             updateRow(rightRow.block, leftItem, mismatchA);
             rightRow.deps = leftDeps;
+          } else {
+            markBlockSeen(rightRow.block);
           }
           rightRow.item = leftItem;
 
           if (!depsOf || !sameDeps(leftRow.deps, rightDeps)) {
             updateRow(leftRow.block, rightItem, mismatchB);
             leftRow.deps = rightDeps;
+          } else {
+            markBlockSeen(leftRow.block);
           }
           leftRow.item = rightItem;
 
@@ -293,6 +314,8 @@ export function __keyedMap<TItem, TKey>(
         } else if (!depsOf || !sameDeps(row.deps, deps)) {
           updateRow(row.block, item, index);
           row.deps = deps;
+        } else {
+          markBlockSeen(row.block);
         }
         row.item = item;
         nextRows.set(key, row);

@@ -49,6 +49,7 @@ type Subscriber = {
 export type ReactiveCell<T> = {
   get(): T;
   set(value: T): void;
+  notify(): void;
 };
 
 // ---------------------------------------------------------------------------
@@ -92,7 +93,10 @@ export function reactive<T>(initial: T): ReactiveCell<T> {
       // Skip if the value hasn't actually changed — prevents pointless re-renders.
       if (Object.is(value, next)) return;
       value = next;
+      this.notify();
+    },
 
+    notify(): void {
       // Snapshot the current subscribers and clear the live set BEFORE notifying.
       // This ensures that any new subscriptions created during re-render (via .get()
       // in a component that renders because of this notification) go into the fresh

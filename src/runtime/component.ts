@@ -228,6 +228,10 @@ export function createComponentClosure(
   const fallbackId = `root/${componentLabel(type)}:${props && 'key' in props ? String(props.key) : 0}`;
   const id = stackId ?? fallbackId;
 
+  if (runtimeState.activeBlockComponentIds && id) {
+    runtimeState.activeBlockComponentIds.add(id);
+  }
+
   return () => {
     const state = runtimeState.activeRenderState;
     if (!state) {
