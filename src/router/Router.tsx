@@ -51,6 +51,13 @@ let _currentMeta: Record<string, unknown> | null = null
  */
 let _currentError: RouteError | null = null
 
+/** @internal Server-side rendering hooks to seed route context. */
+export function __setCurrentContext(ctx: RouteContext | null): void { _currentContext = ctx; }
+/** @internal Server-side rendering hooks to seed the active loader handle. */
+export function __setCurrentLoader(loader: TrackHandle | null): void { _currentLoader = loader; }
+/** @internal Server-side rendering hooks to seed route meta. */
+export function __setCurrentMeta(meta: Record<string, unknown> | null): void { _currentMeta = meta; }
+
 export function getParams<P extends ValidRoutePath>(_path?: P): PathParams<P> {
   return (_currentContext?.params ?? {}) as PathParams<P>
 }

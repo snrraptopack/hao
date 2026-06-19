@@ -73,6 +73,14 @@ function setPath(next: string): void {
   _path.set(next)
 }
 
+/**
+ * Seed the reactive path cell for SSR or tests.
+ * @internal
+ */
+export function setCurrentPath(next: string): void {
+  setPath(next)
+}
+
 // ---------------------------------------------------------------------------
 // Unified navigation functions
 // ---------------------------------------------------------------------------

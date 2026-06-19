@@ -198,6 +198,18 @@ export function __resetTrackRegistry(): void {
   componentTracks.clear();
 }
 
+/** @internal Extract the resolved state of all global queries for SSR hydration. */
+export function __extractTrackState(): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  for (const [key, state] of registry.entries()) {
+    if (key.startsWith('__global::remote:') && state.statusCell.get() === 'resolved') {
+      const name = key.slice('__global::'.length);
+      data[name] = state.value;
+    }
+  }
+  return data;
+}
+
 function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
   const handle = {
     get name() {
