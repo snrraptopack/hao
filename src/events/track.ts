@@ -23,6 +23,7 @@ import { reactive } from '../runtime/reactive';
 import type { ReactiveCell } from '../runtime/reactive';
 import { flushSync } from '../runtime/app';
 import { rpcCall, getCurrentRoutePath } from '../client/rpc';
+import { getRpcDispatcher } from '../runtime/rpc-dispatcher';
 import { trackForm } from './form';
 import type { ServerManifestTypes } from 'auwla/server-manifest';
 import type { RemoteFunction } from '../server/types';
@@ -34,6 +35,19 @@ export type TrackOptions = {
   /** @internal Skip the stale-while-revalidate background sync for this call. */
   skipBackgroundSync?: boolean;
 };
+
+function dispatchRpc(
+  key: string,
+  args: unknown[],
+  routePath: string,
+  options?: TrackRemoteOptions & { method?: 'GET' | 'POST' },
+): Promise<unknown> {
+  const dispatcher = getRpcDispatcher();
+  if (dispatcher) {
+    return dispatcher(key, args, routePath, options);
+  }
+  return rpcCall(key, args, routePath, options);
+}
 
 export type TrackHandle<T = unknown> = {
   readonly name: string;
@@ -586,7 +600,7 @@ function trackGet(
     return createHandle(stateKey, existing.promise!) as any;
   }
 
-  const promise = rpcCall(key, [], routePath, { ...options, method: 'GET' });
+  const promise = dispatchRpc(key, [], routePath, { ...options, method: 'GET' });
   return trackImpl(remoteName, promise, options, true) as any;
 }
 
@@ -628,7 +642,7 @@ function createCommandHandle<TArgs extends unknown[], TReturn>(
       return resultCell.get();
     },
     async run(...args: TArgs | [FormData]): Promise<TReturn> {
-      const promise = rpcCall(key, args, getCurrentRoutePath()) as Promise<TReturn>;
+      const promise = dispatchRpc(key, args, getCurrentRoutePath()) as Promise<TReturn>;
       const handle = trackImpl(`remote:${key}`, promise) as TrackHandle<TReturn>;
       resultCell.set(handle);
 
