@@ -38,7 +38,7 @@ import { cooldownModifier, debounceModifier, throttleModifier } from './timing';
 import { intersectModifier, intersectInModifier, intersectOutModifier } from './intersect';
 import { emit } from './emit';
 import { hotkeyModifier } from './hotkey';
-import { track as trackFn, pending, resolved, rejected, value, reason, cancel } from './track';
+
 import { cleanup } from '../runtime';
 import { runtimeState, currentComponentId } from '../runtime/state';
 import type {
@@ -237,15 +237,6 @@ function defineChainAccessors<TTarget extends object>(
     emit: {
       value: emit,
     },
-    track: {
-      value: trackFn,
-    },
-    pending: { value: pending },
-    resolved: { value: resolved },
-    rejected: { value: rejected },
-    value: { value: value },
-    reason: { value: reason },
-    cancel: { value: cancel },
   };
 
   for (const [prop, modifier] of Object.entries(simpleModifiers)) {

@@ -10,6 +10,7 @@ export default defineConfig({
       { find: 'auwla/vite', replacement: fileURLToPath(new URL('./src/vite.ts', import.meta.url)) },
       { find: 'auwla/vite-router', replacement: fileURLToPath(new URL('./src/vite-router/index.ts', import.meta.url)) },
       { find: 'auwla/events', replacement: fileURLToPath(new URL('./src/events/index.ts', import.meta.url)) },
+      { find: 'auwla/track', replacement: fileURLToPath(new URL('./src/track/index.ts', import.meta.url)) },
       { find: 'auwla/css', replacement: fileURLToPath(new URL('./src/css/index.ts', import.meta.url)) },
       { find: /^auwla$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
     ],

@@ -1,5 +1,5 @@
 import { Link, navigate } from 'auwla/router'
-import { track } from 'auwla/events'
+import { track } from 'auwla/track'
 import type { StandardSchema } from 'auwla/server'
 
 const schema: StandardSchema = {
@@ -17,14 +17,12 @@ const schema: StandardSchema = {
 export default function LoginPage() {
   const login = track.form('auth.login', { schema })
 
-  return () => {
+  if (login.resolved && login.value?.ok) {
+    console.log("resolved")
+    navigate('/dashboard')
+  }
 
-    if (login.resolved && login.value?.ok) {
-      console.log("resolved")
-      navigate('/dashboard')
-    }
-
-    return (
+  return () => (
       <div class="page">
         <h1>Sign in</h1>
         <p class="hint">Try <strong>admin</strong> for Ada or any other name for Ugo.</p>
@@ -41,5 +39,4 @@ export default function LoginPage() {
         <Link href="/" class="link">← Back to home</Link>
       </div>
     )
-  }
 }

@@ -14,7 +14,7 @@ import { matchRoutes } from '../router/routes';
 import { __setCurrentContext, __setCurrentLoader, __setCurrentMeta } from '../router/Router';
 import { invokeRemoteServer } from '../server/ssr-invoke';
 import type { SsrInvokeOptions } from '../server/ssr-invoke';
-import { track, __extractTrackState, __resetTrackRegistry } from '../events/track';
+import { track, __extractTrackState, __resetTrackRegistry } from '../track/core';
 import type { Route, RouteContext, MatchedRoute } from '../router/types';
 import type { ServerManifest } from '../server/types';
 
@@ -99,11 +99,11 @@ export async function renderToString(
   __setCurrentContext(context);
   __setCurrentMeta(route.meta ?? null);
 
-  let loaderHandle: import('../events/track').TrackHandle | null = null;
+  let loaderHandle: import('../track').TrackHandle | null = null;
 
   try {
     if (route.routed) {
-      loaderHandle = track('__loader', (signal) => route.routed!(context, signal));
+      loaderHandle = track(`__loader:${context.path}`, (signal) => route.routed!(context, signal));
       await loaderHandle;
     }
 

@@ -17,6 +17,7 @@ export default defineConfig({
         'compiler': resolve(__dirname, 'src/compiler.ts'),
         'vite': resolve(__dirname, 'src/vite.ts'),
         'events/index': resolve(__dirname, 'src/events/index.ts'),
+        'track/index': resolve(__dirname, 'src/track/index.ts'),
         'router/index': resolve(__dirname, 'src/router/index.ts'),
         'css/index': resolve(__dirname, 'src/css/index.ts'),
         'vite-router/index': resolve(__dirname, 'src/vite-router/index.ts'),
@@ -67,6 +68,7 @@ export default defineConfig({
       { find: 'auwla/compiler', replacement: resolve(__dirname, 'src/compiler.ts') },
       { find: 'auwla/vite', replacement: resolve(__dirname, 'src/vite.ts') },
       { find: 'auwla/events', replacement: resolve(__dirname, 'src/events/index.ts') },
+      { find: 'auwla/track', replacement: resolve(__dirname, 'src/track/index.ts') },
       { find: 'auwla/router', replacement: resolve(__dirname, 'src/router/index.ts') },
       { find: 'auwla/css', replacement: resolve(__dirname, 'src/css/index.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }

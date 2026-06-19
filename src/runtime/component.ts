@@ -147,16 +147,23 @@ export function createComponentId(type: ComponentType, props: MemoProps): string
     runtimeState.activeRenderState.stack.length - 1
   ] ?? 'root';
 
-  const label = componentLabel(type);
+  // Use the compiler-injected site ID if present. This completely eliminates
+  // counter collisions when sibling components are conditionally rendered.
+  const siteId = props && '__auwlaSite' in props ? String(props.__auwlaSite) : null;
+  const label = siteId ?? componentLabel(type);
 
-  // Counter key is unique per (parent, component-name) pair.
+  // Counter key is unique per (parent, component-name/site-id) pair.
   const counterKey = `${parent}/${label}`;
   const slot = runtimeState.activeRenderState.counters.get(counterKey) ?? 0;
   runtimeState.activeRenderState.counters.set(counterKey, slot + 1);
 
   // Explicit `key` prop always wins over the auto slot.
   const key = props && 'key' in props ? props.key : slot;
-  return `${parent}/${label}:${String(key)}`;
+  
+  // Format the returned ID. If we used __auwlaSite for the counter, we still
+  // append the human-readable label so IDs look like `PostsPage:0/Link(1):0`
+  const idLabel = siteId ? `${componentLabel(type)}(${siteId})` : label;
+  return `${parent}/${idLabel}:${String(key)}`;
 }
 
 /**
@@ -217,6 +224,9 @@ export function createComponentClosure(
   children: MemoChild[],
 ): RenderClosure {
   const nextProps = { ...(props ?? {}), children };
+  if ('__auwlaSite' in nextProps) {
+    delete nextProps.__auwlaSite;
+  }
   // Try to derive a real id from the current render stack. When a component is
   // created at module-load time (e.g. the root <Router /> passed to
   // createMemoApp), there is no active render pass yet, so createComponentId

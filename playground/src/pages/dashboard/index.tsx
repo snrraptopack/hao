@@ -1,5 +1,5 @@
 import { getRouted, Link, type RouteContext } from 'auwla/router'
-import { track } from 'auwla/events'
+import { track } from 'auwla/track'
 
 export async function routed(ctx: RouteContext<'/dashboard'>, signal: AbortSignal) {
   return await track.get('dashboard.getDashboard', { signal })

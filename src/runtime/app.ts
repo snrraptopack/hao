@@ -21,7 +21,7 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
-import { cleanupComponentTracks } from '../events/track';
+import { cleanupComponentTracks } from '../track/core';
 import { enterHydration, exitHydration } from '../compiler-runtime/template';
 
 /** Events that fire rapidly and should be throttled to one render per frame. */

@@ -37,7 +37,7 @@ export {
   exitHydration,
 } from './compiler-runtime/index';
 
-export { hydrateTrackState } from './events/track';
+export { hydrateTrackState } from './track/core';
 
 export type {
   ComponentHandle,

@@ -8,8 +8,8 @@
 // over from there.
 
 import {} from "auwla/jsx-runtime"
-import { track } from "auwla/events"
-import type { TrackHandle } from "auwla/events"
+import { track } from "auwla/track"
+import type { TrackHandle } from "auwla/track"
 import { setRpcRoutePath, setRpcRouteParams } from "../client/rpc"
 import { component } from "../runtime/component"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
@@ -270,7 +270,7 @@ export function Router(props: RouterProps = {}) {
   }
 
   function startLoader(routeToLoad: Route, context: RouteContext<any>): TrackHandle {
-    return track("__loader", async (signal) => {
+    return track(`__loader:${context.path}`, async (signal) => {
       const prevPath = setRpcRoutePath(context.path)
       const prevParams = setRpcRouteParams(context.params)
       try {

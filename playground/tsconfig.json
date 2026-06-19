@@ -30,7 +30,10 @@
         "src/compiler.ts"
       ],
       "auwla/events": [
-        "src/events/index.ts"
+        "../src/events/index.ts"
+      ],
+      "auwla/track": [
+        "../src/track/index.ts"
       ],
       "auwla/router": [
         "src/router/index.ts"

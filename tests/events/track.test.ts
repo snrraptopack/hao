@@ -1,22 +1,22 @@
 import { describe, expect, test, beforeEach } from 'vitest';
 import { createMemoApp, h } from '../../src';
-import { event, __resetTrackRegistry } from '../../src/events';
+import { track, pending, resolved, rejected, value, reason, cancel, __resetTrackRegistry } from '../../src/events';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-describe('event.track', () => {
+describe('track', () => {
   beforeEach(() => {
     __resetTrackRegistry();
   });
 
   test('track handle reflects pending and resolved state', async () => {
     const root = document.createElement('div');
-    let loadUser: ReturnType<typeof event.track>;
+    let loadUser: ReturnType<typeof track>;
 
     function App() {
-      loadUser = event.track('user', Promise.resolve('Alice'));
+      loadUser = track('user', Promise.resolve('Alice'));
 
       return () => h('div', {}, loadUser.pending ? 'Loading...' : loadUser.value ?? '');
     }
@@ -33,10 +33,10 @@ describe('event.track', () => {
 
   test('track handle reflects rejected state', async () => {
     const root = document.createElement('div');
-    let loadHandle: ReturnType<typeof event.track>;
+    let loadHandle: ReturnType<typeof track>;
 
     function App() {
-      loadHandle = event.track('load', Promise.reject(new Error('fail')));
+      loadHandle = track('load', Promise.reject(new Error('fail')));
 
       return () => h('div', {}, loadHandle.rejected ? `Error: ${String(loadHandle.reason)}` : loadHandle.pending ? 'Loading...' : 'Done');
     }
@@ -54,7 +54,7 @@ describe('event.track', () => {
     const root = document.createElement('div');
 
     function App() {
-      const search = event.track('search', async (signal) => {
+      const search = track('search', async (signal) => {
         await sleep(50);
         return 'done';
       });
@@ -76,7 +76,7 @@ describe('event.track', () => {
 
     function App() {
       const start = () => {
-        event.track('search', async (signal) => {
+        track('search', async (signal) => {
           signal.addEventListener('abort', () => { aborted = true; });
           await sleep(100);
           if (signal.aborted) return;
@@ -106,10 +106,10 @@ describe('event.track', () => {
   test('track handle cancel() aborts running operation', async () => {
     const root = document.createElement('div');
     let aborted = false;
-    let slowHandle: ReturnType<typeof event.track>;
+    let slowHandle: ReturnType<typeof track>;
 
     function App() {
-      slowHandle = event.track('slow', async (signal) => {
+      slowHandle = track('slow', async (signal) => {
         signal.addEventListener('abort', () => { aborted = true; });
         await sleep(100);
       });
@@ -133,8 +133,8 @@ describe('event.track', () => {
     const root = document.createElement('div');
 
     function App() {
-      const t1 = event.track('a', new Promise((resolve) => setTimeout(resolve, 5)));
-      const t2 = event.track('b', new Promise((resolve) => setTimeout(resolve, 5)));
+      const t1 = track('a', new Promise((resolve) => setTimeout(resolve, 5)));
+      const t2 = track('b', new Promise((resolve) => setTimeout(resolve, 5)));
 
       return () => h('div', {}, t1.pending || t2.pending ? 'any-loading' : 'all-done');
     }
@@ -151,7 +151,7 @@ describe('event.track', () => {
     const root = document.createElement('div');
 
     function App() {
-      const loadData = event.track('data', Promise.resolve({ name: 'Bob' }));
+      const loadData = track('data', Promise.resolve({ name: 'Bob' }));
       return () => h('div', {}, loadData.resolved ? loadData.value?.name ?? 'none' : 'none');
     }
 
@@ -170,7 +170,7 @@ describe('event.track', () => {
       return () => h('div', {},
         h('button', {
           onClick: () => {
-            event.track('clickSave', sleep(20).then(() => 'saved'));
+            track('clickSave', sleep(20).then(() => 'saved'));
           },
         }, 'Save'),
         h('span', {}, event.pending('clickSave') ? 'saving' : event.value('clickSave') ?? 'idle'),
@@ -194,7 +194,7 @@ describe('event.track', () => {
     let renderCount = 0;
 
     function App() {
-      event.track('auto', Promise.resolve('ok'));
+      track('auto', Promise.resolve('ok'));
       return () => {
         renderCount++;
         return h('div', {}, 'app');

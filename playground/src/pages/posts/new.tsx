@@ -1,5 +1,5 @@
 import { Link, navigate } from 'auwla/router'
-import { track } from 'auwla/events'
+import { track } from 'auwla/track'
 import type { StandardSchema } from 'auwla/server'
 
 const schema: StandardSchema = {

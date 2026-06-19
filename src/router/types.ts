@@ -1,5 +1,5 @@
 // types.ts
-import type { TrackHandle } from 'auwla/events'
+import type { TrackHandle } from 'auwla/track'
 import type { SuspendConfig } from './suspend'
 
 export type { SuspendConfig }

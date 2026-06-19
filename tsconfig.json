@@ -16,6 +16,7 @@
       "auwla/jsx-dev-runtime": ["src/jsx-dev-runtime.ts"],
       "auwla/compiler": ["src/compiler.ts"],
       "auwla/events": ["src/events/index.ts"],
+      "auwla/track": ["src/track/index.ts"],
       "auwla/router": ["src/router/index.ts"],
       "auwla/css": ["src/css/index.ts"],
     },

@@ -170,8 +170,44 @@ function addCompilerImport(code: string, didCompile: boolean): string {
  * @returns The transformed source code, or the original if no transforms apply.
  */
 export function compileAuwla(sourceText: string, fileName = 'input.tsx', options?: CompileOptions): string {
-  const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const replacements = findReplacements(source, options);
-  if (replacements.length === 0) return sourceText;
-  return addCompilerImport(applyReplacements(sourceText, replacements), true);
+  // Pass 1: Inject __auwlaSite into Component tags
+  let siteCounter = 0;
+  const siteReplacements: Array<{ start: number; end: number; text: string }> = [];
+  const source1 = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  
+  function isComponentTag(tagName: ts.JsxTagNameExpression): boolean {
+    if (!ts.isIdentifier(tagName)) return false;
+    return /^[A-Z]/.test(tagName.text);
+  }
+
+  function visitSite(node: ts.Node) {
+    if (ts.isJsxElement(node) && isComponentTag(node.openingElement.tagName)) {
+      siteReplacements.push({
+        start: node.openingElement.tagName.getEnd(),
+        end: node.openingElement.tagName.getEnd(),
+        text: ` __auwlaSite="${siteCounter++}"`
+      });
+    } else if (ts.isJsxSelfClosingElement(node) && isComponentTag(node.tagName)) {
+      siteReplacements.push({
+        start: node.tagName.getEnd(),
+        end: node.tagName.getEnd(),
+        text: ` __auwlaSite="${siteCounter++}"`
+      });
+    }
+    ts.forEachChild(node, visitSite);
+  }
+  visitSite(source1);
+  
+  const textWithSites = siteReplacements.length > 0 
+    ? applyReplacements(sourceText, siteReplacements)
+    : sourceText;
+
+  // Pass 2: Compile Auwla DOM blocks
+  const source2 = ts.createSourceFile(fileName, textWithSites, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const replacements = findReplacements(source2, options);
+  
+  if (replacements.length === 0 && siteReplacements.length === 0) return sourceText;
+  
+  const finalCode = replacements.length > 0 ? applyReplacements(textWithSites, replacements) : textWithSites;
+  return addCompilerImport(finalCode, replacements.length > 0);
 }
