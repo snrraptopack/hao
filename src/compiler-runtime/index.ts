@@ -21,7 +21,7 @@ export {
 
 export { __event } from './events';
 
-export { __cloneTemplate } from './template';
+export { __cloneTemplate, enterHydration, exitHydration, __hydrateComment } from './template';
 
 export { __keyedMap } from './keyed-map';
 

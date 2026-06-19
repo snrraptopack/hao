@@ -14,6 +14,18 @@ export function __ssrBlock(fn: () => string): string {
   return fn();
 }
 
+/**
+ * Wrap a dynamic child value in HTML comment anchors so the hydration cursor
+ * can locate the corresponding `document.createComment("auwla:child")` marker.
+ *
+ * The opening comment matches what the compiler writes into the DOM; the
+ * closing comment lets the cursor skip the rendered content and land on the
+ * NEXT sibling correctly.
+ */
+function withChildMarker(inner: string): string {
+  return `<!--auwla:child-->${inner}<!--/auwla:child-->`;
+}
+
 function ssrChildToString(child: unknown): string {
   if (child == null || typeof child === 'boolean') return '';
   if (Array.isArray(child)) {
@@ -87,7 +99,18 @@ function ssrNodeToString(node: SsrNode): string {
   return `<${tag}${attrs}>${children}</${tag}>`;
 }
 
-/** @internal */
+/**
+ * Stringify a value produced by the SSR render path.
+ *
+ * Called by `renderToString` on the root component output.
+ * Does NOT add `<!--auwla:child-->` markers at this level — the root mount
+ * is handled by `patchRoot`, not `__setChild`, so no anchor comment is needed.
+ *
+ * Dynamic child positions INSIDE a compiled template DO need markers; those
+ * are injected by the compiler into the SSR template literal directly
+ * (a future compiler enhancement).
+ * @internal
+ */
 export function __ssrNode(node: unknown): string {
   if (isSsrNode(node)) {
     return ssrNodeToString(node);
@@ -101,9 +124,17 @@ export function __ssrNode(node: unknown): string {
   return __escapeHtml(node);
 }
 
-/** @internal */
-export function __ssrKeyedMap(): { toString(): string } {
-  return { toString: () => '' };
+/**
+ * Server-side stub for `__keyedMap`.
+ *
+ * The compiler emits `__ssrKeyedMap` for `.map()` lists in SSR mode.  The
+ * actual list is rendered inline by the SSR template literal; this stub
+ * wraps the rendered HTML in `<!--auwla:keyed-map-->` markers so the
+ * hydration cursor can find the corresponding anchor comment.
+ * @internal
+ */
+export function __ssrKeyedMap(html: string): string {
+  return `<!--auwla:keyed-map-->${html}<!--/auwla:keyed-map-->`;
 }
 
 /** @internal */

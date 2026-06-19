@@ -18,6 +18,7 @@ export {
   __dirtySource,
   __event,
   __escapeHtml,
+  __hydrateComment,
   __keyedMap,
   __setAttribute,
   __setChild,
@@ -31,7 +32,11 @@ export {
   __ssrKeyedMap,
   __ssrNode,
   __trackSources,
+  enterHydration,
+  exitHydration,
 } from './compiler-runtime/index';
+
+export { hydrateTrackState } from './events/track';
 
 export type {
   ComponentHandle,

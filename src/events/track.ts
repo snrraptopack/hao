@@ -210,6 +210,27 @@ export function __extractTrackState(): Record<string, unknown> {
   return data;
 }
 
+/**
+ * Seed the track registry from the SSR data payload embedded in the page.
+ *
+ * Call this once at client startup (before mounting the app) to pre-populate
+ * `track.get` handles as already-resolved so components skip the network fetch
+ * and render immediately from cache.
+ *
+ * @param data - The object from `window.__AUWLA_DATA__` injected by `renderToString`.
+ */
+export function hydrateTrackState(data: Record<string, unknown>): void {
+  for (const [name, value] of Object.entries(data)) {
+    // Keys arrive as "remote:posts.getPost" — restore the full registry key.
+    const key = `__global::${name}`;
+    const state = getOrCreate(key);
+    // Mark as resolved with the server value; promise resolves immediately.
+    state.statusCell = reactive<TrackStatus>('resolved');
+    state.value = value;
+    state.promise = Promise.resolve(value);
+  }
+}
+
 function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
   const handle = {
     get name() {
@@ -610,6 +631,21 @@ function trackGet(
     existing.routePath !== routePath
   ) {
     return createHandle(stateKey, existing.promise!) as any;
+  }
+
+  // If the entry was pre-seeded by hydrateTrackState (resolved, no routePath,
+  // promise already set), return it immediately without dispatching any RPC.
+  // The SWR background sync will kick in on the NEXT call (after first render).
+  if (
+    existing &&
+    existing.statusCell.get() === 'resolved' &&
+    !existing.routePath &&
+    existing.promise
+  ) {
+    // Tag it with the current route so future calls can sync normally.
+    existing.routePath = routePath;
+    subscribeSetupComponent(existing.statusCell);
+    return createHandle(stateKey, existing.promise) as any;
   }
 
   const promise = dispatchRpc(key, [], routePath, { ...options, method: 'GET' });

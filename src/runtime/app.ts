@@ -22,6 +22,7 @@ import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
 import { cleanupComponentTracks } from '../events/track';
+import { enterHydration, exitHydration } from '../compiler-runtime/template';
 
 /** Events that fire rapidly and should be throttled to one render per frame. */
 const HIGH_FREQUENCY_EVENTS = new Set([
@@ -301,7 +302,18 @@ export function createMemoApp<TModel>(
     },
   };
 
-  renderNow();
+  // Detect server-rendered content: if the root has child nodes and carries
+  // the SSR marker attribute (set by the server adapter), hydrate instead of
+  // wiping the DOM. enterHydration seeds the cursor; exitHydration clears it
+  // after the first render so subsequent re-renders clone normally.
+  const isHydrating = root.hasAttribute('data-auwla-ssr') && root.hasChildNodes();
+  if (isHydrating) {
+    enterHydration(root);
+    renderNow();
+    exitHydration();
+  } else {
+    renderNow();
+  }
   runtimeState.mountedApps.add(mountedApp);
 
   let topLevelCleanups: (() => void)[] | undefined;
