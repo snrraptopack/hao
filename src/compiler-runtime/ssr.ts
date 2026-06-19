@@ -9,9 +9,15 @@ import type { SsrNode } from '../runtime/types';
 import { isSsrNode } from '../runtime/types';
 import { compiledStyleValue } from '../shared/style-helpers';
 
+export class SsrSafeHtml {
+  public readonly __isSsrSafeHtml = true;
+  constructor(public html: string) {}
+  toString() { return this.html; }
+}
+
 /** @internal */
-export function __ssrBlock(fn: () => string): string {
-  return fn();
+export function __ssrBlock(fn: () => string): SsrSafeHtml {
+  return new SsrSafeHtml(fn());
 }
 
 
@@ -22,6 +28,11 @@ function ssrChildToString(child: unknown): string {
   }
   if (isSsrNode(child)) {
     return ssrNodeToString(child);
+  }
+  if (child && typeof child === 'object') {
+    if ('__isSsrSafeHtml' in child) {
+      return (child as SsrSafeHtml).html;
+    }
   }
   if (typeof child === 'function') {
     return ssrChildToString((child as () => unknown)());
@@ -72,6 +83,22 @@ function ssrPropsToString(props: Record<string, unknown>): string {
   return attrs;
 }
 
+/** @internal */
+export function __ssrStyle(value: unknown): string {
+  if (!value) return '';
+  if (typeof value === 'string') return __escapeHtml(value);
+  if (typeof value === 'object') {
+    const styles: string[] = [];
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v == null) continue;
+      const cssName = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+      styles.push(`${cssName}: ${__escapeHtml(compiledStyleValue(k, v as string | number | null | undefined))}`);
+    }
+    return styles.join('; ');
+  }
+  return '';
+}
+
 function ssrNodeToString(node: SsrNode): string {
   const tag = node.tag;
   const attrs = ssrPropsToString(node.props);
@@ -101,16 +128,7 @@ function ssrNodeToString(node: SsrNode): string {
  * @internal
  */
 export function __ssrNode(node: unknown): string {
-  if (isSsrNode(node)) {
-    return ssrNodeToString(node);
-  }
-  if (Array.isArray(node)) {
-    return node.map(ssrChildToString).join('');
-  }
-  if (typeof node === 'function') {
-    return ssrChildToString(node());
-  }
-  return __escapeHtml(node);
+  return ssrChildToString(node);
 }
 
 /**

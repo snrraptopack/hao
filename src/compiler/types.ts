@@ -65,6 +65,7 @@ export const COMPILER_IMPORT = [
   '__ssrBlock',
   '__ssrKeyedMap',
   '__ssrNode',
+  '__ssrStyle',
   '__trackSources',
 ].join(', ');
 

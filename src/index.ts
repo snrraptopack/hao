@@ -31,6 +31,7 @@ export {
   __ssrBlock,
   __ssrKeyedMap,
   __ssrNode,
+  __ssrStyle,
   __trackSources,
   enterHydration,
   exitHydration,

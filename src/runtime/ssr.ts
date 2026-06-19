@@ -13,6 +13,7 @@ import { setCurrentPath } from '../router/navigation';
 import { matchRoutes } from '../router/routes';
 import { __setCurrentContext, __setCurrentLoader, __setCurrentMeta } from '../router/Router';
 import { invokeRemoteServer } from '../server/ssr-invoke';
+import type { SsrInvokeOptions } from '../server/ssr-invoke';
 import { track, __extractTrackState, __resetTrackRegistry } from '../events/track';
 import type { Route, RouteContext, MatchedRoute } from '../router/types';
 import type { ServerManifest } from '../server/types';
@@ -23,7 +24,7 @@ export interface SsrRenderOptions {
   /** The incoming request. If omitted, a Request is synthesised from the URL. */
   request?: Request;
   /** Global middlewares applied to every remote function invocation. */
-  globalMiddlewares?: Parameters<typeof invokeRemoteServer>[5]['globalMiddlewares'];
+  globalMiddlewares?: SsrInvokeOptions['globalMiddlewares'];
   /** Custom module loader for server files. Defaults to dynamic import. */
   load?: (modulePath: string) => Promise<Record<string, unknown>>;
 }

@@ -53,9 +53,9 @@ export type LinkProps<P extends ValidRoutePath = ValidRoutePath> = {
 export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
   const {
     href,
-    activeClass      = "active",
+    activeClass = "active",
     exactActiveClass = "exact-active",
-    prefetch         = true,
+    prefetch = true,
   } = props
   // Active class computation must happen inside the render closure so it
   // re-evaluates on every navigation commit, not just on component setup.
@@ -65,7 +65,7 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
 
     // Active class computation must happen inside the render closure so it
     // re-evaluates on every navigation commit, not just on component setup.
-    const exact   = isExactActive(actualUrl)
+    const exact = isExactActive(actualUrl)
     const partial = isActive(actualUrl)
 
     // Build the final class string by combining the static class with any
@@ -74,7 +74,7 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
     const classes = [
       props.class,
       partial && activeClass,
-      exact   && exactActiveClass,
+      exact && exactActiveClass,
     ].filter(Boolean).join(" ") || undefined
 
     return (

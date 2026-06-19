@@ -280,10 +280,10 @@ function errorResponse(error: unknown): Response {
   if (error instanceof Response) return error
 
   const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
-  const isValidation = error instanceof ValidationError
-  const isHttpError = error instanceof HttpError
+  const isValidation = error instanceof ValidationError || (error instanceof Error && error.name === 'ValidationError')
+  const isHttpError = error instanceof HttpError || (error instanceof Error && typeof (error as any).status === 'number')
   
-  const status = isValidation ? 400 : isHttpError ? error.status : 500
+  const status = isValidation ? 400 : isHttpError ? (error as any).status : 500
 
   const message = (isValidation || isHttpError || !isProd)
     ? (error instanceof Error ? error.message : String(error))
@@ -292,8 +292,8 @@ function errorResponse(error: unknown): Response {
   const payload = {
     message,
     name: (isValidation || isHttpError || !isProd) ? (error instanceof Error ? error.name : 'Error') : 'Error',
-    issues: isValidation ? error.issues : undefined,
-    details: isHttpError ? error.details : undefined,
+    issues: isValidation ? (error as any).issues : undefined,
+    details: isHttpError ? (error as any).details : undefined,
   }
 
   return new Response(JSON.stringify(payload), {

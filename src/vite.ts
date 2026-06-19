@@ -127,11 +127,17 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         return null;
       }
 
-      // ssr is true if:
-      //  a) the user explicitly opted-in via auwla({ ssr: true }), OR
-      //  b) Vite is transforming this file for the server bundle
-      //     (e.g. vite.ssrLoadModule / vite build --ssr)
-      const ssr = options.ssr === true || transformOptions?.ssr === true;
+      const ssr =
+        options.ssr === true ||
+        transformOptions?.ssr === true ||
+        // @ts-ignore: Vite 6 Environment API
+        this.environment?.name === 'ssr' ||
+        // @ts-ignore: Vite 6 Environment API fallback
+        this.environment?.name === 'server';
+        
+      if (file.includes('Link.tsx')) {
+        console.log('[AUWLA DEBUG]', { file, ssr, optSsr: options.ssr, transSsr: transformOptions?.ssr, envName: (this as any).environment?.name });
+      }
 
       let compiled = cssHandler.transform(code, file);
       compiled = compileAuwla(compiled, file, { ssr });

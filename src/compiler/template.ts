@@ -52,11 +52,27 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
     if (ts.isJsxExpression(child)) {
       const expression = childExpression(child);
       if (!expression) continue;
-      if (isMapCall(expression) || needsChildPatch(expression)) return null;
+      if (isMapCall(expression)) {
+        if (ctx.ssr) {
+          const jsxCode = expressionText(ctx.source, expression);
+          html += `<!--auwla:keyed-map-->\${__ssrNode(${jsxCode})}<!--/auwla:keyed-map-->`;
+          continue;
+        }
+        return null;
+      }
+
+      if (needsChildPatch(expression)) {
+        if (ctx.ssr) {
+          const jsxCode = expressionText(ctx.source, expression);
+          html += `<!--auwla:child-->\${__ssrNode(${jsxCode})}<!--/auwla:child-->`;
+          continue;
+        }
+        return null;
+      }
 
       const value = expressionText(ctx.source, expression);
       if (ctx.ssr) {
-        html += `\${__escapeHtml(${value})}`;
+        html += `<!--auwla:child-->\${__escapeHtml(${value})}<!--/auwla:child-->`;
         continue;
       }
 
@@ -75,7 +91,14 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
     if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
       if (!ctx.ssr && hasDynamicText) return null;
       const childHtml = compileTemplateNode(ctx, child, [...parentPath, childIndex]);
-      if (childHtml === null) return null;
+      if (childHtml === null) {
+        if (ctx.ssr) {
+          const jsxCode = child.getText(ctx.source);
+          html += `<!--auwla:child-->\${__ssrNode(${jsxCode})}<!--/auwla:child-->`;
+          continue;
+        }
+        return null;
+      }
       html += childHtml;
       childIndex++;
       continue;
@@ -160,7 +183,7 @@ function singleDynamicTextChild(ctx: TemplateContext, node: ts.JsxElement, path:
 
   const value = expressionText(ctx.source, expression);
   if (ctx.ssr) {
-    return `\${__escapeHtml(${value})}`;
+    return `<!--auwla:child-->\${__escapeHtml(${value})}<!--/auwla:child-->`;
   }
 
   const elementVar = templateElementVar(ctx, path);

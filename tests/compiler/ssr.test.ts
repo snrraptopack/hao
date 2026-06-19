@@ -34,7 +34,7 @@ describe('SSR compiler target', () => {
     expect(compiled).toContain('__escapeHtml(title)');
 
     const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<h1>&lt;script&gt;alert(1)&lt;/script&gt;</h1>');
+    expect(App()).toBe('<h1><!--auwla:child-->&lt;script&gt;alert(1)&lt;/script&gt;<!--/auwla:child--></h1>');
   });
 
   test('renders dynamic attributes correctly', () => {
@@ -68,7 +68,7 @@ describe('SSR compiler target', () => {
     expect(compiled).not.toContain('addEventListener');
 
     const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<button>0</button>');
+    expect(App()).toBe('<button><!--auwla:child-->0<!--/auwla:child--></button>');
   });
 
   test('renders single dynamic child as element text', () => {
@@ -84,7 +84,7 @@ describe('SSR compiler target', () => {
     expect(compiled).toContain('__escapeHtml(label)');
 
     const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<span>Hello</span>');
+    expect(App()).toBe('<span><!--auwla:child-->Hello<!--/auwla:child--></span>');
   });
 
   test('bails out dynamic tags to runtime h() in SSR', () => {

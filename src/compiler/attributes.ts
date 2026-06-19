@@ -401,6 +401,9 @@ export function compileTemplateAttribute(
       const css = staticStyleToCss(ctx.source, expression);
       if (css !== null) return ` style="${escapeHtml(css)}"`;
     }
+    if (ctx.ssr) {
+      return ` style="\${__ssrStyle(${value})}"`;
+    }
     return null;
   }
 

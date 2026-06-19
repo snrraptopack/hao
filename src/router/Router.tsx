@@ -270,11 +270,11 @@ export function Router(props: RouterProps = {}) {
   }
 
   function startLoader(routeToLoad: Route, context: RouteContext<any>): TrackHandle {
-    return track("__loader", (signal) => {
+    return track("__loader", async (signal) => {
       const prevPath = setRpcRoutePath(context.path)
       const prevParams = setRpcRouteParams(context.params)
       try {
-        return routeToLoad.routed!(context, signal)
+        return await routeToLoad.routed!(context, signal)
       } finally {
         setRpcRoutePath(prevPath)
         setRpcRouteParams(prevParams)

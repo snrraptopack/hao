@@ -25,4 +25,4 @@ export { __cloneTemplate, enterHydration, exitHydration, __hydrateComment } from
 
 export { __keyedMap } from './keyed-map';
 
-export { __ssrBlock, __ssrNode, __ssrKeyedMap, __escapeHtml } from './ssr';
+export { __ssrBlock, __ssrNode, __ssrKeyedMap, __ssrStyle, __escapeHtml } from './ssr';

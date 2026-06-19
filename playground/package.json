@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "serve": "bun run src/server.ts",
+    "build": "vite build && vite build --ssr src/server.ts --outDir dist/server",
+    "serve": "bun run dist/server/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

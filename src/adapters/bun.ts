@@ -161,7 +161,8 @@ export function createBunAdapter(options: BunAdapterOptions) {
       try {
         const ssrResponse = await ssrRender(request, options, staticDir as string)
         if (ssrResponse) return ssrResponse
-      } catch {
+      } catch (e) {
+        console.error('[auwla] SSR render failed, falling back to SPA shell:', e)
         // SSR errors fall through to static/SPA fallback — never crash the server.
       }
     }
