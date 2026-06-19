@@ -14,17 +14,6 @@ export function __ssrBlock(fn: () => string): string {
   return fn();
 }
 
-/**
- * Wrap a dynamic child value in HTML comment anchors so the hydration cursor
- * can locate the corresponding `document.createComment("auwla:child")` marker.
- *
- * The opening comment matches what the compiler writes into the DOM; the
- * closing comment lets the cursor skip the rendered content and land on the
- * NEXT sibling correctly.
- */
-function withChildMarker(inner: string): string {
-  return `<!--auwla:child-->${inner}<!--/auwla:child-->`;
-}
 
 function ssrChildToString(child: unknown): string {
   if (child == null || typeof child === 'boolean') return '';

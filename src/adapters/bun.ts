@@ -1,46 +1,172 @@
 /**
  * @fileoverview Bun.serve adapter for Auwla fullstack.
  *
- * Wraps the WinterCG fetch adapter and returns a 404 for non-RPC requests so
- * Bun can still serve static files when the adapter is used as the default
- * fetch handler.
+ * Wraps the WinterCG fetch adapter and extends it with optional SSR rendering
+ * so a single `Bun.serve` call handles RPC, server-side rendering, and static
+ * file serving — no separate server entry required.
+ *
+ * ### Minimal setup (RPC + static)
+ * ```ts
+ * import { createBunAdapter } from 'auwla/adapters/bun'
+ * import manifest from './.auwla/server-manifest'
+ *
+ * Bun.serve({ fetch: createBunAdapter({ manifest }) })
+ * ```
+ *
+ * ### Full-stack setup (RPC + SSR + static)
+ * ```ts
+ * import { createBunAdapter } from 'auwla/adapters/bun'
+ * import manifest from './.auwla/server-manifest'
+ * import routes  from 'auwla:routes'
+ *
+ * Bun.serve({
+ *   fetch: createBunAdapter({
+ *     manifest,
+ *     routes,
+ *     // Optional: path to your HTML shell. Defaults to `<staticDir>/index.html`.
+ *     // Must contain `<!--app-html-->` where the rendered markup is injected,
+ *     // and the app root element must have `data-auwla-ssr` for hydration.
+ *     templatePath: './dist/index.html',
+ *   }),
+ * })
+ * ```
  */
 
 import { createFetchAdapter, type FetchAdapterOptions } from './fetch'
+import { renderToString } from '../runtime/ssr'
+import type { Route } from '../router/types'
+import type { SsrInvokeOptions } from '../server/ssr-invoke'
 
 declare const Bun: {
-  file(path: string): any
+  /**
+   * Returns a BunFile handle. BunFile extends Blob in the real Bun runtime,
+   * so it is valid as a `Response` body. We declare the Blob-compatible subset
+   * we need here to avoid importing Bun-specific types into the library.
+   */
+  file(path: string): Blob & { text(): Promise<string>; exists(): Promise<boolean> }
 }
 
 export interface BunAdapterOptions extends FetchAdapterOptions {
   /**
-   * Directory to serve static files from. Defaults to './dist'.
+   * Directory to serve static files from. Defaults to `'./dist'`.
    * Pass `null` or `false` to disable static file serving.
    */
   staticDir?: string | null | false
+
+  /**
+   * Route table used for SSR page rendering.
+   *
+   * When provided, HTML page requests that do not match the RPC path are
+   * rendered server-side before the static-file fallback. If omitted, the
+   * adapter behaves like a pure SPA server (static files only).
+   */
+  routes?: Route[]
+
+  /**
+   * Path to the HTML shell template.
+   *
+   * The template must contain `<!--app-html-->` where the rendered component
+   * HTML is injected, and the app root element must carry `data-auwla-ssr`
+   * so the client-side hydration cursor activates on first paint.
+   *
+   * Defaults to `<staticDir>/index.html`.
+   */
+  templatePath?: string
+
+  /**
+   * Global server middlewares applied to every remote function invocation
+   * during SSR. Passed through to `renderToString`.
+   */
+  globalMiddlewares?: SsrInvokeOptions['globalMiddlewares']
 }
+
+// ─── internal helpers ────────────────────────────────────────────────────────
+
+const templateCache = new Map<string, string>()
+
+async function readTemplate(path: string): Promise<string | null> {
+  const cached = templateCache.get(path)
+  if (cached) return cached
+
+  const file = Bun.file(path)
+  if (!(await file.exists())) return null
+
+  const text = await file.text()
+  templateCache.set(path, text)
+  return text
+}
+
+/**
+ * Attempt to SSR-render a page for the given request URL.
+ *
+ * Returns `null` when:
+ *  - no routes are configured,
+ *  - the HTML shell template cannot be found, OR
+ *  - the URL does not match any route (404 routes are still rendered).
+ */
+async function ssrRender(
+  request: Request,
+  options: BunAdapterOptions,
+  staticDir: string,
+): Promise<Response | null> {
+  const { routes, manifest, globalMiddlewares, load } = options
+  if (!routes) return null
+
+  const templatePath = options.templatePath ?? `${staticDir}/index.html`
+  const template = await readTemplate(templatePath)
+  if (!template) return null
+
+  const { html, matched } = await renderToString(request.url, routes, {
+    manifest,
+    request,
+    globalMiddlewares,
+    load,
+  })
+
+  // If no route matched, let the static-file fallback handle it.
+  if (!matched) return null
+
+  const page = template.replace('<!--app-html-->', html)
+  return new Response(page, {
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  })
+}
+
+// ─── public factory ──────────────────────────────────────────────────────────
 
 /**
  * Create a fetch handler suitable for `Bun.serve({ fetch })`.
  *
- * Usage:
- *   import { createBunAdapter } from 'auwla/adapters/bun'
- *   import manifest from './.auwla/server-manifest'
- *
- *   Bun.serve({
- *     fetch: createBunAdapter({ manifest }),
- *   })
+ * The handler checks requests in this order:
+ *  1. **RPC** — any request to the RPC endpoint (`/_auwla/rpc` by default).
+ *  2. **SSR** — `text/html` requests when `routes` is provided; renders the
+ *               matching route to a string and injects it into the HTML shell.
+ *  3. **Static** — serves files from `staticDir` (`./dist` by default).
+ *  4. **SPA fallback** — returns `index.html` for unmatched `text/html` requests
+ *                        so client-side routing works on hard reload.
+ *  5. **404** — everything else.
  */
 export function createBunAdapter(options: BunAdapterOptions) {
   const handle = createFetchAdapter(options)
   const staticDir = options.staticDir !== undefined ? options.staticDir : './dist'
 
   return async function auwlaBunFetch(request: Request): Promise<Response> {
-    // 1. Try the RPC handler first
-    const response = await handle(request, { bun: { request } })
-    if (response) return response
+    // 1. RPC
+    const rpcResponse = await handle(request, { bun: { request } })
+    if (rpcResponse) return rpcResponse
 
-    // 2. Fall back to serving static files or SPA routing
+    // 2. SSR page rendering (only for HTML requests)
+    const acceptsHtml = (request.headers.get('accept') ?? '').includes('text/html')
+    if (acceptsHtml && staticDir && options.routes) {
+      try {
+        const ssrResponse = await ssrRender(request, options, staticDir as string)
+        if (ssrResponse) return ssrResponse
+      } catch {
+        // SSR errors fall through to static/SPA fallback — never crash the server.
+      }
+    }
+
+    // 3. Static files
     if (staticDir) {
       const url = new URL(request.url)
       const pathname = url.pathname === '/' ? '/index.html' : url.pathname
@@ -50,9 +176,8 @@ export function createBunAdapter(options: BunAdapterOptions) {
         return new Response(file)
       }
 
-      // SPA routing fallback: Serve index.html for page requests (e.g. reload on /posts)
-      const accept = request.headers.get('accept') ?? ''
-      if (accept.includes('text/html')) {
+      // 4. SPA fallback: serve index.html for unmatched page navigations.
+      if (acceptsHtml) {
         const indexFile = Bun.file(`${staticDir}/index.html`)
         if (await indexFile.exists()) {
           return new Response(indexFile)
@@ -60,7 +185,7 @@ export function createBunAdapter(options: BunAdapterOptions) {
       }
     }
 
+    // 5. 404
     return new Response('Not found', { status: 404 })
   }
 }
-

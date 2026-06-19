@@ -8,6 +8,23 @@ export type AuwlaViteOptions = {
   exclude?: RegExp;
   debugFlag?: boolean | string;
   css?: boolean;
+  /**
+   * Force SSR compilation for every file transformed by this plugin.
+   *
+   * When `true`, components are compiled to `__ssrBlock` string templates
+   * instead of `__createBlock` DOM calls — identical to what Vite sets
+   * automatically for files loaded via `vite.ssrLoadModule` or a
+   * `vite build --ssr` run.
+   *
+   * Set this in `vite.config.ts` to enable SSR rendering without needing
+   * a separate server entry or a two-pass build:
+   *
+   * ```ts
+   * // vite.config.ts
+   * plugins: [auwla({ ssr: true })]
+   * ```
+   */
+  ssr?: boolean;
 };
 
 function normalizeId(id: string): string {
@@ -110,7 +127,11 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         return null;
       }
 
-      const ssr = transformOptions?.ssr === true;
+      // ssr is true if:
+      //  a) the user explicitly opted-in via auwla({ ssr: true }), OR
+      //  b) Vite is transforming this file for the server bundle
+      //     (e.g. vite.ssrLoadModule / vite build --ssr)
+      const ssr = options.ssr === true || transformOptions?.ssr === true;
 
       let compiled = cssHandler.transform(code, file);
       compiled = compileAuwla(compiled, file, { ssr });
