@@ -1,109 +1,30 @@
-> This directory contains Auwla's event and async primitives. `track` is the core async lifecycle primitive; this README documents its fullstack remote-function extensions.
+> This directory contains Auwla's DOM event system. It provides the `event` proxy primitive and the chainable event modifier API.
 
-# `track` — local async work and remote functions
+# `events`
 
-## Local tracks (existing)
-
-```ts
-import { track } from 'auwla'
-
-const data = track('loadPosts', async (signal) => {
-  const res = await fetch('/api/posts', { signal })
-  return res.json()
-})
-
-// In render:
-// data.pending, data.resolved, data.rejected, data.value
-```
-
-## Remote queries — `track.get`
-
-`track.get` runs a GET remote function immediately and returns a reactive `TrackHandle`.
-
-```ts
-import { track } from 'auwla'
-
-const posts = track.get('posts.getPosts')
-const post = track.get('posts.getPost')
-```
-
-The key is typed against the generated server manifest. Only keys declared as `GET` are accepted. The return type is inferred from the manifest.
-
-Options:
-
-```ts
-const post = track.get('posts.getPost', { signal: abortController.signal })
-```
-
-## Remote commands — `track.post`
-
-`track.post` creates a lazy command handle. Nothing is sent to the server until you call `.run()`.
-
-```ts
-import { track } from 'auwla'
-
-const save = track.post('posts.createPost')
-
-async function onSubmit(data: { title: string }) {
-  await save.run(data)
-  // save.result is now a TrackHandle with the mutation result
-}
-```
-
-Render post-mutation state without a separate query:
+Auwla uses a chainable event listener API to keep your JSX clean and declarative. Instead of manually checking keys, preventing defaults, or throttling in your handlers, you can chain modifiers onto the event binding.
 
 ```tsx
-<button onClick={onSubmit} disabled={save.pending}>
-  {save.pending ? 'Saving…' : 'Save'}
+import { event } from 'auwla/events'
+
+// Basic event modifiers
+<button onClick={event.prevent(handleClick)}>
+  Click me
 </button>
 
-{save.result?.resolved && <p>Saved: {save.result.value.title}</p>}
+// Chainable modifiers with keys and timing
+<input 
+  onKeyDown={event.prevent.enter.throttle(300)(handleSearch)} 
+/>
 ```
 
-`.run()` also accepts `FormData` for progressive-enhancement forms:
+## Built-in Event Primitives
 
-```ts
-const form = new FormData(e.currentTarget)
-await save.run(form)
-```
+- `keyboard.ts`: `.key()`, `.ctrl()`, `.shift()`, `.alt()`, `.meta()`
+- `mouse.ts`: `.left()`, `.right()`, `.middle()`, `.self()`
+- `timing.ts`: `.debounce(ms)`, `.throttle(ms)`, `.once()`
+- `outside.ts`: `.outside()` for click-outside detection
+- `intersect.ts`: `.intersect()` for IntersectionObserver
+- `touch.ts`: Touch and swipe gestures
 
-## Forms — `track.form`
-
-`track.form(key)` binds a server mutation to a `<form>`. It wraps `track.post`
-with an `onSubmit` handler and optional client-side Standard Schema validation.
-
-```ts
-import { track } from 'auwla'
-import * as v from 'valibot'
-
-const schema = v.object({ title: v.string() })
-
-const createPost = track.form('posts.createPost', { schema })
-```
-
-```tsx
-<form onSubmit={createPost.onSubmit}>
-  <input name="title" />
-  <button disabled={createPost.pending}>Save</button>
-
-  {createPost.error && <p>{createPost.error.message}</p>}
-
-  {createPost.resolved && <p>Saved: {createPost.value?.title}</p>}
-</form>
-```
-
-The schema is only for immediate UX — the server still re-validates with
-`validate(schema)` inside `remote.post`.
-
-## Inside `routed`
-
-`routed` already receives `ctx` and `signal`. Use `track.get` to fetch server data during navigation:
-
-```ts
-export const routed = async (ctx, signal) => {
-  const post = await track.get('posts.getPost', { signal })
-  return { post }
-}
-```
-
-Note: `track.get` sends the current `routePath` to the adapter so params can be extracted server-side. Do not pass params manually.
+*(Note: Async tracking and data-fetching primitives have been moved to the `src/track` directory.)*

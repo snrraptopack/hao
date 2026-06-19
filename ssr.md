@@ -60,6 +60,15 @@ Because the compiler transforms JSX into functions that push strings, we can abs
 If the server sends pre-rendered HTML strings, the client cannot use `__cloneTemplate` and wipe out the DOM.
 We will introduce `__hydrateTemplate` in the client runtime. When a compiled component mounts, instead of cloning a `<template>`, it walks the existing `element.firstChild` structure to capture references (like `el0`, `text0`) and attaches event listeners. For runtime bailouts, the server will emit HTML comment markers (`<!--auwla:child-->`) so `__setChild` can anchor itself exactly where it needs to.
 
+### E. Automatic Build Orchestration
+To simplify the developer experience, Auwla's Vite plugin natively orchestrates the two-pass fullstack build. When you configure the plugin with a `serverEntry` (e.g., `auwla({ serverEntry: './src/server.ts' })`), running `vite build` will automatically:
+1. Build the client application to `dist/`.
+2. Programmatically launch a second pass to build the backend server entry to `dist/server/`.
+
+This happens regardless of whether `ssr` is true or false, because even in a standard SPA (Single Page Application), the backend server is still required to handle API/RPC endpoints.
+
+If `serverEntry` is omitted entirely, the plugin skips the programmatic second pass, leaving you with a standard, backend-less client bundle in `dist/`.
+
 ---
 
 ## Conclusion

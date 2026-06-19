@@ -85,14 +85,30 @@ export interface BunAdapterOptions extends FetchAdapterOptions {
 const templateCache = new Map<string, string>()
 
 async function readTemplate(path: string): Promise<string | null> {
-  const cached = templateCache.get(path)
-  if (cached) return cached
+  const isDev = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production'
+  if (!isDev) {
+    const cached = templateCache.get(path)
+    if (cached) return cached
+  }
 
-  const file = Bun.file(path)
-  if (!(await file.exists())) return null
+  let text: string
+  if (typeof Bun !== 'undefined') {
+    const file = Bun.file(path)
+    if (!(await file.exists())) return null
+    text = await file.text()
+  } else {
+    try {
+      // @ts-ignore
+      const fs = await import('fs')
+      text = await fs.promises.readFile(path, 'utf-8')
+    } catch {
+      return null
+    }
+  }
 
-  const text = await file.text()
-  templateCache.set(path, text)
+  if (!isDev) {
+    templateCache.set(path, text)
+  }
   return text
 }
 
@@ -110,21 +126,31 @@ async function ssrRender(
   staticDir: string,
 ): Promise<Response | null> {
   const { routes, manifest, globalMiddlewares, load } = options
-  if (!routes) return null
+  if (!routes || !manifest) return null
 
-  const templatePath = options.templatePath ?? `${staticDir}/index.html`
+  const isDev = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production'
+  const defaultTemplatePath = isDev ? './index.html' : `${staticDir}/index.html`
+  const templatePath = options.templatePath ?? defaultTemplatePath
+  
   const template = await readTemplate(templatePath)
-  if (!template) return null
+  if (!template) {
+    console.log('[auwla:ssr] template not found:', templatePath)
+    return null
+  }
 
   const { html, matched } = await renderToString(request.url, routes, {
-    manifest,
+    manifest: manifest as any,
     request,
     globalMiddlewares,
     load,
   })
 
-  // If no route matched, let the static-file fallback handle it.
-  if (!matched) return null
+  if (!matched) {
+    console.log('[auwla:ssr] route not matched:', request.url)
+    return null
+  }
+
+  console.log('[auwla:ssr] rendering successful!')
 
   const page = template.replace('<!--app-html-->', html)
   return new Response(page, {
@@ -146,7 +172,7 @@ async function ssrRender(
  *                        so client-side routing works on hard reload.
  *  5. **404** — everything else.
  */
-export function createBunAdapter(options: BunAdapterOptions) {
+export function createBunAdapter(options: BunAdapterOptions = {}) {
   const handle = createFetchAdapter(options)
   const staticDir = options.staticDir !== undefined ? options.staticDir : './dist'
 
@@ -157,36 +183,56 @@ export function createBunAdapter(options: BunAdapterOptions) {
 
     // 2. SSR page rendering (only for HTML requests)
     const acceptsHtml = (request.headers.get('accept') ?? '').includes('text/html')
-    if (acceptsHtml && staticDir && options.routes) {
-      try {
-        const ssrResponse = await ssrRender(request, options, staticDir as string)
-        if (ssrResponse) return ssrResponse
-      } catch (e) {
-        console.error('[auwla] SSR render failed, falling back to SPA shell:', e)
-        // SSR errors fall through to static/SPA fallback — never crash the server.
+    if (acceptsHtml && staticDir) {
+      if (!options.routes) {
+        try {
+          options.routes = (await import('auwla:routes')).default
+        } catch (err) {
+          // It's ok if routes aren't available, we just fall back to SPA shell
+        }
+      }
+      if (!options.manifest) {
+        try {
+          options.manifest = (await import('auwla:server-manifest')).default
+        } catch (err) {
+          // Fall back to SPA shell if no manifest
+        }
+      }
+
+      if (options.routes && options.manifest) {
+        try {
+          const ssrResponse = await ssrRender(request, options, staticDir as string)
+          if (ssrResponse) return ssrResponse
+        } catch (e) {
+          console.error('[auwla] SSR render failed, falling back to SPA shell:', e)
+          // SSR errors fall through to static/SPA fallback — never crash the server.
+        }
       }
     }
 
     // 3. Static files
-    if (staticDir) {
+    if (staticDir && typeof Bun !== 'undefined') {
       const url = new URL(request.url)
       const pathname = url.pathname === '/' ? '/index.html' : url.pathname
       const file = Bun.file(`${staticDir}${pathname}`)
 
       if (await file.exists()) {
-        return new Response(file)
+        return new Response(file as any)
       }
 
       // 4. SPA fallback: serve index.html for unmatched page navigations.
       if (acceptsHtml) {
         const indexFile = Bun.file(`${staticDir}/index.html`)
         if (await indexFile.exists()) {
-          return new Response(indexFile)
+          return new Response(indexFile as any)
         }
       }
     }
 
     // 5. 404
+    // In dev mode (if Bun is undefined), return undefined to let Vite handle it
+    if (typeof Bun === 'undefined') return undefined as any
+
     return new Response('Not found', { status: 404 })
   }
 }

@@ -28,6 +28,10 @@ function subscribeSetupComponent<T>(cell: ReactiveCell<T>): void {
 export type FormOptions = {
   /** Optional Standard Schema for client-side pre-flight validation. */
   schema?: StandardSchema
+  /** Callback fired when the form submission successfully resolves. */
+  onSuccess?: (value: any) => void | Promise<void>
+  /** Callback fired when the form submission rejects or fails validation. */
+  onError?: (error: ValidationError | Error) => void | Promise<void>
 }
 
 export type FormHandle<TArgs extends unknown[] = unknown[], TReturn = unknown> =
@@ -131,6 +135,7 @@ export function trackForm(
     const { error } = validateClientSide(options?.schema, args)
     if (error) {
       errorCell.set(error)
+      if (options?.onError) await options.onError(error)
       throw error
     }
 
@@ -140,10 +145,14 @@ export function trackForm(
     }
 
     try {
-      return await originalRun(...finalArgs)
+      const result = await originalRun(...finalArgs)
+      if (options?.onSuccess) await options.onSuccess(result)
+      return result
     } catch (err) {
-      errorCell.set(err instanceof Error ? err : new Error(String(err)))
-      throw err
+      const error = err instanceof Error ? err : new Error(String(err))
+      errorCell.set(error)
+      if (options?.onError) await options.onError(error)
+      throw error
     }
   }
 

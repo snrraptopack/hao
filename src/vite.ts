@@ -25,6 +25,12 @@ export type AuwlaViteOptions = {
    * ```
    */
   ssr?: boolean;
+  /**
+   * Path to your custom server entry file (e.g. 'src/server.ts').
+   * If provided, Vite will automatically intercept SSR/RPC requests
+   * during development and route them through your custom server.
+   */
+  serverEntry?: string;
 };
 
 function normalizeId(id: string): string {
@@ -46,13 +52,51 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
   const exclude = options.exclude;
 
   const cssHandler = new ViteCSSHandler(!!options.css, !!options.debugFlag);
+  let viteConfig: any;
 
   return {
     name: 'auwla',
     enforce: 'pre',
 
-    configureServer(server) {
+    configResolved(resolvedConfig) {
+      viteConfig = resolvedConfig;
+    },
+
+    async closeBundle() {
+      // Automatic two-pass build orchestration
+      if (
+        options.serverEntry &&
+        !viteConfig.build.ssr &&
+        process.env.AUWLA_SKIP_SSR_BUILD !== 'true'
+      ) {
+        process.env.AUWLA_SKIP_SSR_BUILD = 'true';
+        console.log('\n[auwla] Client build complete. Automatically starting server build...');
+        
+        try {
+          const vite = await import('vite');
+          await vite.build({
+            configFile: viteConfig.configFile,
+            build: {
+              ssr: options.serverEntry,
+              outDir: 'dist/server',
+              emptyOutDir: false,
+            }
+          });
+        } catch (e) {
+          console.error('[auwla] Failed to run automatic SSR build', e);
+        }
+      }
+    },
+
+    async configureServer(server) {
+      console.log('[auwla:vite] configureServer running, serverEntry:', options.serverEntry)
       cssHandler.setServer(server);
+      ;(globalThis as any).__auwla_vite_server = server;
+      ;(globalThis as any).__auwla_vite_css_handler = cssHandler;
+      const { createDevServerMiddleware } = await import('./dev-middleware.js')
+      const middleware = await createDevServerMiddleware(server, options.serverEntry)
+      server.middlewares.use(middleware)
+      console.log('[auwla:vite] dev middleware registered!')
     },
 
     /**

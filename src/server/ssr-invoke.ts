@@ -21,8 +21,20 @@ export interface SsrInvokeOptions {
   load?: (modulePath: string) => Promise<Record<string, unknown>>
 }
 
-const defaultLoad: NonNullable<SsrInvokeOptions['load']> = (modulePath) =>
-  import(/* @vite-ignore */ modulePath)
+const defaultLoad: NonNullable<SsrInvokeOptions['load']> = (modulePath) => {
+  if ((globalThis as any).__auwla_vite_server) {
+    let viteUrl = modulePath.replace(/\\/g, '/')
+    if (viteUrl.match(/^[a-zA-Z]:\//) || viteUrl.startsWith('/')) {
+      viteUrl = `/@fs/${viteUrl.replace(/^\//, '')}`
+    }
+    return (globalThis as any).__auwla_vite_server.ssrLoadModule(viteUrl)
+  }
+  // In Node.js production, absolute Windows paths need file:/// prefix
+  if (typeof process !== 'undefined' && process.platform === 'win32' && modulePath.match(/^[a-zA-Z]:\\/)) {
+    modulePath = `file:///${modulePath.replace(/\\/g, '/')}`
+  }
+  return import(/* @vite-ignore */ modulePath)
+}
 
 function getPathname(routePath: string): string {
   const queryIndex = routePath.indexOf('?')

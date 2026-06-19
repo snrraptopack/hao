@@ -16,6 +16,7 @@ export default defineConfig({
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
         'vite': resolve(__dirname, 'src/vite.ts'),
+        'dev-middleware': resolve(__dirname, 'src/dev-middleware.ts'),
         'events/index': resolve(__dirname, 'src/events/index.ts'),
         'track/index': resolve(__dirname, 'src/track/index.ts'),
         'router/index': resolve(__dirname, 'src/router/index.ts'),

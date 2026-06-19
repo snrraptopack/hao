@@ -15,12 +15,10 @@ const schema: StandardSchema = {
 }
 
 export default function LoginPage() {
-  const login = track.form('auth.login', { schema })
-
-  if (login.resolved && login.value?.ok) {
-    console.log("resolved")
-    navigate('/dashboard')
-  }
+  const login = track.form('auth.login', {
+    schema,
+    onSuccess:(_value)=> navigate("/dashboard")
+  })
 
   return () => (
       <div class="page">

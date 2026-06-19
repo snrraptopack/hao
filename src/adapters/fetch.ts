@@ -52,7 +52,7 @@ function serializeCookie(name: string, value: string, options: CookieOptions = {
 }
 
 export interface FetchAdapterOptions {
-  manifest: ServerManifest
+  manifest?: ServerManifest
   load?: (modulePath: string) => Promise<Record<string, unknown>>
   rpcPath?: string
   onError?: (error: unknown, request: Request) => void
@@ -72,6 +72,17 @@ interface ParsedRpc {
 }
 
 function defaultLoad(modulePath: string): Promise<Record<string, unknown>> {
+  if ((globalThis as any).__auwla_vite_server) {
+    let viteUrl = modulePath.replace(/\\/g, '/')
+    if (viteUrl.match(/^[a-zA-Z]:\//) || viteUrl.startsWith('/')) {
+      viteUrl = `/@fs/${viteUrl.replace(/^\//, '')}`
+    }
+    return (globalThis as any).__auwla_vite_server.ssrLoadModule(viteUrl)
+  }
+  // In Node.js production, absolute Windows paths need file:/// prefix
+  if (typeof process !== 'undefined' && process.platform === 'win32' && modulePath.match(/^[a-zA-Z]:\\/)) {
+    modulePath = `file:///${modulePath.replace(/\\/g, '/')}`
+  }
   return import(/* @vite-ignore */ modulePath)
 }
 
@@ -302,8 +313,8 @@ function errorResponse(error: unknown): Response {
   })
 }
 
-export function createFetchAdapter(options: FetchAdapterOptions) {
-  const manifest = options.manifest
+export function createFetchAdapter(options: FetchAdapterOptions = {}) {
+  let manifest = options.manifest
   const load = options.load ?? defaultLoad
   const rpcPath = options.rpcPath ?? DEFAULT_RPC_PATH
   const onError = options.onError
@@ -313,6 +324,14 @@ export function createFetchAdapter(options: FetchAdapterOptions) {
     request: Request,
     platform?: Record<string, unknown>,
   ): Promise<Response | undefined> {
+    if (!manifest) {
+      try {
+        manifest = (await import('auwla:server-manifest')).default
+      } catch (err) {
+        throw new Error('Auwla: Server manifest was not provided and virtual module auwla:server-manifest could not be loaded.')
+      }
+    }
+
     const url = new URL(request.url)
     if (url.pathname !== rpcPath) return undefined
     
