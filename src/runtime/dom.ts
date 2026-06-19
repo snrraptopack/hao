@@ -14,12 +14,26 @@ import type {
   MemoElement,
   MemoProps,
   RenderClosure,
+  SsrNode,
   TemplateNode,
 } from './types';
 import { isRenderClosure, isTemplateNode } from './types';
 import { createTemplateElement } from './template';
 import { createComponentClosure } from './component';
 
+
+function createSsrNode<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: MemoProps,
+  children: MemoChild[],
+): SsrNode {
+  return {
+    __auwlaSsr: true,
+    tag,
+    props: props ?? {},
+    children,
+  };
+}
 
 /**
  * Convert any Auwla child value into a real DOM `Node`.
@@ -342,6 +356,10 @@ export function h(type: any, props?: MemoProps, ...children: MemoChild[]): MemoC
     return createComponentClosure(type, props, children);
   }
 
+  if (typeof document === 'undefined') {
+    return createSsrNode(type, props, children);
+  }
+
   if (runtimeState.activeRenderState) {
     return createTemplateElement(type, props, children);
   }
@@ -350,8 +368,13 @@ export function h(type: any, props?: MemoProps, ...children: MemoChild[]): MemoC
 }
 
 /**
- * JSX fragment factory. Flattens children into a `DocumentFragment`.
+ * JSX fragment factory. Flattens children into a `DocumentFragment` on the
+ * client, or returns the children array on the server for stringification.
  */
-export function Fragment(props: { children?: MemoChild | MemoChild[] } = {}): DocumentFragment {
-  return toNode(Array.isArray(props.children) ? props.children : [props.children]) as DocumentFragment;
+export function Fragment(props: { children?: MemoChild | MemoChild[] } = {}): DocumentFragment | MemoChild[] {
+  const children = Array.isArray(props.children) ? props.children : [props.children];
+  if (typeof document === 'undefined') {
+    return children;
+  }
+  return toNode(children) as DocumentFragment;
 }

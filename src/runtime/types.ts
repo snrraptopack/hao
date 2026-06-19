@@ -16,6 +16,7 @@ export type MemoChild =
   | undefined
   | RenderClosure
   | TemplateNode
+  | SsrNode
   | readonly unknown[];
 
 export type EventHandler = (event: Event) => unknown;
@@ -43,6 +44,14 @@ export type TemplateNode = {
   props: Record<string, unknown>;
   children: MemoChild[];
   key: unknown;
+};
+
+/** Server-side rendering descriptor for an intrinsic element. */
+export type SsrNode = {
+  __auwlaSsr: true;
+  tag: string;
+  props: Record<string, unknown>;
+  children: MemoChild[];
 };
 
 /** Internal record of a mounted component instance. */
@@ -143,6 +152,11 @@ export function isRenderClosure(value: unknown): value is RenderClosure {
 /** Type guard: value is a lightweight template descriptor. */
 export function isTemplateNode(value: unknown): value is TemplateNode {
   return !!value && typeof value === 'object' && (value as TemplateNode).__auwlaTemplate === true;
+}
+
+/** Type guard: value is an SSR node descriptor. */
+export function isSsrNode(value: unknown): value is SsrNode {
+  return !!value && typeof value === 'object' && (value as SsrNode).__auwlaSsr === true;
 }
 
 /** A standard DOM Node augmented with an optional Auwla owner component instance ID. */

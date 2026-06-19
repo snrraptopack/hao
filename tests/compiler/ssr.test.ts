@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { compileAuwla, evaluateCompiled } from './_helpers';
+import { __ssrNode } from '../../src';
 
 describe('SSR compiler target', () => {
   test('renders a simple static component to an HTML string', () => {
@@ -84,5 +85,29 @@ describe('SSR compiler target', () => {
 
     const { App } = evaluateCompiled(compiled) as { App: () => string };
     expect(App()).toBe('<span>Hello</span>');
+  });
+
+  test('bails out dynamic tags to runtime h() in SSR', () => {
+    const source = `
+      function App() {
+        let Tag = 'section';
+        return () => <Tag class="box">Bailed out</Tag>;
+      }
+      exports.App = App;
+    `;
+
+    // Dynamic tags are not transformed by the compiler; they rely on the JSX
+    // runtime h() factory, which returns an SsrNode when document is undefined.
+    const compiled = compileAuwla(source, 'input.tsx', { ssr: true });
+    expect(compiled).not.toContain('__cloneTemplate');
+
+    const originalDocument = globalThis.document;
+    try {
+      (globalThis as any).document = undefined;
+      const { App } = evaluateCompiled(compiled) as { App: () => (() => unknown) };
+      expect(__ssrNode(App()())).toBe('<section class="box">Bailed out</section>');
+    } finally {
+      (globalThis as any).document = originalDocument;
+    }
   });
 });

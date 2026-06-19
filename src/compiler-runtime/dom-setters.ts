@@ -8,6 +8,7 @@
 import { toNode } from '../runtime/dom';
 import { patchNode } from '../runtime/patch';
 import { __event } from './events';
+import { compiledStyleValue } from '../shared/style-helpers';
 
 /** @internal */
 export type StyledElement = HTMLElement & {
@@ -19,55 +20,13 @@ export type ChildMarker = Node & {
   __auwlaChildNodes?: Node[] | (() => Node[]);
 };
 
-const UNITLESS_STYLES = new Set([
-  'animationIterationCount',
-  'aspectRatio',
-  'borderImageOutset',
-  'borderImageSlice',
-  'borderImageWidth',
-  'boxFlex',
-  'boxFlexGroup',
-  'boxOrdinalGroup',
-  'columnCount',
-  'columns',
-  'flex',
-  'flexGrow',
-  'flexPositive',
-  'flexShrink',
-  'flexNegative',
-  'flexOrder',
-  'gridArea',
-  'gridRow',
-  'gridRowEnd',
-  'gridRowSpan',
-  'gridRowStart',
-  'gridColumn',
-  'gridColumnEnd',
-  'gridColumnSpan',
-  'gridColumnStart',
-  'fontWeight',
-  'lineClamp',
-  'lineHeight',
-  'opacity',
-  'order',
-  'orphans',
-  'tabSize',
-  'widows',
-  'zIndex',
-  'zoom',
-]);
-
 /** @internal */
 export function compiledValue(value: unknown): string {
   return value == null || typeof value === 'boolean' ? '' : String(value);
 }
 
 /** @internal */
-export function compiledStyleValue(name: string, value: string | number | null | undefined): string {
-  if (value == null) return '';
-  if (typeof value === 'number' && value !== 0 && !UNITLESS_STYLES.has(name)) return `${value}px`;
-  return String(value);
-}
+export { compiledStyleValue } from '../shared/style-helpers';
 
 /** @internal */
 export function setCompiledProp(element: HTMLElement, name: string, value: unknown) {
