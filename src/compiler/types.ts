@@ -43,6 +43,7 @@ export type TemplateContext = {
   deps: string[];
   elementVars: Map<string, string>;
   derivedCtx?: DerivedContext | null;
+  ssr?: boolean;
 };
 
 export const COMPILER_IMPORT = [
@@ -51,6 +52,7 @@ export const COMPILER_IMPORT = [
   '__createBlock',
   '__dirtySource',
   '__event',
+  '__escapeHtml',
   '__keyedMap',
   '__setAttribute',
   '__setChild',
@@ -60,6 +62,9 @@ export const COMPILER_IMPORT = [
   '__setStyle',
   '__setText',
   '__spreadProps',
+  '__ssrBlock',
+  '__ssrKeyedMap',
+  '__ssrNode',
   '__trackSources',
 ].join(', ');
 

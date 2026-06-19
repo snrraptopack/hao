@@ -13,14 +13,20 @@ import { unwrapJsxReturn, unwrapJsxBody } from './utils';
 import { buildDerivedContext, DerivedContext } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 
+export type CompileOptions = {
+  ssr?: boolean;
+};
+
 function compileRenderClosure(
   source: ts.SourceFile,
   jsx: ts.JsxElement | ts.JsxSelfClosingElement,
   derivedCtx: DerivedContext | null,
   forceAllUpdate = false,
   preUpdateStatements: readonly string[] = [],
+  options?: CompileOptions,
 ): string | null {
-  const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx, forceAllUpdate, preUpdateStatements);
+  const ssr = options?.ssr === true;
+  const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx, forceAllUpdate, preUpdateStatements, ssr);
   if (templateResult) return templateResult;
 
   const ctx: CompileContext = {
@@ -70,6 +76,7 @@ function transformReturn(
   source: ts.SourceFile,
   node: ts.ReturnStatement,
   containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null,
+  options?: CompileOptions,
 ): string | null {
   const expression = node.expression;
   if (!expression || !ts.isArrowFunction(expression)) return null;
@@ -105,13 +112,13 @@ function transformReturn(
     }
   }
 
-  const compiled = compileRenderClosure(source, body, derivedCtx, leadingStatements.length > 0, leadingStatements);
+  const compiled = compileRenderClosure(source, body, derivedCtx, leadingStatements.length > 0, leadingStatements, options);
   if (!compiled) return null;
 
   return `return ${compiled};`;
 }
 
-function findReplacements(source: ts.SourceFile): Array<{ start: number; end: number; text: string }> {
+function findReplacements(source: ts.SourceFile, options?: CompileOptions): Array<{ start: number; end: number; text: string }> {
   const replacements: Array<{ start: number; end: number; text: string }> = [];
 
   function visit(node: ts.Node, containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null) {
@@ -121,7 +128,7 @@ function findReplacements(source: ts.SourceFile): Array<{ start: number; end: nu
     }
 
     if (ts.isReturnStatement(node)) {
-      const replacement = transformReturn(source, node, containingFunction);
+      const replacement = transformReturn(source, node, containingFunction, options);
       if (replacement) {
         replacements.push({
           start: node.getStart(source),
@@ -162,9 +169,9 @@ function addCompilerImport(code: string, didCompile: boolean): string {
  * @param fileName - Optional file name for error reporting.
  * @returns The transformed source code, or the original if no transforms apply.
  */
-export function compileAuwla(sourceText: string, fileName = 'input.tsx'): string {
+export function compileAuwla(sourceText: string, fileName = 'input.tsx', options?: CompileOptions): string {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const replacements = findReplacements(source);
+  const replacements = findReplacements(source, options);
   if (replacements.length === 0) return sourceText;
   return addCompilerImport(applyReplacements(sourceText, replacements), true);
 }

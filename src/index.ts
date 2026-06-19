@@ -17,6 +17,7 @@ export {
   __createBlock,
   __dirtySource,
   __event,
+  __escapeHtml,
   __keyedMap,
   __setAttribute,
   __setChild,
@@ -26,6 +27,9 @@ export {
   __setStyle,
   __setText,
   __spreadProps,
+  __ssrBlock,
+  __ssrKeyedMap,
+  __ssrNode,
   __trackSources,
 } from './compiler-runtime/index';
 

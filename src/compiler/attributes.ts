@@ -343,12 +343,23 @@ export function compileAttribute(
   return true;
 }
 
+const BOOLEAN_HTML_ATTRS = new Set([
+  'checked',
+  'disabled',
+  'hidden',
+  'multiple',
+  'readonly',
+  'required',
+  'selected',
+]);
+
 export function compileTemplateAttribute(
   ctx: TemplateContext,
   attribute: ts.JsxAttributeLike,
   elementVar: string,
 ): string | null {
   if (ts.isJsxSpreadAttribute(attribute)) {
+    if (ctx.ssr) return null;
     const value = expressionText(ctx.source, attribute.expression);
     ctx.deps.push(value);
     ctx.patches.push({ code: `__spreadProps(${elementVar}, ${value});`, deps: [value] });
@@ -366,7 +377,9 @@ export function compileTemplateAttribute(
     const expression = childExpression(initializer);
     if (!expression) return '';
     const value = expressionText(ctx.source, expression);
-    ctx.elementSetup.push(`(${value})(${elementVar});`);
+    if (!ctx.ssr) {
+      ctx.elementSetup.push(`(${value})(${elementVar});`);
+    }
     return '';
   }
   if (!initializer) return ` ${name}`;
@@ -382,6 +395,7 @@ export function compileTemplateAttribute(
   if (!expression) return '';
 
   const value = expressionText(ctx.source, expression);
+
   if (name === 'style') {
     if (ts.isObjectLiteralExpression(expression)) {
       const css = staticStyleToCss(ctx.source, expression);
@@ -391,28 +405,35 @@ export function compileTemplateAttribute(
   }
 
   if (name === 'class') {
+    if (ctx.ssr) {
+      return ` class="\${__escapeHtml(${value})}"`;
+    }
     ctx.deps.push(value);
     ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
     return '';
   }
 
-  if (name.startsWith('emit:')) {
-    if (!initializer || !ts.isJsxExpression(initializer)) return null;
-    const expression = childExpression(initializer);
-    if (!expression) return '';
-    const value = expressionText(ctx.source, expression);
-    const eventName = name.slice(5);
-    const handlerVar = `eventHandler${ctx.textId++}`;
-    ctx.elementSetup.push(`let ${handlerVar} = ${value};`);
-    ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}((event as CustomEvent).detail)));`);
-    ctx.patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
+  if (name.startsWith('emit:') || (name.startsWith('on') && name.length > 2)) {
+    if (!ctx.ssr) {
+      if (name.startsWith('emit:')) {
+        const eventName = name.slice(5);
+        const handlerVar = `eventHandler${ctx.textId++}`;
+        ctx.elementSetup.push(`let ${handlerVar} = ${value};`);
+        ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}((event as CustomEvent).detail)));`);
+        ctx.patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
+      } else {
+        const eventName = name.slice(2).toLowerCase();
+        ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, expression, ctx.derivedCtx ?? null);
+      }
+    }
     return '';
   }
 
-  if (name.startsWith('on') && name.length > 2) {
-    const eventName = name.slice(2).toLowerCase();
-    ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, expression, ctx.derivedCtx ?? null);
-    return '';
+  if (ctx.ssr) {
+    if (BOOLEAN_HTML_ATTRS.has(name)) {
+      return `\${${value} ? ' ${name}' : ''}`;
+    }
+    return ` ${name}="\${__escapeHtml(${value})}"`;
   }
 
   const setter = PROPERTY_PROPS.has(name) ? '__setProperty' : '__setAttribute';

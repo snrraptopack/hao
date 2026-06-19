@@ -99,7 +99,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       return cssHandler.load(id);
     },
 
-    transform(code, id) {
+    transform(code, id, transformOptions) {
       const file = normalizeId(id);
       if (!include.test(file)) return null;
       if (exclude?.test(file)) return null;
@@ -110,8 +110,10 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         return null;
       }
 
+      const ssr = transformOptions?.ssr === true;
+
       let compiled = cssHandler.transform(code, file);
-      compiled = compileAuwla(compiled, file);
+      compiled = compileAuwla(compiled, file, { ssr });
 
       if (compiled === code) {
         const marker = markerCode(false, options.debugFlag);

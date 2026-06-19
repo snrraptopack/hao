@@ -43,9 +43,9 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
   for (const child of children) {
     if (ts.isJsxText(child)) {
       if (isWhitespaceJsxText(child)) continue;
-      if (hasDynamicText) return null;
+      if (!ctx.ssr && hasDynamicText) return null;
       html += escapeHtml(decodeJsxText(child.text));
-      childIndex++;
+      if (!ctx.ssr) childIndex++;
       continue;
     }
 
@@ -54,9 +54,14 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
       if (!expression) continue;
       if (isMapCall(expression) || needsChildPatch(expression)) return null;
 
+      const value = expressionText(ctx.source, expression);
+      if (ctx.ssr) {
+        html += `\${__escapeHtml(${value})}`;
+        continue;
+      }
+
       const parentVar = templateElementVar(ctx, parentPath);
       const textVar = `text${ctx.textId++}`;
-      const value = expressionText(ctx.source, expression);
       const deps = expressionDependencies(value, ctx.itemName);
       const initOnly = deps.length === 1 && deps[0] === ctx.keyText;
       ctx.textSetup.push(`const ${textVar} = document.createTextNode("");`);
@@ -68,7 +73,7 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
     }
 
     if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
-      if (hasDynamicText) return null;
+      if (!ctx.ssr && hasDynamicText) return null;
       const childHtml = compileTemplateNode(ctx, child, [...parentPath, childIndex]);
       if (childHtml === null) return null;
       html += childHtml;
@@ -116,7 +121,7 @@ export function compileTemplateNode(
     }
   }
 
-  const elementVar = templateElementVar(ctx, path);
+  const elementVar = ctx.ssr ? '' : templateElementVar(ctx, path);
   let attrs = '';
   for (const attribute of opening.attributes.properties) {
     const attr = compileTemplateAttribute(ctx, attribute, elementVar);
@@ -130,7 +135,8 @@ export function compileTemplateNode(
   if (closingTag !== tag) return null;
 
   const textOnly = singleDynamicTextChild(ctx, node, path);
-  if (textOnly) {
+  if (textOnly !== null) {
+    if (ctx.ssr) return `<${tag}${attrs}>${textOnly}</${tag}>`;
     return `<${tag}${attrs}></${tag}>`;
   }
 
@@ -140,20 +146,24 @@ export function compileTemplateNode(
   return `<${tag}${attrs}>${children}</${tag}>`;
 }
 
-function singleDynamicTextChild(ctx: TemplateContext, node: ts.JsxElement, path: number[]): boolean {
+function singleDynamicTextChild(ctx: TemplateContext, node: ts.JsxElement, path: number[]): string | boolean | null {
   const meaningful = node.children.filter((child) => {
     return !ts.isJsxText(child) || !isWhitespaceJsxText(child);
   });
-  if (meaningful.length !== 1) return false;
+  if (meaningful.length !== 1) return null;
 
   const only = meaningful[0]!;
-  if (!ts.isJsxExpression(only)) return false;
+  if (!ts.isJsxExpression(only)) return null;
 
   const expression = childExpression(only);
-  if (!expression || isMapCall(expression) || needsChildPatch(expression)) return false;
+  if (!expression || isMapCall(expression) || needsChildPatch(expression)) return null;
+
+  const value = expressionText(ctx.source, expression);
+  if (ctx.ssr) {
+    return `\${__escapeHtml(${value})}`;
+  }
 
   const elementVar = templateElementVar(ctx, path);
-  const value = expressionText(ctx.source, expression);
   const deps = expressionDependencies(value, ctx.itemName);
   const initOnly = deps.length === 1 && deps[0] === ctx.keyText;
   ctx.deps.push(value);
@@ -168,6 +178,7 @@ export function compileTemplateRowBlock(
   indexName: string,
   keyText: string,
   derivedCtx: DerivedContext | null = null,
+  ssr = false,
 ): { block: string; deps: string[] } | null {
   const ctx: TemplateContext = {
     source,
@@ -181,6 +192,7 @@ export function compileTemplateRowBlock(
     deps: [],
     elementVars: new Map(),
     derivedCtx,
+    ssr,
   };
 
   const html = compileTemplateNode(ctx, row, []);
@@ -223,6 +235,7 @@ export function compileTemplateRootBlock(
   derivedCtx: DerivedContext | null = null,
   forceAllUpdate = false,
   preUpdateStatements: readonly string[] = [],
+  ssr = false,
 ): string | null {
   const ctx: TemplateContext = {
     source,
@@ -236,10 +249,18 @@ export function compileTemplateRootBlock(
     deps: [],
     elementVars: new Map(),
     derivedCtx,
+    ssr,
   };
 
   const html = compileTemplateNode(ctx, node, []);
   if (html === null) return null;
+
+  if (ssr) {
+    const preLines = preUpdateStatements.map((line) => `          ${line}`).join('\n');
+    return `__ssrBlock(() => {
+${preLines}${preLines ? '\n' : ''}          return \`${html}\`;
+        })`;
+  }
 
   const patches = derivedCtx
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))

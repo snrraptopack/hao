@@ -24,3 +24,5 @@ export { __event } from './events';
 export { __cloneTemplate } from './template';
 
 export { __keyedMap } from './keyed-map';
+
+export { __ssrBlock, __ssrNode, __ssrKeyedMap, __escapeHtml } from './ssr';
