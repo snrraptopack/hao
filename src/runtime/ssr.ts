@@ -17,9 +17,53 @@ import type { SsrInvokeOptions } from '../server/ssr-invoke';
 import { track, __extractTrackState, __resetTrackRegistry } from '../track/core';
 import type { Route, RouteContext, MatchedRoute } from '../router/types';
 import type { ServerManifest } from '../server/types';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import type { TrackHandle } from 'auwla/track';
+import type { RouteError } from '../router/types';
+
+type TrackStore = {
+  registry: Map<string, any>;
+  componentTracks: Map<string, Set<string>>;
+};
+
+type RouterStore = {
+  currentContext: RouteContext | null;
+  pendingContext: RouteContext | null;
+  currentLoader: TrackHandle | null;
+  currentMeta: Record<string, unknown> | null;
+  currentError: RouteError | null;
+};
+
+const trackStorage = new AsyncLocalStorage<TrackStore>();
+const routerStorage = new AsyncLocalStorage<RouterStore>();
+
+(globalThis as any).__auwla_trackRegistryProvider = () => trackStorage.getStore()?.registry;
+(globalThis as any).__auwla_trackComponentTracksProvider = () => trackStorage.getStore()?.componentTracks;
+
+(globalThis as any).__auwla_routerStoreProvider = {
+  getCurrentContext: () => routerStorage.getStore()?.currentContext ?? null,
+  setCurrentContext: (ctx: RouteContext<any> | null) => {
+    const store = routerStorage.getStore()
+    if (store) store.currentContext = ctx
+  },
+  getCurrentLoader: () => routerStorage.getStore()?.currentLoader ?? null,
+  setCurrentLoader: (loader: TrackHandle | null) => {
+    const store = routerStorage.getStore()
+    if (store) store.currentLoader = loader
+  },
+  getCurrentMeta: () => routerStorage.getStore()?.currentMeta ?? null,
+  setCurrentMeta: (meta: Record<string, unknown> | null) => {
+    const store = routerStorage.getStore()
+    if (store) store.currentMeta = meta
+  },
+  getCurrentError: () => routerStorage.getStore()?.currentError ?? null,
+  setCurrentError: (error: RouteError | null) => {
+    const store = routerStorage.getStore()
+    if (store) store.currentError = error
+  },
+};
 
 export interface SsrRenderOptions {
-  /** Server manifest mapping remote keys to their implementations. */
   manifest: ServerManifest;
   /** The incoming request. If omitted, a Request is synthesised from the URL. */
   request?: Request;
@@ -88,60 +132,70 @@ export async function renderToString(
   const previousRenderState = runtimeState.activeRenderState;
   const renderState = createRenderState();
 
-  const context: RouteContext<any> = {
-    path: pathname,
-    params,
-    query,
-    state: {},
-    tag: () => {},
-  };
+  return trackStorage.run({ registry: new Map(), componentTracks: new Map() }, () => {
+    return routerStorage.run({
+      currentContext: null,
+      pendingContext: null,
+      currentLoader: null,
+      currentMeta: null,
+      currentError: null,
+    }, async () => {
+      const context: RouteContext<any> = {
+        path: pathname,
+        params,
+        query,
+        state: {},
+        tag: () => {},
+      };
 
-  __setCurrentContext(context);
-  __setCurrentMeta(route.meta ?? null);
+      __setCurrentContext(context);
+      __setCurrentMeta(route.meta ?? null);
 
-  let loaderHandle: import('../track').TrackHandle | null = null;
+      let loaderHandle: import('../track').TrackHandle | null = null;
 
-  try {
-    if (route.routed) {
-      loaderHandle = track(`__loader:${context.path}`, (signal) => route.routed!(context, signal));
-      await loaderHandle;
-    }
+      try {
+        if (route.routed) {
+          loaderHandle = track(`__loader:${context.path}`, (signal) => route.routed!(context, signal));
+          await loaderHandle;
+        }
 
-    // Assign activeRenderState *after* the await to avoid concurrent requests
-    // overwriting it while yielded to the event loop.
-    runtimeState.activeRenderState = renderState;
-    __setCurrentLoader(loaderHandle);
+        // Assign activeRenderState *after* the await to avoid concurrent requests
+        // overwriting it while yielded to the event loop.
+        runtimeState.activeRenderState = renderState;
+        __setCurrentLoader(loaderHandle);
 
-    const RouteComp = route.component;
-    const output = RouteComp();
-    const rendered = isRenderClosure(output) ? output() : output;
+        const RouteComp = route.component;
+        const output = RouteComp();
+        const rendered = isRenderClosure(output) ? output() : output;
 
-    let html: string;
-    if (typeof rendered === 'string') {
-      html = rendered;
-    } else if (isSsrNode(rendered)) {
-      html = __ssrNode(rendered);
-    } else if (rendered == null) {
-      html = '';
-    } else {
-      html = __ssrNode(rendered);
-    }
+        let html: string;
+        if (typeof rendered === 'string') {
+          html = rendered;
+        } else if (isSsrNode(rendered)) {
+          html = __ssrNode(rendered);
+        } else if (rendered == null) {
+          html = '';
+        } else {
+          html = __ssrNode(rendered);
+        }
 
-    const trackData = __extractTrackState();
-    const scriptTag = `<script>window.__AUWLA_DATA__ = ${JSON.stringify(trackData).replace(/</g, '\\u003c')};</script>`;
+        const trackData = __extractTrackState();
+        const scriptTag = `<script>window.__AUWLA_DATA__ = ${JSON.stringify(trackData).replace(/</g, '\\u003c')};</script>`;
 
-    html += scriptTag;
+        html += scriptTag;
 
-    return { html, matched, data: trackData };
-  } finally {
-    runtimeState.activeRenderState = previousRenderState;
-    clearRpcDispatcher();
-    if (previousDispatcher) {
-      setRpcDispatcher(previousDispatcher);
-    }
-    __setCurrentContext(null);
-    __setCurrentLoader(null);
-    __setCurrentMeta(null);
-    __resetTrackRegistry();
-  }
+        return { html, matched, data: trackData };
+      } finally {
+        runtimeState.activeRenderState = previousRenderState;
+        clearRpcDispatcher();
+        if (previousDispatcher) {
+          setRpcDispatcher(previousDispatcher);
+        }
+        __setCurrentContext(null);
+        __setCurrentLoader(null);
+        __setCurrentMeta(null);
+        __resetTrackRegistry();
+      }
+    });
+  });
 }

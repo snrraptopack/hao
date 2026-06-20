@@ -621,7 +621,16 @@ function trackGet(
   keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
   options?: TrackRemoteOptions,
 ): TrackHandle<any> {
-  const key = typeof keyOrFn === 'function' ? (keyOrFn as any).__auwla_key : keyOrFn;
+  // Extract key from: plain string, client-side function stub, or server-side RemoteFunction object.
+  // On the client, server exports are function stubs with __auwla_key.
+  // On the server (SSR), they are RemoteFunction objects (plain objects) with __auwla_key.
+  // This mirrors the same pattern used in trackForm.
+  const key =
+    (typeof keyOrFn === 'function' || typeof keyOrFn === 'object') &&
+    keyOrFn !== null &&
+    '__auwla_key' in (keyOrFn as any)
+      ? (keyOrFn as any).__auwla_key
+      : keyOrFn;
   if (typeof key !== 'string') {
     throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
   }
@@ -756,7 +765,15 @@ function trackPost(
 function trackPost(
   keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
 ): CommandHandle<any[], any> {
-  const key = typeof keyOrFn === 'function' ? (keyOrFn as any).__auwla_key : keyOrFn;
+  // On the client, server exports are function stubs with __auwla_key.
+  // On the server (SSR), they are RemoteFunction objects (plain objects) with __auwla_key.
+  // This mirrors the same pattern used in trackForm.
+  const key =
+    (typeof keyOrFn === 'function' || typeof keyOrFn === 'object') &&
+    keyOrFn !== null &&
+    '__auwla_key' in (keyOrFn as any)
+      ? (keyOrFn as any).__auwla_key
+      : keyOrFn;
   if (typeof key !== 'string') {
     throw new Error('Auwla: track.post expects a key string or an imported server function reference.');
   }

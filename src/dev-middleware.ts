@@ -17,10 +17,8 @@ export async function createDevServerMiddleware(
       let fetchHandler: any
 
       if (serverEntry) {
-        console.log('[auwla:dev] loading serverEntry:', serverEntry)
         const mod = await server.ssrLoadModule(serverEntry)
         fetchHandler = mod.default?.fetch ?? mod.default
-        console.log('[auwla:dev] fetched handler:', typeof fetchHandler)
       } else {
         // Default server entry: pure fetch adapter
         // Import dynamically so we don't tie Vite directly to adapters unless needed
@@ -29,7 +27,6 @@ export async function createDevServerMiddleware(
       }
 
       if (typeof fetchHandler !== 'function') {
-        console.log('[auwla:dev] fetchHandler is not a function')
         return next()
       }
 
@@ -67,12 +64,10 @@ export async function createDevServerMiddleware(
         return next()
       }
       const contentType = response.headers.get('content-type') || ''
-      console.log('[auwla:dev] response content-type:', contentType)
       
       // If it's an HTML response (SSR), we need to inject Vite's HMR scripts
       if (contentType.includes('text/html')) {
         let html = await response.text()
-        console.log('[auwla:dev] intercepting HTML for Vite HMR')
         
         // FOUC prevention: extract CSS from client entry
         try {
@@ -104,7 +99,6 @@ export async function createDevServerMiddleware(
             }
           }
         } catch(e) {
-          console.error('[auwla:dev] FOUC prevention failed:', e);
         }
 
         html = await server.transformIndexHtml(req.url || '/', html)

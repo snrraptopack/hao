@@ -446,7 +446,6 @@ export function compileRowBlock(
     if (deps.length === 0) return false;
     return deps.length !== 1 || deps[0] !== keyText;
   });
-  console.log('updatePatches:', updatePatches.map(p => p.deps));
 
   const init = patches.length
     ? patches.map((patch) => `            ${patch.code}`).join('\n')

@@ -120,7 +120,7 @@ export function trackForm(
   keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
   options?: FormOptions,
 ): FormHandle<any[], any> {
-  const key = typeof keyOrFn === 'function' ? (keyOrFn as any).__auwla_key : keyOrFn
+  const key = (typeof keyOrFn === 'function' || typeof keyOrFn === 'object') && keyOrFn !== null && '__auwla_key' in keyOrFn ? (keyOrFn as any).__auwla_key : keyOrFn
   if (typeof key !== 'string') {
     throw new Error('Auwla: track.form expects a manifest key string or an imported server function reference.')
   }

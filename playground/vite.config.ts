@@ -4,7 +4,7 @@ import { auwla } from 'auwla/vite'
 import { auwlaRouter } from 'auwla/vite-router'
 
 export default defineConfig({
-  plugins: [auwla({ serverEntry: './src/server.ts', ssr: true }), auwlaRouter({lazy:true})],
+  plugins: [auwla({ serverEntry: './src/server.ts' }), auwlaRouter({lazy:true})],
   server: {
     port: 5173,
     watch: {

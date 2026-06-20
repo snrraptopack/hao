@@ -11,7 +11,7 @@ export default defineConfig({
     },
     // Vite 8: rollupOptions is deprecated, use rolldownOptions
     rolldownOptions: {
-      external: ['typescript', 'path', 'fs', 'node:fs', 'node:path', 'node:os', 'node:async_hooks', 'node:url', 'auwla/adapters/fetch'],
+      external: ['typescript', 'vite', 'path', 'fs', 'node:fs', 'node:path', 'node:os', 'node:async_hooks', 'node:url', 'node:module', 'auwla/adapters/fetch'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),

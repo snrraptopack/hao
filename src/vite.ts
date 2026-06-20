@@ -179,10 +179,6 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         // @ts-ignore: Vite 6 Environment API fallback
         this.environment?.name === 'server';
         
-      if (file.includes('Link.tsx')) {
-        console.log('[AUWLA DEBUG]', { file, ssr, optSsr: options.ssr, transSsr: transformOptions?.ssr, envName: (this as any).environment?.name });
-      }
-
       let compiled = cssHandler.transform(code, file);
       compiled = compileAuwla(compiled, file, { ssr });
 

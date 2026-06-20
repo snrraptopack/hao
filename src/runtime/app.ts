@@ -21,7 +21,7 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
-import { cleanupComponentTracks } from '../track/core';
+import { cleanupComponentTracks, hydrateTrackState } from '../track/core';
 import { enterHydration, exitHydration } from '../compiler-runtime/template';
 
 /** Events that fire rapidly and should be throttled to one render per frame. */
@@ -106,6 +106,11 @@ export function createMemoApp<TModel>(
   modelOrApp: TModel | MemoChild | RenderClosure,
   view?: (ctx: MemoContext<TModel>) => MemoChild
 ): MemoApp<TModel> {
+  if (typeof window !== 'undefined' && (window as any).__AUWLA_DATA__) {
+    hydrateTrackState((window as any).__AUWLA_DATA__);
+    delete (window as any).__AUWLA_DATA__;
+  }
+
   const cache = new Map<string | number, MemoEntry>();
   const componentInstances = new Map<string, ComponentInstance>();
   const memoBlocks = new Map<string, import('./types').MemoBlock>();

@@ -134,8 +134,7 @@ async function ssrRender(
   
   const template = await readTemplate(templatePath)
   if (!template) {
-    console.log('[auwla:ssr] template not found:', templatePath)
-    return null
+    return new Response('Not Found: index.html missing', { status: 404 })
   }
 
   const { html, matched } = await renderToString(request.url, routes, {
@@ -146,11 +145,8 @@ async function ssrRender(
   })
 
   if (!matched) {
-    console.log('[auwla:ssr] route not matched:', request.url)
-    return null
+    return new Response('Not Found', { status: 404 })
   }
-
-  console.log('[auwla:ssr] rendering successful!')
 
   const page = template.replace('<!--app-html-->', html)
   return new Response(page, {

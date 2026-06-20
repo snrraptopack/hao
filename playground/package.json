@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "serve": "bun run dist/server/server.js",
+    "serve": "NODE_ENV=production bun run dist/server/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

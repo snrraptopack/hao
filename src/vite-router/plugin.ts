@@ -138,16 +138,17 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       return null
     },
 
-    load(id: string): string | null {
+    load(id: string, options?: { ssr?: boolean }): string | null {
       // Prevent server-only files from ever entering the client bundle.
-      // Generate lightweight client-side proxy stubs instead of server logic.
-      if (this.environment?.name === 'client' && isServerFile(id)) {
-        const normId = id.replace(/\\/g, '/')
+      const isClient = this.environment ? this.environment.name === 'client' : !options?.ssr
+      if (isClient && isServerFile(id)) {
+        const cleanId = id.replace(/[?#].*$/, '')
+        const normId = cleanId.replace(/\\/g, '/')
         const normPages = resolvedPagesDir.replace(/\\/g, '/')
         const isPages = normId.startsWith(normPages)
 
         const rootDir = isPages ? resolvedPagesDir : resolvedServerDir
-        const relativePath = relative(rootDir, id).replace(/\\/g, '/')
+        const relativePath = relative(rootDir, cleanId).replace(/\\/g, '/')
 
         const routeName = isPages
           ? filePathToRouteName(relativePath)
@@ -159,7 +160,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
         } catch {}
 
-        const exports = parseServerExports(id)
+        const exports = parseServerExports(cleanId)
 
         let code = `import { rpcCall } from 'auwla/client';\n`
         for (const name of exports) {
@@ -196,6 +197,34 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       }
 
       return cachedVirtualModule
+    },
+
+    transform(code: string, id: string, options?: { ssr?: boolean }) {
+      if (id.includes('node_modules')) return null
+
+      const isSsr = this.environment ? this.environment.name === 'ssr' : !!options?.ssr
+      if (isSsr && isServerFile(id)) {
+        const cleanId = id.replace(/[?#].*$/, '')
+        const normId = cleanId.replace(/\\/g, '/')
+        const normPages = resolvedPagesDir.replace(/\\/g, '/')
+        const isPages = normId.startsWith(normPages)
+
+        const rootDir = isPages ? resolvedPagesDir : resolvedServerDir
+        const relativePath = relative(rootDir, cleanId).replace(/\\/g, '/')
+
+        const routeName = isPages
+          ? filePathToRouteName(relativePath)
+          : filePathToServerRouteName(relativePath)
+
+        const exports = parseServerExports(cleanId)
+        let inject = ''
+        for (const name of exports) {
+          const key = `${routeName}.${name}`
+          inject += `\nif (typeof ${name} !== 'undefined' && ${name} !== null) { ${name}.__auwla_key = '${key}'; }`
+        }
+        return { code: code + inject, map: null }
+      }
+      return null
     },
 
     // -----------------------------------------------------------------------
@@ -290,7 +319,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
             manifest,
             // Use Vite's SSR transform so .server.ts files can be loaded directly
             // in dev without pre-compiling them.
-            load: (modulePath) => server.ssrLoadModule(modulePath),
+            load: (modulePath: string) => server.ssrLoadModule(modulePath),
           })
           const request = await nodeRequestToRequest(req)
           const response = await adapter(request, { vite: { server, req, res } })
@@ -417,7 +446,8 @@ function writeSafe(filePath: string, content: string): void {
  * Returns true when `file` is a server-only file.
  */
 function isServerFile(file: string): boolean {
-  return SERVER_EXTENSIONS.some((ext) => file.endsWith(ext))
+  const cleanPath = file.replace(/[?#].*$/, '')
+  return SERVER_EXTENSIONS.some((ext) => cleanPath.endsWith(ext))
 }
 
 /**
@@ -430,7 +460,8 @@ function isPageFile(
   extensions: string[],
 ): boolean {
   // Normalise to forward slashes for cross-platform comparison.
-  const normFile     = file.replace(/\\/g, '/')
+  const cleanPath = file.replace(/[?#].*$/, '')
+  const normFile     = cleanPath.replace(/\\/g, '/')
   const normPagesDir = pagesDir.replace(/\\/g, '/')
   return (
     normFile.startsWith(normPagesDir) &&
