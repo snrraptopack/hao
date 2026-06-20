@@ -218,14 +218,24 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
       const file = Bun.file(`${staticDir}${pathname}`)
 
       if (await file.exists()) {
-        return new Response(file as any)
+        const headers = new Headers()
+        if (pathname.startsWith('/assets/')) {
+          headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+        } else {
+          headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
+        }
+        return new Response(file as any, { headers })
       }
 
       // 4. SPA fallback: serve index.html for unmatched page navigations.
       if (acceptsHtml) {
         const indexFile = Bun.file(`${staticDir}/index.html`)
         if (await indexFile.exists()) {
-          return new Response(indexFile as any)
+          return new Response(indexFile as any, {
+            headers: {
+              'Cache-Control': 'public, max-age=0, must-revalidate',
+            },
+          })
         }
       }
     }
