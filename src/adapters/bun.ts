@@ -148,7 +148,12 @@ async function ssrRender(
     return new Response('Not Found', { status: 404 })
   }
 
-  const page = template.replace('<!--app-html-->', html)
+  // Mark the #app root with data-auwla-ssr so the client runtime knows SSR
+  // content is present and can hydrate instead of wiping the DOM on mount.
+  const page = template
+    .replace('id="app"', 'id="app" data-auwla-ssr="true"')
+    .replace('<!--app-html-->', html)
+
   return new Response(page, {
     headers: { 'content-type': 'text/html; charset=utf-8' },
   })

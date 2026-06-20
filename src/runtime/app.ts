@@ -119,6 +119,10 @@ export function createMemoApp<TModel>(
   let dirtySources: Set<string> | null = null;
   let scheduled = true;
   let destroyed = false;
+  // Set to true when SSR content is detected (data-auwla-ssr). If the first
+  // render produces null (e.g. lazy route chunk not yet loaded), patchRoot is
+  // skipped so the SSR content stays visible until the chunk resolves.
+  let skipFirstHydrationPatch = false;
   const model = view ? modelOrApp as TModel : undefined;
   const app = view ? null : modelOrApp as MemoChild | RenderClosure;
 
@@ -152,6 +156,16 @@ export function createMemoApp<TModel>(
     runtimeState.activeRenderState = renderState;
     try {
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
+
+      // During the first hydration render: if the output is null/falsy (lazy
+      // route chunk not loaded yet), skip patching the DOM so SSR content
+      // remains visible. The reactive track fires a new renderNow() when the
+      // chunk resolves and __mods is populated.
+      if (skipFirstHydrationPatch) {
+        skipFirstHydrationPatch = false;
+        if (output == null || output === false) return;
+      }
+
       patchRoot(root, output);
 
       const toDelete: [string, import('./types').ComponentInstance][] = [];
@@ -313,6 +327,7 @@ export function createMemoApp<TModel>(
   // after the first render so subsequent re-renders clone normally.
   const isHydrating = root.hasAttribute('data-auwla-ssr') && root.hasChildNodes();
   if (isHydrating) {
+    skipFirstHydrationPatch = true;
     enterHydration(root);
     renderNow();
     exitHydration();
