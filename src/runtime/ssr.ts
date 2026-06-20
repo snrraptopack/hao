@@ -5,7 +5,8 @@
  * invoking remote functions directly on the server.
  */
 
-import { setRpcDispatcher, clearRpcDispatcher, getRpcDispatcher } from './rpc-dispatcher';
+
+
 import { runtimeState } from './state';
 import { isRenderClosure, isSsrNode } from './types';
 import { __ssrNode } from '../compiler-runtime/ssr';
@@ -141,13 +142,13 @@ export async function renderToString(
       },
     );
 
-  const previousDispatcher = getRpcDispatcher();
-  setRpcDispatcher(dispatcher);
-
   const previousRenderState = runtimeState.activeRenderState;
   const renderState = createRenderState();
 
-  return trackStorage.run({ registry: new Map(), componentTracks: new Map(), rpcDispatcher: null }, () => {
+  // Pass the dispatcher directly as part of the initial ALS store so it is
+  // available the moment the run() callback executes. The ALS scope handles
+  // cleanup automatically — no save/restore dance needed.
+  return trackStorage.run({ registry: new Map(), componentTracks: new Map(), rpcDispatcher: dispatcher }, () => {
     return routerStorage.run({
       currentContext: null,
       pendingContext: null,
@@ -202,10 +203,8 @@ export async function renderToString(
         return { html, matched, data: trackData };
       } finally {
         runtimeState.activeRenderState = previousRenderState;
-        clearRpcDispatcher();
-        if (previousDispatcher) {
-          setRpcDispatcher(previousDispatcher);
-        }
+        // The ALS store is scoped to this run() callback so the dispatcher is
+        // automatically discarded when it exits — no explicit clearRpcDispatcher needed.
         __setCurrentContext(null);
         __setCurrentLoader(null);
         __setCurrentMeta(null);
