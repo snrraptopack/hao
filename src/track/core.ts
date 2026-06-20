@@ -290,7 +290,7 @@ function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandl
      * components automatically.
      */
     get status(): TrackStatus {
-      return registry.get(key)?.statusCell.get() ?? 'idle';
+      return getRegistry().get(key)?.statusCell.get() ?? 'idle';
     },
     get pending() {
       return this.status === 'pending';
@@ -302,15 +302,15 @@ function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandl
       return this.status === 'rejected';
     },
     get value(): T | undefined {
-      this.status
-      return registry.get(key)?.value as T | undefined;
+      this.status;
+      return getRegistry().get(key)?.value as T | undefined;
     },
     get reason() {
-      this.status
-      return registry.get(key)?.reason;
+      this.status;
+      return getRegistry().get(key)?.reason;
     },
     cancel() {
-      const state = registry.get(key);
+      const state = getRegistry().get(key);
       if (state?.controller) {
         state.controller.abort();
         state.controller = null;
