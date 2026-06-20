@@ -24,6 +24,8 @@ import type { RouteError } from '../router/types';
 type TrackStore = {
   registry: Map<string, any>;
   componentTracks: Map<string, Set<string>>;
+  /** Per-request RPC dispatcher for SSR isolation. */
+  rpcDispatcher: import('./rpc-dispatcher').RpcDispatcher | null;
 };
 
 type RouterStore = {
@@ -39,6 +41,19 @@ const routerStorage = new AsyncLocalStorage<RouterStore>();
 
 (globalThis as any).__auwla_trackRegistryProvider = () => trackStorage.getStore()?.registry;
 (globalThis as any).__auwla_trackComponentTracksProvider = () => trackStorage.getStore()?.componentTracks;
+
+// Per-request RPC dispatcher provider — read by rpc-dispatcher.ts on every call.
+(globalThis as any).__auwla_rpcDispatcherProvider = {
+  get: () => trackStorage.getStore()?.rpcDispatcher ?? null,
+  set: (d: import('./rpc-dispatcher').RpcDispatcher) => {
+    const store = trackStorage.getStore();
+    if (store) store.rpcDispatcher = d;
+  },
+  clear: () => {
+    const store = trackStorage.getStore();
+    if (store) store.rpcDispatcher = null;
+  },
+} satisfies import('./rpc-dispatcher').RpcDispatcherProvider;
 
 (globalThis as any).__auwla_routerStoreProvider = {
   getCurrentContext: () => routerStorage.getStore()?.currentContext ?? null,
@@ -132,7 +147,7 @@ export async function renderToString(
   const previousRenderState = runtimeState.activeRenderState;
   const renderState = createRenderState();
 
-  return trackStorage.run({ registry: new Map(), componentTracks: new Map() }, () => {
+  return trackStorage.run({ registry: new Map(), componentTracks: new Map(), rpcDispatcher: null }, () => {
     return routerStorage.run({
       currentContext: null,
       pendingContext: null,

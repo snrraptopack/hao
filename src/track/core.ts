@@ -95,6 +95,41 @@ const registry = new Map<string, TrackState>();
 /** Tracks created by a given component (for bulk cancel on unmount). */
 const componentTracks = new Map<string, Set<string>>();
 
+/**
+ * Get the active track registry.
+ *
+ * During SSR this returns the per-request ALS-backed Map so concurrent
+ * requests cannot contaminate each other's state. On the client it falls
+ * back to the module-level singleton.
+ */
+function getRegistry(): Map<string, TrackState> {
+  const provider = (globalThis as any).__auwla_trackRegistryProvider as
+    | (() => Map<string, TrackState> | undefined)
+    | undefined;
+  if (provider) {
+    const r = provider();
+    if (r) return r;
+  }
+  return registry;
+}
+
+/**
+ * Get the active component-tracks index.
+ *
+ * During SSR this returns the per-request ALS-backed Map; on the client it
+ * returns the module-level singleton.
+ */
+function getComponentTracks(): Map<string, Set<string>> {
+  const provider = (globalThis as any).__auwla_trackComponentTracksProvider as
+    | (() => Map<string, Set<string>> | undefined)
+    | undefined;
+  if (provider) {
+    const ct = provider();
+    if (ct) return ct;
+  }
+  return componentTracks;
+}
+
 function getComponentId(): string | null {
   return (
     runtimeState.activeSetupComponentId ??
@@ -110,7 +145,8 @@ function makeKey(name: string, componentId?: string | null): string {
 }
 
 function getOrCreate(key: string): TrackState {
-  let state = registry.get(key);
+  const reg = getRegistry();
+  let state = reg.get(key);
   if (!state) {
     state = {
       statusCell: reactive<TrackStatus>('idle'),
@@ -119,7 +155,7 @@ function getOrCreate(key: string): TrackState {
       controller: null,
       promise: null,
     };
-    registry.set(key, state);
+    reg.set(key, state);
   }
   return state;
 }
@@ -138,10 +174,11 @@ function subscribeSetupComponent<T>(cell: ReactiveCell<T>): void {
 }
 
 function registerForComponent(componentId: string, name: string) {
-  let set = componentTracks.get(componentId);
+  const ct = getComponentTracks();
+  let set = ct.get(componentId);
   if (!set) {
     set = new Set();
-    componentTracks.set(componentId, set);
+    ct.set(componentId, set);
   }
   set.add(name);
 }
@@ -181,34 +218,37 @@ function applyTransition(key: string, status: TrackStatus, value?: unknown, reas
 
 /** @internal */
 export function cleanupComponentTracks(componentId: string): void {
-  const names = componentTracks.get(componentId);
+  const ct = getComponentTracks();
+  const reg = getRegistry();
+  const names = ct.get(componentId);
   if (!names) return;
   for (const name of names) {
     const key = `${componentId}::${name}`;
-    const state = registry.get(key);
+    const state = reg.get(key);
     if (state?.controller) {
       state.controller.abort();
     }
-    registry.delete(key);
+    reg.delete(key);
   }
-  componentTracks.delete(componentId);
+  ct.delete(componentId);
 }
 
 /** @internal Reset the track registry. Used by tests and HMR to avoid stale state. */
 export function __resetTrackRegistry(): void {
-  for (const state of registry.values()) {
+  const reg = getRegistry();
+  for (const state of reg.values()) {
     if (state.controller) {
       state.controller.abort();
     }
   }
-  registry.clear();
-  componentTracks.clear();
+  reg.clear();
+  getComponentTracks().clear();
 }
 
 /** @internal Extract the resolved state of all global queries for SSR hydration. */
 export function __extractTrackState(): Record<string, unknown> {
   const data: Record<string, unknown> = {};
-  for (const [key, state] of registry.entries()) {
+  for (const [key, state] of getRegistry().entries()) {
     if (key.startsWith('__global::remote:') && state.statusCell.get() === 'resolved') {
       const name = key.slice('__global::'.length);
       data[name] = state.value;
@@ -489,12 +529,12 @@ function trackImpl(
 export function pending(name?: string): boolean {
   if (name === undefined) {
     const cid = getComponentId() ?? '__global';
-    for (const [key, state] of registry) {
+    for (const [key, state] of getRegistry()) {
       if (key.startsWith(`${cid}::`) && state.statusCell.get() === 'pending') return true;
     }
     return false;
   }
-  const state = registry.get(makeKey(name));
+  const state = getRegistry().get(makeKey(name));
   return state?.statusCell.get() === 'pending';
 }
 
@@ -502,12 +542,12 @@ export function pending(name?: string): boolean {
 export function resolved(name?: string): boolean {
   if (name === undefined) {
     const cid = getComponentId() ?? '__global';
-    for (const [key, state] of registry) {
+    for (const [key, state] of getRegistry()) {
       if (key.startsWith(`${cid}::`) && state.statusCell.get() === 'resolved') return true;
     }
     return false;
   }
-  const state = registry.get(makeKey(name));
+  const state = getRegistry().get(makeKey(name));
   return state?.statusCell.get() === 'resolved';
 }
 
@@ -515,24 +555,24 @@ export function resolved(name?: string): boolean {
 export function rejected(name?: string): boolean {
   if (name === undefined) {
     const cid = getComponentId() ?? '__global';
-    for (const [key, state] of registry) {
+    for (const [key, state] of getRegistry()) {
       if (key.startsWith(`${cid}::`) && state.statusCell.get() === 'rejected') return true;
     }
     return false;
   }
-  const state = registry.get(makeKey(name));
+  const state = getRegistry().get(makeKey(name));
   return state?.statusCell.get() === 'rejected';
 }
 
 /** Return the resolved value of a named track. */
 export function value<T = unknown>(name: string): T | undefined {
-  const state = registry.get(makeKey(name));
+  const state = getRegistry().get(makeKey(name));
   return state?.statusCell.get() === 'resolved' ? (state.value as T) : undefined;
 }
 
 /** Return the rejection reason of a named track. */
 export function reason(name: string): unknown {
-  const state = registry.get(makeKey(name));
+  const state = getRegistry().get(makeKey(name));
   return state?.statusCell.get() === 'rejected' ? state.reason : undefined;
 }
 
@@ -544,7 +584,7 @@ export function cancel(name?: string): void {
     return;
   }
   const key = makeKey(name);
-  const state = registry.get(key);
+  const state = getRegistry().get(key);
   if (state?.controller) {
     state.controller.abort();
     state.controller = null;
@@ -641,7 +681,7 @@ function trackGet(
   // a background sync with the current (wrong) route path. Just return the
   // cached handle and let a future call on the original route refresh it.
   const stateKey = makeKey(remoteName, '__global');
-  const existing = registry.get(stateKey);
+  const existing = getRegistry().get(stateKey);
   if (
     existing &&
     existing.statusCell.get() === 'resolved' &&
@@ -672,7 +712,7 @@ function trackGet(
 
 /** Invalidate all cached global queries and actively refetch those that are already resolved. */
 function invalidateQueryCache(): void {
-  for (const [key, state] of registry.entries()) {
+  for (const [key, state] of getRegistry().entries()) {
     if (key.startsWith('__global::remote:')) {
       state.stale = true;
 
