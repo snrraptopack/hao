@@ -17,6 +17,11 @@ export {
   __setAttribute,
   __setStyle,
   __spreadProps,
+  __updateInput,
+  __isCheckboxChecked,
+  __updateCheckbox,
+  __setSelectValue,
+  __updateSelect,
 } from './dom-setters';
 
 export { __event } from './events';

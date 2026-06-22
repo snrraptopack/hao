@@ -324,3 +324,78 @@ export function __setStyle(
     }
   }
 }
+
+/**
+ * Extract value from text/number/range inputs and textareas.
+ * @internal
+ */
+export function __updateInput(el: HTMLInputElement | HTMLTextAreaElement): string | number {
+  if (el.type === 'number' || el.type === 'range') {
+    const val = (el as HTMLInputElement).valueAsNumber;
+    return isNaN(val) ? '' : val;
+  }
+  return el.value;
+}
+
+/**
+ * Check if a checkbox should be checked based on its bound value.
+ * @internal
+ */
+export function __isCheckboxChecked(current: unknown, value: string): boolean {
+  if (Array.isArray(current)) {
+    return current.includes(value);
+  }
+  if (current instanceof Set) {
+    return current.has(value);
+  }
+  return !!current;
+}
+
+/**
+ * Update a checkbox's bound value (boolean/array/set).
+ * @internal
+ */
+export function __updateCheckbox(current: unknown, checked: boolean, value: string): unknown {
+  if (Array.isArray(current)) {
+    if (checked) {
+      return current.includes(value) ? current : [...current, value];
+    } else {
+      return current.filter((x) => x !== value);
+    }
+  }
+  if (current instanceof Set) {
+    const next = new Set(current);
+    if (checked) next.add(value);
+    else next.delete(value);
+    return next;
+  }
+  return checked;
+}
+
+/**
+ * Set the selected options on a single or multiple select element.
+ * @internal
+ */
+export function __setSelectValue(select: HTMLSelectElement, value: unknown): void {
+  if (select.multiple && (Array.isArray(value) || value instanceof Set)) {
+    const set = value instanceof Set ? value : new Set(value as any);
+    for (let i = 0; i < select.options.length; i++) {
+      const opt = select.options[i]!;
+      opt.selected = set.has(opt.value);
+    }
+  } else {
+    select.value = String(value ?? '');
+  }
+}
+
+/**
+ * Extract selected value(s) from a single or multiple select element.
+ * @internal
+ */
+export function __updateSelect(select: HTMLSelectElement): unknown {
+  if (select.multiple) {
+    return Array.from(select.selectedOptions).map((opt) => opt.value);
+  }
+  return select.value;
+}
+

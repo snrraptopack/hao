@@ -223,6 +223,77 @@ function compileEventHandler(
   return textId + 1;
 }
 
+function compileBind(
+  setupList: string[],
+  patches: DynamicPatch[],
+  textId: number,
+  elementVar: string,
+  value: string,
+  attribute: ts.JsxAttributeLike,
+  derivedCtx: DerivedContext | null,
+): number {
+  let tagName = '';
+  const openingNode = attribute.parent?.parent;
+  if (openingNode && (ts.isJsxOpeningElement(openingNode) || ts.isJsxSelfClosingElement(openingNode))) {
+    if (ts.isIdentifier(openingNode.tagName)) {
+      tagName = openingNode.tagName.text.toLowerCase();
+    }
+  }
+
+  let inputType = 'text';
+
+  if (openingNode) {
+    for (const prop of openingNode.attributes.properties) {
+      if (ts.isJsxAttribute(prop) && ts.isIdentifier(prop.name)) {
+        const propName = prop.name.text;
+        if (propName === 'type' && prop.initializer) {
+          if (ts.isStringLiteral(prop.initializer)) {
+            inputType = prop.initializer.text.toLowerCase();
+          } else if (ts.isJsxExpression(prop.initializer) && prop.initializer.expression) {
+            if (ts.isStringLiteral(prop.initializer.expression)) {
+              inputType = prop.initializer.expression.text.toLowerCase();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const expandedValue = derivedCtx ? derivedCtx.expand(value) : value;
+
+  if (tagName === 'input' && inputType === 'checkbox') {
+    setupList.push(`__setProperty(${elementVar}, "checked", __isCheckboxChecked(${expandedValue}, ${elementVar}.value));`);
+    setupList.push(`${elementVar}.addEventListener("change", __event((event) => { ${expandedValue} = __updateCheckbox(${expandedValue}, (event.target as any).checked, (event.target as any).value) as any; }));`);
+    patches.push({
+      code: `__setProperty(${elementVar}, "checked", __isCheckboxChecked(${expandedValue}, ${elementVar}.value));`,
+      deps: [expandedValue],
+    });
+  } else if (tagName === 'input' && inputType === 'radio') {
+    setupList.push(`__setProperty(${elementVar}, "checked", ${expandedValue} === ${elementVar}.value);`);
+    setupList.push(`${elementVar}.addEventListener("change", __event((event) => { if ((event.target as any).checked) { ${expandedValue} = (event.target as any).value; } }));`);
+    patches.push({
+      code: `__setProperty(${elementVar}, "checked", ${expandedValue} === ${elementVar}.value);`,
+      deps: [expandedValue],
+    });
+  } else if (tagName === 'select') {
+    setupList.push(`__setSelectValue(${elementVar}, ${expandedValue});`);
+    setupList.push(`${elementVar}.addEventListener("change", __event((event) => { ${expandedValue} = __updateSelect(event.target as any) as any; }));`);
+    patches.push({
+      code: `__setSelectValue(${elementVar}, ${expandedValue});`,
+      deps: [expandedValue],
+    });
+  } else {
+    setupList.push(`__setProperty(${elementVar}, "value", ${expandedValue});`);
+    setupList.push(`${elementVar}.addEventListener("input", __event((event) => { ${expandedValue} = __updateInput(event.target as any) as any; }));`);
+    patches.push({
+      code: `__setProperty(${elementVar}, "value", ${expandedValue});`,
+      deps: [expandedValue],
+    });
+  }
+
+  return textId;
+}
+
 export function compileAttribute(
   ctx: CompileContext,
   elementVar: string,
@@ -241,6 +312,24 @@ export function compileAttribute(
   const initializer = attribute.initializer;
 
   if (name === 'key') return true;
+
+  if (name === 'bind') {
+    if (!initializer || !ts.isJsxExpression(initializer)) return false;
+    const expression = childExpression(initializer);
+    if (!expression) return true;
+    const value = expressionText(ctx.source, expression);
+
+    ctx.textId = compileBind(
+      ctx.setup,
+      ctx.patches,
+      ctx.textId,
+      elementVar,
+      value,
+      attribute,
+      ctx.derivedCtx ?? null
+    );
+    return true;
+  }
 
   if (name === 'ref') {
     if (!initializer) return true;
@@ -370,6 +459,74 @@ export function compileTemplateAttribute(
 
   const initializer = attribute.initializer;
   if (name === 'key') return '';
+
+  if (name === 'bind') {
+    if (!initializer || !ts.isJsxExpression(initializer)) return null;
+    const expression = childExpression(initializer);
+    if (!expression) return '';
+    const value = expressionText(ctx.source, expression);
+
+    if (ctx.ssr) {
+      let tagName = '';
+      const openingNode = attribute.parent?.parent;
+      if (openingNode && (ts.isJsxOpeningElement(openingNode) || ts.isJsxSelfClosingElement(openingNode))) {
+        if (ts.isIdentifier(openingNode.tagName)) {
+          tagName = openingNode.tagName.text.toLowerCase();
+        }
+      }
+
+      let inputType = 'text';
+      let radioOrCheckboxValue = "''";
+
+      if (openingNode) {
+        for (const prop of openingNode.attributes.properties) {
+          if (ts.isJsxAttribute(prop) && ts.isIdentifier(prop.name)) {
+            const propName = prop.name.text;
+            if (propName === 'type' && prop.initializer) {
+              if (ts.isStringLiteral(prop.initializer)) {
+                inputType = prop.initializer.text.toLowerCase();
+              } else if (ts.isJsxExpression(prop.initializer) && prop.initializer.expression) {
+                if (ts.isStringLiteral(prop.initializer.expression)) {
+                  inputType = prop.initializer.expression.text.toLowerCase();
+                }
+              }
+            }
+            if (propName === 'value' && prop.initializer) {
+              if (ts.isStringLiteral(prop.initializer)) {
+                radioOrCheckboxValue = stringLiteral(prop.initializer.text);
+              } else if (ts.isJsxExpression(prop.initializer) && prop.initializer.expression) {
+                radioOrCheckboxValue = expressionText(ctx.source, prop.initializer.expression);
+              }
+            }
+          }
+        }
+      }
+
+      const expandedValue = ctx.derivedCtx ? ctx.derivedCtx.expand(value) : value;
+
+      if (tagName === 'input') {
+        if (inputType === 'checkbox') {
+          return ` \${__isCheckboxChecked(${expandedValue}, ${radioOrCheckboxValue}) ? 'checked' : ''}`;
+        } else if (inputType === 'radio') {
+          return ` \${(${expandedValue}) === (${radioOrCheckboxValue}) ? 'checked' : ''}`;
+        } else {
+          return ` value="\${__escapeHtml(${expandedValue})}"`;
+        }
+      }
+      return '';
+    } else {
+      ctx.textId = compileBind(
+        ctx.elementSetup,
+        ctx.patches,
+        ctx.textId,
+        elementVar,
+        value,
+        attribute,
+        ctx.derivedCtx ?? null
+      );
+      return '';
+    }
+  }
 
   if (name === 'ref') {
     if (!initializer) return '';

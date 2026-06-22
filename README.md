@@ -89,6 +89,115 @@ function LiveClock() {
 }
 ```
 
+## Two-Way Data Binding
+
+Auwla supports a unified, compile-time `bind={variable}` syntax for two-way data binding on form elements. Because Auwla is compiler-driven, it does not require any reactive wrappers (like signals, refs, or cells) in your state declaration. You simply bind to raw, local `let` variables in the component's setup scope.
+
+### How it Works
+
+During compilation, the `bind` attribute is stripped from the tag and lowered into:
+1. An **initial property setter** (e.g., `element.value = variable`).
+2. An **event listener** that intercepts input changes, mutates the local variable directly, and triggers invalidation.
+3. A **dynamic update patch** that keeps the DOM element in sync when the variable changes from elsewhere.
+
+```tsx
+function BindingDemo() {
+  let text = 'Hello';
+  let checked = false;
+
+  return () => (
+    <div>
+      {/* Lowered to text input value property and input listener */}
+      <input type="text" bind={text} />
+
+      {/* Lowered to checkbox checked property and change listener */}
+      <input type="checkbox" bind={checked} />
+    </div>
+  );
+}
+```
+
+---
+
+### Supported Inputs and Element Types
+
+| Element / Type | Target Property | Intercepted Event | Binding Behavior / Cast |
+|:---|:---|:---|:---|
+| `<input type="text" />` | `value` | `input` | Binds element value to string |
+| `<input type="number" />` | `value` | `input` | Automatically casts to `number` |
+| `<input type="range" />` | `value` | `input` | Automatically casts to `number` |
+| `<input type="checkbox" />` | `checked` | `change` | Binds to a single `boolean` state |
+| `<input type="checkbox" />` (Grouped) | `checked` | `change` | Binds element `value` into an `Array` or `Set` |
+| `<input type="radio" />` (Grouped) | `checked` | `change` | Sets the group variable to the selected radio's `value` |
+| `<select>` (Single) | `value` | `change` | Binds to the selected option value |
+| `<select multiple>` | `value` | `change` | Binds to an `Array` or `Set` of selected option values |
+| `<textarea>` | `value` | `input` | Binds to string content |
+
+---
+
+### Advanced Binding Scenarios
+
+#### 1. Grouped Checkboxes (Arrays & Sets)
+To bind multiple checkboxes to a shared collection, bind each checkbox to the same array or set variable. Checking or unchecking elements will automatically push or remove items from the collection:
+
+```tsx
+function HobbiesForm() {
+  let selectedHobbies: string[] = ['coding'];
+
+  return () => (
+    <div>
+      <label>
+        <input type="checkbox" bind={selectedHobbies} value="coding" />
+        Coding
+      </label>
+      <label>
+        <input type="checkbox" bind={selectedHobbies} value="gaming" />
+        Gaming
+      </label>
+      <p>Selected: {selectedHobbies.join(', ')}</p>
+    </div>
+  );
+}
+```
+
+#### 2. Radio Groups
+Grouped radio buttons are bound to a single variable. When a radio button is clicked, the variable is updated to match that radio's `value` attribute:
+
+```tsx
+function ThemeSelector() {
+  let theme = 'dark';
+
+  return () => (
+    <div>
+      <label>
+        <input type="radio" name="theme" bind={theme} value="dark" /> Dark
+      </label>
+      <label>
+        <input type="radio" name="theme" bind={theme} value="light" /> Light
+      </label>
+    </div>
+  );
+}
+```
+
+#### 3. Multiple Select Dropdowns
+Binding a `<select multiple>` element to an array or set allows users to select multiple options:
+
+```tsx
+function FrameworkPicker() {
+  let choices = ['auwla'];
+
+  return () => (
+    <select multiple bind={choices}>
+      <option value="auwla">Auwla</option>
+      <option value="react">React</option>
+      <option value="svelte">Svelte</option>
+    </select>
+  );
+}
+```
+
+
 ## Todo Example
 
 ```tsx

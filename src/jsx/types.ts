@@ -153,6 +153,7 @@ export type BaseProps<E extends Element> = EventProps & {
   children?: Children;
   key?: string | number;
   ref?: (el: E) => void;
+  bind?: any;
   class?: string | StyleObject | Function;
   className?: string | StyleObject | Function;
   id?: string;

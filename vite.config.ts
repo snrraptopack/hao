@@ -51,7 +51,8 @@ export default defineConfig({
   ],
   assetsInclude: [],
   optimizeDeps: {
-    exclude: [],
+    entries: ['index.html'],
+    exclude: ['auwla:server-manifest', 'auwla:routes'],
     include: [],
     // Vite 8: esbuildOptions is deprecated, use rolldownOptions
     // loader → moduleTypes

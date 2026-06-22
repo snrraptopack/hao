@@ -323,4 +323,108 @@ describe('attribute compilation', () => {
     // Dynamic style causes template bail; uses non-template path with __setStyle
     expect(compiled).toContain('__setStyle');
   });
+
+  test('compiles two-way bind attribute for inputs, checkboxes, radios and select', async () => {
+    const source = `
+      function App() {
+        let username = 'initial';
+        let newsletter = false;
+        let colors = ['red'];
+        let choice = 'yes';
+        let dropdown = 'b';
+
+        exports.getValues = () => ({ username, newsletter, colors, choice, dropdown });
+        exports.setValues = (vals: any) => {
+          username = vals.username;
+          newsletter = vals.newsletter;
+          colors = vals.colors;
+          choice = vals.choice;
+          dropdown = vals.dropdown;
+        };
+
+        return () => (
+          <div>
+            <input type="text" id="username" bind={username} />
+            <input type="checkbox" id="newsletter" bind={newsletter} />
+            <input type="checkbox" id="color-red" bind={colors} value="red" />
+            <input type="checkbox" id="color-blue" bind={colors} value="blue" />
+            <input type="radio" id="choice-yes" bind={choice} value="yes" />
+            <input type="radio" id="choice-no" bind={choice} value="no" />
+            <select id="dropdown" bind={dropdown}>
+              <option value="a">A</option>
+              <option value="b">B</option>
+            </select>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__updateInput');
+    expect(compiled).toContain('__updateCheckbox');
+    expect(compiled).toContain('__updateSelect');
+    expect(compiled).toContain('__setSelectValue');
+
+    const evaluated = evaluateCompiled(compiled) as {
+      App: () => unknown;
+      getValues(): any;
+      setValues(vals: any): void;
+    };
+
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    const usernameInput = root.querySelector('#username') as HTMLInputElement;
+    const newsletterCheckbox = root.querySelector('#newsletter') as HTMLInputElement;
+    const redCheckbox = root.querySelector('#color-red') as HTMLInputElement;
+    const blueCheckbox = root.querySelector('#color-blue') as HTMLInputElement;
+    const yesRadio = root.querySelector('#choice-yes') as HTMLInputElement;
+    const noRadio = root.querySelector('#choice-no') as HTMLInputElement;
+    const dropdownSelect = root.querySelector('#dropdown') as HTMLSelectElement;
+
+    // Check initial values are rendered correctly
+    expect(usernameInput.value).toBe('initial');
+    expect(newsletterCheckbox.checked).toBe(false);
+    expect(redCheckbox.checked).toBe(true);
+    expect(blueCheckbox.checked).toBe(false);
+    expect(yesRadio.checked).toBe(true);
+    expect(noRadio.checked).toBe(false);
+    expect(dropdownSelect.value).toBe('b');
+
+    // 1. Text input interaction
+    usernameInput.value = 'changed';
+    usernameInput.dispatchEvent(new Event('input'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.getValues().username).toBe('changed');
+
+    // 2. Checkbox single interaction
+    newsletterCheckbox.checked = true;
+    newsletterCheckbox.dispatchEvent(new Event('change'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.getValues().newsletter).toBe(true);
+
+    // 3. Grouped checkboxes interaction
+    blueCheckbox.checked = true;
+    blueCheckbox.dispatchEvent(new Event('change'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.getValues().colors).toEqual(['red', 'blue']);
+
+    redCheckbox.checked = false;
+    redCheckbox.dispatchEvent(new Event('change'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.getValues().colors).toEqual(['blue']);
+
+    // 4. Radio buttons interaction
+    noRadio.checked = true;
+    noRadio.dispatchEvent(new Event('change'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.getValues().choice).toBe('no');
+
+    // 5. Select interaction
+    dropdownSelect.value = 'a';
+    dropdownSelect.dispatchEvent(new Event('change'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(evaluated.getValues().dropdown).toBe('a');
+  });
 });

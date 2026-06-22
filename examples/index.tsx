@@ -23,6 +23,7 @@ import { TableBenchmarkExample } from "./table-benchmark"
 import { TableBenchmarkRuntimeExample } from "./table-benchmark-runtime"
 import { ReactiveDemo } from "./reactive"
 import { AccessibleMenuDemo } from "./menu"
+import { BindExamplePage } from "./bind"
 
 // Router examples — routes + shells
 import { navigationRoutes, NavigationShell } from "./navigation"
@@ -53,6 +54,7 @@ let routes = defineRoutes(
       { path: "/table-benchmark-runtime", component: TableBenchmarkRuntimeExample },
       { path: "/reactive", component: ReactiveDemo },
       { path: "/menu", component: AccessibleMenuDemo },
+      { path: "/bind", component: BindExamplePage },
     ],
 
     // Router examples — grouped under a base path with shared layout shell
@@ -86,6 +88,7 @@ const examples = [
   { path: "/table-benchmark-runtime", label: "Table Benchmark (Runtime)" },
   { path: "/reactive", label: "Reactive vs Plain" },
   { path: "/menu", label: "Accessible Menu" },
+  { path: "/bind", label: "Two-Way Bindings" },
   { path: "/navigation", label: "Navigation" },
   { path: "/child", label: "Child / Router" },
   { path: "/loader", label: "Router Loader" },

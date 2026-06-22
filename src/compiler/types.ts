@@ -67,6 +67,11 @@ export const COMPILER_IMPORT = [
   '__ssrNode',
   '__ssrStyle',
   '__trackSources',
+  '__updateInput',
+  '__isCheckboxChecked',
+  '__updateCheckbox',
+  '__setSelectValue',
+  '__updateSelect',
 ].join(', ');
 
 export const PROPERTY_PROPS = new Set([

@@ -33,6 +33,11 @@ export {
   __ssrNode,
   __ssrStyle,
   __trackSources,
+  __updateInput,
+  __isCheckboxChecked,
+  __updateCheckbox,
+  __setSelectValue,
+  __updateSelect,
   enterHydration,
   exitHydration,
 } from './compiler-runtime/index';
