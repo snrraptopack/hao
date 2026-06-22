@@ -96,7 +96,7 @@
     "url": "https://github.com/snrraptopack/auwla/issues"
   },
   "scripts": {
-    "dev": "vite playground",
+    "dev": "vite",
     "build": "vite build && tsc --project tsconfig.lib.json && cp src/vite-router/client.d.ts dist/vite-router/client.d.ts",
     "preview": "vite preview",
     "prepublishOnly": "bun run build",

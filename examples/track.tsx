@@ -1,4 +1,5 @@
-import { event } from 'auwla/events';
+import { track, pending } from 'auwla/track';
+import { event } from "auwla/events"
 
 interface User {
   id: number;
@@ -10,7 +11,7 @@ function TrackDemo() {
   // --- Track 1: Promise-based fetch (starts immediately) ---
   let users: User[] = [];
 
-  const loadUsers = event.track(
+  const loadUsers = track(
     'users',
     fetch('https://jsonplaceholder.typicode.com/users?_limit=5').then((r) => r.json()),
   );
@@ -24,7 +25,7 @@ function TrackDemo() {
   let postQuery = '';
 
   const searchPosts = () => {
-    event.track('posts', async (signal) => {
+    track('posts', async (signal) => {
       const res = await fetch(
         `https://jsonplaceholder.typicode.com/posts?_limit=5&q=${encodeURIComponent(postQuery)}`,
         { signal },
@@ -37,7 +38,7 @@ function TrackDemo() {
   searchPosts();
 
   // --- Track 3: Long-running cancellable operation ---
-  const upload = event.track('upload', async (signal) => {
+  const upload = track('upload', async (signal) => {
     await new Promise((resolve) => setTimeout(resolve, 5000));
     if (signal.aborted) return;
   });
@@ -84,7 +85,7 @@ function TrackDemo() {
           })}
           style={{ padding: '8px', width: '100%', marginBottom: '8px' }}
         />
-        {event.pending('posts') && <p style={{ color: '#ff9900' }}>Searching posts...</p>}
+        {pending('posts') && <p style={{ color: '#ff9900' }}>Searching posts...</p>}
         {posts.length > 0 && (
           <ul>
             {posts.map((post) => (

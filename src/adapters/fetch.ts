@@ -136,6 +136,9 @@ export function createFetchAdapter(options: FetchAdapterOptions = {}) {
     request: Request,
     platform?: Record<string, unknown>,
   ): Promise<Response | undefined> {
+    const url = new URL(request.url)
+    if (url.pathname !== rpcPath) return undefined
+
     if (!manifest) {
       try {
         manifest = (await import('auwla:server-manifest')).default
@@ -143,9 +146,6 @@ export function createFetchAdapter(options: FetchAdapterOptions = {}) {
         throw new Error('Auwla: Server manifest was not provided and virtual module auwla:server-manifest could not be loaded.')
       }
     }
-
-    const url = new URL(request.url)
-    if (url.pathname !== rpcPath) return undefined
     
     if (request.method !== 'POST' && request.method !== 'GET') {
       return new Response('Method not allowed', { status: 405 })

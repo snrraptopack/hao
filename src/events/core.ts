@@ -141,9 +141,6 @@ export function ifModifier(condition: EventCondition<any>): EventModifier {
   };
 }
 
-import { mouseLeftModifier, mouseRightModifier } from './mouse';
-import { keyboardLeftModifier, keyboardRightModifier } from './keyboard';
-
 /**
  * Polymorphic left modifier: delegates to left-click check for MouseEvent
  * and ArrowLeft/Left key check for KeyboardEvent.
@@ -152,13 +149,12 @@ import { keyboardLeftModifier, keyboardRightModifier } from './keyboard';
  * <div onKeyDown={event.left.handler(goLeft)} onClick={event.left.handler(goLeft)} />
  */
 export function leftModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
-  const mouseWrapped = mouseLeftModifier(handler);
-  const keyWrapped = keyboardLeftModifier(handler);
   return (event) => {
     if (isMouseEvent(event)) {
-      return mouseWrapped(event);
+      if (event.button === 0) return handler(event);
     } else if (isKeyboardEvent(event)) {
-      return keyWrapped(event);
+      const k = event.key.toLowerCase();
+      if (k === 'arrowleft' || k === 'left') return handler(event);
     }
     return BLOCKED_EVENT;
   };
@@ -172,13 +168,12 @@ export function leftModifier(handler: RuntimeEventHandler): RuntimeEventHandler 
  * <div onKeyDown={event.right.handler(goRight)} onClick={event.right.handler(goRight)} />
  */
 export function rightModifier(handler: RuntimeEventHandler): RuntimeEventHandler {
-  const mouseWrapped = mouseRightModifier(handler);
-  const keyWrapped = keyboardRightModifier(handler);
   return (event) => {
     if (isMouseEvent(event)) {
-      return mouseWrapped(event);
+      if (event.button === 2) return handler(event);
     } else if (isKeyboardEvent(event)) {
-      return keyWrapped(event);
+      const k = event.key.toLowerCase();
+      if (k === 'arrowright' || k === 'right') return handler(event);
     }
     return BLOCKED_EVENT;
   };

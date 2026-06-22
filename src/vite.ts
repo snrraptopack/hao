@@ -89,14 +89,16 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
     },
 
     async configureServer(server) {
-      console.log('[auwla:vite] configureServer running, serverEntry:', options.serverEntry)
       cssHandler.setServer(server);
       ;(globalThis as any).__auwla_vite_server = server;
       ;(globalThis as any).__auwla_vite_css_handler = cssHandler;
-      const { createDevServerMiddleware } = await import('./dev-middleware.js')
-      const middleware = await createDevServerMiddleware(server, options.serverEntry)
-      server.middlewares.use(middleware)
-      console.log('[auwla:vite] dev middleware registered!')
+      if (options.serverEntry) {
+        console.log('[auwla:vite] configureServer running, serverEntry:', options.serverEntry)
+        const { createDevServerMiddleware } = await import('./dev-middleware.js')
+        const middleware = await createDevServerMiddleware(server, options.serverEntry)
+        server.middlewares.use(middleware)
+        console.log('[auwla:vite] dev middleware registered!')
+      }
     },
 
     /**

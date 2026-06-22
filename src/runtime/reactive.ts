@@ -34,14 +34,6 @@ import { currentComponentId } from './state';
 // Types
 // ---------------------------------------------------------------------------
 
-/** A subscriber record captured at the moment of a `.get()` call. */
-type Subscriber = {
-  /** The mounted app's scoped invalidation function. */
-  invalidate: (ownerId?: string | null) => void;
-  /** The component ID that was on top of the render stack during `.get()`. */
-  id: string;
-};
-
 /**
  * A reactive cell. Call `.get()` to read (and subscribe).
  * Call `.set()` to write (and invalidate all current subscribers).
@@ -72,7 +64,7 @@ export type ReactiveCell<T> = {
  */
 export function reactive<T>(initial: T): ReactiveCell<T> {
   let value = initial;
-  let subscribers: Set<Subscriber> = new Set();
+  let subscribers = new Map<string, (ownerId?: string | null) => void>();
 
   return {
     get(): T {
@@ -84,7 +76,7 @@ export function reactive<T>(initial: T): ReactiveCell<T> {
       const state = runtimeState.activeRenderState;
       const id = runtimeState.activeSetupComponentId ?? currentComponentId();
       if (state && id) {
-        subscribers.add({ invalidate: state.invalidate, id });
+        subscribers.set(id, state.invalidate);
       }
       return value;
     },
@@ -101,10 +93,10 @@ export function reactive<T>(initial: T): ReactiveCell<T> {
       // This ensures that any new subscriptions created during re-render (via .get()
       // in a component that renders because of this notification) go into the fresh
       // set and don't interact with the current notification pass.
-      const snapshot = [...subscribers];
-      subscribers = new Set();
+      const snapshot = Array.from(subscribers.entries());
+      subscribers = new Map();
 
-      for (const { invalidate, id } of snapshot) {
+      for (const [id, invalidate] of snapshot) {
         invalidate(id);
       }
     },

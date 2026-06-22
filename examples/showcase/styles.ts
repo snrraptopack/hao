@@ -1,4 +1,4 @@
-import { border, color, css,px ,rem} from 'auwla/css';
+import { border, color, css, px, rem } from 'auwla/css';
 
 // 1. Color Palettes (generated using our new color.palette OKLCH curves)
 export const brand = css.color.palette('oklch(0.62 0.18 300)');    // Violet
@@ -131,7 +131,7 @@ export const sidebarLink = css.define({
   fontWeight: '500',
   transition: css.transition({
     background: { duration: css.ms(200) },
-    transform:  { duration: css.ms(300), easing: css.ease('out') },
+    transform: { duration: css.ms(300), easing: css.ease('out') },
   }),
   color: slate[400],
   border: css.border({ color: css.color.transparent, width: 1, style: 'solid' }),
@@ -356,8 +356,8 @@ export const statusDot = css.define((props: { status: 'online' | 'warning' | 'of
   boxShadow: '0 0 8px currentColor',
   ...css.match(props.status, {
     online: { color: accent[400], background: accent[400] },
-    warning: { color:color('#eab308'), background: color('#eab308')},
-    offline: { color:color('#ef4444'), background: color('#ef4444') },
+    warning: { color: color('#eab308'), background: color('#eab308') },
+    offline: { color: color('#ef4444'), background: color('#ef4444') },
   })
 }));
 
@@ -383,7 +383,7 @@ export const workspaceLayout = css.define({
     gap: space.xl,
     alignItems: 'start',
   }),
-  opacity:10
+  opacity: 10
 });
 
 export const chatContainer = css.define({
