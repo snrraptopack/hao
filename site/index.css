@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@theme {
+  /* Inter (Vercel-style) for body, Lora for editorial headings, Fira Mono for code */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Lora", Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "Fira Mono", monospace;
+  
+  /* Brand palette — accent orange used only for CTAs and active states */
+  --color-brand: #ff3e00;
+  --color-brand-hover: #e03500;
+}
+
+/* Hide scrollbars globally across the app */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera, Brave */
+}
+
+/* Global typography resets and baseline styling */
+html, body {
+  font-family: var(--font-sans);
+  background-color: #fff;
+  color: #111111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Inter stylistic sets */
+}
+
+/* Headers: tight, heavy, Inter-style */
+h1, h2, h3, h4 {
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Custom code block styling defaults */
+pre, code {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+/* ─── Refined PrismJS dark theme (VS Code-inspired, not garish) ─────────────── */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #6b7280; /* Muted gray for comments */
+  font-style: italic;
+}
+.token.punctuation {
+  color: #9ca3af;
+}
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #93c5fd; /* Soft blue for JSX tags and constants */
+}
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #86efac; /* Soft green for strings */
+}
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #c4b5fd; /* Soft violet for operators */
+}
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #fda4af; /* Muted rose for keywords — no orange bleed */
+  font-weight: 500;
+}
+.token.function,
+.token.class-name {
+  color: #d8b4fe; /* Light purple for function names */
+  font-weight: 500;
+}
+.token.regex,
+.token.important,
+.token.variable {
+  color: #fcd34d; /* Warm amber for variables */
+}
+
+/* ─── Documentation Content Typography ──────────────────────────────────────── */
+.doc-content {
+  font-family: var(--font-sans);
+}
+
+.doc-content h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #111111;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+}
+
+.doc-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111111;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.doc-content h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #374151;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-content p {
+  line-height: 1.75;
+  color: #374151;
+  margin-bottom: 1.25rem;
+  font-size: 1rem;
+}
+
+.doc-content a {
+  color: #111111;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.doc-content code {
+  background-color: #f3f4f6;
+  color: #111111;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  border: 1px solid #e5e7eb;
+}
+
+.doc-content pre {
+  background-color: #0d1117;
+  color: #e6edf3;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #21262d;
+}
+
+.doc-content pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+  border: none;
+  font-size: 0.875rem;
+}
+
+.doc-content ul, .doc-content ol {
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+  color: #374151;
+}
+
+.doc-content ul {
+  list-style-type: disc;
+}
+
+.doc-content ol {
+  list-style-type: decimal;
+}
+
+.doc-content li {
+  margin-bottom: 0.5rem;
+  line-height: 1.65;
+}
+
+/* ─── Table Styling inside Docs ────────────────────────────────────────── */
+.doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.doc-content th {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 0.75rem 1rem;
+}
+
+.doc-content td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.75rem 1rem;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.doc-content tr:hover td {
+  background-color: #f8fafc;
+}

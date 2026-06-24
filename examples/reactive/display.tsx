@@ -1,5 +1,5 @@
 import { reactiveTheme, plainTheme } from './store';
- 
+
 export function Display() {
   console.log('Display component setup run (only once)');
   return () => {
@@ -19,7 +19,7 @@ export function Display() {
     );
   };
 }
- 
+
 export function SiblingDisplay() {
   console.log('SiblingDisplay component setup run (only once)');
 
