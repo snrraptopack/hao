@@ -9,7 +9,7 @@ import ts from 'typescript';
 import { COMPILER_IMPORT, CompileContext } from './types';
 import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
-import { unwrapJsxReturn, unwrapJsxBody } from './utils';
+import { unwrapJsxReturn, unwrapJsxBody, analyzeComponentSkips } from './utils';
 import { buildDerivedContext, DerivedContext } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 
@@ -118,12 +118,40 @@ function transformReturn(
   return `return ${compiled};`;
 }
 
-function findReplacements(source: ts.SourceFile, options?: CompileOptions): Array<{ start: number; end: number; text: string }> {
+function findReplacements(
+  source: ts.SourceFile,
+  skipCompile: Set<string>,
+  options?: CompileOptions,
+): Array<{ start: number; end: number; text: string }> {
   const replacements: Array<{ start: number; end: number; text: string }> = [];
+
+  function isSkippedComponent(node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): boolean {
+    if (ts.isFunctionDeclaration(node) && node.name && skipCompile.has(node.name.text)) {
+      return true;
+    }
+    return false;
+  }
 
   function visit(node: ts.Node, containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null) {
     if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+      if (isSkippedComponent(node)) return;
       ts.forEachChild(node, (child) => visit(child, node));
+      return;
+    }
+
+    if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (
+          ts.isIdentifier(decl.name) &&
+          skipCompile.has(decl.name.text) &&
+          decl.initializer &&
+          (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+        ) {
+          // Skip the initializer subtree for runtime-fallback components.
+          continue;
+        }
+        visit(decl, containingFunction);
+      }
       return;
     }
 
@@ -170,44 +198,61 @@ function addCompilerImport(code: string, didCompile: boolean): string {
  * @returns The transformed source code, or the original if no transforms apply.
  */
 export function compileAuwla(sourceText: string, fileName = 'input.tsx', options?: CompileOptions): string {
-  // Pass 1: Inject __auwlaSite into Component tags
+  const source1 = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const { definedComponents, nonInlinable, skipCompile } = analyzeComponentSkips(source1);
+
+  // Pass 1: Inject __auwlaSite into Component tags that can be inlined/compiled.
   let siteCounter = 0;
   const siteReplacements: Array<{ start: number; end: number; text: string }> = [];
-  const source1 = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  
+
   function isComponentTag(tagName: ts.JsxTagNameExpression): boolean {
     if (!ts.isIdentifier(tagName)) return false;
-    return /^[A-Z]/.test(tagName.text);
+    const name = tagName.text;
+    // Only treat uppercase identifiers as component tags when they correspond to
+    // a component definition in this file. Dynamic tags (e.g. <Tag>) are left
+    // for the runtime and must not receive __auwlaSite.
+    return /^[A-Z]/.test(name) && definedComponents.has(name);
+  }
+
+  function shouldTagComponent(name: string): boolean {
+    // Components that cannot be inlined or reference children are left untouched.
+    return !nonInlinable.has(name) && !skipCompile.has(name);
   }
 
   function visitSite(node: ts.Node) {
-    if (ts.isJsxElement(node) && isComponentTag(node.openingElement.tagName)) {
-      siteReplacements.push({
-        start: node.openingElement.tagName.getEnd(),
-        end: node.openingElement.tagName.getEnd(),
-        text: ` __auwlaSite="${siteCounter++}"`
-      });
-    } else if (ts.isJsxSelfClosingElement(node) && isComponentTag(node.tagName)) {
-      siteReplacements.push({
-        start: node.tagName.getEnd(),
-        end: node.tagName.getEnd(),
-        text: ` __auwlaSite="${siteCounter++}"`
-      });
+    if (ts.isJsxElement(node) && ts.isIdentifier(node.openingElement.tagName)) {
+      const name = node.openingElement.tagName.text;
+      if (isComponentTag(node.openingElement.tagName) && shouldTagComponent(name)) {
+        siteReplacements.push({
+          start: node.openingElement.tagName.getEnd(),
+          end: node.openingElement.tagName.getEnd(),
+          text: ` __auwlaSite="${siteCounter++}"`
+        });
+      }
+    } else if (ts.isJsxSelfClosingElement(node) && ts.isIdentifier(node.tagName)) {
+      const name = node.tagName.text;
+      if (isComponentTag(node.tagName) && shouldTagComponent(name)) {
+        siteReplacements.push({
+          start: node.tagName.getEnd(),
+          end: node.tagName.getEnd(),
+          text: ` __auwlaSite="${siteCounter++}"`
+        });
+      }
     }
     ts.forEachChild(node, visitSite);
   }
   visitSite(source1);
-  
-  const textWithSites = siteReplacements.length > 0 
+
+  const textWithSites = siteReplacements.length > 0
     ? applyReplacements(sourceText, siteReplacements)
     : sourceText;
 
   // Pass 2: Compile Auwla DOM blocks
   const source2 = ts.createSourceFile(fileName, textWithSites, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const replacements = findReplacements(source2, options);
-  
+  const replacements = findReplacements(source2, skipCompile, options);
+
   if (replacements.length === 0 && siteReplacements.length === 0) return sourceText;
-  
+
   const finalCode = replacements.length > 0 ? applyReplacements(textWithSites, replacements) : textWithSites;
   return addCompilerImport(finalCode, replacements.length > 0);
 }

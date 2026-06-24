@@ -51,6 +51,47 @@ describe('component inlining', () => {
     expect(compiled).not.toContain('__componentBlock');
   });
 
+  test('assigns unique __auwlaSite ids to multiple call sites', () => {
+    const source = `
+      function Badge(props) {
+        return <span>{props.text}</span>;
+      }
+
+      function App() {
+        const first = { text: 'First' };
+        const second = { text: 'Second' };
+        return () => (
+          <div>
+            <Badge {...first} />
+            <Badge {...second} />
+          </div>
+        );
+      }
+    `;
+
+    const compiled = compileAuwla(source);
+    const sites = Array.from(compiled.matchAll(/__auwlaSite="(\d+)"/g)).map((m) => m[1]);
+    expect(sites).toHaveLength(2);
+    expect(new Set(sites).size).toBe(2);
+  });
+
+  test('does not inject __auwlaSite for components with setup state', () => {
+    const source = `
+      function Label(props) {
+        const self = component();
+        return () => <span>{props.text}</span>;
+      }
+
+      function App() {
+        return () => <Label text="Hello" />;
+      }
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('<Label text="Hello" />');
+    expect(compiled).not.toContain('__auwlaSite');
+  });
+
   test('supports bubbling emit payloads through emit:custom listeners', async () => {
     const source = `
       function DeleteButton(props: { userId: string }) {

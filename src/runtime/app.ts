@@ -348,6 +348,8 @@ export function createMemoApp<TModel>(
     render: () => {
       if (destroyed) return;
       scheduled = true;
+      dirtyComponents = null;
+      dirtySources = null;
       renderNow();
     },
     destroy() {

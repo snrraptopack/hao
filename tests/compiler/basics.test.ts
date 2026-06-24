@@ -214,4 +214,29 @@ describe('basic render closure compilation', () => {
 
     expect(root.textContent).toBe('2');
   });
+
+  test('manual app.render() forces a full re-render without a tracked event', () => {
+    const source = `
+      function App() {
+        let active = false;
+        exports.toggle = () => { active = !active; };
+        return () => <span>{active ? 'On' : 'Off'}</span>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__setText');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; toggle(): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    expect(root.textContent).toBe('Off');
+
+    evaluated.toggle();
+    app.render();
+
+    expect(root.textContent).toBe('On');
+  });
 });

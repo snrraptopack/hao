@@ -17,8 +17,8 @@ describe('SSR compiler target', () => {
     expect(bodyAfterImport).not.toContain('__componentBlock');
     expect(bodyAfterImport).not.toContain('__cloneTemplate');
 
-    const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<section class="page"><h1>Hello</h1></section>');
+    const { App } = evaluateCompiled(compiled) as { App: () => { toString(): string } };
+    expect(String(App())).toBe('<section class="page"><h1>Hello</h1></section>');
   });
 
   test('renders dynamic text escaped', () => {
@@ -33,8 +33,8 @@ describe('SSR compiler target', () => {
     const compiled = compileAuwla(source, 'input.tsx', { ssr: true });
     expect(compiled).toContain('__escapeHtml(title)');
 
-    const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<h1><!--auwla:child-->&lt;script&gt;alert(1)&lt;/script&gt;<!--/auwla:child--></h1>');
+    const { App } = evaluateCompiled(compiled) as { App: () => { toString(): string } };
+    expect(String(App())).toBe('<h1><!--auwla:child-->&lt;script&gt;alert(1)&lt;/script&gt;<!--/auwla:child--></h1>');
   });
 
   test('renders dynamic attributes correctly', () => {
@@ -50,8 +50,8 @@ describe('SSR compiler target', () => {
     const compiled = compileAuwla(source, 'input.tsx', { ssr: true });
     expect(compiled).toContain('__escapeHtml(href)');
 
-    const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<a href="/about?x=1&amp;y=2" class="active">Link</a>');
+    const { App } = evaluateCompiled(compiled) as { App: () => { toString(): string } };
+    expect(String(App())).toBe('<a href="/about?x=1&amp;y=2" class="active">Link</a>');
   });
 
   test('omits event listeners in SSR output', () => {
@@ -67,8 +67,8 @@ describe('SSR compiler target', () => {
     expect(compiled).toContain('__ssrBlock');
     expect(compiled).not.toContain('addEventListener');
 
-    const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<button><!--auwla:child-->0<!--/auwla:child--></button>');
+    const { App } = evaluateCompiled(compiled) as { App: () => { toString(): string } };
+    expect(String(App())).toBe('<button><!--auwla:child-->0<!--/auwla:child--></button>');
   });
 
   test('renders single dynamic child as element text', () => {
@@ -83,8 +83,8 @@ describe('SSR compiler target', () => {
     const compiled = compileAuwla(source, 'input.tsx', { ssr: true });
     expect(compiled).toContain('__escapeHtml(label)');
 
-    const { App } = evaluateCompiled(compiled) as { App: () => string };
-    expect(App()).toBe('<span><!--auwla:child-->Hello<!--/auwla:child--></span>');
+    const { App } = evaluateCompiled(compiled) as { App: () => { toString(): string } };
+    expect(String(App())).toBe('<span><!--auwla:child-->Hello<!--/auwla:child--></span>');
   });
 
   test('bails out dynamic tags to runtime h() in SSR', () => {

@@ -318,4 +318,18 @@ describe('known compiler limitations', () => {
 
     expect(root.querySelector('td')!.textContent).toBe('Cell');
   });
+
+  test('does not inject __auwlaSite for dynamic tags', () => {
+    const source = `
+      function App() {
+        let Tag = 'section';
+        return () => <Tag class="box">Dynamic</Tag>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('<Tag');
+    expect(compiled).not.toContain('__auwlaSite');
+  });
 });

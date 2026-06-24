@@ -413,3 +413,74 @@ export function referencesChildren(node: ts.Node): boolean {
   }
   return ts.forEachChild(node, referencesChildren) ?? false;
 }
+
+/** Determine whether a component function should be left for runtime fallback. */
+function componentHasSetupState(
+  node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
+): boolean {
+  const body = node.body;
+  if (!body) return false;
+  if (!ts.isBlock(body)) return false;
+  // A simple inlinable component has exactly one return statement and nothing else.
+  return body.statements.length !== 1 || !ts.isReturnStatement(body.statements[0]!);
+}
+
+export type ComponentSkipInfo = {
+  /** All uppercase-named component/function definitions found in the source. */
+  definedComponents: Set<string>;
+  /** Components with setup state that cannot be inlined at call sites. */
+  nonInlinable: Set<string>;
+  /** Components that reference children and must not be compiled at all. */
+  skipCompile: Set<string>;
+};
+
+/** Analyze component definitions to decide which ones the compiler should avoid. */
+export function analyzeComponentSkips(source: ts.SourceFile): ComponentSkipInfo {
+  const definedComponents = new Set<string>();
+  const nonInlinable = new Set<string>();
+  const skipCompile = new Set<string>();
+
+  function visit(node: ts.Node) {
+    let def: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null = null;
+    let name: string | null = null;
+
+    if (ts.isFunctionDeclaration(node) && node.name && /^[A-Z]/.test(node.name.text)) {
+      def = node;
+      name = node.name.text;
+      definedComponents.add(name);
+    }
+
+    if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (
+          ts.isIdentifier(decl.name) &&
+          /^[A-Z]/.test(decl.name.text) &&
+          decl.initializer &&
+          (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
+        ) {
+          def = decl.initializer;
+          name = decl.name.text;
+          definedComponents.add(name);
+        }
+      }
+    }
+
+    if (def && name) {
+      const hasSetup = componentHasSetupState(def);
+      const jsx = extractComponentJsx(def);
+      const usesChildren = jsx && referencesChildren(jsx);
+
+      if (hasSetup || usesChildren) {
+        nonInlinable.add(name);
+      }
+      if (usesChildren) {
+        skipCompile.add(name);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(source);
+  return { definedComponents, nonInlinable, skipCompile };
+}
