@@ -1,91 +1,159 @@
-# Setup vs Render
+# How Rendering Works
 
-Understanding the execution lifecycle is the key to mastering Auwla. Unlike other frameworks that execute your entire component function on every state update, Auwla splits component execution into two distinct phases.
+You now know that state in Auwla is just a plain closure variable. The next question is: **how does re-rendering actually happen?**
 
 ---
 
-## The Two Phases
+## Two Phases, One Component
 
-An Auwla component contains two parts:
-1. **The Setup Scope (Outer Function)**: Runs exactly **once** when the component is instantiated.
-2. **The Render Closure (Returned Inner Function)**: Runs **every time** the component re-renders.
+An Auwla component is a function that runs once. That single run is the **setup phase** — it initializes state, starts any async work, and returns a **render closure**: a `() => JSX` function that Auwla holds onto.
 
 ```tsx
-function ExecutionDemo() {
-  // ─── 1. SETUP PHASE ───
-  // Runs ONCE.
-  console.log("Setup phase executed!");
-  let clicks = 0;
-  
-  const handleCLick = () => {
-    clicks++;
-  };
+function Counter() {
+  // ── Setup ──────────────────────────────────────────────────────────────
+  // This block runs exactly once when the component first appears in the tree.
+  let count = 0;
 
-  // ─── 2. RENDER PHASE ───
-  // Runs ON every render.
-  return () => {
-    console.log("Render phase executed!");
-    return (
-      <button onClick={handleCLick}>
-        Clicks: {clicks}
-      </button>
-    );
-  };
+  // ── Render closure ─────────────────────────────────────────────────────
+  // This function is what Auwla calls every time it needs to update the DOM.
+  return () => (
+    <button onClick={() => count++}>
+      Count: {count}
+    </button>
+  );
 }
 ```
 
-### Console Output Sequence:
-- **On Mount**:
-  1. `Setup phase executed!`
-  2. `Render phase executed!`
-- **On Button Click**:
-  1. `Render phase executed!` (Setup does not run again)
+The render closure is a real JavaScript closure — it still has access to `count` after the setup function has returned. Every time Auwla calls it, it reads the current value of `count` and returns fresh JSX describing what the DOM should look like.
 
 ---
 
-## Golden Rules of Setup vs Render
+## Why State Doesn't Reset
 
-### 1. Declare State in the Setup Scope
-Because the setup function runs only once, local variables declared here are stable and preserve their values across renders. 
-
-> [!WARNING]
-> If you declare variables *inside* the returned render closure, they will be reset back to their initial values on every single re-render.
+In React the entire component function re-runs on every render, so local variables reset unless you wrap them with `useState`. In Auwla the setup function runs **once** — local variables are ordinary JavaScript variables that live in the closure scope and persist naturally:
 
 ```tsx
-// ❌ WRONG: Resetting state on every render
-function WrongCounter() {
+// count lives in the setup scope — survives every re-render
+function Counter() {
+  let count = 0;
+  return () => <button onClick={() => count++}>Count: {count}</button>;
+}
+
+// count lives inside the render closure — resets to 0 on every render
+function BrokenCounter() {
   return () => {
-    let count = 0; // Declared in render! Resets to 0 every time.
+    let count = 0; // ← this is re-declared on every call
     return <button onClick={() => count++}>Count: {count}</button>;
   };
 }
-
-//  CORRECT: Stable state
-function RightCounter() {
-  let count = 0; // Declared in setup! Stays stable.
-  return () => <button onClick={() => count++}>Count: {count}</button>;
-}
 ```
 
-### 2. Keep Side Effects Out of the Render Closure
-The render closure should be pure and fast. Avoid triggering side effects (like network requests, timeouts, or DOM mutations) directly within the render body.
-
-```tsx
-// ❌ WRONG: Triggering infinite fetching loop
-function BadFetch() {
-  let data = null;
-  return () => {
-    fetch("/api/data").then(r => r.json()).then(res => {
-      data = res;
-      commit(); // Triggers render, which calls fetch() again, causing infinite loop!
-    });
-    return <div>{data}</div>;
-  };
-}
-```
-
-Instead, run initial side effects in the setup scope, and wrap subsequent updates in event handlers or lifecycle trackers.
+The broken version will always display `0` — every time the closure runs, `count` starts fresh.
 
 ---
 
-In the next section, we'll look at **Closure State** to understand how variables map to DOM nodes behind the scenes.
+## What the Compiler Generates
+
+The Vite plugin transforms your render closure into direct, imperative DOM operations. This removes the virtual DOM entirely — no tree diff, just targeted native calls.
+
+Here is the compiled output for the counter:
+
+```js
+function Counter() {
+  let count = 0; // the variable is untouched — still a plain number
+
+  return __componentBlock(() => {
+    // ── Runs once on mount ──────────────────────────────────────
+    const button = document.createElement('button');
+    const text = document.createTextNode('');
+    button.append(text);
+
+    // The click handler is wrapped — after it runs, a re-render is queued.
+    button.addEventListener('click', __event(() => {
+      count++; // mutates the closure variable directly
+    }));
+
+    return {
+      node: button,
+
+      // ── Runs on every re-render ─────────────────────────────────
+      update() {
+        __setText(text, count); // only this text node is touched
+      },
+    };
+  });
+}
+```
+
+The DOM node is created once. From that point on, only the `update()` function runs — it patches exactly the pieces that can change. This is why Auwla is fast without a virtual DOM.
+
+---
+
+## How Event Handlers Schedule Re-renders
+
+Looking at the compiled output, every JSX event handler you write is passed through `__event()`. This wrapper does two things: runs your handler, then queues one re-render as a microtask.
+
+```
+Click fires
+  → __event wrapper executes your onClick handler
+  → count++ mutates the closure variable
+  → wrapper schedules a re-render (microtask, batched)
+  → render closure runs
+  → update() patches the text node with the new count
+```
+
+This is why you never need to announce a state change for event-driven interactions — the wrapper takes care of it.
+
+---
+
+## `commit()` — Re-rendering Outside of Events
+
+The event wrapper only activates when a JSX handler runs. Some mutations happen in places the wrapper never touches: a `fetch` response arriving, a `setInterval` ticking, a WebSocket message coming in.
+
+```tsx
+function UserList() {
+  let users: { id: number; name: string }[] = [];
+
+  fetch('/api/users')
+    .then(res => res.json())
+    .then(data => {
+      users = data;
+      // No event wrapper ran — Auwla has no idea this happened.
+      // The DOM stays showing an empty list.
+    });
+
+  return () => (
+    <ul>{users.map((u) => <li key={u.id}>{u.name}</li>)}</ul>
+  );
+}
+```
+
+`commit()` is the manual equivalent of the event wrapper's re-render signal. Call it after any async mutation and Auwla schedules one re-render:
+
+```tsx
+import { commit } from 'auwla';
+
+function UserList() {
+  let users: { id: number; name: string }[] = [];
+
+  fetch('/api/users')
+    .then(res => res.json())
+    .then(data => {
+      users = data;
+      commit(); // Auwla now knows to re-render
+    });
+
+  return () => (
+    <ul>{users.map((u) => <li key={u.id}>{u.name}</li>)}</ul>
+  );
+}
+```
+
+Multiple `commit()` calls within the same microtask are batched — Auwla re-renders once regardless of how many times you call it.
+
+> [!TIP]
+> For async work with loading and error states, the `track()` API from `auwla/track` calls `commit()` for you automatically. See the **Async & Data** guide.
+
+---
+
+In the next section, **Component Lifecycle** covers what happens when a component unmounts, how to clean up timers and listeners, and how to scope re-renders to a single component with `component()`.

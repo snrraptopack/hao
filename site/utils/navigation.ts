@@ -13,32 +13,36 @@ export const docCategories: NavCategory[] = [
   {
     title: "Getting Started",
     links: [
-      { label: "Introduction", href: "/docs/:slug", slug: "introduction" },
-      { label: "Installation", href: "/docs/:slug", slug: "installation" },
-      { label: "Quick Start", href: "/docs/:slug", slug: "quick-start" }
+      { label: "Introduction",  href: "/docs/:slug", slug: "introduction" },
+      { label: "Installation",  href: "/docs/:slug", slug: "installation" },
+      { label: "Quick Start",   href: "/docs/:slug", slug: "quick-start" }
     ]
   },
   {
-    title: "Core Reactivity",
+    // "Core Concepts" starts with plain reactivity examples, then explains
+    // Auwla's two-phase model, and finally covers component lifecycle.
+    title: "Core Concepts",
     links: [
-      { label: "Setup vs Render", href: "/docs/:slug", slug: "setup-render" },
-      { label: "Closure State", href: "/docs/:slug", slug: "closure-state" },
-      { label: "Manual Commit", href: "/docs/:slug", slug: "manual-commit" }
+      { label: "State & Reactivity",   href: "/docs/:slug", slug: "state-reactivity" },
+      { label: "How Rendering Works",  href: "/docs/:slug", slug: "setup-render" },
+      { label: "Component Lifecycle",  href: "/docs/:slug", slug: "lifecycle" }
     ]
   },
   {
-    title: "Directives",
+    // "Guides" covers practical, task-oriented topics: forms, events, async.
+    // We deliberately avoid the word "Directives" — Auwla has no directive system.
+    title: "Guides",
     links: [
-      { label: "Two-Way Binding", href: "/docs/:slug", slug: "two-way-binding" },
-      { label: "Event Modifiers", href: "/docs/:slug", slug: "event-modifiers" },
-      { label: "Async Lifecycle", href: "/docs/:slug", slug: "async-lifecycle" }
+      { label: "Two-Way Binding",  href: "/docs/:slug", slug: "two-way-binding" },
+      { label: "Event Modifiers",  href: "/docs/:slug", slug: "event-modifiers" },
+      { label: "Async & Data",     href: "/docs/:slug", slug: "async-lifecycle" }
     ]
   },
   {
     title: "Routing & RPC",
     links: [
-      { label: "File-Based Router", href: "/docs/:slug", slug: "router" },
-      { label: "Server Functions", href: "/docs/:slug", slug: "server-functions" }
+      { label: "File-Based Router",   href: "/docs/:slug", slug: "router" },
+      { label: "Server Functions",    href: "/docs/:slug", slug: "server-functions" }
     ]
   }
 ];

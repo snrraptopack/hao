@@ -1,20 +1,15 @@
 # Manual Commit
 
-Auwla relies on an event-driven scheduler to update the DOM. While synchronous event handlers trigger automatic updates, asynchronous operations require you to explicitly commit changes.
+Event handlers in Auwla automatically schedule a re-render when they finish. But some updates happen outside of event handlers — in `fetch` callbacks, `setTimeout`, WebSocket messages, or any other asynchronous code. Those need an explicit `commit()` call.
 
----
-
-## Why is a Manual Commit Necessary?
-
-Auwla wraps all JSX event handlers (like `onClick`, `onInput`) in an invalidation wrapper. When the handler finishes execution, Auwla automatically queues a re-render.
-
-However, if you mutate variables inside an **asynchronous callback** (such as a `fetch` response, a `setTimeout`, or a `WebSocket` message handler), the callback runs outside the synchronous event context. Auwla cannot auto-detect these changes. You must trigger them manually using `commit()`.
+> [!NOTE]
+> If you are using `track()` or `event.track()` for async work, you do not need `commit()` — track handles that automatically. This page covers the lower-level escape hatch for cases where you are doing raw async work.
 
 ---
 
 ## Using `commit()`
 
-Here is how you use `commit()` to update the UI after fetching data:
+Call `commit()` after you have mutated state in an async callback:
 
 ```tsx
 import { commit } from 'auwla';
@@ -28,21 +23,20 @@ function UserList() {
   let users: User[] = [];
   let loading = true;
 
-  // Asynchronous fetch trigger in setup
   fetch('/api/users')
     .then(res => res.json())
     .then(data => {
-      users = data; // Mutate state
+      users = data;  // mutate state
     })
     .finally(() => {
-      loading = false; // Mutate state
-      commit(); // 👈 Explicitly trigger a re-render
+      loading = false;
+      commit();      // tell Auwla to re-render
     });
 
   return () => (
     <div>
       {loading ? (
-        <p>Loading users...</p>
+        <p>Loading...</p>
       ) : (
         <ul>
           {users.map(user => (
@@ -55,37 +49,40 @@ function UserList() {
 }
 ```
 
+Multiple `commit()` calls within the same microtask are **batched** — Auwla will only re-render once regardless of how many times you call it.
+
 ---
 
-## Component-Scoped Commits with `component()`
+## Scoped Commits With `commit(handle)`
 
-By default, calling `commit()` without arguments invalidates the entire application root. While this is fast, large applications can be optimized by targeting updates to specific components.
-
-By calling `component()` in the setup scope, you get a reference to the current component instance. You can pass this reference to `commit(self)` to only re-render that specific component and its children:
+Pass a component handle to `commit()` to re-render only that component's subtree instead of the whole app. This is covered fully in the [Component Lifecycle](lifecycle) page, but the short version is:
 
 ```tsx
-import { component, commit } from 'auwla';
+import { component, commit, cleanup } from 'auwla';
 
 function Timer() {
-  const self = component(); // 👈 Obtain component instance
+  const self = component();  // get a handle to this component in setup
   let seconds = 0;
 
-  setInterval(() => {
+  const id = setInterval(() => {
     seconds++;
-    commit(self); // 👈 Re-renders ONLY this Timer component
+    commit(self);  // only this Timer re-renders
   }, 1000);
 
-  return () => (
-    <div class="timer">
-      Seconds elapsed: {seconds}
-    </div>
-  );
+  cleanup(() => clearInterval(id));
+
+  return () => <p>Elapsed: {seconds}s</p>;
 }
 ```
 
-> [!IMPORTANT]
-> Always call `component()` synchronously at the top-level of your component's setup function. Do not call it inside callbacks or inside the returned render closure.
-
 ---
 
-In the next section, we will see how to simplify input handling with **Two-Way Binding**.
+## When to Use What
+
+| Scenario | Solution |
+|---|---|
+| Click / input / form submit | Nothing — re-render is automatic |
+| `fetch` or `setTimeout` in setup | `commit()` after mutation |
+| High-frequency timer (`setInterval`) | `commit(self)` — scope it to the component |
+| Async data with loading / error states | `track()` from `auwla/track` — no manual commit needed |
+| Search / debounced input | `event.track()` from `auwla/events` — handles cancellation too |
