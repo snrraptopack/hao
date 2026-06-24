@@ -21,7 +21,7 @@ import {
   rowDependencies,
   stringLiteral,
   unwrapJsxExpression,
-  unwrapJsxReturn,
+  unwrapJsxReturnWithStatements,
   unwrapMapCall,
   findComponentDefinition,
   isInlinableComponent,
@@ -423,7 +423,8 @@ export function compileRowBlock(
   indexName: string,
   keyText: string,
   derivedCtx: DerivedContext | null = null,
-): { block: string; deps: string[] } | null {
+  preUpdateStatements: readonly string[] = [],
+): { block: string; deps: string[]; forceUpdate?: boolean } | null {
   const ctx: CompileContext = {
     source,
     elementId: 0,
@@ -450,11 +451,14 @@ export function compileRowBlock(
   const init = patches.length
     ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
+  const preUpdateLines = preUpdateStatements.map((line) => `              ${line}`).join('\n');
   const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
   return {
-    deps: rowDependencies(ctx.deps, itemName),
+    deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
+    forceUpdate: preUpdateStatements.length > 0,
     block: `__createBlock(() => {
+            ${preUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.setup, patches).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             ${ctx.setup.join('\n            ')}
@@ -463,7 +467,7 @@ ${init ? `\n${init}\n` : ''}
             return {
               node: ${result.root},
               update(${itemName}, ${indexName}) {
-${update}
+${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}
               },
             };
           })`,
@@ -486,16 +490,17 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
   const indexParam = callback.parameters[1];
   const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
 
-  const row = ts.isBlock(callback.body)
-    ? unwrapJsxReturn(callback.body)
-    : unwrapJsxExpression(callback.body);
-  if (!row) return false;
+  const unwrapped = ts.isBlock(callback.body)
+    ? unwrapJsxReturnWithStatements(ctx.source, callback.body)
+    : { row: unwrapJsxExpression(callback.body), leadingStatements: [] as string[] };
+  if (!unwrapped || !unwrapped.row) return false;
+  const { row, leadingStatements } = unwrapped;
 
   const key = keyAttribute(row);
   const isUnkeyed = !key;
   const keyText = key ? expressionText(ctx.source, key) : indexName;
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements);
   if (!rowBlock) return false;
 
   const mapVar = `map${ctx.mapId++}`;
@@ -503,11 +508,13 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
   const items = expressionText(ctx.source, expression.expression.expression);
   const itemName = itemParam.name.text;
   const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
-  const deps = rowDeps.length === 0
-    ? 'null'
-    : rowDeps.length === 1
-      ? rowDeps[0]!
-      : `[${rowDeps.join(', ')}]`;
+  const deps = rowBlock.forceUpdate
+    ? 'undefined'
+    : rowDeps.length === 0
+      ? `(${itemName}) => null`
+      : rowDeps.length === 1
+        ? `(${itemName}) => ${rowDeps[0]!}`
+        : `(${itemName}) => [${rowDeps.join(', ')}]`;
 
   const keyOf = isUnkeyed
     ? `(${itemName}, ${indexName}) => ${indexName}`
@@ -523,7 +530,7 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
               ${keyOf},
               (${itemName}, ${indexName}) => ${rowBlock.block},
               (block, ${itemName}, index) => block.update(${itemName}, index),
-              (${itemName}) => ${deps},
+              ${deps},
               false,
             );
             ${childVar} = __setChild(${parentVar}, ${childVar}, ${mapVar}.node);
@@ -551,27 +558,30 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   const indexParam = callback.parameters[1];
   const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
 
-  const row = ts.isBlock(callback.body)
-    ? unwrapJsxReturn(callback.body)
-    : unwrapJsxExpression(callback.body);
-  if (!row) return null;
+  const unwrapped = ts.isBlock(callback.body)
+    ? unwrapJsxReturnWithStatements(ctx.source, callback.body)
+    : { row: unwrapJsxExpression(callback.body), leadingStatements: [] as string[] };
+  if (!unwrapped || !unwrapped.row) return null;
+  const { row, leadingStatements } = unwrapped;
 
   const key = keyAttribute(row);
   const isUnkeyed = !key;
   const keyText = key ? expressionText(ctx.source, key) : indexName;
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements);
   if (!rowBlock) return null;
 
   const mapVar = `map${ctx.mapId++}`;
   const items = expressionText(ctx.source, expression.expression.expression);
   const itemName = itemParam.name.text;
   const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
-  const deps = rowDeps.length === 0
-    ? 'null'
-    : rowDeps.length === 1
-      ? rowDeps[0]!
-      : `[${rowDeps.join(', ')}]`;
+  const deps = rowBlock.forceUpdate
+    ? 'undefined'
+    : rowDeps.length === 0
+      ? `(${itemName}) => null`
+      : rowDeps.length === 1
+        ? `(${itemName}) => ${rowDeps[0]!}`
+        : `(${itemName}) => [${rowDeps.join(', ')}]`;
 
   const keyOf = isUnkeyed
     ? `(${itemName}, ${indexName}) => ${indexName}`
@@ -582,7 +592,7 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
           ${keyOf},
           (${itemName}, ${indexName}) => ${rowBlock.block},
           (block, ${itemName}, index) => block.update(${itemName}, index),
-          (${itemName}) => ${deps},
+          ${deps},
           false,
         );`);
   ctx.patches.push({ code: `${mapVar}.update(${items});`, deps: [items] });

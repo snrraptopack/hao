@@ -202,7 +202,8 @@ export function compileTemplateRowBlock(
   keyText: string,
   derivedCtx: DerivedContext | null = null,
   ssr = false,
-): { block: string; deps: string[] } | null {
+  preUpdateStatements: readonly string[] = [],
+): { block: string; deps: string[]; forceUpdate?: boolean } | null {
   const ctx: TemplateContext = {
     source,
     itemName,
@@ -230,11 +231,14 @@ export function compileTemplateRowBlock(
   const init = patches.length
     ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
+  const preUpdateLines = preUpdateStatements.map((line) => `              ${line}`).join('\n');
   const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
   return {
-    deps: rowDependencies(ctx.deps, itemName),
+    deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
+    forceUpdate: preUpdateStatements.length > 0,
     block: `__createBlock(() => {
+            ${preUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.elementSetup, patches).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             const el0 = __cloneTemplate(${stringLiteral(html)});
@@ -245,7 +249,7 @@ ${init ? `\n${init}\n` : ''}
             return {
               node: el0,
               update(${itemName}, ${indexName}) {
-${update}
+${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}
               },
             };
           })`,

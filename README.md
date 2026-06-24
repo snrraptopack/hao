@@ -650,7 +650,7 @@ Export an async `routed` function from a page file. The router runs it on naviga
 
 ```tsx
 import { getRouted, type RouteContext } from 'auwla/router'
-import { track } from 'auwla/events'
+import { track } from 'auwla/track'
 
 export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
   return await track.get('posts.getPost', { signal })
@@ -714,7 +714,7 @@ export const createPost = remote.post(
 Use `track.get()` / `track.post()` with the generated key:
 
 ```tsx
-import { track } from 'auwla/events'
+import { track } from 'auwla/track'
 
 const posts = track.get('posts.getPosts')
 
@@ -733,7 +733,7 @@ The returned `TrackHandle` is the same reactive primitive used for local async w
 Bind a form directly to a POST remote with `track.form()`:
 
 ```tsx
-import { track } from 'auwla/events'
+import { track } from 'auwla/track'
 import type { StandardSchema } from 'auwla/server'
 
 const schema: StandardSchema = {
@@ -771,24 +771,25 @@ You own the server. Mount the adapter at `/_auwla/rpc`:
 
 ```ts
 // Bun
-import { auwlaRpc } from 'auwla/adapters/bun'
-Bun.serve({ fetch: auwlaRpc() })
+import { createBunAdapter } from 'auwla/adapters/bun'
+Bun.serve({ fetch: createBunAdapter() })
 ```
 
 ```ts
 // Hono
 import { Hono } from 'hono'
-import { auwlaRpc } from 'auwla/adapters/hono'
+import { createHonoAdapter } from 'auwla/adapters/hono'
 const app = new Hono()
-app.use('/_auwla/*', auwlaRpc())
+app.use('/_auwla/*', createHonoAdapter())
 ```
 
 ```ts
 // Express
 import express from 'express'
-import { auwlaRpc } from 'auwla/adapters/express'
+// Express adapter is deferred; use createFetchAdapter or createHonoAdapter for now
+import { createFetchAdapter } from 'auwla/adapters/fetch'
 const app = express()
-app.use('/_auwla', auwlaRpc())
+app.use('/_auwla', createFetchAdapter())
 ```
 
 During `vite dev`, `auwlaRouter()` handles the RPC endpoint automatically — no separate server is needed in development.
@@ -797,9 +798,9 @@ During `vite dev`, `auwlaRouter()` handles the RPC endpoint automatically — no
 
 ## Codebase Docs
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) explains the runtime/compiler module boundaries and render flow.
 - [COMPILER.md](./COMPILER.md) describes the compiler strategy and generated helper targets.
 - [ROUTER.md](./ROUTER.md) is the full router reference.
-- [ROADMAP.md](./ROADMAP.md) tracks implementation priorities.
+- [SSR_PLAN.md](./SSR_PLAN.md) tracks the SSR implementation plan.
+- [ssr.md](./ssr.md) outlines the SSR architecture proposal.
 
 The experimental compiler transform is available from `auwla/compiler` for tooling. Runtime apps do not need to import it.

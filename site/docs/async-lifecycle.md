@@ -80,7 +80,7 @@ When you pass an async function to `track`, Auwla calls it immediately and injec
 If a new track request with the **same identifier** is started while the previous run is still in-flight, Auwla automatically aborts the active signal. This is perfect for search auto-completes:
 
 ```tsx
-import { track } from 'auwla/track';
+import { track, pending } from 'auwla/track';
 import { event } from 'auwla/events';
 
 function PostSearch() {
@@ -100,7 +100,10 @@ function PostSearch() {
       <input
         type="text"
         bind={query}
-        onInput={event.debounce(300)(performSearch)}
+        onInput={event.debounce(300).handler((e) => {
+          query = (e.target as HTMLInputElement).value;
+          performSearch();
+        })}
         placeholder="Type to search..."
       />
 

@@ -112,7 +112,7 @@
 
     "@types/prismjs": ["@types/prismjs@1.26.6", "", {}, "sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw=="],
 
-    "auwla": ["auwla@0.3.14", "", {}, "sha512-FL2+nlBiLJx/eHN2BTCJeoY2VmFg3JeSTNbE2RyMXzpXLUP8RXDdd9cZH4Nz9qHzL217qLayFxfuoaTxIQAMGA=="],
+    "auwla": ["auwla@0.3.15", "", {}, "sha512-tj5fyPvI3s3F0y+di7Bo2kaCn8zYW5NOvhU2YAaPJCOPu1A/0J9pnPLgLdoohJerRh89Rr2W3Dd3IYk9SpGa4Q=="],
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 

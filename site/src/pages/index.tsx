@@ -6,16 +6,6 @@ import 'prismjs/components/prism-jsx'
 import 'prismjs/components/prism-tsx'
 import 'prismjs/components/prism-typescript'
 
-// ─── Reusable Syntax Highlighting Code Block ────────────────────────────────
-function CodeBlock(props: { code: string }) {
-  const html = Prism.highlight(props.code, Prism.languages.tsx!, 'tsx');
-  return () => (
-    <pre class="font-mono text-xs text-slate-300 overflow-x-auto leading-relaxed bg-[#0c0c0f] p-6 w-full h-full m-0 border-0 rounded-none">
-      <code ref={(el) => { el.innerHTML = html; }} />
-    </pre>
-  );
-}
-
 // ─── Interactive Showcase Tabs Wrapper ──────────────────────────────────────
 function Showcase(props: {
   title: string;
@@ -62,10 +52,13 @@ function Showcase(props: {
         {/* Scrollable Highlighted Code — scrollbar hidden */}
         <div class="flex-grow min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <pre class="font-mono text-sm text-[#e6edf3] overflow-x-auto leading-relaxed bg-[#151821] p-6 w-full h-full m-0 border-0 rounded-none">
-            <code ref={(el) => {
-              codeEl = el;
-              el.innerHTML = Prism.highlight(activeTab.code, Prism.languages.tsx!, 'tsx');
-            }} />
+            <code
+              key={activeTab.name}
+              ref={(el) => {
+                codeEl = el;
+                el.innerHTML = Prism.highlight(activeTab.code, Prism.languages.tsx!, 'tsx');
+              }}
+            />
           </pre>
         </div>
       </div>
@@ -210,6 +203,13 @@ export default function Home() {
   let copied = false;
   const self = component();
 
+  const grid = [
+    { title: "Direct compilation", desc: "Transforms TSX into optimized DOM patches, skipping Virtual DOM trees entirely." },
+    { title: "No hooks or signals", desc: "No complex state wrappers. State is held in plain variables inside component closures." },
+    { title: "Native DOM speed", desc: "Updates only what changed using direct templates and memoized element reuse." },
+    { title: "Isomorphic by design", desc: "Built-in server rendering and type-safe RPC client hydration in one workspace." }
+    ]
+
   function copyInstall() {
     navigator.clipboard.writeText('npm install auwla');
     copied = true;
@@ -325,12 +325,7 @@ export function draw(e: PointerEvent, color: string, width: number) {
 
         {/* Key Features Grid */}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-20 border-t border-slate-100 pt-16">
-          {[
-            { title: "Direct compilation", desc: "Transforms TSX into optimized DOM patches, skipping Virtual DOM trees entirely." },
-            { title: "No hooks or signals", desc: "No complex state wrappers. State is held in plain variables inside component closures." },
-            { title: "Native DOM speed", desc: "Updates only what changed using direct templates and memoized element reuse." },
-            { title: "Isomorphic by design", desc: "Built-in server rendering and type-safe RPC client hydration in one workspace." }
-          ].map((val) => (
+          {grid.map((val) => (
             <div key={val.title} class="space-y-2">
               <h4 class="font-semibold text-slate-900 text-base font-sans flex items-center gap-2">
                 <span class="text-[#ff3e00] font-bold">✓</span> {val.title}

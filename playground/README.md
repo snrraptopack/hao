@@ -5,13 +5,17 @@ A minimal fullstack starter using file-based routing, server functions, and `tra
 ## Run
 
 ```bash
-# From the repo root — one dev server handles Vite + RPC
+# Development — Vite + RPC handled by the Auwla plugin
 bun run dev
 
-# Production build + server
+# Production build (client + server)
 bun run build
+
+# Production server
 bun run serve
 ```
+
+> These commands run from the playground's own `package.json`. If you are in the repo root, the same script names are available via workspace scripts.
 
 ## What's inside
 

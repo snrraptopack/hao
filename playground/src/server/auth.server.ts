@@ -29,8 +29,6 @@ const loginSchema = {
   },
 }
 
-console.log('DEBUG: validate(loginSchema) returned:', typeof validate(loginSchema), validate(loginSchema))
-
 /**
  * Signs in a demo user and sets the session cookie.
  * In a real app this would verify a password hash.

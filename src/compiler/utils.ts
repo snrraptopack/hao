@@ -227,6 +227,29 @@ export function unwrapJsxReturn(body: ts.Block): ts.JsxElement | ts.JsxSelfClosi
 }
 
 /**
+ * Extract a JSX return statement and any leading statements from a block body.
+ * Used for map callbacks that may declare intermediate variables before returning JSX.
+ */
+export function unwrapJsxReturnWithStatements(
+  source: ts.SourceFile,
+  body: ts.Block,
+): { row: ts.JsxElement | ts.JsxSelfClosingElement; leadingStatements: string[] } | null {
+  const leadingStatements: string[] = [];
+  let row: ts.JsxElement | ts.JsxSelfClosingElement | null = null;
+  for (const statement of body.statements) {
+    if (ts.isReturnStatement(statement)) {
+      const expression = statement.expression;
+      if (expression) {
+        row = unwrapJsxExpression(expression);
+      }
+      break;
+    }
+    leadingStatements.push(statement.getText(source));
+  }
+  return row ? { row, leadingStatements } : null;
+}
+
+/**
  * Extract JSX from a component that returns a render closure.
  *
  * Handles both `return () => <jsx>` and `return () => { return <jsx>; }`.

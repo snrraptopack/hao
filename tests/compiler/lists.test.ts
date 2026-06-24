@@ -191,6 +191,45 @@ describe('keyed list compilation', () => {
     expect(root.querySelector('li')!.textContent).toBe('A');
   });
 
+  test('preserves leading statements in block-bodied map callbacks', async () => {
+    const source = `
+      function List() {
+        let items = [
+          { id: 1, name: 'Alpha' },
+          { id: 2, name: 'Beta' },
+        ];
+        return () => (
+          <div>
+            <button onClick={() => { items = [{ id: 2, name: 'Gamma' }]; }}>Update</button>
+            <ul>
+              {items.map((item) => {
+                const prefix = item.id === 1 ? 'first' : 'other';
+                return <li key={item.id}>{prefix}: {item.name}</li>;
+              })}
+            </ul>
+          </div>
+        );
+      }
+      exports.List = List;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__keyedMap');
+    expect(compiled).toContain('const prefix = item.id === 1 ? \'first\' : \'other\';');
+
+    const { List } = evaluateCompiled(compiled) as { List: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(List as any));
+
+    expect(root.querySelector('li')!.textContent).toBe('first: Alpha');
+
+    const button = root.querySelector('button') as HTMLButtonElement;
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('li')!.textContent).toBe('other: Gamma');
+  });
+
   test('compiles function-expression map callbacks', () => {
     const source = `
       function List() {

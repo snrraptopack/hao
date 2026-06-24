@@ -29,10 +29,10 @@ export const createPost = remote.post(async (ctx) => {
 
 ## Calling Server Functions from the Client
 
-You call server functions using Auwla's `track` events API, specifying the generated key formatted as `fileName.exportName`:
+You call server functions using Auwla's `track` API from `'auwla/track'`, specifying the generated key formatted as `fileName.exportName`:
 
 ```tsx
-import { track } from 'auwla/events';
+import { track } from 'auwla/track';
 
 // 1. Establish track binding
 const posts = track.get('posts.getPosts');
@@ -89,7 +89,7 @@ export const createPost = remote.post(
 Auwla makes form handling clean by allowing you to bind forms directly to POST server functions using `track.form`. This automatically intercepts form submissions, performs validation, calls the RPC endpoint, and tracks loading and error states:
 
 ```tsx
-import { track } from 'auwla/events';
+import { track } from 'auwla/track';
 
 function NewPostForm() {
   const create = track.form('posts.createPost');
@@ -103,7 +103,7 @@ function NewPostForm() {
         {create.pending ? 'Saving...' : 'Save Post'}
       </button>
 
-      {create.error && <p class="error">{create.error.message}</p>}
+      {create.rejected && <p class="error">{String(create.reason)}</p>}
       {create.resolved && <p class="success">Saved post successfully!</p>}
     </form>
   );

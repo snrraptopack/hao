@@ -1,6 +1,7 @@
 // Link.tsx
 import type { MemoChild } from "auwla"
 import { isActive, isExactActive } from "./Router"
+import { navigate, supportsNavigationAPI } from "./navigation"
 import { prefetchRoute } from "./prefetch"
 import { pathFor } from "./routes"
 import type { ValidRoutePath, PathParams } from "./types"
@@ -82,6 +83,24 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
         href={actualUrl}
         class={classes}
         style={props.style}
+        onClick={(e: MouseEvent) => {
+          // The Navigation API intercepts link clicks before this handler runs,
+          // so we only need to handle browsers without it.
+          if (supportsNavigationAPI()) return
+          // Let the browser handle modified clicks (new tab, download, etc.).
+          if (
+            e.button !== 0 ||
+            e.ctrlKey ||
+            e.metaKey ||
+            e.shiftKey ||
+            e.altKey ||
+            e.defaultPrevented
+          ) {
+            return
+          }
+          e.preventDefault()
+          navigate(actualUrl)
+        }}
         ref={(el) => {
           // Attach mouseenter directly to the DOM node to bypass Auwla's automatic
           // render cycle wrapper. This prevents the Link from unnecessarily re-rendering

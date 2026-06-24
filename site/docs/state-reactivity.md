@@ -130,7 +130,7 @@ There are two approaches depending on how automatic you want the updates to be.
 
 ```ts
 // store/theme.ts
-import { reactive } from 'auwla/reactive';
+import { reactive } from 'auwla';
 
 // Export the cell directly — callers call .get() in render (subscribes them)
 // and .set() to update (invalidates all subscribers).

@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "description": "A tiny typed DOM runtime with event-driven rerendering and memoized DOM reuse",
   "type": "module",
   "main": "./dist/auwla.js",

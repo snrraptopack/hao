@@ -19,30 +19,36 @@ export const docCategories: NavCategory[] = [
     ]
   },
   {
-    // "Core Concepts" starts with plain reactivity examples, then explains
-    // Auwla's two-phase model, and finally covers component lifecycle.
     title: "Core Concepts",
     links: [
       { label: "State & Reactivity",   href: "/docs/:slug", slug: "state-reactivity" },
       { label: "How Rendering Works",  href: "/docs/:slug", slug: "setup-render" },
-      { label: "Component Lifecycle",  href: "/docs/:slug", slug: "lifecycle" }
+      { label: "Component Lifecycle",  href: "/docs/:slug", slug: "lifecycle" },
+      { label: "Compiler",             href: "/docs/:slug", slug: "compiler" }
     ]
   },
   {
-    // "Guides" covers practical, task-oriented topics: forms, events, async.
-    // We deliberately avoid the word "Directives" — Auwla has no directive system.
     title: "Guides",
     links: [
       { label: "Two-Way Binding",  href: "/docs/:slug", slug: "two-way-binding" },
       { label: "Event Modifiers",  href: "/docs/:slug", slug: "event-modifiers" },
-      { label: "Async & Data",     href: "/docs/:slug", slug: "async-lifecycle" }
+      { label: "Async & Data",     href: "/docs/:slug", slug: "async-lifecycle" },
+      { label: "CSS & Styling",    href: "/docs/:slug", slug: "css" }
     ]
   },
   {
     title: "Routing & RPC",
     links: [
-      { label: "File-Based Router",   href: "/docs/:slug", slug: "router" },
-      { label: "Server Functions",    href: "/docs/:slug", slug: "server-functions" }
+      { label: "File-Based Router", href: "/docs/:slug", slug: "router" },
+      { label: "Router API",        href: "/docs/:slug", slug: "router-api" },
+      { label: "Server Functions",  href: "/docs/:slug", slug: "server-functions" },
+      { label: "SSR",               href: "/docs/:slug", slug: "ssr" }
+    ]
+  },
+  {
+    title: "Reference",
+    links: [
+      { label: "API Reference",    href: "/docs/:slug", slug: "api-reference" }
     ]
   }
 ];

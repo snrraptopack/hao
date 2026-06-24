@@ -59,7 +59,7 @@ export function isPopNavigation(): boolean {
 // Capability detection
 // ---------------------------------------------------------------------------
 
-function supportsNavigationAPI(): boolean {
+export function supportsNavigationAPI(): boolean {
   return typeof window !== "undefined" && "navigation" in window
 }
 
