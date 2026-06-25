@@ -18,6 +18,10 @@ export type DerivedContext = {
   locals: Set<string>;
   /** Variables that are pure derived values (init expression + never reassigned). */
   derived: Map<string, string>;
+  /** Derived values whose init contains a method call and must recompute on any render. */
+  volatile: Set<string>;
+  /** When compiling a keyed map row, maps the item parameter to the source array name. */
+  mapItemSource?: { itemName: string; sourceName: string };
   /** Expand derived references in an expression string. */
   expand(expression: string): string;
   /** Return local source variables an expression depends on, expanding derived aliases. */
@@ -59,11 +63,27 @@ export function extractIdentifiers(code: string): string[] {
   return ids;
 }
 
-/** True if the expression looks side-effect free (no calls, no `new`). */
+/** Known pure Array/String/Object methods that can appear in derived expressions. */
+const PURE_METHODS = new Set([
+  // Array
+  'filter', 'map', 'slice', 'concat', 'join', 'find', 'findIndex', 'some', 'every',
+  'includes', 'indexOf', 'lastIndexOf', 'at', 'flat', 'flatMap', 'toReversed',
+  'toSorted', 'toSpliced', 'reduce', 'reduceRight', 'entries', 'keys', 'values',
+  'isArray',
+  // String
+  'slice', 'substring', 'substr', 'concat', 'split', 'trim', 'toLowerCase',
+  'toUpperCase', 'replace', 'replaceAll', 'match', 'matchAll', 'search',
+  'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'padStart',
+  'padEnd', 'repeat', 'charAt', 'charCodeAt', 'at', 'normalize', 'toString',
+  'valueOf',
+  // Object
+  'keys', 'values', 'entries', 'assign', 'freeze', 'seal',
+]);
+
+/** True if the expression looks side-effect free. */
 function looksPure(expression: string): boolean {
   const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-  // Reject function calls, new, template literals with interpolation
-  if (/\b\w+\s*\(/.test(withoutStrings)) return false;
+  // Reject `new` and template literals with interpolation
   if (/\bnew\s+/.test(withoutStrings)) return false;
   if (/`[^`]*\${/.test(expression)) return false;
   // Reject optional chaining (?.) — the value depends on runtime nullability
@@ -72,10 +92,35 @@ function looksPure(expression: string): boolean {
   // Reject nullish coalescing (??) for the same reason — it pairs with ?. and
   // implies the left operand may be null/undefined at runtime.
   if (/\?\?/.test(withoutStrings)) return false;
-  // Reject assignments (but allow == / === / != / !==)
-  const hasAssignment = /(?<![=!])=(?![=])/.test(withoutStrings);
+  // Reject assignments (but allow == / === / != / !== and arrow functions =>)
+  const withoutArrows = withoutStrings.replace(/=>/g, '  ');
+  const hasAssignment = /(?<![=!])=(?![=])/.test(withoutArrows);
   if (hasAssignment) return false;
+
+  // Allow known pure method calls like todos.filter(...); reject standalone
+  // function calls like foo() whose side effects we cannot verify.
+  const callPattern = /\b([A-Za-z_$][\w$]*)\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = callPattern.exec(withoutStrings)) !== null) {
+    const method = m[1]!;
+    const beforeExpr = withoutStrings.slice(0, m.index);
+    const isMethod = /\.\s*$/.test(beforeExpr);
+    if (!isMethod || !PURE_METHODS.has(method)) return false;
+  }
+
   return true;
+}
+
+/** True if the expression contains a method call like todos.filter(...). */
+function hasMethodCall(expression: string): boolean {
+  const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
+  const callPattern = /\b([A-Za-z_$][\w$]*)\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = callPattern.exec(withoutStrings)) !== null) {
+    const beforeExpr = withoutStrings.slice(0, m.index);
+    if (/\.\s*$/.test(beforeExpr)) return true;
+  }
+  return false;
 }
 
 /** Build a derived-value context from the setup statements of a component. */
@@ -155,6 +200,7 @@ export function buildDerivedContext(
   // - References at least one other local variable
   // - Never reassigned
   const derived = new Map<string, string>();
+  const volatile = new Set<string>();
   const localNames = new Set(allDecls.keys());
 
   for (const [name, init] of allDecls) {
@@ -164,6 +210,9 @@ export function buildDerivedContext(
     const localRefs = refs.filter((r) => localNames.has(r) && r !== name);
     if (localRefs.length === 0) continue;
     derived.set(name, init);
+    if (hasMethodCall(init)) {
+      volatile.add(name);
+    }
   }
 
   // Transitive expansion: keep resolving until stable
@@ -204,6 +253,10 @@ export function buildDerivedContext(
         if (!localNames.has(id)) continue;
         if (derived.has(id)) {
           if (seen.has(id)) continue;
+          // Volatile derived values (e.g. array method calls) cannot be tracked
+          // to a single source because element/property mutations won't dirty
+          // the parent variable. They recompute on every render instead.
+          if (volatile.has(id)) continue;
           seen.add(id);
           visit(derived.get(id)!, seen);
         } else {
@@ -220,7 +273,7 @@ export function buildDerivedContext(
     return !ids.some((id) => derived.has(id));
   }
 
-  return { locals: localNames, derived, expand, sourceDeps, isPure };
+  return { locals: localNames, derived, volatile, expand, sourceDeps, isPure };
 }
 
 /** True if a handler is too complex or mutates through a property path. */

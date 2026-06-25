@@ -424,7 +424,11 @@ export function compileRowBlock(
   keyText: string,
   derivedCtx: DerivedContext | null = null,
   preUpdateStatements: readonly string[] = [],
+  sourceArrayName?: string,
 ): { block: string; deps: string[]; forceUpdate?: boolean } | null {
+  const rowDerivedCtx = derivedCtx && sourceArrayName
+    ? { ...derivedCtx, mapItemSource: { itemName, sourceName: sourceArrayName } }
+    : derivedCtx;
   const ctx: CompileContext = {
     source,
     elementId: 0,
@@ -433,7 +437,7 @@ export function compileRowBlock(
     patches: [],
     deps: [],
     setup: [],
-    derivedCtx,
+    derivedCtx: rowDerivedCtx,
   };
   const result = compileJsxNode(ctx, row);
   if (!result) return null;
@@ -499,13 +503,13 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
   const key = keyAttribute(row);
   const isUnkeyed = !key;
   const keyText = key ? expressionText(ctx.source, key) : indexName;
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements);
+  const items = expressionText(ctx.source, expression.expression.expression);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements, items);
   if (!rowBlock) return false;
 
   const mapVar = `map${ctx.mapId++}`;
   const childVar = `child${ctx.textId++}`;
-  const items = expressionText(ctx.source, expression.expression.expression);
   const itemName = itemParam.name.text;
   const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
   const deps = rowBlock.forceUpdate
@@ -567,12 +571,12 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   const key = keyAttribute(row);
   const isUnkeyed = !key;
   const keyText = key ? expressionText(ctx.source, key) : indexName;
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements);
+  const items = expressionText(ctx.source, expression.expression.expression);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items)
+    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements, items);
   if (!rowBlock) return null;
 
   const mapVar = `map${ctx.mapId++}`;
-  const items = expressionText(ctx.source, expression.expression.expression);
   const itemName = itemParam.name.text;
   const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
   const deps = rowBlock.forceUpdate

@@ -85,11 +85,16 @@ export function renderUpdateBody(
   }
 
   const groups = new Map<string, DynamicPatch[]>();
+  const alwaysPatches: DynamicPatch[] = [];
   const fullPatches: DynamicPatch[] = [];
 
   for (const patch of patches) {
     const deps = patchDeps(patch, derivedCtx);
-    if (deps.length === 1) {
+    if (deps.length === 0) {
+      // No trackable source dependencies (e.g. volatile derived values like
+      // array method calls). Recompute on every render pass.
+      alwaysPatches.push(patch);
+    } else if (deps.length === 1) {
       const dep = deps[0]!;
       const bucket = groups.get(dep) ?? [];
       bucket.push(patch);
@@ -121,6 +126,12 @@ export function renderUpdateBody(
       lines.push(`${indent}  ${patch.code}`);
     }
     lines.push(`${indent}}`);
+  }
+
+  if (alwaysPatches.length > 0) {
+    for (const patch of alwaysPatches) {
+      lines.push(`${indent}${patch.code}`);
+    }
   }
 
   lines.push(`${indent}__dirty.clear();`);

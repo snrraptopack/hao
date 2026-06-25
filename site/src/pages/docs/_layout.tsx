@@ -5,6 +5,20 @@ import { docCategories } from '../../../utils/navigation'
 export default function DocsLayout(Child: RouteComponent) {
   const { slug } = getParams('/docs/:slug')
 
+  const flat = docCategories.flatMap((item) => {
+    return item.links.map(it=> it.slug)
+  })
+  // const currentRoutIndex = flat.indexOf(slug) ?? 0
+  // const len = flat.length
+
+  // event.up.global.handler(() => {
+  //   navigate("/docs/:slug", { slug: flat[(currentRoutIndex - 1 + len) % len] ?? ""})
+  // })
+
+  // event.down.enter.global.handler(() => {
+  //   navigate("/docs/:slug",{slug:flat[(currentRoutIndex + 1) % len] ?? slug})
+  // })
+
   return () => (
     <div class="flex-grow bg-[#fbfbfb] w-full">
       <div class="mx-auto max-w-[1400px] w-full px-6 flex">

@@ -203,7 +203,11 @@ export function compileTemplateRowBlock(
   derivedCtx: DerivedContext | null = null,
   ssr = false,
   preUpdateStatements: readonly string[] = [],
+  sourceArrayName?: string,
 ): { block: string; deps: string[]; forceUpdate?: boolean } | null {
+  const rowDerivedCtx = derivedCtx && sourceArrayName
+    ? { ...derivedCtx, mapItemSource: { itemName, sourceName: sourceArrayName } }
+    : derivedCtx;
   const ctx: TemplateContext = {
     source,
     itemName,
@@ -215,7 +219,7 @@ export function compileTemplateRowBlock(
     patches: [],
     deps: [],
     elementVars: new Map(),
-    derivedCtx,
+    derivedCtx: rowDerivedCtx,
     ssr,
   };
 

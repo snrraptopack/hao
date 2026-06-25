@@ -148,6 +148,14 @@ function propertySourceName(node: ts.Expression, derivedCtx: DerivedContext | nu
   }
 
   if (!ts.isIdentifier(root)) return null;
+
+  // Inside a keyed map row, mutating an item property (e.g. todo.done) should
+  // dirty the source array (e.g. todos) so the parent component re-renders and
+  // any derived values that depend on the array recompute.
+  if (derivedCtx?.mapItemSource && root.text === derivedCtx.mapItemSource.itemName) {
+    return derivedCtx.mapItemSource.sourceName;
+  }
+
   if (derivedCtx?.locals.has(root.text)) return null;
   return `${root.text}.${firstProp}`;
 }

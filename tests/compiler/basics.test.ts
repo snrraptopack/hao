@@ -239,4 +239,47 @@ describe('basic render closure compilation', () => {
 
     expect(root.textContent).toBe('On');
   });
+
+  test('recomputes derived arrays filtered from local state', async () => {
+    const source = `
+      function TodoApp() {
+        const todos = [{ id: 1, text: 'Learn Auwla', done: false }];
+        const pendingTodos = todos.filter(it => it.done === false);
+        return () => (
+          <div>
+            {pendingTodos.length === 0 && <p>All done</p>}
+            <ul>
+              {todos.map((todo) => (
+                <li key={todo.id}>
+                  <input
+                    type="checkbox"
+                    checked={todo.done}
+                    onChange={() => { todo.done = !todo.done; }}
+                  />
+                  <span>{todo.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+      exports.TodoApp = TodoApp;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('todos.filter');
+
+    const { TodoApp } = evaluateCompiled(compiled) as { TodoApp: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(TodoApp as any));
+
+    expect(root.querySelector('p')).toBeNull();
+
+    const checkbox = root.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('p')!.textContent).toBe('All done');
+  });
 });
