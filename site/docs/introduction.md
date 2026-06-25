@@ -31,4 +31,4 @@ function Counter() {
 createMemoApp(document.getElementById('app')!, <Counter />);
 ```
 
-In the next section, we will walk through the installation process and configure your first project.
+In the next section, we will walk through the [Installation](/docs/installation) process and configure your first project.

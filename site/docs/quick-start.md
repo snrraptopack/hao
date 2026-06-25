@@ -30,8 +30,7 @@ function App() {
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
         <input 
           type="text" 
-          value={text} 
-          onInput={(e) => { text = (e.target as HTMLInputElement).value; }}
+          bind={text}
           placeholder="New task..."
         />
         <button onClick={addItem}>Add Task</button>
@@ -58,4 +57,4 @@ createMemoApp(document.getElementById("app")!, <App />);
 
 ---
 
-In the next section, we will delve deeper into **Core Reactivity** to see the differences between the Setup and Render phases.
+In the next section, we will delve deeper into [Core Reactivity](/docs/state-reactivity) to see the differences between the Setup and Render phases.

@@ -180,4 +180,5 @@ Component removed from tree
 
 ---
 
-In the **Guides** section we cover practical patterns: two-way form binding, event modifier chains, and async data loading.
+In the next section, we will cover the [Compiler](/docs/compiler) and how it optimizes your JSX into direct DOM operations.
+

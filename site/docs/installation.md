@@ -59,4 +59,4 @@ createMemoApp(document.getElementById("app")!, <App />);
 
 ---
 
-In the next section, we will walk through the **Quick Start** to build your first reactive component.
+In the next section, we will walk through the [Quick Start](/docs/quick-start) to build your first reactive component.

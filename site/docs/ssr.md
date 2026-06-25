@@ -132,3 +132,7 @@ Streaming is planned for a later phase; the current focus is synchronous renderi
 - Runtime state must be request-scoped on the server.
 
 See `SSR_PLAN.md` for the detailed implementation checklist.
+
+---
+
+In the next section, we will explore the complete [API Reference](/docs/api-reference).

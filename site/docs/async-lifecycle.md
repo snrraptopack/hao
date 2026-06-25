@@ -122,4 +122,4 @@ function PostSearch() {
 
 ---
 
-In the next section, we will cover client-side navigation using the **File-Based Router**.
+In the next section, we will cover styling using [CSS & Styling](/docs/css).

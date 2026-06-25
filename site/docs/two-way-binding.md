@@ -100,4 +100,6 @@ function ThemeSelector() {
 
 ---
 
-In the next section, we will see how to handle complex events using **Event Modifiers**.
+In the next section, we will see how to handle complex events using [Event Modifiers](/docs/event-modifiers).
+
+

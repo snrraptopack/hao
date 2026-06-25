@@ -189,3 +189,7 @@ The compiler adds imports like `import { __componentBlock, __setText } from 'auw
 4. The runtime remains correct even if the compiler is disabled.
 
 This means compiled and runtime components can be mixed freely in the same app.
+
+---
+
+In the next section, we will explore the **Guides** starting with [Two-Way Binding](/docs/two-way-binding) for forms.

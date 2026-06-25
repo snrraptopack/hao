@@ -444,3 +444,7 @@ invalidate({ path: '/posts/*' });
 | `pathFor(path, params?)` | Build a path string. |
 | `invalidate(options)` | Clear route cache by tag or path. |
 | `prefetchRoute(path)` | Prefetch a route chunk. |
+
+---
+
+In the next section, we will cover [Server Functions](/docs/server-functions) for remote RPC calls.

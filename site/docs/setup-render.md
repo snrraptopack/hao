@@ -156,4 +156,4 @@ Multiple `commit()` calls within the same microtask are batched — Auwla re-ren
 
 ---
 
-In the next section, **Component Lifecycle** covers what happens when a component unmounts, how to clean up timers and listeners, and how to scope re-renders to a single component with `component()`.
+In the next section, [Component Lifecycle](/docs/lifecycle) covers what happens when a component unmounts, how to clean up timers and listeners, and how to scope re-renders to a single component with `component()`.

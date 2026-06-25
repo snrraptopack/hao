@@ -56,7 +56,7 @@ function compileRenderClosure(
 
   const patchUpdate = renderUpdateBody(patches, derivedCtx, '          ', dirtyAware, forceAllUpdate);
   const update = [
-    ...preUpdateStatements.map((line) => `          ${line}`),
+    ...preUpdateStatements.map((line) => `          ${derivedCtx ? derivedCtx.expand(line) : line}`),
     patchUpdate,
   ].filter(Boolean).join('\n');
 
@@ -122,7 +122,7 @@ function addDerivedReplacements(
       replacements.push({
         start: decl.initializer.getStart(source),
         end: decl.initializer.getEnd(),
-        text: `__computed(() => ${init})`,
+        text: `__computed(() => ${derivedCtx.expand(init)})`,
       });
     }
   }
@@ -134,6 +134,8 @@ function findReplacements(
   options?: CompileOptions,
 ): Array<{ start: number; end: number; text: string }> {
   const replacements: Array<{ start: number; end: number; text: string }> = [];
+  const derivedReplacementsByFunc = new Map<ts.Node, Array<{ start: number; end: number; text: string }>>();
+  const appliedDerivedFuncs = new Set<ts.Node>();
 
   function isSkippedComponent(node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): boolean {
     if (ts.isFunctionDeclaration(node) && node.name && skipCompile.has(node.name.text)) {
@@ -166,7 +168,9 @@ function findReplacements(
         ? buildDerivedContext(source, setupStatements)
         : null;
       if (childDerivedCtx && childDerivedCtx.derived.size > 0) {
-        addDerivedReplacements(source, setupStatements, childDerivedCtx, replacements);
+        const funcReplacements: Array<{ start: number; end: number; text: string }> = [];
+        addDerivedReplacements(source, setupStatements, childDerivedCtx, funcReplacements);
+        derivedReplacementsByFunc.set(node, funcReplacements);
       }
       ts.forEachChild(node, (child) => visit(child, node, childDerivedCtx));
       return;
@@ -196,6 +200,13 @@ function findReplacements(
           end: node.getEnd(),
           text: replacement,
         });
+        if (containingFunction && !appliedDerivedFuncs.has(containingFunction)) {
+          const funcReplacements = derivedReplacementsByFunc.get(containingFunction);
+          if (funcReplacements) {
+            replacements.push(...funcReplacements);
+            appliedDerivedFuncs.add(containingFunction);
+          }
+        }
         return;
       }
 

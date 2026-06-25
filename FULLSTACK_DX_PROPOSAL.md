@@ -450,22 +450,14 @@ The user still owns the server. The framework only provides a small adapter that
 ```ts
 // server.ts (Hono)
 import { Hono } from 'hono'
-import { auwlaRpc } from 'auwla/adapters/hono'
+import { createHonoAdapter } from 'auwla/adapters/hono'
+import manifest from './.auwla/server-manifest'
 
 const app = new Hono()
-app.use('/_auwla/*', auwlaRpc())
+app.use('/_auwla/rpc', createHonoAdapter({ manifest }))
 export default app
 ```
 
-```ts
-// server.ts (Express)
-import express from 'express'
-import { auwlaRpc } from 'auwla/adapters/express'
-
-const app = express()
-app.use('/_auwla', auwlaRpc())
-app.listen(3000)
-```
 
 The adapter:
 

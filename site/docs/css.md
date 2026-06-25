@@ -280,3 +280,7 @@ function App() {
 ```
 
 For static-first extraction, keep an eye on the compiler milestones — `css.define()` and `css()` calls with literal values will become CSS classes automatically.
+
+---
+
+In the next section, we will cover client-side navigation using the [File-Based Router](/docs/router).

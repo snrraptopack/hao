@@ -334,4 +334,8 @@ During development, the plugin watches the pages directory. When a page or layou
 
 ## When to Use the Low-Level API
 
-File-based routing covers most apps. If you need dynamic routes, programmatic route tables, or runtime route composition, use the [Router API](./router-api) (`defineRoutes`, `group`, `Outlet`, etc.) instead.
+File-based routing covers most apps. If you need dynamic routes, programmatic route tables, or runtime route composition, use the [Router API](/docs/router-api) (`defineRoutes`, `group`, `Outlet`, etc.) instead.
+
+---
+
+In the next section, we will cover the low-level [Router API](/docs/router-api) for advanced use cases.

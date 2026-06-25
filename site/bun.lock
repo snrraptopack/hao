@@ -7,7 +7,7 @@
       "dependencies": {
         "@tailwindcss/vite": "^4.3.1",
         "@types/prismjs": "^1.26.6",
-        "auwla": "^0.3.15",
+        "auwla": "^0.3.20",
         "marked": "^18.0.5",
         "prismjs": "^1.30.0",
         "tailwindcss": "^4.3.1",
@@ -112,7 +112,7 @@
 
     "@types/prismjs": ["@types/prismjs@1.26.6", "", {}, "sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw=="],
 
-    "auwla": ["auwla@0.3.16", "", {}, "sha512-VjC7yrKVzI4k4TQ2q0Fxb+BK7k3+Rr8V59rnXQah93keVWsXhnmCbT+4Q3//LjdCsw6VzPsaddCIYny6ymxLYQ=="],
+    "auwla": ["auwla@0.3.21", "", {}, "sha512-2z1rJGTUZph9zPyiXvxRdQLLb/z/0jEA8Q8Mn+01+rFXV7FvmnJsuwGT4NgYxFOS0r3QK6NBSmy7WDjzDep57g=="],
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 

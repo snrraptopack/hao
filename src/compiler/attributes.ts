@@ -345,7 +345,8 @@ export function compileAttribute(
     const expression = childExpression(initializer);
     if (!expression) return true;
     const value = expressionText(ctx.source, expression);
-    ctx.setup.push(`(${value})(${elementVar});`);
+    const expandedValue = ctx.derivedCtx ? ctx.derivedCtx.expand(value) : value;
+    ctx.setup.push(`(${expandedValue})(${elementVar});`);
     return true;
   }
 
@@ -543,7 +544,8 @@ export function compileTemplateAttribute(
     if (!expression) return '';
     const value = expressionText(ctx.source, expression);
     if (!ctx.ssr) {
-      ctx.elementSetup.push(`(${value})(${elementVar});`);
+      const expandedValue = ctx.derivedCtx ? ctx.derivedCtx.expand(value) : value;
+      ctx.elementSetup.push(`(${expandedValue})(${elementVar});`);
     }
     return '';
   }

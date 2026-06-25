@@ -317,3 +317,7 @@ event.click.outside.handler(closePanel);
 // Silent high-frequency mouse tracking
 <div onMouseMove={event.silent.handler(updateCoords)} />
 ```
+
+---
+
+In the next section, we will learn about the [Async & Data Lifecycle](/docs/async-lifecycle) and how to handle data fetching safely.

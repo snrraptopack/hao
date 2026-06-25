@@ -12,7 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.1",
     "@types/prismjs": "^1.26.6",
-    "auwla": "^0.3.16",
+    "auwla": "^0.3.21",
     "marked": "^18.0.5",
     "prismjs": "^1.30.0",
     "tailwindcss": "^4.3.1",
@@ -20,6 +20,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "preview": "vite preview"
   }
 }

@@ -9,7 +9,6 @@ declare module 'auwla/router' {
   interface Register {
     routes: [
       { path: "/" },
-      { path: "/docs" },
       { path: "/playground" },
       { path: "/docs/:slug" }
     ]

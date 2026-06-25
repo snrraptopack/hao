@@ -144,5 +144,8 @@ const app = express();
 app.use('/_auwla', auwlaRpc());
 ```
 
-> [!NOTE]
 > During development, `vite dev` runs the router middleware automatically. You do not need to boot a separate server to test server functions locally.
+
+---
+
+In the next section, we will cover [Server-Side Rendering (SSR)](/docs/ssr) and hydration.

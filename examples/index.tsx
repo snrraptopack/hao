@@ -109,6 +109,7 @@ function Gallery() {
           {examples.map((ex) => (
             //<a href={ex.path}>{ ex.label}</a>
             <Link
+              key={ex.path}
               href={ex.path}
               activeClass="active"
               exactActiveClass="active"

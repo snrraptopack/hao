@@ -74,17 +74,19 @@ function TodoList() {
   const todos: { id: number; text: string }[] = [];
   let input = '';
 
+  function add(){
+    if (!input.trim()) return;
+    todos.push({ id: Date.now(), text: input });
+    input = '';
+  }
+
   return () => (
     <div>
       <input
         value={input}
         onInput={(e) => { input = (e.target as HTMLInputElement).value; }}
       />
-      <button onClick={() => {
-        if (!input.trim()) return;
-        todos.push({ id: Date.now(), text: input }); // stable id
-        input = '';
-      }}>
+      <button onClick={add}>
         Add
       </button>
       <ul>
@@ -110,7 +112,45 @@ function Stats() {
       </div>
     );
 }
+
 ```
+
+Behind the scene auwla compiles the derived into ``` ts __computed(()=>scores.reduce((a, b) => a + b, 0);) ```
+
+The above code can also be written as
+
+```tsx
+function Stats() {
+  const scores: number[] = [];
+ 
+  return () => {
+    let total = scores.reduce((a, b) => a + b, 0);
+    let average = scores.length ? total / scores.length : 0; 
+    return (
+        <div>
+          <p>Count: {scores.length}</p>
+          <p>Average: {average.toFixed(1)}</p>
+      </div>
+    )
+  }
+}
+
+//or
+
+function Stats() {
+  const scores: number[] = [];
+  let total = ()=> scores.reduce((a, b) => a + b, 0);
+  let average = ()=> scores.length ? total / scores.length : 0; 
+  return () => (
+        <div>
+          <p>Count: {scores.length()}</p>
+          <p>Average: {average().toFixed(1)}</p>
+      </div>
+    )
+}
+
+```
+Because of how auwla works the two will always rererun when there is an event compared to the compiler derived version that will run only when it dependant changes 
 
 The Auwla compiler also tracks variable reads in the **setup scope** to understand dependencies — so if you compute a derived value from other setup variables, the compiler knows how to wire updates without requiring you to wrap them in callbacks.
 
@@ -203,5 +243,5 @@ function ThemeToggle() {
 | Shared state (auto-subscription) | `reactive()` cell — components that read `.get()` subscribe automatically |
 
 
-In the next section, **How Rendering Works** covers the two-phase model, the compiled output, what belongs in setup vs render, and how `commit()` bridges the gap for async mutations.
+In the next section, [How Rendering Works](/docs/setup-render) covers the two-phase model, the compiled output, what belongs in setup vs render, and how `commit()` bridges the gap for async mutations.
 
