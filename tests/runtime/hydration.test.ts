@@ -21,7 +21,7 @@ import {
   __escapeHtml,
 } from '../../src';
 import { clearRpcDispatcher } from '../../src/runtime/rpc-dispatcher';
-import { __resetTrackRegistry } from '../../src/events/track';
+import { __resetTrackRegistry } from '../../src/track';
 import { h } from '../../src';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ describe('hydrateTrackState', () => {
   });
 
   it('seeds the registry so track.get() resolves immediately without a fetch', async () => {
-    const { track } = await import('../../src/events/track');
+    const { track } = await import('../../src/track');
 
     // Simulate what window.__AUWLA_DATA__ contains after SSR.
     hydrateTrackState({

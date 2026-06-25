@@ -170,7 +170,7 @@ describe('ssr-invoke', () => {
       invokeRemoteServer(manifest, key, args, routePath, new Request(`http://localhost${routePath}`), { load, ...options }),
     )
 
-    const { track } = await import('../../src/events')
+    const { track } = await import('../../src/track')
     const handle = track.get('posts.getPosts' as any)
 
     // Wait for the promise to resolve.

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createMemoApp, h } from '../../src'
-import { __resetTrackRegistry } from '../../src/events/track'
+import { __resetTrackRegistry } from '../../src/track'
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))

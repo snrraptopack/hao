@@ -111,7 +111,7 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
       }
 
       appliedProps[key] = value;
-      setProp(element, key, value, undefined, (handler) => wrapEvent(handler, ownerId));
+      setProp(element, key, value, undefined, (handler) => wrapEvent(handler, ownerId), ownerId);
     }
   }
 
@@ -139,8 +139,12 @@ export function setProp(
   value: unknown,
   oldValue: unknown,
   wrapEvent: (handler: EventHandler) => EventListener,
+  ownerId: string | null = null,
 ) {
   if (Object.is(value, oldValue)) return;
+
+  const instance = ownerId ? runtimeState.activeRenderState?.instances.get(ownerId) : null;
+  const signal = instance?.abortController?.signal;
 
   if (key === 'ref' && typeof value === 'function') {
     (value as (el: HTMLElement) => void)(element);
@@ -219,7 +223,7 @@ export function setProp(
     if (typeof value === 'function') {
       const listener = wrapEvent((event) => (value as (payload: unknown) => unknown)((event as CustomEvent).detail));
       listeners.set(key, listener);
-      element.addEventListener(emittedEventName, listener);
+      element.addEventListener(emittedEventName, listener, signal ? { signal } : undefined);
     }
     return;
   }
@@ -243,6 +247,7 @@ export function setProp(
       const options: AddEventListenerOptions & { global?: boolean } = {};
       if ((value as any).__capture) options.capture = true;
       if ((value as any).__passive) options.passive = true;
+      if (signal) options.signal = signal;
 
       if ((value as any).__outside) {
         options.global = true;
@@ -323,12 +328,12 @@ export function setProps(
 
   for (const key of Object.keys(previousProps)) {
     if (key === 'children' || key === 'key') continue;
-    if (!(key in nextProps)) setProp(element, key, undefined, previousProps[key], wrapEvent);
+    if (!(key in nextProps)) setProp(element, key, undefined, previousProps[key], wrapEvent, ownerId);
   }
 
   for (const key of Object.keys(nextProps)) {
     if (key === 'children' || key === 'key') continue;
-    setProp(element, key, nextProps[key], previousProps[key], (handler) => wrapEvent(handler, ownerId));
+    setProp(element, key, nextProps[key], previousProps[key], (handler) => wrapEvent(handler, ownerId), ownerId);
   }
 
   element.__memoProps = nextProps;

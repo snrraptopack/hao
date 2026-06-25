@@ -62,6 +62,7 @@ export type ComponentInstance = {
   render: RenderClosure;
   value?: MemoChild;
   cleanups?: (() => void)[];
+  abortController?: AbortController;
 };
 
 /** Mutable state kept while an app is actively rendering. */

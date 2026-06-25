@@ -79,7 +79,7 @@ describe('renderToString', () => {
     }
 
     async function routed(ctx: any) {
-      const { track } = await import('../../src/events');
+      const { track } = await import('../../src/track');
       const post = await track.get('posts.getPost');
       return { post };
     }

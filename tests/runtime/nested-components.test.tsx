@@ -165,7 +165,7 @@ describe('nested component behavior', () => {
     await new Promise<void>((resolve) => queueMicrotask(resolve));
 
     expect(childSetupCalls).toBe(2);
-    expect(childRenderCalls).toBe(5);
+    expect(childRenderCalls).toBe(3);
     expect(root.querySelector('.parent')!.textContent).toBe('Parent: 1');
     expect(root.querySelectorAll('.secondary')[0]!.textContent).toBe('Child A: 1');
     expect(root.querySelectorAll('.secondary')[1]!.textContent).toBe('Child B: 0');

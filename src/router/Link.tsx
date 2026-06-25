@@ -105,6 +105,8 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
           // Attach mouseenter directly to the DOM node to bypass Auwla's automatic
           // render cycle wrapper. This prevents the Link from unnecessarily re-rendering
           // on hover, which would otherwise rip the DOM node out mid-click.
+          if ((el as any).__hasMouseEnter) return
+          (el as any).__hasMouseEnter = true
           el.addEventListener("mouseenter", () => {
             // Compute the URL lazily inside the event listener so the compiler does
             // not need to hoist `actualUrl` into the setup closure.
