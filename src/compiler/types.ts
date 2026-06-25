@@ -49,6 +49,7 @@ export type TemplateContext = {
 export const COMPILER_IMPORT = [
   '__componentBlock',
   '__cloneTemplate',
+  '__computed',
   '__createBlock',
   '__dirtySource',
   '__event',

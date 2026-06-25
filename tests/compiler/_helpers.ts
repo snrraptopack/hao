@@ -2,6 +2,7 @@ import ts from 'typescript';
 import {
   __componentBlock,
   __cloneTemplate,
+  __computed,
   __createBlock,
   __dirtySource,
   __event,
@@ -62,6 +63,7 @@ export function evaluateCompiled(source: string) {
   Function('runtime', 'exports', jsWithGlobals)({
     __componentBlock,
     __cloneTemplate,
+    __computed,
     __createBlock,
     __dirtySource,
     __event,

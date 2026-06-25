@@ -140,10 +140,10 @@ describe('fine-grained DOM patching', () => {
     `;
 
     const compiled = compileAuwla(source);
-    // Derived expression should be inlined
-    expect(compiled).toContain('(count * 2)');
-    // Both count and derived patches should be in the _count group
-    expect(compiled).toMatch(/if \(_count\) \{[\s\S]*?__setElementText\(el1, count\)[\s\S]*?__setElementText\(el2, \(count \* 2\)\)/);
+    // Derived value is wrapped in a computed getter.
+    expect(compiled).toContain('__computed(() => count * 2)');
+    // The derived patch reads the getter.
+    expect(compiled).toContain('__setElementText(el2, doubled())');
   });
 
   test('derived value DOM updates when source variable changes', async () => {

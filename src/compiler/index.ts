@@ -75,7 +75,8 @@ ${update}
 function transformReturn(
   source: ts.SourceFile,
   node: ts.ReturnStatement,
-  containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null,
+  _containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null,
+  derivedCtx: DerivedContext | null,
   options?: CompileOptions,
 ): string | null {
   const expression = node.expression;
@@ -98,24 +99,33 @@ function transformReturn(
     if (!body) return null;
   }
 
-  // Extract setup statements from the containing function to build derived-value context
-  let derivedCtx: DerivedContext | null = null;
-  if (containingFunction && containingFunction.body && ts.isBlock(containingFunction.body)) {
-    const setupStatements: ts.Statement[] = [];
-    for (const stmt of containingFunction.body.statements) {
-      if (ts.isReturnStatement(stmt) && stmt.expression === expression) break;
-      if (ts.isReturnStatement(stmt)) continue;
-      setupStatements.push(stmt);
-    }
-    if (setupStatements.length > 0) {
-      derivedCtx = buildDerivedContext(source, setupStatements);
-    }
-  }
-
   const compiled = compileRenderClosure(source, body, derivedCtx, leadingStatements.length > 0, leadingStatements, options);
   if (!compiled) return null;
 
   return `return ${compiled};`;
+}
+
+function addDerivedReplacements(
+  source: ts.SourceFile,
+  setupStatements: ts.Statement[],
+  derivedCtx: DerivedContext,
+  replacements: Array<{ start: number; end: number; text: string }>,
+): void {
+  for (const stmt of setupStatements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
+      if (!ts.isIdentifier(decl.name)) continue;
+      const name = decl.name.text;
+      if (!derivedCtx.derived.has(name)) continue;
+      if (!decl.initializer) continue;
+      const init = decl.initializer.getText(source);
+      replacements.push({
+        start: decl.initializer.getStart(source),
+        end: decl.initializer.getEnd(),
+        text: `__computed(() => ${init})`,
+      });
+    }
+  }
 }
 
 function findReplacements(
@@ -132,10 +142,33 @@ function findReplacements(
     return false;
   }
 
-  function visit(node: ts.Node, containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null) {
+  function extractSetupStatements(
+    node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
+  ): ts.Statement[] {
+    if (!node.body || !ts.isBlock(node.body)) return [];
+    const setupStatements: ts.Statement[] = [];
+    for (const stmt of node.body.statements) {
+      if (ts.isReturnStatement(stmt)) break;
+      setupStatements.push(stmt);
+    }
+    return setupStatements;
+  }
+
+  function visit(
+    node: ts.Node,
+    containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null,
+    derivedCtx: DerivedContext | null,
+  ) {
     if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
       if (isSkippedComponent(node)) return;
-      ts.forEachChild(node, (child) => visit(child, node));
+      const setupStatements = extractSetupStatements(node);
+      const childDerivedCtx = setupStatements.length > 0
+        ? buildDerivedContext(source, setupStatements)
+        : null;
+      if (childDerivedCtx && childDerivedCtx.derived.size > 0) {
+        addDerivedReplacements(source, setupStatements, childDerivedCtx, replacements);
+      }
+      ts.forEachChild(node, (child) => visit(child, node, childDerivedCtx));
       return;
     }
 
@@ -150,13 +183,13 @@ function findReplacements(
           // Skip the initializer subtree for runtime-fallback components.
           continue;
         }
-        visit(decl, containingFunction);
+        visit(decl, containingFunction, derivedCtx);
       }
       return;
     }
 
     if (ts.isReturnStatement(node)) {
-      const replacement = transformReturn(source, node, containingFunction, options);
+      const replacement = transformReturn(source, node, containingFunction, derivedCtx, options);
       if (replacement) {
         replacements.push({
           start: node.getStart(source),
@@ -165,12 +198,25 @@ function findReplacements(
         });
         return;
       }
+
+      // Render closures that the compiler couldn't turn into a DOM block (e.g.
+      // Router.tsx with multiple early returns) must not be recursed into as if
+      // they were standalone component functions. Their per-render locals are not
+      // component setup state, so deriving them would wrap reads in getters that
+      // are never called and break destructuring.
+      const expr = node.expression;
+      if (
+        expr &&
+        (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr))
+      ) {
+        return;
+      }
     }
 
-    ts.forEachChild(node, (child) => visit(child, containingFunction));
+    ts.forEachChild(node, (child) => visit(child, containingFunction, derivedCtx));
   }
 
-  visit(source, null);
+  visit(source, null, null);
   return replacements;
 }
 

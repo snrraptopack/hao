@@ -59,3 +59,6 @@ export { placePatchedNodes } from './reconcile';
 
 export { reactive } from './reactive';
 export type { ReactiveCell } from './reactive';
+
+export { computed } from './computed';
+export type { ComputedGetter } from './computed';

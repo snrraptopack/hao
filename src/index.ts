@@ -14,6 +14,7 @@ export {
 export {
   __componentBlock,
   __cloneTemplate,
+  __computed,
   __createBlock,
   __dirtySource,
   __event,

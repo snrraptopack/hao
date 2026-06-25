@@ -1,14 +1,12 @@
 /**
  * @fileoverview Derived-value analysis for the Auwla compiler.
  *
- * When a component declares `let doubled = count * 2`, the compiler
- * treats `doubled` as a derived value: its initialization expression is
- * inlined into every patch that reads it so the value stays fresh as
- * `count` changes.
- *
- * This module builds a dependency graph from the component's setup
- * statements, determines which variables are pure derived values, and
- * expands derived references in patch / event code.
+ * Setup variables that derive from other local state (e.g.
+ * `const pending = todos.filter(...)`) are compiled into lazy computed getters
+ * via `__computed(() => expr)`. Every read of the derived variable is rewritten
+ * to a getter call, and the getter runs fresh on each render pass — so as long
+ * as the component re-renders when its dependencies change, derived values are
+ * always up to date.
  */
 
 import ts from 'typescript';
@@ -16,17 +14,15 @@ import ts from 'typescript';
 export type DerivedContext = {
   /** Variables declared in the component setup scope. */
   locals: Set<string>;
-  /** Variables that are pure derived values (init expression + never reassigned). */
-  derived: Map<string, string>;
-  /** Derived values whose init contains a method call and must recompute on any render. */
-  volatile: Set<string>;
+  /** Names of setup variables that are compiled to computed getters. */
+  derived: Set<string>;
   /** When compiling a keyed map row, maps the item parameter to the source array name. */
   mapItemSource?: { itemName: string; sourceName: string };
-  /** Expand derived references in an expression string. */
+  /** Rewrite references to computed getters into getter calls. */
   expand(expression: string): string;
-  /** Return local source variables an expression depends on, expanding derived aliases. */
+  /** Return local source variables an expression depends on. Computed getters contribute nothing static. */
   sourceDeps(expression: string): string[];
-  /** True if the expression contains no derived variables (nothing to expand). */
+  /** True if the expression contains no computed derived variables. */
   isPure(expression: string): boolean;
 };
 
@@ -38,6 +34,7 @@ const GLOBAL_IDENTIFIERS = new Set([
   '__event', '__componentBlock', '__createBlock', '__setText',
   '__setElementText', '__setClass', '__setProperty', '__setAttribute',
   '__setStyle', '__setChild', '__spreadProps', '__keyedMap', '__cloneTemplate',
+  '__computed',
 ]);
 
 /** Extract top-level identifiers from a code string (naive but fast). */
@@ -63,64 +60,17 @@ export function extractIdentifiers(code: string): string[] {
   return ids;
 }
 
-/** Known pure Array/String/Object methods that can appear in derived expressions. */
-const PURE_METHODS = new Set([
-  // Array
-  'filter', 'map', 'slice', 'concat', 'join', 'find', 'findIndex', 'some', 'every',
-  'includes', 'indexOf', 'lastIndexOf', 'at', 'flat', 'flatMap', 'toReversed',
-  'toSorted', 'toSpliced', 'reduce', 'reduceRight', 'entries', 'keys', 'values',
-  'isArray',
-  // String
-  'slice', 'substring', 'substr', 'concat', 'split', 'trim', 'toLowerCase',
-  'toUpperCase', 'replace', 'replaceAll', 'match', 'matchAll', 'search',
-  'indexOf', 'lastIndexOf', 'includes', 'startsWith', 'endsWith', 'padStart',
-  'padEnd', 'repeat', 'charAt', 'charCodeAt', 'at', 'normalize', 'toString',
-  'valueOf',
-  // Object
-  'keys', 'values', 'entries', 'assign', 'freeze', 'seal',
-]);
-
-/** True if the expression looks side-effect free. */
+/** True if the expression is safe to wrap in a computed getter. */
 function looksPure(expression: string): boolean {
   const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
   // Reject `new` and template literals with interpolation
   if (/\bnew\s+/.test(withoutStrings)) return false;
   if (/`[^`]*\${/.test(expression)) return false;
-  // Reject optional chaining (?.) — the value depends on runtime nullability
-  // and is not safe to inline into multiple patch sites.
-  if (/\?\./.test(withoutStrings)) return false;
-  // Reject nullish coalescing (??) for the same reason — it pairs with ?. and
-  // implies the left operand may be null/undefined at runtime.
-  if (/\?\?/.test(withoutStrings)) return false;
   // Reject assignments (but allow == / === / != / !== and arrow functions =>)
   const withoutArrows = withoutStrings.replace(/=>/g, '  ');
   const hasAssignment = /(?<![=!])=(?![=])/.test(withoutArrows);
   if (hasAssignment) return false;
-
-  // Allow known pure method calls like todos.filter(...); reject standalone
-  // function calls like foo() whose side effects we cannot verify.
-  const callPattern = /\b([A-Za-z_$][\w$]*)\s*\(/g;
-  let m: RegExpExecArray | null;
-  while ((m = callPattern.exec(withoutStrings)) !== null) {
-    const method = m[1]!;
-    const beforeExpr = withoutStrings.slice(0, m.index);
-    const isMethod = /\.\s*$/.test(beforeExpr);
-    if (!isMethod || !PURE_METHODS.has(method)) return false;
-  }
-
   return true;
-}
-
-/** True if the expression contains a method call like todos.filter(...). */
-function hasMethodCall(expression: string): boolean {
-  const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-  const callPattern = /\b([A-Za-z_$][\w$]*)\s*\(/g;
-  let m: RegExpExecArray | null;
-  while ((m = callPattern.exec(withoutStrings)) !== null) {
-    const beforeExpr = withoutStrings.slice(0, m.index);
-    if (/\.\s*$/.test(beforeExpr)) return true;
-  }
-  return false;
 }
 
 /** Build a derived-value context from the setup statements of a component. */
@@ -199,8 +149,7 @@ export function buildDerivedContext(
   // - Expression looks pure
   // - References at least one other local variable
   // - Never reassigned
-  const derived = new Map<string, string>();
-  const volatile = new Set<string>();
+  const derived = new Set<string>();
   const localNames = new Set(allDecls.keys());
 
   for (const [name, init] of allDecls) {
@@ -209,71 +158,41 @@ export function buildDerivedContext(
     const refs = extractIdentifiers(init);
     const localRefs = refs.filter((r) => localNames.has(r) && r !== name);
     if (localRefs.length === 0) continue;
-    derived.set(name, init);
-    if (hasMethodCall(init)) {
-      volatile.add(name);
-    }
+    derived.add(name);
   }
 
-  // Transitive expansion: keep resolving until stable
-  function expandOnce(expr: string): string {
-    let result = expr;
-    for (const [name, init] of derived) {
-      // Only expand whole-word identifier references. To avoid matching the
-      // variable name coincidentally inside a quoted string (e.g. 'posts' in
-      // the literal "/loader/posts/"), we test against the string-stripped
-      // version of the expression but perform the replacement on the original.
+  // Rewrite references to derived getters: pendingTodos -> pendingTodos()
+  function expand(expression: string): string {
+    let result = expression;
+    for (const name of derived) {
       const withoutStrings = result.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, "''");
       const re = new RegExp(`\\b${name}\\b`, 'g');
       if (!re.test(withoutStrings)) continue;
-      // Rebuild result, skipping quoted regions for replacement.
       result = result.replace(
         new RegExp(/(['"`])(?:\\.|(?!\1).)*\1|(?<!\.)\b(PLACEHOLDER)\b(?!\s*:)/g.source.replace('PLACEHOLDER', name), 'g'),
-        (match, quoted) => (quoted !== undefined ? match : `(${init})`),
+        (match, quoted) => (quoted !== undefined ? match : `${name}()`),
       );
     }
     return result;
   }
 
-  function expand(expression: string): string {
-    let prev = expression;
-    // Limit iterations to avoid infinite loops from circular deps
-    for (let i = 0; i < 10; i++) {
-      const next = expandOnce(prev);
-      if (next === prev) break;
-      prev = next;
-    }
-    return prev;
-  }
-
   function sourceDeps(expression: string): string[] {
     const deps = new Set<string>();
-    const visit = (expr: string, seen = new Set<string>()) => {
-      for (const id of extractIdentifiers(expr)) {
-        if (!localNames.has(id)) continue;
-        if (derived.has(id)) {
-          if (seen.has(id)) continue;
-          // Volatile derived values (e.g. array method calls) cannot be tracked
-          // to a single source because element/property mutations won't dirty
-          // the parent variable. They recompute on every render instead.
-          if (volatile.has(id)) continue;
-          seen.add(id);
-          visit(derived.get(id)!, seen);
-        } else {
-          deps.add(id);
-        }
-      }
-    };
-    visit(expression);
+    for (const id of extractIdentifiers(expression)) {
+      if (!localNames.has(id)) continue;
+      // Computed getters are evaluated at render time; they don't contribute
+      // static source dependencies that the dirty tracker can watch.
+      if (derived.has(id)) continue;
+      deps.add(id);
+    }
     return Array.from(deps);
   }
 
   function isPure(expression: string): boolean {
-    const ids = extractIdentifiers(expression);
-    return !ids.some((id) => derived.has(id));
+    return !extractIdentifiers(expression).some((id) => derived.has(id));
   }
 
-  return { locals: localNames, derived, volatile, expand, sourceDeps, isPure };
+  return { locals: localNames, derived, expand, sourceDeps, isPure };
 }
 
 /** True if a handler is too complex or mutates through a property path. */

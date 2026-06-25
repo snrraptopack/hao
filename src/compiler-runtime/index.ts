@@ -26,6 +26,8 @@ export {
 
 export { __event } from './events';
 
+export { computed as __computed } from '../runtime/computed';
+
 export { __cloneTemplate, enterHydration, exitHydration, __hydrateComment } from './template';
 
 export { __keyedMap } from './keyed-map';

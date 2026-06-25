@@ -1,4 +1,5 @@
 import type { DerivedContext } from './derived';
+import { extractIdentifiers } from './derived';
 import type { DynamicPatch } from './types';
 import { expressionDependencies } from './utils';
 
@@ -35,6 +36,14 @@ function externalSourceDeps(expression: string, derivedCtx: DerivedContext | nul
 }
 
 function patchDeps(patch: DynamicPatch, derivedCtx: DerivedContext | null): string[] {
+  // Any patch that reads a computed getter must re-run on every render pass;
+  // the compiler cannot statically narrow its dependencies.
+  if (derivedCtx) {
+    for (const id of extractIdentifiers(patch.code)) {
+      if (derivedCtx.derived.has(id)) return [];
+    }
+  }
+
   const deps = new Set<string>();
 
   for (const dep of patch.deps) {
