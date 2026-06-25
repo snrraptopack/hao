@@ -552,6 +552,7 @@ export namespace JSX {
   export type Element = MemoChild | RenderClosure;
   export type Children = Child | readonly Child[];
   export interface ElementChildrenAttribute { children: Children }
+  export interface IntrinsicAttributes { key?: string | number | null; }
   export interface IntrinsicElements extends HTMLIntrinsicElements, SVGIntrinsicElements {}
 }
 
@@ -560,6 +561,8 @@ declare global {
     type Element = MemoChild | RenderClosure;
     type Children = Child | readonly Child[];
     interface ElementChildrenAttribute { children: Children }
+    interface IntrinsicAttributes { key?: string | number | null; }
     interface IntrinsicElements extends HTMLIntrinsicElements, SVGIntrinsicElements {}
   }
 }
+

@@ -9,7 +9,10 @@ export {
   h,
   memo,
   reactive,
+  toNode,
+  patchNode,
 } from './runtime/index';
+
 
 export {
   __componentBlock,

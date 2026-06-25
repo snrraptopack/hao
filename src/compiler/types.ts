@@ -73,6 +73,8 @@ export const COMPILER_IMPORT = [
   '__updateCheckbox',
   '__setSelectValue',
   '__updateSelect',
+  'toNode',
+  'patchNode',
 ].join(', ');
 
 export const PROPERTY_PROPS = new Set([

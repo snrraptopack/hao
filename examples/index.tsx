@@ -1,4 +1,4 @@
-import {} from "auwla/jsx-runtime"
+import { } from "auwla/jsx-runtime"
 import { createMemoApp } from "auwla"
 import {
   Router,
@@ -24,6 +24,7 @@ import { TableBenchmarkRuntimeExample } from "./table-benchmark-runtime"
 import { ReactiveDemo } from "./reactive"
 import { AccessibleMenuDemo } from "./menu"
 import { BindExamplePage } from "./bind"
+import { TodoApp } from "./massive";
 
 // Router examples — routes + shells
 import { navigationRoutes, NavigationShell } from "./navigation"
@@ -55,6 +56,7 @@ let routes = defineRoutes(
       { path: "/reactive", component: ReactiveDemo },
       { path: "/menu", component: AccessibleMenuDemo },
       { path: "/bind", component: BindExamplePage },
+      { path: "/massive", component: TodoApp }
     ],
 
     // Router examples — grouped under a base path with shared layout shell
@@ -94,6 +96,7 @@ const examples = [
   { path: "/loader", label: "Router Loader" },
   { path: "/modifiers", label: "Event Modifiers (Docs)" },
   { path: "/showcase", label: "Showcase Hub" },
+  { path: "/massive", label: "Laggy list" }
 ]
 
 function Gallery() {
@@ -119,7 +122,7 @@ function Gallery() {
         <Router
           routes={routes}
           suspend={{
-            viewTransition:true
+            viewTransition: true
           }}
         />
       </div>

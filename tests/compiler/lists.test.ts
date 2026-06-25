@@ -288,4 +288,35 @@ describe('keyed list compilation', () => {
     expect(items[0]!.textContent).toBe('Alice (a@example.com)');
     expect(items[1]!.textContent).toBe('Bob (b@example.com)');
   });
+
+  test('compiles maps returning custom components into keyedMap with fallback block', () => {
+    const source = `
+      function Child(props) {
+        return () => <li>{props.text}</li>;
+      }
+      function List() {
+        const items = [{ id: 1, label: 'A' }];
+        return () => (
+          <ul>
+            {items.map((item) => (
+              <Child key={item.id} text={item.label} />
+            ))}
+          </ul>
+        );
+      }
+      exports.List = List;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__keyedMap');
+    expect(compiled).toContain('toNode');
+    expect(compiled).toContain('patchNode');
+
+    const { List } = evaluateCompiled(compiled) as { List: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(List as any));
+
+    expect(root.querySelector('li')!.textContent).toBe('A');
+  });
 });
+

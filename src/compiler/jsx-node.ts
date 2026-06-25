@@ -506,19 +506,45 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
   const items = expressionText(ctx.source, expression.expression.expression);
   const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items)
     ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements, items);
-  if (!rowBlock) return false;
 
   const mapVar = `map${ctx.mapId++}`;
   const childVar = `child${ctx.textId++}`;
   const itemName = itemParam.name.text;
-  const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
-  const deps = rowBlock.forceUpdate
+
+  let rowBlockCode: string;
+  let rowDeps: string[];
+  let forceUpdate = false;
+
+  if (rowBlock) {
+    rowBlockCode = rowBlock.block;
+    rowDeps = rowBlock.deps;
+    forceUpdate = rowBlock.forceUpdate ?? false;
+  } else {
+    // Fallback row block for custom components inside map loops
+    const jsxCode = row.getText(ctx.source);
+    const expandedJsxCode = ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode;
+    const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
+    rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
+
+    rowBlockCode = `__createBlock(() => {
+            let node = toNode(${expandedJsxCode});
+            return {
+              node,
+              update(${itemName}, ${indexName}) {
+                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
+              },
+            };
+          })`;
+  }
+
+  const filteredRowDeps = rowDeps.filter((dep) => dep !== keyText);
+  const deps = forceUpdate
     ? 'undefined'
-    : rowDeps.length === 0
+    : filteredRowDeps.length === 0
       ? `(${itemName}) => null`
-      : rowDeps.length === 1
-        ? `(${itemName}) => ${rowDeps[0]!}`
-        : `(${itemName}) => [${rowDeps.join(', ')}]`;
+      : filteredRowDeps.length === 1
+        ? `(${itemName}) => ${filteredRowDeps[0]!}`
+        : `(${itemName}) => [${filteredRowDeps.join(', ')}]`;
 
   const keyOf = isUnkeyed
     ? `(${itemName}, ${indexName}) => ${indexName}`
@@ -532,7 +558,7 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
             ${mapVar} = __keyedMap(
               ${items},
               ${keyOf},
-              (${itemName}, ${indexName}) => ${rowBlock.block},
+              (${itemName}, ${indexName}) => ${rowBlockCode},
               (block, ${itemName}, index) => block.update(${itemName}, index),
               ${deps},
               false,
@@ -574,18 +600,44 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   const items = expressionText(ctx.source, expression.expression.expression);
   const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items)
     ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements, items);
-  if (!rowBlock) return null;
 
   const mapVar = `map${ctx.mapId++}`;
   const itemName = itemParam.name.text;
-  const rowDeps = rowBlock.deps.filter((dep) => dep !== keyText);
-  const deps = rowBlock.forceUpdate
+
+  let rowBlockCode: string;
+  let rowDeps: string[];
+  let forceUpdate = false;
+
+  if (rowBlock) {
+    rowBlockCode = rowBlock.block;
+    rowDeps = rowBlock.deps;
+    forceUpdate = rowBlock.forceUpdate ?? false;
+  } else {
+    // Fallback row block for custom components inside map loops
+    const jsxCode = row.getText(ctx.source);
+    const expandedJsxCode = ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode;
+    const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
+    rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
+
+    rowBlockCode = `__createBlock(() => {
+            let node = toNode(${expandedJsxCode});
+            return {
+              node,
+              update(${itemName}, ${indexName}) {
+                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
+              },
+            };
+          })`;
+  }
+
+  const filteredRowDeps = rowDeps.filter((dep) => dep !== keyText);
+  const deps = forceUpdate
     ? 'undefined'
-    : rowDeps.length === 0
+    : filteredRowDeps.length === 0
       ? `(${itemName}) => null`
-      : rowDeps.length === 1
-        ? `(${itemName}) => ${rowDeps[0]!}`
-        : `(${itemName}) => [${rowDeps.join(', ')}]`;
+      : filteredRowDeps.length === 1
+        ? `(${itemName}) => ${filteredRowDeps[0]!}`
+        : `(${itemName}) => [${filteredRowDeps.join(', ')}]`;
 
   const keyOf = isUnkeyed
     ? `(${itemName}, ${indexName}) => ${indexName}`
@@ -594,7 +646,7 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   ctx.setup.push(`const ${mapVar} = __keyedMap(
           ${items},
           ${keyOf},
-          (${itemName}, ${indexName}) => ${rowBlock.block},
+          (${itemName}, ${indexName}) => ${rowBlockCode},
           (block, ${itemName}, index) => block.update(${itemName}, index),
           ${deps},
           false,
