@@ -547,7 +547,7 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
         : `(${itemName}) => [${filteredRowDeps.join(', ')}]`;
 
   const keyOf = isUnkeyed
-    ? `(${itemName}, ${indexName}) => ${indexName}`
+    ? `(${itemName}, ${indexName}) => (typeof ${itemName} === 'object' && ${itemName} !== null ? ${itemName} : ${indexName})`
     : `(${itemName}) => ${keyText}`;
 
   ctx.setup.push(`let ${mapVar}: any = null;`);
@@ -640,7 +640,7 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
         : `(${itemName}) => [${filteredRowDeps.join(', ')}]`;
 
   const keyOf = isUnkeyed
-    ? `(${itemName}, ${indexName}) => ${indexName}`
+    ? `(${itemName}, ${indexName}) => (typeof ${itemName} === 'object' && ${itemName} !== null ? ${itemName} : ${indexName})`
     : `(${itemName}) => ${keyText}`;
 
   ctx.setup.push(`const ${mapVar} = __keyedMap(

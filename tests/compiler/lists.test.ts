@@ -318,5 +318,44 @@ describe('keyed list compilation', () => {
 
     expect(root.querySelector('li')!.textContent).toBe('A');
   });
+
+  test('compiles unkeyed map with automatic object reference keys and index fallback for primitives', () => {
+    const source = `
+      function List() {
+        let items = [{ id: 1, label: 'A' }, { id: 2, label: 'B' }];
+        exports.shuffle = () => {
+          items = [items[1], items[0]];
+        };
+        return () => (
+          <ul>
+            {items.map((item) => <li>{item.label}</li>)}
+          </ul>
+        );
+      }
+      exports.List = List;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('typeof item === \'object\'');
+
+    const evaluated = evaluateCompiled(compiled) as { List: () => unknown; shuffle: () => void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.List as any));
+
+    const initial = Array.from(root.querySelectorAll('li'));
+    expect(initial.map((node) => node.textContent)).toEqual(['A', 'B']);
+
+    const firstLi = initial[0];
+    const secondLi = initial[1];
+
+    evaluated.shuffle();
+    app.render();
+
+    const shuffled = Array.from(root.querySelectorAll('li'));
+    expect(shuffled.map((node) => node.textContent)).toEqual(['B', 'A']);
+    // Since items are objects, it should reorder/move the nodes in the DOM rather than patching them!
+    expect(shuffled[0]).toBe(secondLi);
+    expect(shuffled[1]).toBe(firstLi);
+  });
 });
 
