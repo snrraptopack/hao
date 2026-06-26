@@ -25,6 +25,8 @@ import { ReactiveDemo } from "./reactive"
 import { AccessibleMenuDemo } from "./menu"
 import { BindExamplePage } from "./bind"
 import { TodoApp } from "./massive";
+import { AutoCommitDemo } from "./auto-commit";
+import { AutoCommitBugProof } from "./auto-commit-bug-proof";
 
 // Router examples — routes + shells
 import { navigationRoutes, NavigationShell } from "./navigation"
@@ -56,7 +58,9 @@ let routes = defineRoutes(
       { path: "/reactive", component: ReactiveDemo },
       { path: "/menu", component: AccessibleMenuDemo },
       { path: "/bind", component: BindExamplePage },
-      { path: "/massive", component: TodoApp }
+      { path: "/massive", component: TodoApp },
+      { path: "/auto-commit", component: AutoCommitDemo },
+      { path: "/auto-commit-bug-proof", component: AutoCommitBugProof }
     ],
 
     // Router examples — grouped under a base path with shared layout shell
@@ -96,7 +100,9 @@ const examples = [
   { path: "/loader", label: "Router Loader" },
   { path: "/modifiers", label: "Event Modifiers (Docs)" },
   { path: "/showcase", label: "Showcase Hub" },
-  { path: "/massive", label: "Laggy list" }
+  { path: "/massive", label: "Laggy list" },
+  { path: "/auto-commit", label: "Auto Commit" },
+  { path: "/auto-commit-bug-proof", label: "Auto Commit Bug Proof" }
 ]
 
 function Gallery() {

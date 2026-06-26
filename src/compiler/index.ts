@@ -136,6 +136,7 @@ function findReplacements(
   const replacements: Array<{ start: number; end: number; text: string }> = [];
   const derivedReplacementsByFunc = new Map<ts.Node, Array<{ start: number; end: number; text: string }>>();
   const appliedDerivedFuncs = new Set<ts.Node>();
+  const componentSelfNames = new Map<ts.Node, string>();
 
   function isSkippedComponent(node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): boolean {
     if (ts.isFunctionDeclaration(node) && node.name && skipCompile.has(node.name.text)) {
@@ -160,11 +161,49 @@ function findReplacements(
     node: ts.Node,
     containingFunction: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression | null,
     derivedCtx: DerivedContext | null,
+    activeSelfName: string | null,
+    activeLocals: Set<string> | null,
+    inWrappedAsyncSelfName: string | null = null,
   ) {
+    if (ts.isAwaitExpression(node) && inWrappedAsyncSelfName) {
+      replacements.push({
+        start: node.getStart(source),
+        end: node.getEnd(),
+        text: `(__commit(${inWrappedAsyncSelfName}), ${node.getText(source)})`,
+      });
+    }
+
     if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
       if (isSkippedComponent(node)) return;
+
+      const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
+      let willWrap = false;
+
+      // Wrap helper functions inside component setups that perform local mutations
+      if (activeSelfName && activeLocals && node.body && ts.isBlock(node.body)) {
+        if (mutatesLocals(node.body, activeLocals) && !hasCommitCall(node.body, activeSelfName)) {
+          willWrap = true;
+          // Boundary insertions: insert try/finally wrapper at start/end of function block
+          replacements.push({
+            start: node.body.getStart(source) + 1,
+            end: node.body.getStart(source) + 1,
+            text: `\n  try {\n`,
+          });
+          replacements.push({
+            start: node.body.getEnd() - 1,
+            end: node.body.getEnd() - 1,
+            text: `\n  } finally {\n    __commit(${activeSelfName});\n  }\n`,
+          });
+        }
+      }
+
       const setupStatements = extractSetupStatements(node);
-      const childDerivedCtx = setupStatements.length > 0
+      const selfName = findComponentSelfName(setupStatements);
+      if (selfName) {
+        componentSelfNames.set(node, selfName);
+      }
+
+      const childDerivedCtx = (containingFunction === null && setupStatements.length > 0)
         ? buildDerivedContext(source, setupStatements)
         : null;
       if (childDerivedCtx && childDerivedCtx.derived.size > 0) {
@@ -172,7 +211,17 @@ function findReplacements(
         addDerivedReplacements(source, setupStatements, childDerivedCtx, funcReplacements);
         derivedReplacementsByFunc.set(node, funcReplacements);
       }
-      ts.forEachChild(node, (child) => visit(child, node, childDerivedCtx));
+
+      const childWrappedAsyncSelfName = (willWrap && isAsync) ? activeSelfName : null;
+
+      ts.forEachChild(node, (child) => visit(
+        child,
+        node,
+        childDerivedCtx,
+        selfName || activeSelfName,
+        childDerivedCtx?.locals || activeLocals,
+        childWrappedAsyncSelfName,
+      ));
       return;
     }
 
@@ -187,7 +236,7 @@ function findReplacements(
           // Skip the initializer subtree for runtime-fallback components.
           continue;
         }
-        visit(decl, containingFunction, derivedCtx);
+        visit(decl, containingFunction, derivedCtx, activeSelfName, activeLocals, inWrappedAsyncSelfName);
       }
       return;
     }
@@ -220,15 +269,128 @@ function findReplacements(
         expr &&
         (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr))
       ) {
+        ts.forEachChild(expr, (child) => visit(child, containingFunction, derivedCtx, activeSelfName, activeLocals, inWrappedAsyncSelfName));
         return;
       }
     }
 
-    ts.forEachChild(node, (child) => visit(child, containingFunction, derivedCtx));
+    ts.forEachChild(node, (child) => visit(child, containingFunction, derivedCtx, activeSelfName, activeLocals, inWrappedAsyncSelfName));
   }
 
-  visit(source, null, null);
+  visit(source, null, null, null, null, null);
   return replacements;
+}
+
+function findComponentSelfName(statements: ts.Statement[]): string | null {
+  for (const stmt of statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
+      if (
+        decl.initializer &&
+        ts.isCallExpression(decl.initializer) &&
+        ts.isIdentifier(decl.initializer.expression) &&
+        decl.initializer.expression.text === 'component' &&
+        ts.isIdentifier(decl.name)
+      ) {
+        return decl.name.text;
+      }
+    }
+  }
+  return null;
+}
+
+function mutatesLocals(body: ts.Node, locals: Set<string>): boolean {
+  let mutates = false;
+  
+  const assignOps = new Set([
+    ts.SyntaxKind.EqualsToken,
+    ts.SyntaxKind.PlusEqualsToken,
+    ts.SyntaxKind.MinusEqualsToken,
+    ts.SyntaxKind.AsteriskEqualsToken,
+    ts.SyntaxKind.SlashEqualsToken,
+    ts.SyntaxKind.PercentEqualsToken,
+    ts.SyntaxKind.AmpersandEqualsToken,
+    ts.SyntaxKind.BarEqualsToken,
+    ts.SyntaxKind.CaretEqualsToken,
+    ts.SyntaxKind.LessThanLessThanEqualsToken,
+    ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
+    ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
+    ts.SyntaxKind.AsteriskAsteriskEqualsToken,
+    ts.SyntaxKind.BarBarEqualsToken,
+    ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+    ts.SyntaxKind.QuestionQuestionEqualsToken,
+  ]);
+
+  const shadowed = new Set<string>();
+
+  function walk(node: ts.Node) {
+    if (mutates) return;
+
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      shadowed.add(node.name.text);
+    }
+    if (ts.isParameter(node) && ts.isIdentifier(node.name)) {
+      shadowed.add(node.name.text);
+    }
+
+    if (ts.isBinaryExpression(node) && assignOps.has(node.operatorToken.kind)) {
+      let root: string | null = null;
+      if (ts.isIdentifier(node.left)) {
+        root = node.left.text;
+      } else if (ts.isPropertyAccessExpression(node.left) && ts.isIdentifier(node.left.expression)) {
+        root = node.left.expression.text;
+      }
+      if (root && locals.has(root) && !shadowed.has(root)) {
+        mutates = true;
+        return;
+      }
+    }
+
+    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+      if (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) {
+        let root: string | null = null;
+        if (ts.isIdentifier(node.operand)) {
+          root = node.operand.text;
+        } else if (ts.isPropertyAccessExpression(node.operand) && ts.isIdentifier(node.operand.expression)) {
+          root = node.operand.expression.text;
+        }
+        if (root && locals.has(root) && !shadowed.has(root)) {
+          mutates = true;
+          return;
+        }
+      }
+    }
+
+    ts.forEachChild(node, walk);
+  }
+
+  walk(body);
+  return mutates;
+}
+
+function hasCommitCall(body: ts.Node, selfName: string): boolean {
+  let hasCall = false;
+
+  function walk(node: ts.Node) {
+    if (hasCall) return;
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      (node.expression.text === 'commit' || node.expression.text === '__commit') &&
+      node.arguments.length > 0 &&
+      ts.isIdentifier(node.arguments[0]!) &&
+      node.arguments[0]!.text === selfName
+    ) {
+      hasCall = true;
+      return;
+    }
+
+    ts.forEachChild(node, walk);
+  }
+
+  walk(body);
+  return hasCall;
 }
 
 function applyReplacements(source: string, replacements: Array<{ start: number; end: number; text: string }>): string {

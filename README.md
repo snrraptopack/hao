@@ -89,6 +89,59 @@ function LiveClock() {
 }
 ```
 
+## Automatic Commit Wrapping
+
+Auwla includes a compile-time transform that eliminates manual `commit()` boilerplate for most asynchronous workflows and timers. 
+
+If you declare a component instance handle (e.g. `const self = component()`), the Auwla compiler will automatically identify helper functions and timer callbacks inside the setup scope that mutate setup-scoped local variables. It wraps their bodies in a `try/finally` block that calls `commit(self)` when they finish execution.
+
+### Example
+
+You can write normal, clean JavaScript without manual `commit()` calls:
+
+```tsx
+import { component, cleanup } from 'auwla';
+
+function TimerDemo() {
+  const self = component(); // 1. Component handle is required
+  let count = 0;
+
+  // The callback mutates `count`, so the compiler automatically wraps it.
+  const interval = setInterval(() => {
+    count++;
+  }, 1000);
+
+  cleanup(() => clearInterval(interval));
+
+  return () => <div>Ticks: {count}</div>;
+}
+```
+
+The compiler transforms the `setInterval` callback to:
+
+```typescript
+const interval = setInterval(() => {
+  try {
+    count++;
+  } finally {
+    commit(self);
+  }
+}, 1000);
+```
+
+### Supported Scenarios
+
+The compiler automatically wraps:
+- **Timer Callbacks:** Callbacks inside `setTimeout` or `setInterval` that mutate state.
+- **Async Functions & Promises:** `async function` declarations or arrow functions that resolve fetches/promises and assign values to setup-scoped variables.
+
+### What is Ignored?
+
+To maintain optimal performance and prevent unnecessary re-renders, the compiler ignores:
+1. **No Mutations:** Functions or callbacks that do not write to or mutate setup-local variables.
+2. **Manual Commits:** Functions that already contain a manual `commit(...)` call.
+3. **No Component Handle:** If the component setup does not assign `component()` to a local variable (e.g., `const self = component()`), the transform is skipped.
+
 ## Two-Way Data Binding
 
 Auwla supports a unified, compile-time `bind={variable}` syntax for two-way data binding on form elements. Because Auwla is compiler-driven, it does not require any reactive wrappers (like signals, refs, or cells) in your state declaration. You simply bind to raw, local `let` variables in the component's setup scope.

@@ -75,6 +75,7 @@ export const COMPILER_IMPORT = [
   '__updateSelect',
   'toNode',
   'patchNode',
+  'commit as __commit',
 ].join(', ');
 
 export const PROPERTY_PROPS = new Set([

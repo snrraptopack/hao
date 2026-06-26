@@ -43,8 +43,14 @@ export { compileAuwla };
 
 export function evaluateCompiled(source: string) {
   const withoutImport = source
-    .replace(/import \{([^}]+)\} from 'auwla';/, 'const {$1} = runtime;')
-    .replace(/import \{([^}]+)\} from 'auwla\/events';/, 'const {$1} = runtime;');
+    .replace(/import \{([^}]+)\} from 'auwla';/, (match, imports) => {
+      const destructured = imports.replace(/\bas\b/g, ':');
+      return `const {${destructured}} = runtime;`;
+    })
+    .replace(/import \{([^}]+)\} from 'auwla\/events';/, (match, imports) => {
+      const destructured = imports.replace(/\bas\b/g, ':');
+      return `const {${destructured}} = runtime;`;
+    });
   const js = ts.transpileModule(withoutImport, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
