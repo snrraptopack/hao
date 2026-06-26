@@ -120,10 +120,19 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
     async config(viteConfig, env) {
       const { loadConfigFromFile } = await import('vite');
+      const fs = await import('node:fs');
+      const path = await import('node:path');
       const root = viteConfig.root || process.cwd();
-      const loaded = await loadConfigFromFile(env, 'auwla.config.ts', root)
-        ?? await loadConfigFromFile(env, 'auwla.config.js', root)
-        ?? await loadConfigFromFile(env, 'auwla.config.mjs', root);
+      
+      let loaded = null;
+      if (fs.existsSync(path.resolve(root, 'auwla.config.ts'))) {
+        loaded = await loadConfigFromFile(env, 'auwla.config.ts', root);
+      } else if (fs.existsSync(path.resolve(root, 'auwla.config.js'))) {
+        loaded = await loadConfigFromFile(env, 'auwla.config.js', root);
+      } else if (fs.existsSync(path.resolve(root, 'auwla.config.mjs'))) {
+        loaded = await loadConfigFromFile(env, 'auwla.config.mjs', root);
+      }
+
       if (loaded) {
         Object.assign(options, loaded.config);
       }
@@ -148,7 +157,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     // -----------------------------------------------------------------------
 
     buildStart() {
-      const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
+      const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, options.router?.extensions)
       cachedVirtualModule = moduleCode
       writeSafe(resolvedGenFile, typeCode)
 
@@ -293,9 +302,9 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       })
     },
 
-    load(id: string, options?: { ssr?: boolean }): string | null {
+    load(id: string, loadOptions?: { ssr?: boolean }): string | null {
       // Prevent server-only files from ever entering the client bundle.
-      const isClient = this.environment ? this.environment.name === 'client' : !options?.ssr
+      const isClient = this.environment ? this.environment.name === 'client' : !loadOptions?.ssr
       if (isClient && isServerFile(id)) {
         const cleanId = id.replace(/[?#].*$/, '')
         const normId = cleanId.replace(/\\/g, '/')
@@ -344,7 +353,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
       // Cache miss: regenerate (possible if buildStart was skipped in tests).
       if (!cachedVirtualModule) {
-        const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
+        const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, options.router?.extensions)
         cachedVirtualModule = moduleCode
         writeSafe(resolvedGenFile, typeCode)
 
@@ -354,10 +363,10 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       return cachedVirtualModule
     },
 
-    transform(code: string, id: string, options?: { ssr?: boolean }) {
+    transform(code: string, id: string, transformOptions?: { ssr?: boolean }) {
       if (id.includes('node_modules')) return null
 
-      const isSsr = this.environment ? this.environment.name === 'ssr' : !!options?.ssr
+      const isSsr = this.environment ? this.environment.name === 'ssr' : !!transformOptions?.ssr
       if (isSsr && isServerFile(id)) {
         const cleanId = id.replace(/[?#].*$/, '')
         const normId = cleanId.replace(/\\/g, '/')
@@ -405,7 +414,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         if (!isPage && !isLayout) return
 
         const oldModuleCode = cachedVirtualModule
-        const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy)
+        const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, extensions)
         cachedVirtualModule = null // force next load() to serve fresh code
 
         // Write updated types so the editor picks them up immediately.
@@ -564,8 +573,9 @@ function generateServerManifest(
 function buildRoutes(
   pagesDir: string,
   lazy: boolean,
+  extensions?: string[]
 ): { moduleCode: string; typeCode: string } {
-  const { pages, layouts } = scanPagesAndLayouts(pagesDir)
+  const { pages, layouts } = scanPagesAndLayouts(pagesDir, { extensions })
   const typeCode = generateTypeFile(pages)
 
   let moduleCode: string

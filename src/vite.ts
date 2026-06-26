@@ -36,10 +36,19 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
 
     async config(viteConfig, env) {
       const { loadConfigFromFile } = await import('vite');
+      const fs = await import('node:fs');
+      const path = await import('node:path');
       const root = viteConfig.root || process.cwd();
-      const loaded = await loadConfigFromFile(env, 'auwla.config.ts', root)
-        ?? await loadConfigFromFile(env, 'auwla.config.js', root)
-        ?? await loadConfigFromFile(env, 'auwla.config.mjs', root);
+      
+      let loaded = null;
+      if (fs.existsSync(path.resolve(root, 'auwla.config.ts'))) {
+        loaded = await loadConfigFromFile(env, 'auwla.config.ts', root);
+      } else if (fs.existsSync(path.resolve(root, 'auwla.config.js'))) {
+        loaded = await loadConfigFromFile(env, 'auwla.config.js', root);
+      } else if (fs.existsSync(path.resolve(root, 'auwla.config.mjs'))) {
+        loaded = await loadConfigFromFile(env, 'auwla.config.mjs', root);
+      }
+
       if (loaded) {
         Object.assign(options, loaded.config);
       }
@@ -159,13 +168,23 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         return null;
       }
 
-      const ssr =
-        options.target === 'ssr' ||
+      // SSR compilation requires BOTH conditions to be true:
+      //   1. The project opts into server-side HTML rendering via `target: 'ssr'` or `target: 'ssg'`.
+      //      Without this, a project with a server entry (e.g. SPA fullstack or API-only) would
+      //      never want page modules compiled to SSR string output.
+      //   2. Vite confirms this specific module load is happening in a server-side context.
+      //      This is the signal that distinguishes the server pass from the client pass for the
+      //      same file. Using OR here (the previous bug) caused client modules to be compiled
+      //      as SSR too, producing `[object Object]` instead of DOM nodes during hydration.
+      const wantsServerRendering = options.target === 'ssr' || options.target === 'ssg';
+      const viteIsInSsrContext =
         transformOptions?.ssr === true ||
         // @ts-ignore: Vite 6 Environment API
         this.environment?.name === 'ssr' ||
         // @ts-ignore: Vite 6 Environment API fallback
         this.environment?.name === 'server';
+
+      const ssr = wantsServerRendering && viteIsInSsrContext;
         
       let compiled = cssHandler.transform(code, file);
       compiled = compileAuwla(compiled, file, { ssr });

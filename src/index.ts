@@ -23,6 +23,7 @@ export {
   __event,
   __escapeHtml,
   __hydrateComment,
+  __hydrateElement,
   __keyedMap,
   __setAttribute,
   __setChild,

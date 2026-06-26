@@ -24,6 +24,7 @@ export default defineConfig({
         'vite-router/index': resolve(__dirname, 'src/vite-router/index.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts'),
+        'config/index': resolve(__dirname, 'src/config/index.ts'),
         'server/index': resolve(__dirname, 'src/server/index.ts'),
         'runtime/ssr': resolve(__dirname, 'src/runtime/ssr.ts'),
         'client/rpc': resolve(__dirname, 'src/client/rpc.ts'),
@@ -48,7 +49,7 @@ export default defineConfig({
   },
   appType: 'spa',
   plugins: [
-    auwla({ debugFlag: true, css: true }),
+    auwla({ compiler: { debugFlag: true, css: true } }),
   ],
   assetsInclude: [],
   optimizeDeps: {

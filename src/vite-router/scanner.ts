@@ -11,7 +11,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, extname } from 'node:path'
-import type { PageFile, PageExports, LayoutFile, DirectoryNode, AuwlaRouterOptions } from './types'
+import type { PageFile, PageExports, LayoutFile, DirectoryNode } from './types'
 
 /** Extensions considered page files when no override is provided. */
 const DEFAULT_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js']
@@ -37,7 +37,7 @@ const DEFAULT_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js']
  */
 export function scanPages(
   pagesDir: string,
-  options: Pick<AuwlaRouterOptions, 'extensions'> = {},
+  options: { extensions?: string[] } = {},
 ): PageFile[] {
   const extensions = options.extensions ?? DEFAULT_EXTENSIONS
   const collected: PageFile[] = []
@@ -62,7 +62,7 @@ export function scanPages(
  */
 export function scanPagesAndLayouts(
   pagesDir: string,
-  options: Pick<AuwlaRouterOptions, 'extensions'> = {},
+  options: { extensions?: string[] } = {},
 ): { pages: PageFile[]; layouts: LayoutFile[] } {
   const extensions = options.extensions ?? DEFAULT_EXTENSIONS
   const pages: PageFile[] = []

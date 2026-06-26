@@ -68,11 +68,30 @@ export function __hydrateComment(data: string): Comment {
       (hydrationCursor.textContent === 'auwla:child' ||
         hydrationCursor.textContent === 'auwla:keyed-map')
     ) {
-      const node = hydrationCursor as Comment;
-      // Skip the matching close comment too (if present).
-      let next = node.nextSibling;
-      hydrationCursor = next as ChildNode | null;
-      return node;
+      const openNode = hydrationCursor as Comment;
+      const expectedClose = '/' + openNode.textContent;
+      
+      const hydratedNodes: Node[] = [];
+      let current = openNode.nextSibling;
+      
+      while (current && !(current.nodeType === Node.COMMENT_NODE && current.textContent === expectedClose)) {
+        hydratedNodes.push(current);
+        current = current.nextSibling;
+      }
+      
+      const closeNode = current as Comment | null;
+      
+      if (closeNode) {
+        hydrationCursor = closeNode.nextSibling as ChildNode | null;
+        
+        // The closing comment acts as the anchor for future __setChild operations
+        const marker = closeNode as any;
+        marker.__auwlaChildNodes = hydratedNodes;
+        return marker;
+      } else {
+        hydrationCursor = openNode.nextSibling as ChildNode | null;
+        return openNode;
+      }
     }
   }
   return document.createComment(data);
