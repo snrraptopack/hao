@@ -85,11 +85,11 @@ let ssgIsRunning = false
  *   }
  */
 export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
-  const pagesRelDir     = options.dir         ?? 'src/pages'
-  const genRelFile      = options.genFile     ?? 'src/auwla.gen.ts'
-  const serverRelDir    = options.serverDir   ?? 'src/server'
-  const manifestRelDir  = options.manifestDir ?? '.auwla'
-  const isLazy          = options.lazy        ?? false
+  let pagesRelDir     = options.directories?.pages ?? 'src/pages'
+  let genRelFile      = options.router?.genFile     ?? 'src/auwla.gen.ts'
+  let serverRelDir    = options.directories?.server ?? 'src/server'
+  let manifestRelDir  = options.directories?.manifest ?? '.auwla'
+  let isLazy          = options.router?.lazy        ?? false
 
   /** Resolved after Vite's `configResolved` hook fires. */
   let resolvedPagesDir = ''
@@ -118,8 +118,25 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     // Config
     // -----------------------------------------------------------------------
 
+    async config(viteConfig, env) {
+      const { loadConfigFromFile } = await import('vite');
+      const root = viteConfig.root || process.cwd();
+      const loaded = await loadConfigFromFile(env, 'auwla.config.ts', root)
+        ?? await loadConfigFromFile(env, 'auwla.config.js', root)
+        ?? await loadConfigFromFile(env, 'auwla.config.mjs', root);
+      if (loaded) {
+        Object.assign(options, loaded.config);
+      }
+    },
+
     configResolved(config: ResolvedConfig) {
       viteConfig = config
+      pagesRelDir     = options.directories?.pages ?? 'src/pages'
+      genRelFile      = options.router?.genFile     ?? 'src/auwla.gen.ts'
+      serverRelDir    = options.directories?.server ?? 'src/server'
+      manifestRelDir  = options.directories?.manifest ?? '.auwla'
+      isLazy          = options.router?.lazy        ?? false
+
       resolvedPagesDir     = resolve(config.root, pagesRelDir)
       resolvedGenFile      = resolve(config.root, genRelFile)
       resolvedServerDir    = resolve(config.root, serverRelDir)
@@ -167,7 +184,10 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           const routesModule = await server.ssrLoadModule('auwla:routes')
           const routes = routesModule.default
 
-          const ssgRoutes = routes.filter((r: any) => r.config?.renderMode === 'ssg')
+          const ssgRoutes = routes.filter((r: any) => {
+            const mode = r.config?.renderMode ?? options.target ?? 'spa'
+            return mode === 'ssg'
+          })
           if (ssgRoutes.length === 0) return
 
           console.log(`\n[auwla] Found ${ssgRoutes.length} SSG route(s). Generating static pages...`)
@@ -207,10 +227,17 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
             for (const path of paths) {
               console.log(`[auwla] Rendering static page: ${path}`)
-              // renderToString expects a full URL so that new Request() inside ssr.ts
-              // can construct a valid Request object. Bare paths like /docs/foo fail.
+              let ssgManifest: ServerManifest = {}
+              try {
+                const fs = await import('node:fs')
+                const manifestPath = resolve(resolvedManifestDir, 'server-manifest.json')
+                ssgManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+              } catch (e) {
+                console.warn(`[auwla] Warning: Failed to load server manifest for SSG:`, e)
+              }
+
               const result = await renderToString(`http://localhost${path}`, routes, {
-                manifest: {},
+                manifest: ssgManifest,
               })
 
               const pageHtml = template
@@ -360,7 +387,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     // -----------------------------------------------------------------------
 
     configureServer(server: ViteDevServer) {
-      const extensions = options.extensions ?? ['.tsx', '.ts', '.jsx', '.js']
+      const extensions = options.router?.extensions ?? ['.tsx', '.ts', '.jsx', '.js']
 
       // Ensure Vite watches the pages directory even if it is empty or missing.
       server.watcher.add(resolvedPagesDir)

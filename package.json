@@ -77,6 +77,10 @@
     "./adapters/express": {
       "types": "./dist/adapters/express.d.ts",
       "import": "./dist/adapters/express.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
     }
   },
   "files": [

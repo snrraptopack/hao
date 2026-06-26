@@ -123,95 +123,11 @@ export type DirectoryNode = {
 // Plugin options (public)
 // ---------------------------------------------------------------------------
 
+import type { AuwlaConfig } from '../config';
+
 /**
  * Options accepted by auwlaRouter().
  *
  * All fields are optional — sensible defaults are applied when omitted.
  */
-export type AuwlaRouterOptions = {
-  /**
-   * Directory to scan for page files, relative to the Vite project root.
-   *
-   * File path → route path mapping:
-   *   index.tsx               → /
-   *   about.tsx               → /about
-   *   posts/index.tsx         → /posts
-   *   posts/[id].tsx          → /posts/:id
-   *   posts/[id]/comments.tsx → /posts/:id/comments
-   *   [...404].tsx            → *  (catch-all, always matched last)
-   *
-   * @default 'src/pages'
-   */
-  dir?: string
-
-  /**
-   * Output path for the generated TypeScript type augmentation file,
-   * relative to the Vite project root.
-   *
-   * The file augments the `Register` interface in 'auwla/router' so that
-   * navigate(), isActive(), isExactActive(), and <Link href> all validate
-   * against discovered route paths at compile time.
-   *
-   * This file should be committed to version control.
-   *
-   * @default 'src/auwla.gen.ts'
-   */
-  genFile?: string
-
-  /**
-   * File extensions treated as page files.
-   * @default ['.tsx', '.ts', '.jsx', '.js']
-   */
-  extensions?: string[]
-
-  /**
-   * Enable code splitting via dynamic imports.
-   *
-   * When true, pages that export a `routed` function are loaded lazily:
-   * the page JS chunk is fetched as part of the route's data load, so
-   * the component is guaranteed to be in memory by the time it renders.
-   * Pages without `routed` continue to use static imports.
-   *
-   * When false, all pages use static imports (everything in one bundle).
-   *
-   * @default false
-   */
-  lazy?: boolean
-
-  /**
-   * Enable `<Link prefetch>` support.
-   *
-   * When true, the router exposes a `prefetchRoute(path)` function that
-   * starts both the page chunk download and the routed data fetch for a
-   * given path. `<Link prefetch>` calls this on `mouseenter` so that by
-   * the time the user clicks, the page is already loading.
-   *
-   * Requires `lazy: true` to be meaningful for chunk prefetching.
-   *
-   * @default true
-   */
-  prefetch?: boolean
-
-  /**
-   * Directory to scan for shared server-only files, relative to the Vite
-   * project root. Files ending in `.server.ts` inside this directory are
-   * exposed as remote functions keyed by their path.
-   *
-   * In addition, any `.server.ts` file co-located with a page inside `dir`
-   * is automatically scanned.
-   *
-   * @default 'src/server'
-   */
-  serverDir?: string
-
-  /**
-   * Output directory for generated fullstack artifacts:
-   *   - server-manifest.json   (runtime manifest)
-   *   - server-manifest.d.ts   (generated types)
-   *
-   * Relative to the Vite project root.
-   *
-   * @default '.auwla'
-   */
-  manifestDir?: string
-}
+export type AuwlaRouterOptions = AuwlaConfig;

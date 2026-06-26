@@ -287,7 +287,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
       root = `${mapVar}.node`;
     } else if (branch.fragment) {
       root = `el${branchCtx.elementId++}`;
-      branchCtx.setup.push(`const ${root} = document.createElement("span");`);
+      branchCtx.setup.push(`const ${root} = __hydrateElement("span");`);
       for (const fragmentChild of branch.fragment.children) {
         if (!compileJsxChild(branchCtx, fragmentChild, root)) return false;
       }
@@ -378,9 +378,9 @@ export function compileJsxNode(
   const elementVar = `el${ctx.elementId++}`;
   const isSvg = isSvgTag(tag);
   if (isSvg) {
-    ctx.setup.push(`const ${elementVar} = document.createElementNS("http://www.w3.org/2000/svg", ${stringLiteral(tag)});`);
+    ctx.setup.push(`const ${elementVar} = __hydrateElement(${stringLiteral(tag)}, true);`);
   } else {
-    ctx.setup.push(`const ${elementVar} = document.createElement(${stringLiteral(tag)});`);
+    ctx.setup.push(`const ${elementVar} = __hydrateElement(${stringLiteral(tag)});`);
   }
 
   for (const attribute of opening.attributes.properties) {

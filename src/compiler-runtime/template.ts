@@ -79,6 +79,41 @@ export function __hydrateComment(data: string): Comment {
 }
 
 /**
+ * Claim the next element from the server-rendered DOM for use as a node.
+ * 
+ * In hydration mode, returns the existing element at the cursor and advances
+ * past it. Outside hydration mode, creates a fresh element.
+ * @internal
+ */
+export function __hydrateElement(tag: string, isSvg = false): HTMLElement | SVGElement {
+  if (hydrationCursor !== null) {
+    // Skip pure-whitespace text nodes between tags.
+    while (
+      hydrationCursor !== null &&
+      hydrationCursor.nodeType === Node.TEXT_NODE &&
+      hydrationCursor.textContent?.trim() === ''
+    ) {
+      hydrationCursor = hydrationCursor.nextSibling as ChildNode | null;
+    }
+
+    if (
+      hydrationCursor !== null &&
+      hydrationCursor.nodeType === Node.ELEMENT_NODE &&
+      (hydrationCursor as Element).tagName.toLowerCase() === tag.toLowerCase()
+    ) {
+      const node = hydrationCursor;
+      hydrationCursor = hydrationCursor.nextSibling as ChildNode | null;
+      return node as HTMLElement | SVGElement;
+    }
+  }
+  
+  if (isSvg) {
+    return document.createElementNS("http://www.w3.org/2000/svg", tag) as SVGElement;
+  }
+  return document.createElement(tag);
+}
+
+/**
  * Clone an element from a cached HTML template string.
  *
  * In hydration mode, returns the existing server-rendered node at the current

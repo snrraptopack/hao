@@ -3,35 +3,9 @@ import { compileAuwla } from './compiler';
 import { ViteCSSHandler, RESOLVED_ID } from './vite-css';
 import { clearThemeCache } from './css/compiler/css-compiler';
 
-export type AuwlaViteOptions = {
-  include?: RegExp;
-  exclude?: RegExp;
-  debugFlag?: boolean | string;
-  css?: boolean;
-  /**
-   * Force SSR compilation for every file transformed by this plugin.
-   *
-   * When `true`, components are compiled to `__ssrBlock` string templates
-   * instead of `__createBlock` DOM calls — identical to what Vite sets
-   * automatically for files loaded via `vite.ssrLoadModule` or a
-   * `vite build --ssr` run.
-   *
-   * Set this in `vite.config.ts` to enable SSR rendering without needing
-   * a separate server entry or a two-pass build:
-   *
-   * ```ts
-   * // vite.config.ts
-   * plugins: [auwla({ ssr: true })]
-   * ```
-   */
-  ssr?: boolean;
-  /**
-   * Path to your custom server entry file (e.g. 'src/server.ts').
-   * If provided, Vite will automatically intercept SSR/RPC requests
-   * during development and route them through your custom server.
-   */
-  serverEntry?: string;
-};
+import { type AuwlaConfig } from './config';
+
+export type AuwlaViteOptions = AuwlaConfig;
 
 function normalizeId(id: string): string {
   return id.split('?', 1)[0] ?? id;
@@ -48,10 +22,7 @@ function isTrackedStyleFile(file: string): boolean {
 }
 
 export function auwla(options: AuwlaViteOptions = {}): Plugin {
-  const include = options.include ?? /\.[tj]sx$/;
-  const exclude = options.exclude;
-
-  const cssHandler = new ViteCSSHandler(!!options.css, !!options.debugFlag);
+  let cssHandler: ViteCSSHandler;
   let viteConfig: any;
 
   return {
@@ -60,12 +31,24 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
 
     configResolved(resolvedConfig) {
       viteConfig = resolvedConfig;
+      cssHandler = new ViteCSSHandler(!!options.compiler?.css, !!options.compiler?.debugFlag);
+    },
+
+    async config(viteConfig, env) {
+      const { loadConfigFromFile } = await import('vite');
+      const root = viteConfig.root || process.cwd();
+      const loaded = await loadConfigFromFile(env, 'auwla.config.ts', root)
+        ?? await loadConfigFromFile(env, 'auwla.config.js', root)
+        ?? await loadConfigFromFile(env, 'auwla.config.mjs', root);
+      if (loaded) {
+        Object.assign(options, loaded.config);
+      }
     },
 
     async closeBundle() {
       // Automatic two-pass build orchestration
       if (
-        options.serverEntry &&
+        options.server?.entry &&
         !viteConfig.build.ssr &&
         process.env.AUWLA_SKIP_SSR_BUILD !== 'true'
       ) {
@@ -77,7 +60,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
           await vite.build({
             configFile: viteConfig.configFile,
             build: {
-              ssr: options.serverEntry,
+              ssr: options.server.entry,
               outDir: 'dist/server',
               emptyOutDir: false,
             }
@@ -92,10 +75,10 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       cssHandler.setServer(server);
       ;(globalThis as any).__auwla_vite_server = server;
       ;(globalThis as any).__auwla_vite_css_handler = cssHandler;
-      if (options.serverEntry) {
-        console.log('[auwla:vite] configureServer running, serverEntry:', options.serverEntry)
+      if (options.server?.entry) {
+        console.log('[auwla:vite] configureServer running, serverEntry:', options.server?.entry)
         const { createDevServerMiddleware } = await import('./dev-middleware.js')
-        const middleware = await createDevServerMiddleware(server, options.serverEntry)
+        const middleware = await createDevServerMiddleware(server, options.server.entry)
         server.middlewares.use(middleware)
         console.log('[auwla:vite] dev middleware registered!')
       }
@@ -163,18 +146,21 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
     },
 
     transform(code, id, transformOptions) {
+      const include = options.compiler?.include ?? /\.[tj]sx$/;
+      const exclude = options.compiler?.exclude;
+
       const file = normalizeId(id);
       if (!include.test(file)) return null;
       if (exclude?.test(file)) return null;
       if (file.includes('/node_modules/') || file.includes('\\node_modules\\')) return null;
 
       const hasJsx = /<[a-zA-Z]/.test(code);
-      if (!options.debugFlag && !code.includes('css') && !code.includes('define') && !hasJsx) {
+      if (!options.compiler?.debugFlag && !code.includes('css') && !code.includes('define') && !hasJsx) {
         return null;
       }
 
       const ssr =
-        options.ssr === true ||
+        options.target === 'ssr' ||
         transformOptions?.ssr === true ||
         // @ts-ignore: Vite 6 Environment API
         this.environment?.name === 'ssr' ||
@@ -185,12 +171,12 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       compiled = compileAuwla(compiled, file, { ssr });
 
       if (compiled === code) {
-        const marker = markerCode(false, options.debugFlag);
+        const marker = markerCode(false, options.compiler?.debugFlag);
         return marker ? { code: `${marker}${code}`, map: null } : null;
       }
 
       return {
-        code: `${markerCode(true, options.debugFlag)}${compiled}`,
+        code: `${markerCode(true, options.compiler?.debugFlag)}${compiled}`,
         map: null,
         moduleType: 'js',
       };

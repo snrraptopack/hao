@@ -54,6 +54,7 @@ export const COMPILER_IMPORT = [
   '__dirtySource',
   '__event',
   '__escapeHtml',
+  '__hydrateElement',
   '__keyedMap',
   '__setAttribute',
   '__setChild',

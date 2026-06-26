@@ -29,6 +29,8 @@ function compileRenderClosure(
   const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx, forceAllUpdate, preUpdateStatements, ssr);
   if (templateResult) return templateResult;
 
+  if (ssr) return null;
+
   const ctx: CompileContext = {
     source,
     elementId: 0,
