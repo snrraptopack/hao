@@ -75,7 +75,7 @@ function pathToRegex(path: string): { regex: RegExp; keys: string[] } {
       return "([^/]+)"
     })
     .replace(/\*/g, ".*")
-  return { regex: new RegExp(`^${pattern}$`), keys }
+  return { regex: new RegExp(`^${pattern}\\/?$`), keys }
 }
 
 // Returns the first route that matches `pathname` and has a component.

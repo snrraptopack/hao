@@ -88,6 +88,7 @@ export function generateVirtualModule(pages: PageFile[]): string {
     if (ex.hasError)   props.push(`    errorComponent: ${alias}.error`)
     if (ex.hasGuard)   props.push(`    guard: ${alias}.guard`)
     if (ex.hasMeta)    props.push(`    meta: ${alias}.meta`)
+    if (ex.hasConfig)  props.push(`    config: ${alias}.config`)
 
     lines.push(`  {`)
     lines.push(props.join(',\n'))
@@ -198,6 +199,7 @@ export function generateLazyVirtualModule(pages: PageFile[]): string {
     if (page.exports.hasError)   props.push(`    errorComponent: ${alias}.error`)
     if (page.exports.hasGuard)   props.push(`    guard: ${alias}.guard`)
     if (page.exports.hasMeta)    props.push(`    meta: ${alias}.meta`)
+    if (page.exports.hasConfig)  props.push(`    config: ${alias}.config`)
     lines.push('  {')
     lines.push(props.join(',\n'))
     lines.push('  },')
@@ -241,6 +243,9 @@ export function generateLazyVirtualModule(pages: PageFile[]): string {
     if (ex.hasMeta) {
       // Meta is a getter so it reads the live cache value on each access.
       lines.push(`    get meta() { return __mods.get(${key})?.meta },`)
+    }
+    if (ex.hasConfig) {
+      lines.push(`    get config() { return __mods.get(${key})?.config },`)
     }
 
     lines.push('  },')
@@ -422,6 +427,7 @@ export function generateVirtualModuleWithLayouts(
         lines.push(`    guard: ${buildLayoutGuardOnly(chain, layoutAlias)},`)
       }
       if (ex.hasMeta)    lines.push(`    meta: ${alias}.meta,`)
+      if (ex.hasConfig)  lines.push(`    config: ${alias}.config,`)
     } else {
       // Lazy page (dynamic import)
       const key        = JSON.stringify(page.routePath)
@@ -444,6 +450,7 @@ export function generateVirtualModuleWithLayouts(
       }
       if (ex.hasGuard)   lines.push(`    guard: (ctx) => __mods.get(${key})?.guard?.(ctx),`)
       if (ex.hasMeta)    lines.push(`    get meta() { return __mods.get(${key})?.meta },`)
+      if (ex.hasConfig)  lines.push(`    get config() { return __mods.get(${key})?.config },`)
     }
 
     lines.push('  },')

@@ -101,6 +101,11 @@ describe('detectExports', () => {
     expect(detectExports(src).hasMeta).toBe(true)
   })
 
+  it('detects config', () => {
+    const src = `export const config = { renderMode: 'ssg' }`
+    expect(detectExports(src).hasConfig).toBe(true)
+  })
+
   it('returns all false for an empty file', () => {
     const ex = detectExports('')
     expect(ex.hasDefault).toBe(false)
@@ -109,6 +114,7 @@ describe('detectExports', () => {
     expect(ex.hasError).toBe(false)
     expect(ex.hasGuard).toBe(false)
     expect(ex.hasMeta).toBe(false)
+    expect(ex.hasConfig).toBe(false)
   })
 
   it('does not match a non-exported named function', () => {

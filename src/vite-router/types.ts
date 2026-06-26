@@ -47,6 +47,8 @@ export type PageExports = {
   hasGuard: boolean
   /** `export const meta` — static route metadata. */
   hasMeta: boolean
+  /** `export const config` — static render configuration (e.g. renderMode, generatePaths). */
+  hasConfig: boolean
 }
 
 // ---------------------------------------------------------------------------

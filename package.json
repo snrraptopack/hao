@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.3.22",
+  "version": "0.3.25",
   "description": "A tiny typed DOM runtime with event-driven rerendering and memoized DOM reuse",
   "type": "module",
   "main": "./dist/auwla.js",
@@ -53,6 +53,10 @@
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
+    },
+    "./runtime/ssr": {
+      "types": "./dist/runtime/ssr.d.ts",
+      "import": "./dist/runtime/ssr.js"
     },
     "./client": {
       "types": "./dist/client/rpc.d.ts",

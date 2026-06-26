@@ -47,6 +47,15 @@ const RESOLVED_MANIFEST_VIRTUAL_ID = '\0auwla:server-manifest'
 /** In-memory cache of the generated server manifest JS source. */
 let cachedManifestModule: string | null = null
 
+/**
+ * Module-level flag that prevents the SSG generator from running more than once
+ * per Node.js process. It must live here (not inside the plugin closure) because
+ * each `auwlaRouter()` call — including those triggered by the inner Vite dev
+ * server we boot during SSG — creates a fresh closure instance.  A shared
+ * module-level variable is the only way to stop the recursion.
+ */
+let ssgIsRunning = false
+
 // ---------------------------------------------------------------------------
 // Plugin factory
 // ---------------------------------------------------------------------------
@@ -87,6 +96,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
   let resolvedGenFile  = ''
   let resolvedServerDir = ''
   let resolvedManifestDir = ''
+  let viteConfig: ResolvedConfig
 
   /**
    * In-memory cache of the last generated virtual module source.
@@ -109,6 +119,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     // -----------------------------------------------------------------------
 
     configResolved(config: ResolvedConfig) {
+      viteConfig = config
       resolvedPagesDir     = resolve(config.root, pagesRelDir)
       resolvedGenFile      = resolve(config.root, genRelFile)
       resolvedServerDir    = resolve(config.root, serverRelDir)
@@ -129,6 +140,103 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
     },
 
     // -----------------------------------------------------------------------
+    // Build end (SSG generation)
+    // -----------------------------------------------------------------------
+
+    async closeBundle() {
+      // Skip if this is an SSR build or if SSG is already running in this process.
+      // ssgIsRunning is module-level so it is shared across all plugin instances,
+      // including the inner dev server we create below.
+      if (viteConfig.build.ssr) return
+      if (ssgIsRunning) return
+      ssgIsRunning = true
+
+      try {
+        const { createServer } = await import('vite')
+        const server = await createServer({
+          configFile: viteConfig.configFile,
+          server: {
+            middlewareMode: true,
+            hmr: { port: 0 },
+            watch: null,
+          },
+          appType: 'custom',
+        })
+
+        try {
+          const routesModule = await server.ssrLoadModule('auwla:routes')
+          const routes = routesModule.default
+
+          const ssgRoutes = routes.filter((r: any) => r.config?.renderMode === 'ssg')
+          if (ssgRoutes.length === 0) return
+
+          console.log(`\n[auwla] Found ${ssgRoutes.length} SSG route(s). Generating static pages...`)
+
+          const { renderToString } = await server.ssrLoadModule('auwla/runtime/ssr')
+
+          const outDir = resolve(viteConfig.root, viteConfig.build.outDir || 'dist')
+          const templatePath = resolve(outDir, 'index.html')
+
+          let template = ''
+          try {
+            const fs = await import('node:fs')
+            template = fs.readFileSync(templatePath, 'utf-8')
+          } catch {
+            console.error(`[auwla] Error: SSG template index.html not found at ${templatePath}`)
+            return
+          }
+
+          for (const route of ssgRoutes) {
+            let paths: string[] = []
+            if (route.path.includes(':') || route.path === '*') {
+              if (route.config?.generatePaths) {
+                const paramsList = await route.config.generatePaths()
+                for (const params of paramsList) {
+                  let path = route.path
+                  for (const [key, value] of Object.entries(params)) {
+                    path = path.replace(`:${key}`, String(value))
+                  }
+                  paths.push(path)
+                }
+              } else {
+                console.warn(`[auwla] Warning: Dynamic route "${route.path}" is configured for SSG but does not export "generatePaths()". Skipping.`)
+              }
+            } else {
+              paths.push(route.path)
+            }
+
+            for (const path of paths) {
+              console.log(`[auwla] Rendering static page: ${path}`)
+              // renderToString expects a full URL so that new Request() inside ssr.ts
+              // can construct a valid Request object. Bare paths like /docs/foo fail.
+              const result = await renderToString(`http://localhost${path}`, routes, {
+                manifest: {},
+              })
+
+              const pageHtml = template
+                .replace('id="app"', 'id="app" data-auwla-ssr="true"')
+                .replace('<!--app-html-->', result.html)
+
+              const cleanPath = path === '/' ? 'index.html' : `${path.replace(/^\//, '')}/index.html`
+              const writePath = resolve(outDir, cleanPath)
+              console.log(`[auwla] Writing static page to: ${writePath}`)
+
+              writeSafe(writePath, pageHtml)
+            }
+          }
+        } finally {
+          await server.close()
+          // Reset only after server.close() fully completes so the inner server's
+          // closeBundle calls are still blocked while we are alive.
+          ssgIsRunning = false
+        }
+      } catch (err) {
+        console.error('[auwla] SSG generation failed:', err)
+        ssgIsRunning = false
+      }
+    },
+
+    // -----------------------------------------------------------------------
     // Virtual module resolution
     // -----------------------------------------------------------------------
 
@@ -136,6 +244,26 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       if (source === VIRTUAL_MODULE_ID) return RESOLVED_VIRTUAL_ID
       if (source === MANIFEST_VIRTUAL_MODULE_ID) return RESOLVED_MANIFEST_VIRTUAL_ID
       return null
+    },
+
+    configurePreviewServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const url = new URL(req.url || '', `http://${req.headers.host}`)
+        const pathname = url.pathname
+
+        // Only rewrite clean document routes (no extensions)
+        if (!pathname.includes('.') && pathname !== '/') {
+          const outDir = server.config.build.outDir || 'dist'
+          const cleanPath = pathname.replace(/^\//, '')
+          const staticFile = resolve(server.config.root, outDir, cleanPath, 'index.html')
+
+          if (existsSync(staticFile)) {
+            // Internally rewrite to point to the pre-rendered index.html file
+            req.url = pathname + (pathname.endsWith('/') ? '' : '/') + 'index.html' + url.search
+          }
+        }
+        next()
+      })
     },
 
     load(id: string, options?: { ssr?: boolean }): string | null {

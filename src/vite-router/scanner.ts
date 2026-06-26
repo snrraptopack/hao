@@ -230,6 +230,7 @@ export function detectExports(source: string): PageExports {
     hasError:   hasExport('error'),
     hasGuard:   hasExport('guard'),
     hasMeta:    hasExport('meta'),
+    hasConfig:  hasExport('config'),
   }
 }
 

@@ -5,6 +5,7 @@ import { navigate, supportsNavigationAPI } from "./navigation"
 import { prefetchRoute } from "./prefetch"
 import { pathFor } from "./routes"
 import type { ValidRoutePath, PathParams } from "./types"
+import { h } from "../runtime/dom"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,6 +59,26 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
     exactActiveClass = "exact-active",
     prefetch = true,
   } = props
+
+  // SSR / SSG: no DOM available.  Skip the compiled-template setup path
+  // (which calls document.createElement at setup time) and return a simple
+  // render closure.  h() already routes to createSsrNode when
+  // typeof document === 'undefined', so this produces a proper SsrNode.
+  if (typeof document === 'undefined') {
+    return () => {
+      const actualUrl = pathFor(href as string, props.params as any, props.query)
+      const exact = isExactActive(actualUrl)
+      const partial = isActive(actualUrl)
+      const classes = [
+        props.class,
+        partial && activeClass,
+        exact && exactActiveClass,
+      ].filter(Boolean).join(" ") || undefined
+
+      return h('a', { href: actualUrl, class: classes, style: props.style }, ...([] as any[]).concat(props.children ?? []))
+    }
+  }
+
   // Active class computation must happen inside the render closure so it
   // re-evaluates on every navigation commit, not just on component setup.
   return () => {

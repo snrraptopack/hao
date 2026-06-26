@@ -19,6 +19,7 @@ function makePage(routePath: string, filePath = `/src/pages${routePath === '*' ?
       hasError:   false,
       hasGuard:   false,
       hasMeta:    false,
+      hasConfig:  false,
     },
   }
 }
@@ -36,6 +37,7 @@ function makeFullPage(routePath: string, filePath = `/src/pages${routePath}.tsx`
       hasError:   true,
       hasGuard:   true,
       hasMeta:    true,
+      hasConfig:  true,
     },
   }
 }
@@ -82,6 +84,7 @@ describe('generateVirtualModule', () => {
     expect(code).not.toContain('errorComponent')
     expect(code).not.toContain('guard')
     expect(code).not.toContain('meta')
+    expect(code).not.toContain('config')
   })
 
   it('emits all optional properties when all exports are present', () => {
@@ -91,6 +94,7 @@ describe('generateVirtualModule', () => {
     expect(code).toContain('errorComponent: page0.error')
     expect(code).toContain('guard: page0.guard')
     expect(code).toContain('meta: page0.meta')
+    expect(code).toContain('config: page0.config')
   })
 
   it('normalises Windows backslashes in import paths', () => {

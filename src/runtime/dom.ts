@@ -45,6 +45,26 @@ function createSsrNode<K extends keyof HTMLElementTagNameMap>(
  * - Primitives become text nodes.
  */
 export function toNode(child: unknown): Node {
+  // ----- SSR fallback -----
+  // When there is no DOM (SSR / SSG) we return values that the
+  // ssrChildToString() serialiser in compiler-runtime/ssr already knows how
+  // to handle: functions are called, arrays are mapped, SsrNodes are
+  // serialised, primitives are stringified.  We cast to Node only to satisfy
+  // the return type — this path is never reached during a browser render.
+  if (typeof document === 'undefined') {
+    if (isRenderClosure(child)) return toNode(child());
+    if (isTemplateNode(child)) return createSsrNode(child.tag, child.props, child.children) as unknown as Node;
+    if (Array.isArray(child)) {
+      return child
+        .flat(Infinity)
+        .filter((item) => item !== null && item !== undefined && item !== false && item !== true)
+        .map(toNode) as unknown as Node;
+    }
+    // Primitive — return as-is; ssrChildToString will stringify it.
+    return (child == null || typeof child === 'boolean' ? '' : child) as unknown as Node;
+  }
+
+  // ----- Browser path (unchanged) -----
   if (child instanceof Node) return child;
 
   if (isRenderClosure(child)) {
@@ -72,6 +92,12 @@ export function toNode(child: unknown): Node {
  * @internal
  */
 function createNodeFromTemplate(template: TemplateNode): Node {
+  // In SSR there is no DOM — produce an SsrNode descriptor instead of
+  // attempting to create a real element.  The serialiser handles it.
+  if (typeof document === 'undefined') {
+    return createSsrNode(template.tag, template.props, template.children) as unknown as Node;
+  }
+
   const node = createMemoElement(
     template.tag,
     template.props,
@@ -98,6 +124,12 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
   wrapEvent: EventWrapper = runtimeState.activeEventWrapper ?? ((handler) => handler),
   ownerId: string | null = currentComponentId(),
 ): HTMLElementTagNameMap[K] {
+  // SSR fallback — no DOM available.  Return a plain SsrNode descriptor that
+  // the ssrNodeToString() serialiser in compiler-runtime/ssr can render.
+  if (typeof document === 'undefined') {
+    return createSsrNode(tag, props, children) as unknown as HTMLElementTagNameMap[K];
+  }
+
   const element = document.createElement(tag) as MemoElement;
   const appliedProps: Record<string, unknown> = {};
   registerComponentHost(ownerId, element);

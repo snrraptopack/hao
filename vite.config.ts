@@ -25,6 +25,7 @@ export default defineConfig({
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts'),
         'server/index': resolve(__dirname, 'src/server/index.ts'),
+        'runtime/ssr': resolve(__dirname, 'src/runtime/ssr.ts'),
         'client/rpc': resolve(__dirname, 'src/client/rpc.ts'),
         'adapters/fetch': resolve(__dirname, 'src/adapters/fetch.ts'),
         'adapters/hono': resolve(__dirname, 'src/adapters/hono.ts'),

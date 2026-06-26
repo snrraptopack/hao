@@ -245,11 +245,14 @@ export function __resetTrackRegistry(): void {
   getComponentTracks().clear();
 }
 
-/** @internal Extract the resolved state of all global queries for SSR hydration. */
+/** @internal Extract the resolved state of all global queries and loaders for SSR hydration. */
 export function __extractTrackState(): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const [key, state] of getRegistry().entries()) {
-    if (key.startsWith('__global::remote:') && state.statusCell.get() === 'resolved') {
+    if (
+      (key.startsWith('__global::remote:') || key.startsWith('__global::__loader:')) &&
+      state.statusCell.get() === 'resolved'
+    ) {
       const name = key.slice('__global::'.length);
       data[name] = state.value;
     }

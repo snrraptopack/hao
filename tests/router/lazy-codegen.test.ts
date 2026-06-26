@@ -29,6 +29,7 @@ function makePage(
       hasError:   false,
       hasGuard:   false,
       hasMeta:    false,
+      hasConfig:  false,
     },
   }
 }
@@ -43,6 +44,7 @@ function makeFullLazyPage(routePath: string): PageFile {
       hasError:   true,
       hasGuard:   true,
       hasMeta:    true,
+      hasConfig:  true,
     },
   }
 }
@@ -119,6 +121,7 @@ describe('generateLazyVirtualModule', () => {
     expect(code).toContain('errorComponent')
     expect(code).toContain('guard')
     expect(code).toContain('get meta()')
+    expect(code).toContain('get config()')
   })
 
   it('does NOT emit pendingComponent when page has no pending export', () => {
