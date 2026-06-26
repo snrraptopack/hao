@@ -279,7 +279,7 @@ export function Router(props: RouterProps = {}) {
         setRpcRoutePath(prevPath)
         setRpcRouteParams(prevParams)
       }
-    }, { viewTransition: useViewTransition })
+    }, { viewTransition: useViewTransition }, true)
   }
 
   // The render closure. Re-runs whenever the reactive path cell changes (or

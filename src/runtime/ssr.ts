@@ -171,7 +171,7 @@ export async function renderToString(
 
       try {
         if (route.routed) {
-          loaderHandle = track(`__loader:${context.path}`, (signal) => route.routed!(context, signal));
+          loaderHandle = track(`__loader:${context.path}`, (signal) => route.routed!(context, signal), undefined, true);
           await loaderHandle;
         }
 

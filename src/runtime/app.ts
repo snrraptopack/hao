@@ -21,7 +21,7 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
-import { cleanupComponentTracks, hydrateTrackState } from '../track/core';
+import { cleanupComponentTracks, hydrateTrackState, hasPendingLoaders } from '../track/core';
 import { enterHydration, exitHydration } from '../compiler-runtime/template';
 
 /** Events that fire rapidly and should be throttled to one render per frame. */
@@ -157,13 +157,16 @@ export function createMemoApp<TModel>(
     try {
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
 
-      // During the first hydration render: if the output is null/falsy (lazy
-      // route chunk not loaded yet), skip patching the DOM so SSR content
+      // During the first hydration render: if any route loader is still pending
+      // (e.g. lazy route chunk not loaded yet), skip patching the DOM so SSR content
       // remains visible. The reactive track fires a new renderNow() when the
       // chunk resolves and __mods is populated.
       if (skipFirstHydrationPatch) {
+        if (hasPendingLoaders()) {
+          return;
+        }
         skipFirstHydrationPatch = false;
-        if (output == null || output === false) return;
+        exitHydration();
       }
 
       patchRoot(root, output);
@@ -330,7 +333,6 @@ export function createMemoApp<TModel>(
     skipFirstHydrationPatch = true;
     enterHydration(root);
     renderNow();
-    exitHydration();
   } else {
     renderNow();
   }

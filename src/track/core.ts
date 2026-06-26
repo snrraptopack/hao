@@ -281,6 +281,16 @@ export function hydrateTrackState(data: Record<string, unknown>): void {
   }
 }
 
+/** @internal Check if any route loader is currently pending. */
+export function hasPendingLoaders(): boolean {
+  for (const [key, state] of getRegistry().entries()) {
+    if (key.includes('__loader:') && state.statusCell.get() === 'pending') {
+      return true;
+    }
+  }
+  return false;
+}
+
 function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
   const handle = {
     get name() {
@@ -828,9 +838,9 @@ function trackPost(
  * query (track.get) and mutation (track.post) methods.
  */
 export interface TrackFn {
-  (name: string, promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
-  (name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions): TrackHandle;
-  (promise: Promise<unknown>, options?: TrackOptions): TrackHandle;
+  (name: string, promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+  (name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+  (promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
   /** Run a GET remote function immediately. */
   get: typeof trackGet;
   /** Create a lazy POST command handle. */

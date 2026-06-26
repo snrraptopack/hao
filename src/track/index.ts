@@ -1,4 +1,4 @@
-export { track, pending, resolved, rejected, value, reason, cancel, __resetTrackRegistry, __extractTrackState, hydrateTrackState } from './core';
+export { track, pending, resolved, rejected, value, reason, cancel, __resetTrackRegistry, __extractTrackState, hydrateTrackState, hasPendingLoaders } from './core';
 export { trackForm } from './form';
 
 export type {

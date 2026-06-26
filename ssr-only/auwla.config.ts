@@ -5,4 +5,7 @@ export default defineConfig({
   server: {
     entry: './src/server.ts'
   },
+  router: {
+    lazy: true
+  }
 });
