@@ -4,7 +4,7 @@
 
 import ts from 'typescript';
 import { TemplateContext, isSvgTag } from './types';
-import { compileTemplateAttribute } from './attributes';
+import { compileTemplateAttribute, jsxAttributeName } from './attributes';
 import type { DerivedContext } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 import {
@@ -146,10 +146,23 @@ export function compileTemplateNode(
 
   const elementVar = ctx.ssr ? '' : templateElementVar(ctx, path);
   let attrs = '';
+  let dangerouslySetInnerHTMLValue: string | null = null;
   for (const attribute of opening.attributes.properties) {
+    if (ts.isJsxAttribute(attribute)) {
+      const name = jsxAttributeName(attribute.name);
+      if (name === 'dangerouslySetInnerHTML') {
+        if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
+          dangerouslySetInnerHTMLValue = expressionText(ctx.source, attribute.initializer.expression);
+        }
+      }
+    }
     const attr = compileTemplateAttribute(ctx, attribute, elementVar);
     if (attr === null) return null;
     attrs += attr;
+  }
+
+  if (dangerouslySetInnerHTMLValue !== null && ctx.ssr) {
+    return `<${tag}${attrs}>\${(${dangerouslySetInnerHTMLValue})?.__html ?? ''}</${tag}>`;
   }
 
   if (ts.isJsxSelfClosingElement(node)) return `<${tag}${attrs}></${tag}>`;
@@ -216,6 +229,7 @@ export function compileTemplateRowBlock(
     textId: 0,
     elementSetup: [],
     textSetup: [],
+    refSetup: [],
     patches: [],
     deps: [],
     elementVars: new Map(),
@@ -238,6 +252,10 @@ export function compileTemplateRowBlock(
   const preUpdateLines = preUpdateStatements.map((line) => `              ${line}`).join('\n');
   const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
+  const refLines = ctx.refSetup.length
+    ? `\n                if (!_init) {\n${ctx.refSetup.map((r) => `                  ${r}`).join('\n')}\n                  _init = true;\n                }`
+    : '';
+
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
     forceUpdate: preUpdateStatements.length > 0,
@@ -250,10 +268,11 @@ export function compileTemplateRowBlock(
             ${ctx.textSetup.join('\n            ')}
 ${init ? `\n${init}\n` : ''}
 
+            ${ctx.refSetup.length ? 'let _init = false;' : ''}
             return {
               node: el0,
               update(${itemName}, ${indexName}) {
-${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}
+${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}${refLines}
               },
             };
           })`,
@@ -276,6 +295,7 @@ export function compileTemplateRootBlock(
     textId: 0,
     elementSetup: [],
     textSetup: [],
+    refSetup: [],
     patches: [],
     deps: [],
     elementVars: new Map(),
@@ -288,8 +308,9 @@ export function compileTemplateRootBlock(
 
   if (ssr) {
     const preLines = preUpdateStatements.map((line) => `          ${line}`).join('\n');
+    const expandedHtml = derivedCtx ? derivedCtx.expand(html) : html;
     return `__ssrBlock(() => {
-${preLines}${preLines ? '\n' : ''}          return \`${html}\`;
+${preLines}${preLines ? '\n' : ''}          return \`${expandedHtml}\`;
         })`;
   }
 
@@ -315,6 +336,10 @@ ${preLines}${preLines ? '\n' : ''}          return \`${html}\`;
     ...ctx.textSetup,
   ];
 
+  const refLines = ctx.refSetup.length
+    ? `\n            if (first) {\n${ctx.refSetup.map((r) => `              ${r}`).join('\n')}\n            }`
+    : '';
+
   return `__componentBlock(() => {
 ${setupLines.map((line) => `        ${line}`).join('\n')}
 
@@ -322,11 +347,12 @@ ${setupLines.map((line) => `        ${line}`).join('\n')}
         return __createBlock(() => ({
           node: el0,
           update() {
+            const first = !_init;
             if (!_init) {
 ${staticPatches.map((p) => `              ${p.code}`).join('\n')}
               _init = true;
             }
-${update}
+${update}${refLines}
           },
         }));
       })`;

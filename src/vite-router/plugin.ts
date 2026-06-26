@@ -193,8 +193,30 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           const routesModule = await server.ssrLoadModule('auwla:routes')
           const routes = routesModule.default
 
+          // Prefetch all lazy dynamic routes in the SSR server so that
+          // their config properties (like generatePaths) are fully loaded into the cache.
+          if (routesModule.__prefetch) {
+            for (const loadFn of Object.values(routesModule.__prefetch)) {
+              if (typeof loadFn === 'function') {
+                await loadFn()
+              }
+            }
+          }
+
+          const getRouteRenderMode = (routePath: string, routeConfig: any) => {
+            if (routeConfig?.renderMode) return routeConfig.renderMode;
+            if (options.routeRules) {
+              for (const [pattern, rule] of Object.entries(options.routeRules)) {
+                if (matchRouteRulePattern(pattern, routePath)) {
+                  return rule.renderMode;
+                }
+              }
+            }
+            return options.target ?? 'spa';
+          };
+
           const ssgRoutes = routes.filter((r: any) => {
-            const mode = r.config?.renderMode ?? options.target ?? 'spa'
+            const mode = getRouteRenderMode(r.path, r.config)
             return mode === 'ssg'
           })
           if (ssgRoutes.length === 0) return
@@ -663,4 +685,26 @@ function parseServerExports(filePath: string): string[] {
   }
 
   return exports
+}
+
+/**
+ * Match a path against a wildcard/glob pattern.
+ * Supports:
+ *  - exact match: '/docs'
+ *  - wildcards: '/docs/**' (deep nested), '/docs/*' (one level)
+ *  - path params: '/docs/:slug'
+ */
+function matchRouteRulePattern(pattern: string, path: string): boolean {
+  // Convert glob/wildcard/param pattern to regex
+  // 1. Escape regex special characters except '*' and ':'
+  let regexStr = pattern.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  // 2. Convert '**' to '.*'
+  regexStr = regexStr.replace(/\\\*\\\*/g, '.*');
+  // 3. Convert '*' to '[^/]*'
+  regexStr = regexStr.replace(/\\\*/g, '[^/]*');
+  // 4. Convert ':param' to '[^/]+'
+  regexStr = regexStr.replace(/:[a-zA-Z]+/g, '[^/]+');
+  
+  const regex = new RegExp(`^${regexStr}\\/?$`);
+  return regex.test(path);
 }

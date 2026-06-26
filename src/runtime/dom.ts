@@ -111,6 +111,16 @@ function createNodeFromTemplate(template: TemplateNode): Node {
   return node;
 }
 
+const SVG_TAGS = new Set([
+  'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+  'text', 'tspan', 'defs', 'use', 'clipPath', 'mask', 'pattern', 'linearGradient',
+  'radialGradient', 'stop', 'image', 'foreignObject',
+]);
+
+function isSvgTag(tag: string): boolean {
+  return SVG_TAGS.has(tag);
+}
+
 /**
  * Create a real DOM element with props, events, and children applied.
  *
@@ -130,7 +140,9 @@ export function createMemoElement<K extends keyof HTMLElementTagNameMap>(
     return createSsrNode(tag, props, children) as unknown as HTMLElementTagNameMap[K];
   }
 
-  const element = document.createElement(tag) as MemoElement;
+  const element = (isSvgTag(tag)
+    ? document.createElementNS("http://www.w3.org/2000/svg", tag)
+    : document.createElement(tag)) as MemoElement;
   const appliedProps: Record<string, unknown> = {};
   registerComponentHost(ownerId, element);
 
@@ -177,6 +189,11 @@ export function setProp(
 
   const instance = ownerId ? runtimeState.activeRenderState?.instances.get(ownerId) : null;
   const signal = instance?.abortController?.signal;
+
+  if (key === 'dangerouslySetInnerHTML' && value && typeof value === 'object') {
+    element.innerHTML = String((value as any).__html ?? '');
+    return;
+  }
 
   if (key === 'ref' && typeof value === 'function') {
     (value as (el: HTMLElement) => void)(element);

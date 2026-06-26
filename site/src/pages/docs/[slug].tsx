@@ -8,9 +8,6 @@ import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-json'
 
-declare const __ssrBlock: (fn: () => string) => any;
-
-
 export const config = {
   renderMode: 'ssg',
   async generatePaths() {
@@ -41,26 +38,21 @@ export async function routed(ctx: RouteContext<'/docs/:slug'>, signal: AbortSign
   if (!loadFile) {
     throw new Error(`Documentation page "${ctx.params.slug}" not found.`);
   }
-
   return await loadFile();
 }
 
 
 export default function DocPage() {
+  const val = getRouted(routed)?.value ?? '';
+  const html = marked.parse(val) as string;
+  // the above will work auwla is reactive by default
   return () => (
     <article
       class="doc-content max-w-3xl py-4"
+      dangerouslySetInnerHTML={{ __html: html }}
       ref={(el) => {
-        const val = getRouted(routed)?.value;
-        if (val) {
-          el.innerHTML = marked.parse(val) as string;
-          Prism.highlightAllUnder(el);
-        }
+        if (val) Prism.highlightAllUnder(el);
       }}
-    >
-      {typeof document === 'undefined'
-        ? __ssrBlock(() => marked.parse(getRouted(routed)?.value ?? '') as string)
-        : null}
-    </article>
+    />
   );
 }

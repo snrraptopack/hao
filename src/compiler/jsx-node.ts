@@ -56,7 +56,7 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
 
     if (needsChildPatch(expression) || isPropsChildrenExpression(expression)) {
       const childVar = `child${ctx.textId++}`;
-      ctx.setup.push(`let ${childVar} = document.createComment("auwla:child");`);
+      ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:child");`);
       ctx.setup.push(`${parentVar}.append(${childVar});`);
       ctx.patches.push({ code: `${childVar} = __setChild(${parentVar}, ${childVar}, ${value});`, deps: [value] });
       return true;
@@ -79,7 +79,7 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
     // Component could not be inlined — fall back to runtime JSX for this child only.
     const childVar = `child${ctx.textId++}`;
     const jsxCode = child.getText(ctx.source);
-    ctx.setup.push(`let ${childVar} = document.createComment("auwla:child");`);
+    ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:child");`);
     ctx.setup.push(`${parentVar}.append(${childVar});`);
     ctx.patches.push({ code: `${childVar} = __setChild(${parentVar}, ${childVar}, ${jsxCode});`, deps: [] });
     return true;
@@ -309,7 +309,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
   // Allocate marker and active-branch tracker.
   const childVar = `child${ctx.textId++}`;
   const activeVar = `activeBranch${ctx.textId++}`;
-  ctx.setup.push(`let ${childVar} = document.createComment("auwla:child");`);
+  ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:child");`);
   ctx.setup.push(`${parentVar}.append(${childVar});`);
   ctx.setup.push(`let ${activeVar}: number | null = null;`);
 
@@ -551,7 +551,7 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
     : `(${itemName}) => ${keyText}`;
 
   ctx.setup.push(`let ${mapVar}: any = null;`);
-  ctx.setup.push(`let ${childVar} = document.createComment("auwla:keyed-map");`);
+  ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:keyed-map");`);
   ctx.setup.push(`${parentVar}.append(${childVar});`);
   ctx.patches.push({
     code: `if (!${mapVar}) {

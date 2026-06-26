@@ -164,6 +164,7 @@ export type BaseProps<E extends Element> = EventProps & {
   draggable?: boolean;
   contentEditable?: boolean | 'true' | 'false' | 'inherit' | 'plaintext-only';
   role?: string;
+  dangerouslySetInnerHTML?: { __html: string };
 
   // Global HTML attributes
   accessKey?: string;

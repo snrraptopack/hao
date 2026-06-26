@@ -157,10 +157,6 @@ export function createMemoApp<TModel>(
     try {
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
 
-      // During the first hydration render: if any route loader is still pending
-      // (e.g. lazy route chunk not loaded yet), skip patching the DOM so SSR content
-      // remains visible. The reactive track fires a new renderNow() when the
-      // chunk resolves and __mods is populated.
       if (skipFirstHydrationPatch) {
         if (hasPendingLoaders()) {
           return;

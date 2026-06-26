@@ -20,6 +20,8 @@ export type CompileContext = {
   setup: string[];
   derivedCtx?: DerivedContext | null;
   renderScoped?: boolean;
+  elementSetup?: string[];
+  refSetup?: string[];
 };
 
 export type CompileResult = {
@@ -39,6 +41,7 @@ export type TemplateContext = {
   textId: number;
   elementSetup: string[];
   textSetup: string[];
+  refSetup: string[];
   patches: TemplatePatch[];
   deps: string[];
   elementVars: Map<string, string>;
@@ -55,6 +58,7 @@ export const COMPILER_IMPORT = [
   '__event',
   '__escapeHtml',
   '__hydrateElement',
+  '__hydrateComment',
   '__keyedMap',
   '__setAttribute',
   '__setChild',

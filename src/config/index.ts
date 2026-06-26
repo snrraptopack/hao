@@ -1,8 +1,21 @@
-/**
- * @fileoverview Auwla global configuration.
- */
+import type { Register } from '../router/types';
 
 export type AuwlaRenderMode = 'ssr' | 'ssg' | 'spa';
+
+export interface RouteRule {
+  renderMode?: AuwlaRenderMode;
+}
+
+type RegisteredPaths = Register extends { routes: Array<{ path: infer P extends string }> }
+  ? P
+  : never;
+
+export type RoutePattern =
+  | RegisteredPaths
+  | `${RegisteredPaths}/**`
+  | `${RegisteredPaths}/*`
+  | '/**'
+  | (string & {});
 
 export interface AuwlaConfig {
   /** 
@@ -11,6 +24,11 @@ export interface AuwlaConfig {
    * Defaults to 'spa'.
    */
   target?: AuwlaRenderMode;
+
+  /**
+   * Route rules to customize rendering behaviors on a per-route wildcard/glob basis.
+   */
+  routeRules?: Record<RoutePattern, RouteRule>;
 
   directories?: {
     /** The directory where your page components live. Defaults to 'src/pages'. */

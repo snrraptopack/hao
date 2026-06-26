@@ -81,3 +81,26 @@ export default function About() {
   return () => <div>Fast Static HTML!</div>
 }
 ```
+
+---
+
+## Global Route Rules
+
+Instead of configuring the render mode on a per-file basis, you can define global matching rules inside `auwla.config.ts` using the `routeRules` option. This is ideal for applying rendering strategies to entire sections of your application:
+
+```typescript
+import { defineConfig } from 'auwla/config';
+
+export default defineConfig({
+  target: 'ssr', // default render mode
+
+  routeRules: {
+    // Render all docs statically using SSG
+    '/docs/**': { renderMode: 'ssg' },
+    // Render admin dashboard purely client-side (SPA)
+    '/admin/**': { renderMode: 'spa' },
+  }
+});
+```
+
+The route patterns support standard wildcards (`*` for a single segment, `**` for recursive matches) and are fully type-safe, offering IDE auto-completion for your defined paths while still permitting flexible patterns.

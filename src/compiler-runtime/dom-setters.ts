@@ -202,6 +202,14 @@ export function __setProperty(element: HTMLElement, name: string, value: unknown
  * @internal
  */
 export function __setAttribute(element: HTMLElement, name: string, value: unknown): void {
+  if (name === 'dangerouslySetInnerHTML') {
+    if (value && typeof value === 'object') {
+      element.innerHTML = String((value as any).__html ?? '');
+    } else {
+      element.innerHTML = '';
+    }
+    return;
+  }
   if (value === false || value === null || value === undefined) {
     element.removeAttribute(name);
     return;
@@ -235,6 +243,12 @@ export function __spreadProps(element: HTMLElement, props: Record<string, unknow
       __setClass(element, value);
     } else if (key === 'style') {
       __setStyle(element, value as Record<string, string | number | null | undefined>);
+    } else if (key === 'dangerouslySetInnerHTML') {
+      if (value && typeof value === 'object') {
+        element.innerHTML = String((value as any).__html ?? '');
+      } else {
+        element.innerHTML = '';
+      }
     } else if (key.startsWith('emit:') && key.length > 5) {
       const eventName = key.slice(5);
       const previous = spreadListeners.get(key);

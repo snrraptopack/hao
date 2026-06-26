@@ -53,7 +53,7 @@ const BOOLEAN_HTML_ATTRS = new Set([
 function ssrPropsToString(props: Record<string, unknown>): string {
   let attrs = '';
   for (const [key, value] of Object.entries(props)) {
-    if (key === 'children' || key === 'key') continue;
+    if (key === 'children' || key === 'key' || key === 'innerHTML' || key === 'dangerouslySetInnerHTML') continue;
     if (typeof value === 'function') continue;
     if (key === 'ref') continue;
 
@@ -102,7 +102,13 @@ export function __ssrStyle(value: unknown): string {
 function ssrNodeToString(node: SsrNode): string {
   const tag = node.tag;
   const attrs = ssrPropsToString(node.props);
-  const children = node.children.map(ssrChildToString).join('');
+  let children = node.children.map(ssrChildToString).join('');
+
+  if (node.props.dangerouslySetInnerHTML && typeof node.props.dangerouslySetInnerHTML === 'object') {
+    children = String((node.props.dangerouslySetInnerHTML as any).__html ?? '');
+  } else if (node.props.innerHTML) {
+    children = String(node.props.innerHTML);
+  }
 
   const voidTags = new Set([
     'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',

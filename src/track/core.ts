@@ -533,6 +533,21 @@ function trackImpl(
 
   // Overload: track(name, asyncFn) — starts immediately with AbortSignal
   const fn = maybePromiseOrFn as (signal: AbortSignal) => Promise<unknown>;
+
+  const stateKey = key;
+  const existing = getRegistry().get(stateKey);
+  if (
+    isGlobal &&
+    existing &&
+    existing.statusCell.get() === 'resolved' &&
+    !existing.routePath &&
+    existing.promise
+  ) {
+    existing.routePath = getCurrentRoutePath();
+    subscribeSetupComponent(existing.statusCell);
+    return createHandle(stateKey, existing.promise);
+  }
+
   const promise = runAsyncTrack(key, fn, options);
   subscribeSetupComponent(getOrCreate(key).statusCell);
   return createHandle(key, promise);

@@ -131,7 +131,7 @@ function normalizeAttributeName(name: string): string {
   }
 }
 
-function jsxAttributeName(name: ts.JsxAttributeName): string | null {
+export function jsxAttributeName(name: ts.JsxAttributeName): string | null {
   if (ts.isIdentifier(name)) return normalizeAttributeName(name.text);
   if (ts.isJsxNamespacedName(name)) return `${name.namespace.text}:${name.name.text}`;
   return null;
@@ -545,7 +545,14 @@ export function compileTemplateAttribute(
     const value = expressionText(ctx.source, expression);
     if (!ctx.ssr) {
       const expandedValue = ctx.derivedCtx ? ctx.derivedCtx.expand(value) : value;
-      ctx.elementSetup.push(`(${expandedValue})(${elementVar});`);
+      const refCode = `(${expandedValue})(${elementVar});`;
+      if (ctx.refSetup) {
+        ctx.refSetup.push(refCode);
+      } else if (ctx.elementSetup) {
+        ctx.elementSetup.push(refCode);
+      } else {
+        (ctx as any).setup.push(refCode);
+      }
     }
     return '';
   }
@@ -600,6 +607,7 @@ export function compileTemplateAttribute(
   }
 
   if (ctx.ssr) {
+    if (name === 'dangerouslySetInnerHTML') return '';
     if (BOOLEAN_HTML_ATTRS.has(name)) {
       return `\${${value} ? ' ${name}' : ''}`;
     }

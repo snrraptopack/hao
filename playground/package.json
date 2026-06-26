@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "auwla": "link:auwla"
+    "auwla": "..."
   },
   "devDependencies": {
     "typescript": "^5.9.3",

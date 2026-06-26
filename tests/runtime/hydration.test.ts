@@ -173,11 +173,11 @@ describe('__hydrateComment', () => {
 
     exitHydration();
 
-    // The claimed node should be the opening comment in the real DOM.
+    // The claimed node should be the closing comment in the real DOM.
     expect(claimed.nodeType).toBe(Node.COMMENT_NODE);
-    expect(claimed.textContent).toBe('auwla:child');
-    // The claimed node is the SAME object as the DOM comment.
-    expect(claimed).toBe(root.childNodes[0]);
+    expect(claimed.textContent).toBe('/auwla:child');
+    // The claimed node is the SAME object as the closing DOM comment.
+    expect(claimed).toBe(root.childNodes[2]);
   });
 
   it('claims auwla:keyed-map comment during hydration', () => {
@@ -191,8 +191,8 @@ describe('__hydrateComment', () => {
     exitHydration();
 
     expect(claimed.nodeType).toBe(Node.COMMENT_NODE);
-    expect(claimed.textContent).toBe('auwla:keyed-map');
-    expect(claimed).toBe(root.childNodes[0]);
+    expect(claimed.textContent).toBe('/auwla:keyed-map');
+    expect(claimed).toBe(root.childNodes[2]);
   });
 
   it('falls back to creating a new comment if no matching comment in DOM', () => {
@@ -367,7 +367,7 @@ describe('SSR → DOM parse → cursor round-trip', () => {
 
     expect(headerEl).toBe(innerRoot.children[0]);
     expect(anchorComment.nodeType).toBe(Node.COMMENT_NODE);
-    expect(anchorComment.textContent).toBe('auwla:child');
+    expect(anchorComment.textContent).toBe('/auwla:child');
   });
 });
 

@@ -90,7 +90,10 @@ describe('renderToString', () => {
 
     expect(matched).not.toBeNull();
     expect(html).toContain('<article><h1>42: Server-rendered post</h1></article>');
-    expect(html).toContain('<script>window.__AUWLA_DATA__ = {"remote:posts.getPost":{"id":"42","title":"Server-rendered post"}};</script>');
-    expect(data).toEqual({ 'remote:posts.getPost': { id: '42', title: 'Server-rendered post' } });
+    expect(html).toContain('<script>window.__AUWLA_DATA__ = {"__loader:/posts/42":{"post":{"id":"42","title":"Server-rendered post"}},"remote:posts.getPost":{"id":"42","title":"Server-rendered post"}};</script>');
+    expect(data).toEqual({
+      '__loader:/posts/42': { post: { id: '42', title: 'Server-rendered post' } },
+      'remote:posts.getPost': { id: '42', title: 'Server-rendered post' }
+    });
   });
 })

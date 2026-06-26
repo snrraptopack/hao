@@ -17,24 +17,31 @@ const schema: StandardSchema = {
 export default function LoginPage() {
   const login = track.form('auth.login', {
     schema,
-    onSuccess:(_value)=> navigate("/dashboard")
+    onSuccess: () => navigate("/dashboard")
   })
 
+  // const isLoggedIn = login.resolved
+  // console.log("islogged in", isLoggedIn)
+
+  // if (isLoggedIn) {
+  //   navigate("/dashboard")
+  // }
+
   return () => (
-      <div class="page">
-        <h1>Sign in</h1>
-        <p class="hint">Try <strong>admin</strong> for Ada or any other name for Ugo.</p>
-        <form {...login.props} class="form card">
-          <label>
-            Username
-            <input name="username" type="text" placeholder="admin" required />
-          </label>
-          <button type="submit" disabled={login.pending} class="btn primary">
-            {login.pending ? 'Signing in…' : 'Sign in'}
-          </button>
-          {login.error && <p class="error">{login.error.message}</p>}
-        </form>
-        <Link href="/" class="link">← Back to home</Link>
-      </div>
-    )
+    <div class="page">
+      <h1>Sign in</h1>
+      <p class="hint">Try <strong>admin</strong> for Ada or any other name for Ugo.</p>
+      <form {...login.props} class="form card">
+        <label>
+          Username
+          <input name="username" type="text" placeholder="admin" required />
+        </label>
+        <button type="submit" disabled={login.pending} class="btn primary">
+          {login.pending ? 'Signing in…' : 'Sign in'}
+        </button>
+        {login.error && <p class="error">{login.error.message}</p>}
+      </form>
+      <Link href="/" class="link">← Back to home</Link>
+    </div>
+  )
 }
