@@ -1,3 +1,4 @@
+import ts from 'typescript';
 import type { DerivedContext } from './derived';
 import { extractIdentifiers } from './derived';
 import type { DynamicPatch } from './types';
@@ -14,24 +15,24 @@ function singleQuoted(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
-function stripStrings(code: string): string {
-  return code.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-}
-
 function externalSourceDeps(expression: string, derivedCtx: DerivedContext | null): string[] {
+  const sourceFile = ts.createSourceFile('temp.ts', `(${expression})`, ts.ScriptTarget.Latest, true);
   const deps = new Set<string>();
-  const code = stripStrings(expression);
-  const propertyPattern = /\b([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\b/g;
-  let match: RegExpExecArray | null;
 
-  while ((match = propertyPattern.exec(code)) !== null) {
-    const root = match[1]!;
-    const prop = match[2]!;
-    if (GLOBAL_IDENTIFIERS.has(root)) continue;
-    if (derivedCtx?.locals.has(root)) continue;
-    deps.add(`${root}.${prop}`);
+  function walk(node: ts.Node) {
+    if (ts.isPropertyAccessExpression(node)) {
+      if (ts.isIdentifier(node.expression) && ts.isIdentifier(node.name)) {
+        const root = node.expression.text;
+        const prop = node.name.text;
+        if (!GLOBAL_IDENTIFIERS.has(root) && !derivedCtx?.locals.has(root)) {
+          deps.add(`${root}.${prop}`);
+        }
+      }
+    }
+    ts.forEachChild(node, walk);
   }
 
+  walk(sourceFile);
   return Array.from(deps);
 }
 

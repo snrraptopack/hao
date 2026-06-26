@@ -52,6 +52,13 @@ export function decodeJsxText(value: string): string {
   });
 }
 
+const GLOBAL_IDENTIFIERS = new Set([
+  'true', 'false', 'null', 'undefined', 'NaN', 'Infinity',
+  'console', 'window', 'document', 'Math', 'JSON', 'Date', 'String', 'Number',
+  'Array', 'Object', 'RegExp', 'Error', 'Promise', 'Set', 'Map',
+  'parseInt', 'parseFloat', 'isNaN', 'isFinite',
+]);
+
 /**
  * Infer row dependencies from expressions that reference `itemName`.
  *
@@ -62,19 +69,50 @@ export function decodeJsxText(value: string): string {
 export function rowDependencies(expressions: string[], itemName: string): string[] {
   const deps: string[] = [];
   const seen = new Set<string>();
-  const propertyPattern = new RegExp(`\\b${itemName}\\.[A-Za-z_$][\\w$]*`, 'g');
-  const identifierPattern = /\b[A-Za-z_$][\w$]*\b/;
 
   for (const expression of expressions) {
-    const matches = expression.match(propertyPattern);
-    const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-    const remaining = withoutStrings
-      .replace(propertyPattern, '')
-      .replace(/\b(true|false|null|undefined|NaN|Infinity)\b/g, '')
-      .replace(/[0-9]+(?:\.[0-9]+)?/g, '')
-      .replace(/[^A-Za-z_$]+/g, '');
-    const nextDeps = matches && matches.length > 0 && !identifierPattern.test(remaining)
-      ? matches
+    const sourceFile = ts.createSourceFile('temp.ts', `(${expression})`, ts.ScriptTarget.Latest, true);
+    let allAccessesAreItemProps = true;
+    const propertyAccesses: string[] = [];
+
+    function walk(node: ts.Node) {
+      if (!allAccessesAreItemProps) return;
+
+      if (ts.isIdentifier(node)) {
+        const name = node.text;
+
+        if (name === itemName) {
+          if (ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node) {
+            propertyAccesses.push(node.parent.getText(sourceFile));
+          } else {
+            allAccessesAreItemProps = false;
+            return;
+          }
+        } else {
+          let isMemberName = false;
+          if (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) {
+            isMemberName = true;
+          }
+          if (ts.isPropertyAssignment(node.parent) && node.parent.name === node) {
+            isMemberName = true;
+          }
+          if (ts.isBindingElement(node.parent) && node.parent.propertyName === node) {
+            isMemberName = true;
+          }
+
+          if (!isMemberName && !GLOBAL_IDENTIFIERS.has(name)) {
+            allAccessesAreItemProps = false;
+            return;
+          }
+        }
+      }
+      ts.forEachChild(node, walk);
+    }
+
+    walk(sourceFile);
+
+    const nextDeps = allAccessesAreItemProps && propertyAccesses.length > 0
+      ? propertyAccesses
       : [expression];
 
     for (const dep of nextDeps) {
