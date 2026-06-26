@@ -26,7 +26,7 @@ export function Dashboard() {
     clearInterval(timer);
   });
 
-  // SVG Chart Mock Data
+  // SVG Chart Mock Data (Trigger compiler reload)
   const dailyData = [20, 45, 28, 80, 99, 43, 60];
   const monthlyData = [40, 60, 50, 75, 90, 85, 110];
 

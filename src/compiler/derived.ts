@@ -37,40 +37,100 @@ const GLOBAL_IDENTIFIERS = new Set([
   '__computed',
 ]);
 
-/** Extract top-level identifiers from a code string (naive but fast). */
+/** Extract top-level identifiers from a code string using the AST. */
 export function extractIdentifiers(code: string): string[] {
+  const sourceFile = ts.createSourceFile('temp.ts', `(${code})`, ts.ScriptTarget.Latest, true);
   const ids: string[] = [];
   const seen = new Set<string>();
-  // Remove string literals
-  const withoutStrings = code.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-  // Remove numeric literals, then match identifiers
-  const cleaned = withoutStrings
-    .replace(/\b\d+(?:\.\d+)?\b/g, '')
-    .replace(/\b(?:true|false|null|undefined|NaN|Infinity)\b/g, '');
 
-  const re = /(?<!\.)\b([A-Za-z_$][\w$]*)\b(?!\s*:)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(cleaned)) !== null) {
-    const id = m[1]!;
-    if (GLOBAL_IDENTIFIERS.has(id)) continue;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
+  function walk(node: ts.Node) {
+    if (ts.isIdentifier(node)) {
+      const name = node.text;
+      
+      let isPropName = false;
+      if (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) {
+        isPropName = true;
+      }
+      if (ts.isPropertyAssignment(node.parent) && node.parent.name === node) {
+        isPropName = true;
+      }
+      if (ts.isBindingElement(node.parent) && node.parent.propertyName === node) {
+        isPropName = true;
+      }
+      if (ts.isJsxAttribute(node.parent) && node.parent.name === node) {
+        isPropName = true;
+      }
+
+      if (!isPropName && !GLOBAL_IDENTIFIERS.has(name)) {
+        if (!seen.has(name)) {
+          seen.add(name);
+          ids.push(name);
+        }
+      }
+    }
+    ts.forEachChild(node, walk);
   }
+
+  walk(sourceFile);
   return ids;
 }
 
 /** True if the expression is safe to wrap in a computed getter. */
 function looksPure(expression: string): boolean {
-  const withoutStrings = expression.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, '');
-  // Reject `new` and template literals with interpolation
-  if (/\bnew\s+/.test(withoutStrings)) return false;
-  if (/`[^`]*\${/.test(expression)) return false;
-  // Reject assignments (but allow == / === / != / !== and arrow functions =>)
-  const withoutArrows = withoutStrings.replace(/=>/g, '  ');
-  const hasAssignment = /(?<![=!])=(?![=])/.test(withoutArrows);
-  if (hasAssignment) return false;
-  return true;
+  const sourceFile = ts.createSourceFile('temp.ts', `(${expression})`, ts.ScriptTarget.Latest, true);
+  let pure = true;
+
+  function walk(node: ts.Node) {
+    if (!pure) return;
+    
+    // Reject assignments (e.g. =, +=, etc.)
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      if (
+        op === ts.SyntaxKind.EqualsToken ||
+        op === ts.SyntaxKind.PlusEqualsToken ||
+        op === ts.SyntaxKind.MinusEqualsToken ||
+        op === ts.SyntaxKind.AsteriskEqualsToken ||
+        op === ts.SyntaxKind.SlashEqualsToken ||
+        op === ts.SyntaxKind.PercentEqualsToken ||
+        op === ts.SyntaxKind.AmpersandEqualsToken ||
+        op === ts.SyntaxKind.BarEqualsToken ||
+        op === ts.SyntaxKind.CaretEqualsToken ||
+        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
+        op === ts.SyntaxKind.BarBarEqualsToken ||
+        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
+        op === ts.SyntaxKind.QuestionQuestionEqualsToken
+      ) {
+        pure = false;
+        return;
+      }
+    }
+
+    // Reject prefix/postfix increment/decrement (e.g. ++x, x--)
+    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+      if (
+        node.operator === ts.SyntaxKind.PlusPlusToken ||
+        node.operator === ts.SyntaxKind.MinusMinusToken
+      ) {
+        pure = false;
+        return;
+      }
+    }
+
+    // Reject new expressions (conservative safety)
+    if (ts.isNewExpression(node)) {
+      pure = false;
+      return;
+    }
+
+    ts.forEachChild(node, walk);
+  }
+
+  walk(sourceFile);
+  return pure;
 }
 
 /** Build a derived-value context from the setup statements of a component. */
@@ -163,15 +223,83 @@ export function buildDerivedContext(
 
   // Rewrite references to derived getters: pendingTodos -> pendingTodos()
   function expand(expression: string): string {
+    const sourceFile = ts.createSourceFile('temp.ts', expression, ts.ScriptTarget.Latest, true);
+    const replacements: Array<{ start: number; end: number; text: string }> = [];
+    const shadowedStack = [new Set<string>()];
+
+    function walk(node: ts.Node) {
+      const isNewScope = ts.isFunctionDeclaration(node) ||
+                         ts.isFunctionExpression(node) ||
+                         ts.isArrowFunction(node) ||
+                         ts.isBlock(node);
+
+      if (isNewScope) {
+        const parentScope = shadowedStack[shadowedStack.length - 1]!;
+        const newScope = new Set(parentScope);
+        
+        if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
+          for (const param of node.parameters) {
+            if (ts.isIdentifier(param.name)) {
+              newScope.add(param.name.text);
+            }
+          }
+        }
+        
+        node.forEachChild(child => {
+          if (ts.isVariableStatement(child)) {
+            for (const decl of child.declarationList.declarations) {
+              if (ts.isIdentifier(decl.name)) {
+                newScope.add(decl.name.text);
+              }
+            }
+          }
+        });
+
+        shadowedStack.push(newScope);
+      }
+
+      if (ts.isIdentifier(node)) {
+        const name = node.text;
+        const currentShadowed = shadowedStack[shadowedStack.length - 1]!;
+
+        if (derived.has(name) && !currentShadowed.has(name)) {
+          let isPropName = false;
+          if (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) {
+            isPropName = true;
+          }
+          if (ts.isPropertyAssignment(node.parent) && node.parent.name === node) {
+            isPropName = true;
+          }
+          if (ts.isBindingElement(node.parent) && node.parent.propertyName === node) {
+            isPropName = true;
+          }
+          if (ts.isJsxAttribute(node.parent) && node.parent.name === node) {
+            isPropName = true;
+          }
+
+          if (!isPropName) {
+            replacements.push({
+              start: node.getStart(sourceFile),
+              end: node.getEnd(),
+              text: `${name}()`
+            });
+          }
+        }
+      }
+
+      ts.forEachChild(node, walk);
+
+      if (isNewScope) {
+        shadowedStack.pop();
+      }
+    }
+
+    walk(sourceFile);
+
+    replacements.sort((a, b) => b.start - a.start);
     let result = expression;
-    for (const name of derived) {
-      const withoutStrings = result.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, "''");
-      const re = new RegExp(`\\b${name}\\b`, 'g');
-      if (!re.test(withoutStrings)) continue;
-      result = result.replace(
-        new RegExp(/(['"`])(?:\\.|(?!\1).)*\1|(?<!\.)\b(PLACEHOLDER)\b(?!\s*:)/g.source.replace('PLACEHOLDER', name), 'g'),
-        (match, quoted) => (quoted !== undefined ? match : `${name}()`),
-      );
+    for (const r of replacements) {
+      result = result.slice(0, r.start) + r.text + result.slice(r.end);
     }
     return result;
   }
