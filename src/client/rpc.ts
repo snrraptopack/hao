@@ -122,6 +122,10 @@ export async function rpcCall(
     })
   }
 
+  if (!response) {
+    throw new Error('RPC: fetch call returned undefined response. If in tests, ensure fetch is mocked properly.');
+  }
+
   const text = await response.text()
 
   if (!response.ok) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createMemoApp, h } from '../../src'
-import { track } from '../../src/events'
-import type { CommandHandle } from '../../src/events'
+import { track, __resetTrackRegistry } from '../../src/track'
+import type { CommandHandle } from '../../src/track'
 
 // Augment the server manifest types for these tests.
 declare module 'auwla/server-manifest' {
@@ -29,6 +29,7 @@ declare module 'auwla/server-manifest' {
 
 describe('remote track functions', () => {
   beforeEach(() => {
+    __resetTrackRegistry()
     vi.stubGlobal('fetch', vi.fn())
   })
 
@@ -129,8 +130,8 @@ describe('remote track functions', () => {
 
   it('track.get created in setup auto-subscribes component', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: '1', name: 'Ada' }), { status: 200 }),
+    mockFetch.mockImplementation(
+      async () => new Response(JSON.stringify({ id: '1', name: 'Ada' }), { status: 200 })
     )
 
     const root = document.createElement('div')
@@ -154,8 +155,8 @@ describe('remote track functions', () => {
 
   it('track.post created in setup auto-subscribes component', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: 2, title: 'Created' }), { status: 200 }),
+    mockFetch.mockImplementation(
+      async () => new Response(JSON.stringify({ id: 2, title: 'Created' }), { status: 200 })
     )
 
     const root = document.createElement('div')

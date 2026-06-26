@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createMemoApp, h } from '../../src'
 import { Router, getRouted, navigate } from '../../src/router'
-import { track, __resetTrackRegistry } from '../../src/events'
+import { track, __resetTrackRegistry } from '../../src/track'
 import type { Route } from '../../src/router'
 
 beforeEach(() => {

@@ -9,7 +9,9 @@ const root = document.getElementById('app')
 if (root) {
   createMemoApp(root, <Router
     routes={routes}
-    suspend
+    suspend={{
+      viewTransition: true
+    }}
     pendingComponent={Pending}
     errorComponent={Error}
   />

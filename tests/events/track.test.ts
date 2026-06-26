@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach } from 'vitest';
 import { createMemoApp, h } from '../../src';
-import { track, pending, resolved, rejected, value, reason, cancel, __resetTrackRegistry } from '../../src/events';
+import { track, pending, resolved, rejected, value, reason, cancel, __resetTrackRegistry } from '../../src/track';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -88,7 +88,7 @@ describe('track', () => {
 
       return () => h('div', {},
         h('button', { onClick: start }, 'Search'),
-        h('span', {}, event.pending('search') ? 'pending' : event.value('search') ?? ''),
+        h('span', {}, pending('search') ? 'pending' : value('search') ?? ''),
       );
     }
 
@@ -173,7 +173,7 @@ describe('track', () => {
             track('clickSave', sleep(20).then(() => 'saved'));
           },
         }, 'Save'),
-        h('span', {}, event.pending('clickSave') ? 'saving' : event.value('clickSave') ?? 'idle'),
+        h('span', {}, pending('clickSave') ? 'saving' : value('clickSave') ?? 'idle'),
       );
     }
 

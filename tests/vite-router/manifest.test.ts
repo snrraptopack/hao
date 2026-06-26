@@ -18,7 +18,7 @@ describe('manifest', () => {
       method: 'GET',
       paramsType: 'Record<string, never>',
       argsType: [],
-      returnType: '{ id: number; title: string }[]',
+      returnType: '{ id: number; title: string; }[]',
     })
 
     expect(manifest['posts.createPost']).toMatchObject({

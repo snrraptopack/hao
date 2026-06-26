@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { track, __resetTrackRegistry } from '../../src/events'
+import { track, __resetTrackRegistry } from '../../src/track'
 import type { StandardSchema } from '../../src/shared/standard-schema'
 
 // Augment the server manifest types for these tests.
