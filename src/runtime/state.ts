@@ -15,7 +15,7 @@ export const BLOCKED_EVENT = Symbol('auwla.blocked');
 export const SILENT_EVENT = Symbol('auwla.silent');
 
 /** @internal */
-export const runtimeState = {
+export const runtimeState = ((globalThis as any).__auwla_runtimeState ??= {
   activeEventWrapper: null as EventWrapper | null,
   activeRenderState: null as RenderState | null,
   activeSetupComponentId: null as string | null,
@@ -25,6 +25,16 @@ export const runtimeState = {
   mountedApps: new Set<MountedApp>(),
   componentHosts: new Map<string, Node>(),
   activeBlockComponentIds: null as Set<string> | null,
+}) as {
+  activeEventWrapper: EventWrapper | null;
+  activeRenderState: RenderState | null;
+  activeSetupComponentId: string | null;
+  activeHandlerComponentId: string | null;
+  pendingCleanups: (() => void)[] | null;
+  pendingDirtySources: Set<string>;
+  mountedApps: Set<MountedApp>;
+  componentHosts: Map<string, Node>;
+  activeBlockComponentIds: Set<string> | null;
 };
 
 /**

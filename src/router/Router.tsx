@@ -40,6 +40,21 @@ import type {
 // read them during setup, not during an active render pass.
 // ---------------------------------------------------------------------------
 
+interface RouterStoreProvider {
+  getCurrentContext(): RouteContext | null
+  setCurrentContext(ctx: RouteContext | null): void
+  getCurrentLoader(): TrackHandle | null
+  setCurrentLoader(loader: TrackHandle | null): void
+  getCurrentMeta(): Record<string, unknown> | null
+  setCurrentMeta(meta: Record<string, unknown> | null): void
+  getCurrentError(): RouteError | null
+  setCurrentError(error: RouteError | null): void
+}
+
+function getStoreProvider(): RouterStoreProvider | null {
+  return (globalThis as any).__auwla_routerStoreProvider ?? null
+}
+
 let _currentContext: RouteContext | null = null
 let _pendingContext: RouteContext | null = null
 let _currentLoader: TrackHandle | null = null
@@ -52,18 +67,34 @@ let _currentMeta: Record<string, unknown> | null = null
 let _currentError: RouteError | null = null
 
 /** @internal Server-side rendering hooks to seed route context. */
-export function __setCurrentContext(ctx: RouteContext | null): void { _currentContext = ctx; }
+export function __setCurrentContext(ctx: RouteContext | null): void {
+  const provider = getStoreProvider()
+  if (provider) provider.setCurrentContext(ctx)
+  else _currentContext = ctx
+}
 /** @internal Server-side rendering hooks to seed the active loader handle. */
-export function __setCurrentLoader(loader: TrackHandle | null): void { _currentLoader = loader; }
+export function __setCurrentLoader(loader: TrackHandle | null): void {
+  const provider = getStoreProvider()
+  if (provider) provider.setCurrentLoader(loader)
+  else _currentLoader = loader
+}
 /** @internal Server-side rendering hooks to seed route meta. */
-export function __setCurrentMeta(meta: Record<string, unknown> | null): void { _currentMeta = meta; }
+export function __setCurrentMeta(meta: Record<string, unknown> | null): void {
+  const provider = getStoreProvider()
+  if (provider) provider.setCurrentMeta(meta)
+  else _currentMeta = meta
+}
 
 export function getParams<P extends ValidRoutePath>(_path?: P): PathParams<P> {
-  return (_currentContext?.params ?? {}) as PathParams<P>
+  const provider = getStoreProvider()
+  const ctx = provider ? provider.getCurrentContext() : _currentContext
+  return (ctx?.params ?? {}) as PathParams<P>
 }
 
 export function getQuery(): Record<string, string> {
-  return _currentContext?.query ?? {}
+  const provider = getStoreProvider()
+  const ctx = provider ? provider.getCurrentContext() : _currentContext
+  return ctx?.query ?? {}
 }
 
 export function getLocation(): string {
@@ -71,7 +102,8 @@ export function getLocation(): string {
 }
 
 export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
-  return _currentLoader as TypedTrackHandle<T> | null
+  const provider = getStoreProvider()
+  return (provider ? provider.getCurrentLoader() : _currentLoader) as TypedTrackHandle<T> | null
 }
 
 /**
@@ -108,7 +140,8 @@ export function getRouted<T = unknown>(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inference only
   _fn?: (ctx: RouteContext<any>, signal: AbortSignal) => Promise<T>,
 ): TypedTrackHandle<T> | null {
-  return _currentLoader as TypedTrackHandle<T> | null
+  const provider = getStoreProvider()
+  return (provider ? provider.getCurrentLoader() : _currentLoader) as TypedTrackHandle<T> | null
 }
 
 /**
@@ -130,11 +163,14 @@ export function getRouted<T = unknown>(
  *   }
  */
 export function getRouteError(): RouteError | null {
-  return _currentError
+  const provider = getStoreProvider()
+  return provider ? provider.getCurrentError() : _currentError
 }
 
 export function getRouteMeta<T extends Record<string, unknown> = Record<string, unknown>>(): T {
-  return (_currentMeta ?? {}) as T
+  const provider = getStoreProvider()
+  const meta = provider ? provider.getCurrentMeta() : _currentMeta
+  return (meta ?? {}) as T
 }
 
 /**

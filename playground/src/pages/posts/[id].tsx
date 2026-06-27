@@ -1,7 +1,7 @@
 import { getParams, getRouted, Link, navigate, type RouteContext } from 'auwla/router'
 import { track } from 'auwla/track'
 import type { StandardSchema } from 'auwla/server'
-import {getPost} from "./[id].server"
+import { getPost } from "./[id].server"
 
 const updateSchema: StandardSchema = {
   '~standard': {
@@ -22,15 +22,16 @@ export async function routed(ctx: RouteContext<'/posts/:id'>, signal: AbortSigna
 }
 
 
+
 export default function PostPage() {
   const { id } = getParams('/posts/:id')
   const loader = getRouted(routed)
-  console.log("loader",loader?.value)
+  console.log("loader", loader?.value)
   const me = track.get('auth.me')
   const update = track.form('posts.updatePost', { schema: updateSchema })
   const remove = track.post('posts.deletePost')
 
-  if (loader?.pending) return <div class="page">Loading post {id}…</div>
+  if (loader?.pending) return () => <div class="page">Loading post {id}…</div>
   if (loader?.rejected) {
     return (
       <div class="page">

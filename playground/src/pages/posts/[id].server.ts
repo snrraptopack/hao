@@ -20,7 +20,7 @@ export const getPost = remote.get([sessionMiddleware], async () => {
   const { id } = getParams()
   const post = getPostById(id)
   if (!post) throw new NotFoundError('Post not found')
-  await new Promise((resolve) => setTimeout(resolve, 2000))
+  await new Promise((resolve) => setTimeout(resolve, 500))
   return post
 })
 
