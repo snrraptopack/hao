@@ -113,7 +113,7 @@ export type PathParams<Path extends string> =
 
 // A function that decides whether navigation to a route is allowed.
 // Returning false blocks navigation; returning a string redirects to that path.
-export type RouteGuard = (context: RouteContext) => boolean | string | void
+export type RouteGuard = (context: RouteContext) => boolean | string | void | Promise<boolean | string | void>
 
 // User-facing route definition. `component` is optional so that parent-only
 // grouping routes (used purely for path prefixing) are valid.

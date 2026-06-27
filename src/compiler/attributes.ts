@@ -569,6 +569,7 @@ export function compileTemplateAttribute(
   if (!expression) return '';
 
   const value = expressionText(ctx.source, expression);
+  const expandedValue = ctx.derivedCtx ? ctx.derivedCtx.expand(value) : value;
 
   if (name === 'style') {
     if (ts.isObjectLiteralExpression(expression)) {
@@ -576,17 +577,17 @@ export function compileTemplateAttribute(
       if (css !== null) return ` style="${escapeHtml(css)}"`;
     }
     if (ctx.ssr) {
-      return ` style="\${__ssrStyle(${value})}"`;
+      return ` style="\${__ssrStyle(${expandedValue})}"`;
     }
     return null;
   }
 
   if (name === 'class') {
     if (ctx.ssr) {
-      return ` class="\${__escapeHtml(${value})}"`;
+      return ` class="\${__escapeHtml(${expandedValue})}"`;
     }
     ctx.deps.push(value);
-    ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
+    ctx.patches.push({ code: `__setClass(${elementVar}, ${expandedValue});`, deps: [value] });
     return '';
   }
 
@@ -595,9 +596,9 @@ export function compileTemplateAttribute(
       if (name.startsWith('emit:')) {
         const eventName = name.slice(5);
         const handlerVar = `eventHandler${ctx.textId++}`;
-        ctx.elementSetup.push(`let ${handlerVar} = ${value};`);
+        ctx.elementSetup.push(`let ${handlerVar} = ${expandedValue};`);
         ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}((event as CustomEvent).detail)));`);
-        ctx.patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
+        ctx.patches.push({ code: `${handlerVar} = ${expandedValue};`, deps: [value] });
       } else {
         const eventName = name.slice(2).toLowerCase();
         ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, expression, ctx.derivedCtx ?? null);
@@ -609,13 +610,13 @@ export function compileTemplateAttribute(
   if (ctx.ssr) {
     if (name === 'dangerouslySetInnerHTML') return '';
     if (BOOLEAN_HTML_ATTRS.has(name)) {
-      return `\${${value} ? ' ${name}' : ''}`;
+      return `\${${expandedValue} ? ' ${name}' : ''}`;
     }
-    return ` ${name}="\${__escapeHtml(${value})}"`;
+    return ` ${name}="\${__escapeHtml(${expandedValue})}"`;
   }
 
   const setter = PROPERTY_PROPS.has(name) ? '__setProperty' : '__setAttribute';
   ctx.deps.push(value);
-  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${value});`, deps: [value] });
+  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${expandedValue});`, deps: [value] });
   return '';
 }

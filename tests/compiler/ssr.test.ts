@@ -110,4 +110,44 @@ describe('SSR compiler target', () => {
       (globalThis as any).document = originalDocument;
     }
   });
+
+  test('compiles and resolves derived computed variables in loops and class/styles under SSR', () => {
+    const source = `
+      function App() {
+        let list = [{ id: '1', name: 'A' }, { id: '2', name: 'B' }];
+        const posts = list;
+        let active = true;
+        const isActive = active;
+        return () => (
+          <div class={isActive ? 'active' : 'inactive'}>
+            <ul>
+              {posts.map((post) => (
+                <li key={post.id}>{post.name}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source, 'input.tsx', { ssr: true });
+    expect(compiled).toContain('posts().map');
+    expect(compiled).toContain('isActive()');
+
+    const originalDocument = globalThis.document;
+    try {
+      (globalThis as any).document = undefined;
+      const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+      const output = App();
+      const html = __ssrNode(output);
+      expect(html).toContain('class="active"');
+      expect(html).toContain('<!--auwla:keyed-map-->');
+      expect(html).toContain('<li>A</li>');
+      expect(html).toContain('<li>B</li>');
+    } finally {
+      (globalThis as any).document = originalDocument;
+    }
+  });
 });
+

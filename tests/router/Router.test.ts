@@ -343,4 +343,98 @@ describe('Router loading modes', () => {
 
     app.destroy()
   })
+
+  it('supports async guards, suspending navigation until guard resolves', async () => {
+    const { Router, navigate, defineRoutes } = routerMod
+    const root = document.createElement('div')
+
+    let resolveGuard: (value: boolean) => void
+    const guardPromise = new Promise<boolean>((resolve) => { resolveGuard = resolve })
+
+    const guardB = async () => guardPromise
+
+    function PageA() {
+      return () => h('div', { class: 'page-a' }, 'Page A')
+    }
+
+    function PageB() {
+      return () => h('div', { class: 'page-b' }, 'Page B')
+    }
+
+    const routes = defineRoutes([
+      { path: '/t6/a', component: PageA },
+      { path: '/t6/b', component: PageB, guard: guardB },
+    ])
+
+    function App() {
+      return () => h(Router as any, { routes, suspend: true })
+    }
+
+    navigate('/t6/a')
+    const app = createMemoApp(root, h(App as any))
+    expect(root.textContent).toBe('Page A')
+
+    navigate('/t6/b')
+    app.render()
+
+    // Still showing Page A since B's guard is pending
+    expect(root.textContent).toBe('Page A')
+    expect(document.documentElement.classList.contains('suspended')).toBe(true)
+
+    resolveGuard!(true)
+    await sleep(10)
+    app.render()
+
+    // Guard resolved to true: renders Page B
+    expect(root.textContent).toBe('Page B')
+    expect(document.documentElement.classList.contains('suspended')).toBe(false)
+
+    app.destroy()
+  })
+
+  it('supports async guards rejecting/blocking navigation', async () => {
+    const { Router, navigate, defineRoutes } = routerMod
+    const root = document.createElement('div')
+
+    let resolveGuard: (value: boolean) => void
+    const guardPromise = new Promise<boolean>((resolve) => { resolveGuard = resolve })
+
+    const guardB = async () => guardPromise
+
+    function PageA() {
+      return () => h('div', { class: 'page-a' }, 'Page A')
+    }
+
+    function PageB() {
+      return () => h('div', { class: 'page-b' }, 'Page B')
+    }
+
+    const routes = defineRoutes([
+      { path: '/t7/a', component: PageA },
+      { path: '/t7/b', component: PageB, guard: guardB },
+    ])
+
+    function App() {
+      return () => h(Router as any, { routes, suspend: true })
+    }
+
+    navigate('/t7/a')
+    const app = createMemoApp(root, h(App as any))
+    expect(root.textContent).toBe('Page A')
+
+    navigate('/t7/b')
+    app.render()
+
+    expect(root.textContent).toBe('Page A')
+
+    resolveGuard!(false)
+    await sleep(10)
+    app.render()
+
+    // Guard resolved to false: renders 403 access denied
+    expect(root.textContent).toBe('403 — access denied')
+    expect(document.documentElement.classList.contains('suspended')).toBe(false)
+
+    app.destroy()
+  })
 })

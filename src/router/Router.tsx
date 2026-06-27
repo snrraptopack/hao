@@ -269,12 +269,25 @@ export function Router(props: RouterProps = {}) {
     configureSuspense(suspend)
   }
 
-  function startLoader(routeToLoad: Route, context: RouteContext<any>): TrackHandle {
+  function startLoader(routeToLoad: Route, context: RouteContext<any>, pendingGuardPromise?: Promise<any>): TrackHandle {
     return track(`__loader:${context.path}`, async (signal) => {
       const prevPath = setRpcRoutePath(context.path)
       const prevParams = setRpcRouteParams(context.params)
       try {
-        return await routeToLoad.routed!(context, signal)
+        if (pendingGuardPromise) {
+          const result = await pendingGuardPromise
+          if (result === false) {
+            throw new DOMException("Access Denied", "SecurityError")
+          }
+          if (typeof result === "string") {
+            Promise.resolve().then(() => navigate(result, { replace: true }))
+            throw new DOMException("Redirecting", "AbortError")
+          }
+        }
+        if (routeToLoad.routed) {
+          return await routeToLoad.routed(context, signal)
+        }
+        return null
       } finally {
         setRpcRoutePath(prevPath)
         setRpcRouteParams(prevParams)
@@ -298,19 +311,9 @@ export function Router(props: RouterProps = {}) {
 
     const { route, params, query } = matched
 
-    // Retry requested by the error component: restart the loader for the current
-    // route. We do this inside the Router render so the track is keyed under the
-    // Router's component ID, not the error component's.
-    if (shouldRetry) {
-      shouldRetry = false
-      if (route.routed && cachedLoader?.rejected) {
-        cachedLoader.cancel()
-        cachedLoader = startLoader(route, _currentContext ?? { path: currentPath, params, query, state: getRouteState(currentPath), tag: () => {} } as RouteContext<any>)
-      }
-    }
-
     // Navigation guard
     const guard = route.beforeEnter || route.guard
+    let guardPromise: Promise<any> | undefined = undefined
     if (guard) {
       const context = { path: currentPath, params, query } as RouteContext<any>
       const result = guard(context)
@@ -323,6 +326,22 @@ export function Router(props: RouterProps = {}) {
         Promise.resolve().then(() => navigate(result, { replace: true }))
         previousRender = null
         return <div>Redirecting…</div>
+      }
+      if (result as any instanceof Promise) {
+        guardPromise = result as unknown as Promise<any>
+      }
+    }
+
+    const hasLoader = !!route.routed || !!guardPromise
+
+    // Retry requested by the error component: restart the loader for the current
+    // route. We do this inside the Router render so the track is keyed under the
+    // Router's component ID, not the error component's.
+    if (shouldRetry) {
+      shouldRetry = false
+      if (hasLoader && cachedLoader?.rejected) {
+        cachedLoader.cancel()
+        cachedLoader = startLoader(route, _currentContext ?? { path: currentPath, params, query, state: getRouteState(currentPath), tag: () => {} } as RouteContext<any>, guardPromise)
       }
     }
 
@@ -343,7 +362,7 @@ export function Router(props: RouterProps = {}) {
         tag: (...tags: string[]) => tagRoute(currentPath, tags)
       } as RouteContext<any>
 
-      if (suspendEnabled && route.routed && !isSuspended && previousRender) {
+      if (suspendEnabled && hasLoader && !isSuspended && previousRender) {
         // Enter suspension: start the loader but keep the current route visible.
         // Do NOT scroll yet — we are still showing the previous page content.
         // The scroll happens in the suspension-exit block below when the new
@@ -357,7 +376,7 @@ export function Router(props: RouterProps = {}) {
 
         prevCachedLoader = cachedLoader
 
-        cachedLoader = startLoader(route, nextContext)
+        cachedLoader = startLoader(route, nextContext, guardPromise)
       } else {
         if (isSuspended) {
           // Navigating away from a suspended state — clean up.
@@ -373,8 +392,8 @@ export function Router(props: RouterProps = {}) {
         _currentContext = nextContext
         _currentMeta = route.meta ?? null
 
-        if (route.routed) {
-          cachedLoader = startLoader(route, nextContext)
+        if (hasLoader) {
+          cachedLoader = startLoader(route, nextContext, guardPromise)
         } else {
           cachedLoader = null
         }
@@ -444,6 +463,19 @@ export function Router(props: RouterProps = {}) {
       return pendingComp()
     }
 
+    // Check if the loader was rejected (e.g. security block or cancel).
+    if (cachedLoader?.rejected) {
+      const reason = cachedLoader.reason
+      if (isAbortError(reason)) {
+        previousRender = null
+        return null
+      }
+      if (reason instanceof DOMException && reason.name === "SecurityError") {
+        previousRender = null
+        return <div>403 — access denied</div>
+      }
+    }
+
     // Resolve which error component to render (route-level wins over global).
     const errorComp = cachedLoader?.rejected
       ? (route.errorComponent ?? globalErrorComponent)
@@ -456,7 +488,7 @@ export function Router(props: RouterProps = {}) {
       const errorRoute = route
       const errorContext = _currentContext
       const retry = () => {
-        if (!errorRoute.routed || !cachedLoader?.rejected) return
+        if (!cachedLoader?.rejected) return
         shouldRetry = true
         routerHandle._invalidate(routerHandle._id)
       }

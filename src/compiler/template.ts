@@ -54,7 +54,8 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
       if (!expression) continue;
       if (isMapCall(expression)) {
         if (ctx.ssr) {
-          const jsxCode = expressionText(ctx.source, expression);
+          let jsxCode = expressionText(ctx.source, expression);
+          if (ctx.derivedCtx) jsxCode = ctx.derivedCtx.expand(jsxCode);
           html += `<!--auwla:keyed-map-->\${__ssrNode(${jsxCode})}<!--/auwla:keyed-map-->`;
           continue;
         }
@@ -63,15 +64,17 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
 
       if (needsChildPatch(expression)) {
         if (ctx.ssr) {
-          const jsxCode = expressionText(ctx.source, expression);
+          let jsxCode = expressionText(ctx.source, expression);
+          if (ctx.derivedCtx) jsxCode = ctx.derivedCtx.expand(jsxCode);
           html += `<!--auwla:child-->\${__ssrNode(${jsxCode})}<!--/auwla:child-->`;
           continue;
         }
         return null;
       }
 
-      const value = expressionText(ctx.source, expression);
+      let value = expressionText(ctx.source, expression);
       if (ctx.ssr) {
+        if (ctx.derivedCtx) value = ctx.derivedCtx.expand(value);
         html += `<!--auwla:child-->\${__escapeHtml(${value})}<!--/auwla:child-->`;
         continue;
       }
@@ -93,7 +96,8 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
       const childHtml = compileTemplateNode(ctx, child, [...parentPath, childIndex]);
       if (childHtml === null) {
         if (ctx.ssr) {
-          const jsxCode = child.getText(ctx.source);
+          let jsxCode = child.getText(ctx.source);
+          if (ctx.derivedCtx) jsxCode = ctx.derivedCtx.expand(jsxCode);
           html += `<!--auwla:child-->\${__ssrNode(${jsxCode})}<!--/auwla:child-->`;
           continue;
         }
@@ -162,7 +166,9 @@ export function compileTemplateNode(
   }
 
   if (dangerouslySetInnerHTMLValue !== null && ctx.ssr) {
-    return `<${tag}${attrs}>\${(${dangerouslySetInnerHTMLValue})?.__html ?? ''}</${tag}>`;
+    let value = dangerouslySetInnerHTMLValue;
+    if (ctx.derivedCtx) value = ctx.derivedCtx.expand(value);
+    return `<${tag}${attrs}>\${(${value})?.__html ?? ''}</${tag}>`;
   }
 
   if (ts.isJsxSelfClosingElement(node)) return `<${tag}${attrs}></${tag}>`;
@@ -194,8 +200,9 @@ function singleDynamicTextChild(ctx: TemplateContext, node: ts.JsxElement, path:
   const expression = childExpression(only);
   if (!expression || isMapCall(expression) || needsChildPatch(expression)) return null;
 
-  const value = expressionText(ctx.source, expression);
+  let value = expressionText(ctx.source, expression);
   if (ctx.ssr) {
+    if (ctx.derivedCtx) value = ctx.derivedCtx.expand(value);
     return `<!--auwla:child-->\${__escapeHtml(${value})}<!--/auwla:child-->`;
   }
 
@@ -308,7 +315,7 @@ export function compileTemplateRootBlock(
 
   if (ssr) {
     const preLines = preUpdateStatements.map((line) => `          ${line}`).join('\n');
-    const expandedHtml = derivedCtx ? derivedCtx.expand(html) : html;
+    const expandedHtml = html;
     return `__ssrBlock(() => {
 ${preLines}${preLines ? '\n' : ''}          return \`${expandedHtml}\`;
         })`;
