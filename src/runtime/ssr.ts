@@ -115,7 +115,13 @@ export async function renderToString(
   url: string,
   routes: Route[],
   options: SsrRenderOptions,
-): Promise<{ html: string; matched: MatchedRoute | null; data: Record<string, unknown> }> {
+): Promise<{
+  html: string;
+  matched: MatchedRoute | null;
+  data: Record<string, unknown>;
+  status?: number;
+  redirect?: string;
+}> {
   const pathname = new URL(url, 'http://localhost').pathname + new URL(url, 'http://localhost').search;
   setCurrentPath(pathname);
 
@@ -170,6 +176,27 @@ export async function renderToString(
       let loaderHandle: import('../track').TrackHandle | null = null;
 
       try {
+        // Run route guard if present (and options.request was provided, indicating it's a live request)
+        if (options.request && route.guard) {
+          const result = await route.guard(context);
+          if (result === false) {
+            return {
+              html: '<div>403 — access denied</div>',
+              matched,
+              data: {},
+              status: 403,
+            };
+          }
+          if (typeof result === 'string') {
+            return {
+              html: '',
+              matched,
+              data: {},
+              redirect: result,
+            };
+          }
+        }
+
         if (route.routed) {
           loaderHandle = track(`__loader:${context.path}`, (signal) => route.routed!(context, signal), undefined, true);
           await loaderHandle;

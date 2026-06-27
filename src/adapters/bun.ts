@@ -137,14 +137,25 @@ async function ssrRender(
     return new Response('Not Found: index.html missing', { status: 404 })
   }
 
-  const { html, matched } = await renderToString(request.url, routes, {
+  const result = await renderToString(request.url, routes, {
     manifest: manifest as any,
     request,
     globalMiddlewares,
     load,
   })
 
-  if (!matched) {
+  if (result.redirect) {
+    return Response.redirect(result.redirect, 302)
+  }
+
+  if (result.status === 403) {
+    return new Response(result.html, {
+      status: 403,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })
+  }
+
+  if (!result.matched) {
     return new Response('Not Found', { status: 404 })
   }
 
@@ -152,7 +163,7 @@ async function ssrRender(
   // content is present and can hydrate instead of wiping the DOM on mount.
   const page = template
     .replace('id="app"', 'id="app" data-auwla-ssr="true"')
-    .replace('<!--app-html-->', html)
+    .replace('<!--app-html-->', result.html)
 
   return new Response(page, {
     headers: { 'content-type': 'text/html; charset=utf-8' },

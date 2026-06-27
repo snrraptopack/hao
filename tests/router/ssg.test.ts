@@ -35,8 +35,9 @@ vi.mock('vite', () => {
           }
           if (id === 'auwla/runtime/ssr') {
             return {
-              renderToString: vi.fn().mockImplementation((path) => {
-                return { html: `<div>Rendered ${path}</div>` }
+              renderToString: vi.fn().mockImplementation((url) => {
+                const pathname = new URL(url).pathname
+                return { html: `<div>Rendered ${pathname}</div>` }
               })
             }
           }

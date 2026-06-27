@@ -22,6 +22,9 @@ export async function routed(ctx: RouteContext<'/posts'>, signal: AbortSignal) {
 
 export default function PostsPage() {
   const loader = getRouted(routed)
+
+  console.log("loader value type:", typeof loader?.value, "is array?", Array.isArray(loader?.value), "value:", loader?.value)
+
   const me = track.get('auth.me')
   const create = track.form('posts.createPost', { schema })
 

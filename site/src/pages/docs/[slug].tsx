@@ -1,5 +1,6 @@
 import { getParams, getRouted, navigate, type RouteContext } from 'auwla/router'
-import { marked } from 'marked'
+import { Marked } from 'marked'
+import { markedHighlight } from 'marked-highlight'
 import Prism from 'prismjs'
 // Load TSX and JSX language extensions into Prism
 import 'prismjs/components/prism-jsx'
@@ -7,6 +8,20 @@ import 'prismjs/components/prism-tsx'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-json'
+
+
+// 1. Initialize a custom Marked instance with the highlight plugin
+const marked = new Marked(
+  markedHighlight({
+    langPrefix: 'language-', // Prism uses 'language-' prefixes
+    highlight(code, lang) {
+      if (Prism.languages[lang]) {
+        return Prism.highlight(code, Prism.languages[lang], lang);
+      }
+      return code;
+    }
+  })
+);
 
 export const config = {
   renderMode: 'ssg',
@@ -38,17 +53,7 @@ export async function routed(ctx: RouteContext<'/docs/:slug'>, signal: AbortSign
 
   // 1. Get the raw markdown text
   const rawMarkdown = await loadFile() as string;
-
-  // 2. Parse Markdown AND apply Prism highlighting to the string directly
-  const html = marked.parse(rawMarkdown, {
-    // Tell marked to use Prism for any code blocks it finds
-    highlight: (code, lang) => {
-      if (Prism.languages[lang]) {
-        return Prism.highlight(code, Prism.languages[lang], lang);
-      }
-      return code;
-    }
-  }) as string;
+  const html = marked.parse(rawMarkdown)
 
   // 3. Return the fully computed HTML string
   return html;

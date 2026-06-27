@@ -96,4 +96,40 @@ describe('renderToString', () => {
       'remote:posts.getPost': { id: '42', title: 'Server-rendered post' }
     });
   });
+
+  it('blocks access if guard returns false', async () => {
+    (globalThis as any).document = undefined;
+
+    function SecretPage() {
+      return () => <div>Top Secret</div>;
+    }
+
+    const guard = () => false;
+    const routes: Route[] = [{ path: '/secret', component: SecretPage as any, guard }];
+    const manifest: ServerManifest = {};
+
+    const req = new Request('http://localhost/secret');
+    const result = await renderToString('http://localhost/secret', routes, { manifest, request: req });
+
+    expect(result.status).toBe(403);
+    expect(result.html).toContain('403 — access denied');
+  });
+
+  it('redirects if guard returns a string', async () => {
+    (globalThis as any).document = undefined;
+
+    function ProtectedPage() {
+      return () => <div>Protected Area</div>;
+    }
+
+    const guard = () => '/login';
+    const routes: Route[] = [{ path: '/protected', component: ProtectedPage as any, guard }];
+    const manifest: ServerManifest = {};
+
+    const req = new Request('http://localhost/protected');
+    const result = await renderToString('http://localhost/protected', routes, { manifest, request: req });
+
+    expect(result.redirect).toBe('/login');
+    expect(result.html).toBe('');
+  });
 })

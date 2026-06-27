@@ -236,9 +236,10 @@ export function generateLazyVirtualModule(pages: PageFile[]): string {
       lines.push(`    },`)
     }
     if (ex.hasGuard) {
-      // Guard is read from cache. On first navigation guard is undefined
-      // (module not yet loaded). Document this limitation.
-      lines.push(`    guard: (ctx) => __mods.get(${key})?.guard?.(ctx),`)
+      lines.push(`    guard: async (ctx) => {`)
+      lines.push(`      const mod = await __load(${key}, () => import(${importPath}))`)
+      lines.push(`      return mod.guard?.(ctx)`)
+      lines.push(`    },`)
     }
     if (ex.hasMeta) {
       // Meta is a getter so it reads the live cache value on each access.
@@ -468,7 +469,11 @@ export function generateVirtualModuleWithLayouts(
         lines.push(`      return mod?.error ? mod.error(props) : () => null`)
         lines.push(`    },`)
       }
-      if (ex.hasGuard)   lines.push(`    guard: (ctx) => __mods.get(${key})?.guard?.(ctx),`)
+      const hasPageGuard = ex.hasGuard
+      const hasLayoutGuards = chain.some((l) => l.hasGuard)
+      if (hasPageGuard || hasLayoutGuards) {
+        lines.push(`    guard: ${buildLazyGuardExpr(key, importPath, chain, layoutAlias, hasPageGuard)},`)
+      }
       if (ex.hasMeta)    lines.push(`    get meta() { return __mods.get(${key})?.meta },`)
       if (ex.hasConfig)  lines.push(`    get config() { return __mods.get(${key})?.config },`)
     }
@@ -592,13 +597,11 @@ function buildComponentExpr(baseExpr: string, layerAliases: string[]): string {
 /**
  * Builds a guard expression for a page that has its own guard AND may also
  * have layout guards.
- *
- * Execution order mirrors how nested `group()` calls chain guards:
- *   1. Page guard (most specific — runs first).
+ * Execution order runs from outer-to-inner:
+ *   1. Outermost layout guard (least specific — runs first).
  *   2. Innermost layout guard.
- *   3. Outermost layout guard (least specific — runs last).
+ *   3. Page guard (most specific — runs last).
  *
- * The `chain` array is outermost-first, so we reverse it before iterating.
  * If any guard blocks (returns false / redirect string), later guards are skipped.
  */
 function buildGuardExpr(
@@ -606,17 +609,16 @@ function buildGuardExpr(
   chain: LayoutFile[],
   layoutAlias: Map<string, string>,
 ): string {
-  // Reverse: chain is [outerLayout, ..., innerLayout]; we need inner first.
-  const layoutGuards = [...chain]
-    .reverse()
+  // Chain is outermost-first (e.g. [outerLayout, ..., innerLayout]).
+  const layoutGuards = chain
     .filter((l) => l.hasGuard)
     .map((l) => `${layoutAlias.get(l.filePath)!}.guard`)
 
   if (layoutGuards.length === 0) return pageGuardExpr
 
-  // Compose: page guard first, then each layout guard from inner to outer.
+  // Compose: outermost layout guard runs first, then inner, then page guard last.
   // Returns the first non-passing result (truthy string = redirect, false = block).
-  const allGuards = [pageGuardExpr, ...layoutGuards].join(', ')
+  const allGuards = [...layoutGuards, pageGuardExpr].join(', ')
   return `(ctx) => [${allGuards}].reduce((r, g) => r !== undefined && r !== true ? r : g(ctx), undefined)`
 }
 
@@ -624,15 +626,14 @@ function buildGuardExpr(
  * Builds a guard expression for a page with no page-level guard but with
  * one or more layout guards.
  *
- * Same innermost-first ordering as buildGuardExpr (reversed from chain order).
+ * Same outer-to-inner ordering as buildGuardExpr.
  */
 function buildLayoutGuardOnly(
   chain: LayoutFile[],
   layoutAlias: Map<string, string>,
 ): string {
-  // Reverse: chain is [outerLayout, ..., innerLayout]; we need inner first.
-  const guards = [...chain]
-    .reverse()
+  // Chain is outermost-first (e.g. [outerLayout, ..., innerLayout]).
+  const guards = chain
     .filter((l) => l.hasGuard)
     .map((l) => `${layoutAlias.get(l.filePath)!}.guard`)
 
@@ -640,6 +641,41 @@ function buildLayoutGuardOnly(
 
   const allGuards = guards.join(', ')
   return `(ctx) => [${allGuards}].reduce((r, g) => r !== undefined && r !== true ? r : g(ctx), undefined)`
+}
+
+/**
+ * Builds an async guard expression for a lazy page that has its own guard
+ * and/or layout guards.
+ *
+ * It dynamically loads the chunk, then chains the guards sequentially
+ * in outer-to-inner order, returning the first blocking or redirect result.
+ */
+function buildLazyGuardExpr(
+  key: string,
+  importPath: string,
+  chain: LayoutFile[],
+  layoutAlias: Map<string, string>,
+  hasPageGuard: boolean,
+): string {
+  const pageGuardExpr = hasPageGuard
+    ? `async (ctx) => { const mod = await __load(${key}, () => import(${importPath})); return mod.guard?.(ctx); }`
+    : null
+
+  // Chain is outermost-first (e.g. [outerLayout, ..., innerLayout]).
+  const layoutGuards = chain
+    .filter((l) => l.hasGuard)
+    .map((l) => `${layoutAlias.get(l.filePath)!}.guard`)
+
+  if (layoutGuards.length === 0) return pageGuardExpr!
+
+  const allGuards = pageGuardExpr ? [...layoutGuards, pageGuardExpr] : layoutGuards
+
+  return `async (ctx) => {
+      for (const g of [${allGuards.join(', ')}]) {
+        const r = await g(ctx)
+        if (r !== undefined && r !== true) return r
+      }
+    }`
 }
 
 // ---------------------------------------------------------------------------

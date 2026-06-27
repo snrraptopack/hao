@@ -253,10 +253,10 @@ describe('generateVirtualModuleWithLayouts', () => {
     expect(code).toContain('reduce')
   })
 
-  it('applies layout guards innermost-first to match group() semantics', () => {
+  it('applies layout guards outermost-first to match group() semantics', () => {
     // For a page at dashboard/users.tsx with root layout (lay0) and dashboard
-    // layout (lay1), the guard chain must be: pageGuard → lay1.guard → lay0.guard
-    // (inner before outer, exactly as nested group() would produce).
+    // layout (lay1), the guard chain must be: lay0.guard → lay1.guard → pageGuard
+    // (outer before inner).
     const pages = [makePage('dashboard/users.tsx', '/dashboard/users', { hasGuard: true })]
     const layouts = [
       makeLayout('_layout.tsx', /* hasGuard */ true),           // lay0 — outermost
@@ -265,16 +265,16 @@ describe('generateVirtualModuleWithLayouts', () => {
     const tree = buildDirectoryTree(pages, layouts)
     const code = generateVirtualModuleWithLayouts(tree)
 
-    // Find the guard line and check that lay1 appears BEFORE lay0 in the array.
+    // Find the guard line and check that lay0 appears BEFORE lay1 in the array.
     const guardLine = code.split('\n').find((l) => l.includes('reduce'))
     expect(guardLine).toBeDefined()
     const lay0Idx = guardLine!.indexOf('lay0.guard')
     const lay1Idx = guardLine!.indexOf('lay1.guard')
-    // lay1 (inner / dashboard) must appear before lay0 (outer / root) in the expression.
-    expect(lay1Idx).toBeLessThan(lay0Idx)
+    // lay0 (outer / root) must appear before lay1 (inner / dashboard) in the expression.
+    expect(lay0Idx).toBeLessThan(lay1Idx)
   })
 
-  it('orders layout-only guards innermost-first when no page guard exists', () => {
+  it('orders layout-only guards outermost-first when no page guard exists', () => {
     const pages = [makePage('dashboard/users.tsx', '/dashboard/users')]
     const layouts = [
       makeLayout('_layout.tsx', true),           // lay0 — outermost
@@ -287,7 +287,7 @@ describe('generateVirtualModuleWithLayouts', () => {
     expect(guardLine).toBeDefined()
     const lay0Idx = guardLine!.indexOf('lay0.guard')
     const lay1Idx = guardLine!.indexOf('lay1.guard')
-    expect(lay1Idx).toBeLessThan(lay0Idx)
+    expect(lay0Idx).toBeLessThan(lay1Idx)
   })
 
   it('emits routed, pendingComponent, errorComponent and meta for static pages', () => {
