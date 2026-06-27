@@ -271,6 +271,26 @@ export function generateLazyVirtualModule(pages: PageFile[]): string {
     }
     lines.push('}')
     lines.push('')
+
+    // Register chunk warmers on globalThis so hydrateTrackState (in track/core.ts)
+    // can trigger __load() for the current page's chunk when __AUWLA_DATA__ is
+    // present on a hard refresh of an SSG page. Without this, the early-return
+    // in track() bypasses the routed() wrapper entirely — __mods never gets
+    // populated — and the component renders () => null, wiping the SSR content.
+    //
+    // Warmers are keyed by '__loader:${routePath}' (the pattern, not the concrete
+    // path) so the pattern-matching logic in hydrateTrackState can find them.
+    lines.push('// Register lazy-chunk warmers for SSG hydration.')
+    lines.push('if (typeof globalThis !== \'undefined\') {')
+    lines.push('  globalThis.__auwla_chunkWarmers = globalThis.__auwla_chunkWarmers ?? {}')
+    for (const page of lazyPages) {
+      const warmerKey  = JSON.stringify(`__loader:${page.routePath}`)
+      const key        = JSON.stringify(page.routePath)
+      const importPath = JSON.stringify(page.filePath.replace(/\\/g, '/'))
+      lines.push(`  globalThis.__auwla_chunkWarmers[${warmerKey}] = () => __load(${key}, () => import(${importPath}))`)
+    }
+    lines.push('}')
+    lines.push('')
   }
 
   return lines.join('\n')
@@ -466,6 +486,20 @@ export function generateVirtualModuleWithLayouts(
       const key        = JSON.stringify(page.routePath)
       const importPath = JSON.stringify(page.filePath.replace(/\\/g, '/'))
       lines.push(`  [${key}]: () => __load(${key}, () => import(${importPath})),`)
+    }
+    lines.push('}')
+    lines.push('')
+
+    // Register chunk warmers on globalThis for SSG hydration (same logic as
+    // generateLazyVirtualModule — see comment there for full explanation).
+    lines.push('// Register lazy-chunk warmers for SSG hydration.')
+    lines.push('if (typeof globalThis !== \'undefined\') {')
+    lines.push('  globalThis.__auwla_chunkWarmers = globalThis.__auwla_chunkWarmers ?? {}')
+    for (const page of lazyPages) {
+      const warmerKey  = JSON.stringify(`__loader:${page.routePath}`)
+      const key        = JSON.stringify(page.routePath)
+      const importPath = JSON.stringify(page.filePath.replace(/\\/g, '/'))
+      lines.push(`  globalThis.__auwla_chunkWarmers[${warmerKey}] = () => __load(${key}, () => import(${importPath}))`)
     }
     lines.push('}')
     lines.push('')

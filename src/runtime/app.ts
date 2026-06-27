@@ -328,6 +328,10 @@ export function createMemoApp<TModel>(
   if (isHydrating) {
     skipFirstHydrationPatch = true;
     enterHydration(root);
+    // Expose this app's invalidate so that lazy-chunk warmers (triggered by
+    // hydrateTrackState when __AUWLA_DATA__ is present) can wake the render
+    // loop once the component module is loaded into __mods.
+    (globalThis as any).__auwla_invalidate = invalidate;
     renderNow();
   } else {
     renderNow();
