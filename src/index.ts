@@ -47,8 +47,6 @@ export {
   exitHydration,
 } from './compiler-runtime/index';
 
-export { hydrateTrackState } from './track/core';
-
 export type {
   ComponentHandle,
   MemoApp,

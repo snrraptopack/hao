@@ -8,8 +8,8 @@
 // over from there.
 
 import {} from "auwla/jsx-runtime"
-import { track } from "auwla/track"
-import type { TrackHandle } from "auwla/track"
+import { trackImpl as track } from "../track/core"
+import type { TrackHandle } from "../track/core"
 import { setRpcRoutePath, setRpcRouteParams } from "../client/rpc"
 import { component } from "../runtime/component"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"

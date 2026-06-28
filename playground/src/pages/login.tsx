@@ -17,16 +17,9 @@ const schema: StandardSchema = {
 export default function LoginPage() {
   const login = track.form('auth.login', {
     schema,
-    // onSuccess: () => navigate("/dashboard")
+    onSuccess: () => navigate("/dashboard")
   })
 
-  // const isLoggedIn = login.resolved
-  // console.log("islogged in", isLoggedIn)
-
-  if (login.resolved) {
-    console.log("logged")
-    return navigate("/dashboard")
-  }
 
   return () => (
     <div class="page">

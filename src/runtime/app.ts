@@ -21,7 +21,18 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
-import { cleanupComponentTracks, hydrateTrackState, hasPendingLoaders } from '../track/core';
+const getTrackGlobals = (): {
+  hasPendingLoaders?: () => boolean;
+  hydrateTrackState?: (data: Record<string, unknown>) => void;
+  cleanupComponentTracks?: (id: string) => void;
+} => {
+  const g = globalThis as any;
+  return {
+    hasPendingLoaders: g.__auwla_hasPendingLoaders,
+    hydrateTrackState: g.__auwla_hydrateTrackState,
+    cleanupComponentTracks: g.__auwla_cleanupComponentTracks,
+  };
+};
 import { enterHydration, exitHydration } from '../compiler-runtime/template';
 
 /** Events that fire rapidly and should be throttled to one render per frame. */
@@ -107,7 +118,7 @@ export function createMemoApp<TModel>(
   view?: (ctx: MemoContext<TModel>) => MemoChild
 ): MemoApp<TModel> {
   if (typeof window !== 'undefined' && (window as any).__AUWLA_DATA__) {
-    hydrateTrackState((window as any).__AUWLA_DATA__);
+    getTrackGlobals().hydrateTrackState?.((window as any).__AUWLA_DATA__);
     delete (window as any).__AUWLA_DATA__;
   }
 
@@ -158,7 +169,7 @@ export function createMemoApp<TModel>(
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
 
       if (skipFirstHydrationPatch) {
-        if (hasPendingLoaders()) {
+        if (getTrackGlobals().hasPendingLoaders?.() ?? false) {
           return;
         }
         skipFirstHydrationPatch = false;
@@ -197,7 +208,7 @@ export function createMemoApp<TModel>(
         componentInstances.delete(id);
         runtimeState.componentHosts.delete(id);
         componentSourceDeps.delete(id);
-        cleanupComponentTracks(id);
+        getTrackGlobals().cleanupComponentTracks?.(id);
       }
       for (const id of memoBlocks.keys()) {
         if (renderState.seen.has(id)) continue;

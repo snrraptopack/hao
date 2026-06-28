@@ -9,7 +9,7 @@
 import { reactive } from '../runtime/reactive'
 import type { ReactiveCell } from '../runtime/reactive'
 import { runtimeState } from '../runtime/state'
-import { track } from './core'
+import { trackPost } from './remote'
 import type { CommandHandle } from './core'
 import type { StandardSchema } from '../shared/standard-schema'
 import { ValidationError } from '../shared/validation-error'
@@ -124,7 +124,7 @@ export function trackForm(
   if (typeof key !== 'string') {
     throw new Error('Auwla: track.form expects a manifest key string or an imported server function reference.')
   }
-  const command = track.post(key) as CommandHandle<any[], any>
+  const command = trackPost(key) as CommandHandle<any[], any>
   const originalRun = command.run as (...args: unknown[]) => Promise<unknown>
   const errorCell = reactive<ValidationError | Error | null>(null)
   subscribeSetupComponent(errorCell)

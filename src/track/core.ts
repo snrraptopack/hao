@@ -21,12 +21,7 @@
 import { runtimeState, currentComponentId } from '../runtime/state';
 import { reactive } from '../runtime/reactive';
 import type { ReactiveCell } from '../runtime/reactive';
-import { flushSync } from '../runtime/app';
-import { rpcCall, getCurrentRoutePath } from '../client/rpc';
-import { getRpcDispatcher } from '../runtime/rpc-dispatcher';
-import { trackForm } from './form';
-import type { ServerManifestTypes } from 'auwla/server-manifest';
-import type { RemoteFunction } from '../server/types';
+import { getCurrentRoutePath } from '../client/rpc';
 
 export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
 
@@ -36,18 +31,6 @@ export type TrackOptions = {
   skipBackgroundSync?: boolean;
 };
 
-function dispatchRpc(
-  key: string,
-  args: unknown[],
-  routePath: string,
-  options?: TrackRemoteOptions & { method?: 'GET' | 'POST' },
-): Promise<unknown> {
-  const dispatcher = getRpcDispatcher();
-  if (dispatcher) {
-    return dispatcher(key, args, routePath, options);
-  }
-  return rpcCall(key, args, routePath, options);
-}
 
 export type TrackHandle<T = unknown> = {
   readonly name: string;
@@ -95,14 +78,7 @@ const registry = new Map<string, TrackState>();
 /** Tracks created by a given component (for bulk cancel on unmount). */
 const componentTracks = new Map<string, Set<string>>();
 
-/**
- * Get the active track registry.
- *
- * During SSR this returns the per-request ALS-backed Map so concurrent
- * requests cannot contaminate each other's state. On the client it falls
- * back to the module-level singleton.
- */
-function getRegistry(): Map<string, TrackState> {
+export function getRegistry(): Map<string, TrackState> {
   const provider = (globalThis as any).__auwla_trackRegistryProvider as
     | (() => Map<string, TrackState> | undefined)
     | undefined;
@@ -119,7 +95,7 @@ function getRegistry(): Map<string, TrackState> {
  * During SSR this returns the per-request ALS-backed Map; on the client it
  * returns the module-level singleton.
  */
-function getComponentTracks(): Map<string, Set<string>> {
+export function getComponentTracks(): Map<string, Set<string>> {
   const provider = (globalThis as any).__auwla_trackComponentTracksProvider as
     | (() => Map<string, Set<string>> | undefined)
     | undefined;
@@ -139,7 +115,7 @@ function getComponentId(): string | null {
   );
 }
 
-function makeKey(name: string, componentId?: string | null): string {
+export function makeKey(name: string, componentId?: string | null): string {
   const cid = componentId ?? getComponentId() ?? '__global';
   return `${cid}::${name}`;
 }
@@ -165,7 +141,7 @@ function getOrCreate(key: string): TrackState {
  * track's reactive cell. This makes the component re-render when the track
  * changes without requiring reactive reads inside the render callback.
  */
-function subscribeSetupComponent<T>(cell: ReactiveCell<T>): void {
+export function subscribeSetupComponent<T>(cell: ReactiveCell<T>): void {
   const state = runtimeState.activeRenderState;
   const id = runtimeState.activeSetupComponentId;
   if (state && id) {
@@ -204,7 +180,16 @@ function transition(key: string, status: TrackStatus, value?: unknown, reason?: 
   }
 }
 
-function applyTransition(key: string, status: TrackStatus, value?: unknown, reason?: unknown, options?: TrackOptions) {
+function flushSync() {
+  const globalState = (globalThis as any).__auwla_runtimeState;
+  if (globalState?.mountedApps) {
+    for (const app of globalState.mountedApps) {
+      app.flushSync();
+    }
+  }
+}
+
+export function applyTransition(key: string, status: TrackStatus, value?: unknown, reason?: unknown, options?: TrackOptions) {
   if (options?.viewTransition && typeof document !== 'undefined' && 'startViewTransition' in document) {
     const t = (document as any).startViewTransition(() => {
       transition(key, status, value, reason);
@@ -362,7 +347,7 @@ export function hasPendingLoaders(): boolean {
   return false;
 }
 
-function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
+export function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
   const handle = {
     get name() {
       return key.split('::')[1]!;
@@ -479,10 +464,10 @@ function runAsyncTrack(
  * during a render pass automatically subscribes the component — no manual
  * `commit()` calls needed.
  */
-function trackImpl(name: string, promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
-function trackImpl(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
-function trackImpl(promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
-function trackImpl(
+export function trackImpl(name: string, promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+export function trackImpl(name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+export function trackImpl(promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
+export function trackImpl(
   nameOrPromise: string | Promise<unknown>,
   maybePromiseOrFnOrOptions?: Promise<unknown> | ((signal: AbortSignal) => Promise<unknown>) | TrackOptions,
   maybeOptionsOrIsGlobal?: TrackOptions | boolean,
@@ -702,23 +687,7 @@ export type TrackRemoteOptions = TrackOptions & {
   routePath?: string;
 };
 
-/**
- * Keys in the server manifest that are declared as GET.
- */
-type GetKeys = {
-  [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'GET' }
-  ? K
-  : never;
-}[keyof ServerManifestTypes];
 
-/**
- * Keys in the server manifest that are declared as POST.
- */
-type PostKeys = {
-  [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'POST' }
-  ? K
-  : never;
-}[keyof ServerManifestTypes];
 
 /**
  * Lazy command handle returned by track.post().
@@ -741,211 +710,11 @@ export type CommandHandle<TArgs extends unknown[] = unknown[], TReturn = unknown
   refresh(): void;
 };
 
-/**
- * Run a GET remote function immediately and return a reactive TrackHandle.
- */
-function trackGet<K extends GetKeys>(
-  key: K,
-  options?: TrackRemoteOptions,
-): TrackHandle<ServerManifestTypes[K]['return']>;
-function trackGet<TReturn>(
-  fn: RemoteFunction<any[], TReturn, any, any, any>,
-  options?: TrackRemoteOptions,
-): TrackHandle<TReturn>;
-function trackGet<TReturn>(
-  fn: (...args: any[]) => Promise<TReturn>,
-  options?: TrackRemoteOptions,
-): TrackHandle<TReturn>;
-function trackGet(
-  keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
-  options?: TrackRemoteOptions,
-): TrackHandle<any> {
-  // Extract key from: plain string, client-side function stub, or server-side RemoteFunction object.
-  // On the client, server exports are function stubs with __auwla_key.
-  // On the server (SSR), they are RemoteFunction objects (plain objects) with __auwla_key.
-  // This mirrors the same pattern used in trackForm.
-  const key =
-    (typeof keyOrFn === 'function' || typeof keyOrFn === 'object') &&
-    keyOrFn !== null &&
-    '__auwla_key' in (keyOrFn as any)
-      ? (keyOrFn as any).__auwla_key
-      : keyOrFn;
-  if (typeof key !== 'string') {
-    throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
-  }
-  const routePath = options?.routePath ?? getCurrentRoutePath();
-  const remoteName = `remote:${key}:${routePath}`;
 
-  // If a resolved global query was started on a different route, don't fire
-  // a background sync with the current (wrong) route path. Just return the
-  // cached handle and let a future call on the original route refresh it.
-  const stateKey = makeKey(remoteName, '__global');
-  const existing = getRegistry().get(stateKey);
-  if (
-    existing &&
-    existing.statusCell.get() === 'resolved' &&
-    existing.routePath &&
-    existing.routePath !== routePath
-  ) {
-    return createHandle(stateKey, existing.promise!) as any;
-  }
-
-  // If the entry was pre-seeded by hydrateTrackState (resolved, no routePath,
-  // promise already set), return it immediately without dispatching any RPC.
-  // The SWR background sync will kick in on the NEXT call (after first render).
-  if (
-    existing &&
-    existing.statusCell.get() === 'resolved' &&
-    !existing.routePath &&
-    existing.promise
-  ) {
-    // Tag it with the current route so future calls can sync normally.
-    existing.routePath = routePath;
-    subscribeSetupComponent(existing.statusCell);
-    return createHandle(stateKey, existing.promise) as any;
-  }
-
-  const promise = dispatchRpc(key, [], routePath, { ...options, method: 'GET' });
-  return trackImpl(remoteName, promise, options, true) as any;
+if (typeof globalThis !== 'undefined') {
+  (globalThis as any).__auwla_hasPendingLoaders = hasPendingLoaders;
+  (globalThis as any).__auwla_hydrateTrackState = hydrateTrackState;
+  (globalThis as any).__auwla_cleanupComponentTracks = cleanupComponentTracks;
 }
 
-/** Invalidate all cached global queries and actively refetch those that are already resolved. */
-function invalidateQueryCache(): void {
-  for (const [key, state] of getRegistry().entries()) {
-    if (key.startsWith('__global::remote:')) {
-      state.stale = true;
-
-      if (state.statusCell.get() === 'resolved' && state.routePath) {
-        state.stale = false;
-        const rawName = key.slice('__global::remote:'.length);
-        const colonIndex = rawName.indexOf(':');
-        const name = colonIndex === -1 ? rawName : rawName.substring(0, colonIndex);
-        const newPromise = dispatchRpc(name, [], state.routePath, { method: 'GET' });
-
-        newPromise.then(
-          (value) => {
-            if (JSON.stringify(state.value) !== JSON.stringify(value)) {
-              applyTransition(key, 'resolved', value);
-            }
-            state.promise = Promise.resolve(value);
-          },
-          (reason) => {
-            console.error(`Background sync failed for invalidated query "${name}":`, reason);
-            applyTransition(key, 'rejected', undefined, reason);
-            state.promise = Promise.reject(reason);
-          }
-        );
-      }
-    }
-  }
-}
-
-function createCommandHandle<TArgs extends unknown[], TReturn>(
-  key: string,
-): CommandHandle<TArgs, TReturn> {
-  const resultCell = reactive<TrackHandle<TReturn> | null>(null);
-  subscribeSetupComponent(resultCell);
-
-  return {
-    get status(): TrackStatus {
-      return resultCell.get()?.status ?? 'idle';
-    },
-    get pending(): boolean {
-      return this.status === 'pending';
-    },
-    get resolved(): boolean {
-      return this.status === 'resolved';
-    },
-    get rejected(): boolean {
-      return this.status === 'rejected';
-    },
-    get value(): TReturn | undefined {
-      return resultCell.get()?.value;
-    },
-    get reason(): unknown {
-      return resultCell.get()?.reason;
-    },
-    get result(): TrackHandle<TReturn> | null {
-      return resultCell.get();
-    },
-    async run(...args: TArgs | [FormData]): Promise<TReturn> {
-      const promise = dispatchRpc(key, args, getCurrentRoutePath()) as Promise<TReturn>;
-      const handle = trackImpl(`remote:${key}`, promise) as TrackHandle<TReturn>;
-      resultCell.set(handle);
-
-      promise.then(() => {
-        invalidateQueryCache();
-      });
-
-      return promise;
-    },
-    refresh(): void {
-      // Commands do not auto-refresh.
-    },
-  };
-}
-
-/**
- * Create a lazy POST command handle for a remote mutation.
- */
-function trackPost<K extends PostKeys>(
-  key: K,
-): CommandHandle<
-  ServerManifestTypes[K]['args'],
-  ServerManifestTypes[K]['return']
->;
-function trackPost<TArgs extends unknown[], TReturn>(
-  fn: RemoteFunction<TArgs, TReturn, any, any, any>,
-): CommandHandle<TArgs, TReturn>;
-function trackPost<TArgs extends unknown[], TReturn>(
-  fn: (...args: TArgs) => Promise<TReturn>,
-): CommandHandle<TArgs, TReturn>;
-function trackPost(
-  key: string,
-): CommandHandle<any[], any>;
-function trackPost(
-  keyOrFn: string | Function | RemoteFunction<any, any, any, any, any>,
-): CommandHandle<any[], any> {
-  // On the client, server exports are function stubs with __auwla_key.
-  // On the server (SSR), they are RemoteFunction objects (plain objects) with __auwla_key.
-  // This mirrors the same pattern used in trackForm.
-  const key =
-    (typeof keyOrFn === 'function' || typeof keyOrFn === 'object') &&
-    keyOrFn !== null &&
-    '__auwla_key' in (keyOrFn as any)
-      ? (keyOrFn as any).__auwla_key
-      : keyOrFn;
-  if (typeof key !== 'string') {
-    throw new Error('Auwla: track.post expects a key string or an imported server function reference.');
-  }
-  return createCommandHandle(key);
-}
-
-/**
- * Combined track interface: the existing local track primitive plus remote
- * query (track.get) and mutation (track.post) methods.
- */
-export interface TrackFn {
-  (name: string, promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
-  (name: string, fn: (signal: AbortSignal) => Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
-  (promise: Promise<unknown>, options?: TrackOptions, isGlobal?: boolean): TrackHandle;
-  /** Run a GET remote function immediately. */
-  get: typeof trackGet;
-  /** Create a lazy POST command handle. */
-  post: typeof trackPost;
-  /** Bind a POST remote function to a form. */
-  form: typeof trackForm;
-}
-
-/**
- * The public track primitive. Use it for local async work, or call
- * track.get() / track.post() for remote server functions.
- */
-export const track: TrackFn = Object.assign(trackImpl, {
-  get: trackGet,
-  post: trackPost,
-  form: trackForm,
-});
-
-/** @internal Re-export for tests that need the un-augmented function. */
-export { trackImpl };
+export { trackImpl as track };

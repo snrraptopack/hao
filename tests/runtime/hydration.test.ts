@@ -11,7 +11,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
-  hydrateTrackState,
   enterHydration,
   exitHydration,
   __cloneTemplate,
@@ -20,8 +19,8 @@ import {
   __ssrKeyedMap,
   __escapeHtml,
 } from '../../src';
+import { hydrateTrackState, __resetTrackRegistry } from '../../src/track';
 import { clearRpcDispatcher } from '../../src/runtime/rpc-dispatcher';
-import { __resetTrackRegistry } from '../../src/track';
 import { h } from '../../src';
 
 // ─── helpers ────────────────────────────────────────────────────────────────

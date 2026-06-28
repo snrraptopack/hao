@@ -405,7 +405,15 @@ function applyReplacements(source: string, replacements: Array<{ start: number; 
 
 function addCompilerImport(code: string, didCompile: boolean): string {
   if (didCompile) {
-    return `import { ${COMPILER_IMPORT} } from 'auwla';\n${code}`;
+    const importsArray = COMPILER_IMPORT.split(', ').map(s => s.trim());
+    const usedImports = importsArray.filter(name => {
+      const aliasMatch = name.match(/ as (\w+)$/);
+      const searchWord = aliasMatch ? aliasMatch[1] : name;
+      return new RegExp(`\\b${searchWord}\\b`).test(code);
+    });
+    if (usedImports.length > 0) {
+      return `import { ${usedImports.join(', ')} } from 'auwla';\n${code}`;
+    }
   }
   return code;
 }
