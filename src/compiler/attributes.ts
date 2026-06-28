@@ -223,11 +223,11 @@ function compileEventHandler(
   const expandedValue = derivedCtx ? derivedCtx.expand(value) : value;
   const marks = dirtyMarksForHandler(expression, derivedCtx);
   const sources = dirtySourcesForHandler(expression, derivedCtx);
-  const handlerValue = dirtyWrappedHandler(expandedValue, marks, sources);
+  const handlerValue = dirtyWrappedHandler(value, marks, sources);
   const handlerVar = `eventHandler${textId}`;
-  setup.push(`let ${handlerVar} = ${handlerValue};`);
+  setup.push(`let ${handlerVar} = ${dirtyWrappedHandler(expandedValue, marks, sources)};`);
   setup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}(event)));`);
-  patches.push({ code: `${handlerVar} = ${handlerValue};`, deps: [expandedValue] });
+  patches.push({ code: `${handlerVar} = ${handlerValue};`, deps: [value] });
   return textId + 1;
 }
 
@@ -273,29 +273,29 @@ function compileBind(
     setupList.push(`__setProperty(${elementVar}, "checked", __isCheckboxChecked(${expandedValue}, ${elementVar}.value));`);
     setupList.push(`${elementVar}.addEventListener("change", __event((event) => { ${expandedValue} = __updateCheckbox(${expandedValue}, (event.target as any).checked, (event.target as any).value) as any; }));`);
     patches.push({
-      code: `__setProperty(${elementVar}, "checked", __isCheckboxChecked(${expandedValue}, ${elementVar}.value));`,
-      deps: [expandedValue],
+      code: `__setProperty(${elementVar}, "checked", __isCheckboxChecked(${value}, ${elementVar}.value));`,
+      deps: [value],
     });
   } else if (tagName === 'input' && inputType === 'radio') {
     setupList.push(`__setProperty(${elementVar}, "checked", ${expandedValue} === ${elementVar}.value);`);
     setupList.push(`${elementVar}.addEventListener("change", __event((event) => { if ((event.target as any).checked) { ${expandedValue} = (event.target as any).value; } }));`);
     patches.push({
-      code: `__setProperty(${elementVar}, "checked", ${expandedValue} === ${elementVar}.value);`,
-      deps: [expandedValue],
+      code: `__setProperty(${elementVar}, "checked", ${value} === ${elementVar}.value);`,
+      deps: [value],
     });
   } else if (tagName === 'select') {
     setupList.push(`__setSelectValue(${elementVar}, ${expandedValue});`);
     setupList.push(`${elementVar}.addEventListener("change", __event((event) => { ${expandedValue} = __updateSelect(event.target as any) as any; }));`);
     patches.push({
-      code: `__setSelectValue(${elementVar}, ${expandedValue});`,
-      deps: [expandedValue],
+      code: `__setSelectValue(${elementVar}, ${value});`,
+      deps: [value],
     });
   } else {
     setupList.push(`__setProperty(${elementVar}, "value", ${expandedValue});`);
     setupList.push(`${elementVar}.addEventListener("input", __event((event) => { ${expandedValue} = __updateInput(event.target as any) as any; }));`);
     patches.push({
-      code: `__setProperty(${elementVar}, "value", ${expandedValue});`,
-      deps: [expandedValue],
+      code: `__setProperty(${elementVar}, "value", ${value});`,
+      deps: [value],
     });
   }
 
@@ -587,7 +587,7 @@ export function compileTemplateAttribute(
       return ` class="\${__escapeHtml(${expandedValue})}"`;
     }
     ctx.deps.push(value);
-    ctx.patches.push({ code: `__setClass(${elementVar}, ${expandedValue});`, deps: [value] });
+    ctx.patches.push({ code: `__setClass(${elementVar}, ${value});`, deps: [value] });
     return '';
   }
 
@@ -598,7 +598,7 @@ export function compileTemplateAttribute(
         const handlerVar = `eventHandler${ctx.textId++}`;
         ctx.elementSetup.push(`let ${handlerVar} = ${expandedValue};`);
         ctx.elementSetup.push(`${elementVar}.addEventListener(${stringLiteral(eventName)}, __event((event) => ${handlerVar}((event as CustomEvent).detail)));`);
-        ctx.patches.push({ code: `${handlerVar} = ${expandedValue};`, deps: [value] });
+        ctx.patches.push({ code: `${handlerVar} = ${value};`, deps: [value] });
       } else {
         const eventName = name.slice(2).toLowerCase();
         ctx.textId = compileEventHandler(ctx.elementSetup, ctx.patches, ctx.textId, elementVar, eventName, value, expression, ctx.derivedCtx ?? null);
@@ -617,6 +617,6 @@ export function compileTemplateAttribute(
 
   const setter = PROPERTY_PROPS.has(name) ? '__setProperty' : '__setAttribute';
   ctx.deps.push(value);
-  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${expandedValue});`, deps: [value] });
+  ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${value});`, deps: [value] });
   return '';
 }

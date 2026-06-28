@@ -24,6 +24,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve": "NODE_ENV=production bun run dist/server/server.js"
   }
 }

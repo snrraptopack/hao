@@ -206,10 +206,12 @@ function transition(key: string, status: TrackStatus, value?: unknown, reason?: 
 
 function applyTransition(key: string, status: TrackStatus, value?: unknown, reason?: unknown, options?: TrackOptions) {
   if (options?.viewTransition && typeof document !== 'undefined' && 'startViewTransition' in document) {
-    (document as any).startViewTransition(() => {
+    const t = (document as any).startViewTransition(() => {
       transition(key, status, value, reason);
       flushSync();
     });
+    t.ready?.catch(() => {});
+    t.finished?.catch(() => {});
   } else {
     transition(key, status, value, reason);
   }
@@ -772,7 +774,7 @@ function trackGet(
     throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
   }
   const routePath = options?.routePath ?? getCurrentRoutePath();
-  const remoteName = `remote:${key}`;
+  const remoteName = `remote:${key}:${routePath}`;
 
   // If a resolved global query was started on a different route, don't fire
   // a background sync with the current (wrong) route path. Just return the
@@ -815,7 +817,9 @@ function invalidateQueryCache(): void {
 
       if (state.statusCell.get() === 'resolved' && state.routePath) {
         state.stale = false;
-        const name = key.slice('__global::remote:'.length);
+        const rawName = key.slice('__global::remote:'.length);
+        const colonIndex = rawName.indexOf(':');
+        const name = colonIndex === -1 ? rawName : rawName.substring(0, colonIndex);
         const newPromise = dispatchRpc(name, [], state.routePath, { method: 'GET' });
 
         newPromise.then(

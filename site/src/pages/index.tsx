@@ -3,28 +3,11 @@ import { Link, getRouted, type RouteContext } from 'auwla/router'
 import LiveCounter from '../components/live-preview/LiveCounter'
 import LivePaint from '../components/live-preview/LivePaint'
 
+import { track } from 'auwla/track'
+import { getHomeShowcases } from './index.server'
 
-
-
-
-export async function routed(ctx: RouteContext<'/'>) {
-  const snippets = import.meta.glob('/snippets/*.md', { query: '?raw', import: 'default' });
-  const loadCounter = snippets['/snippets/Counter.md'];
-  const loadPaint = snippets['/snippets/Paint.md'];
-
-  if (!loadCounter || !loadPaint) {
-    throw new Error('Snippet files not found.');
-  }
-
-  const { mdParser } = await import('../utils/markdown');
-
-  const counterHtml = (await mdParser.parse(await loadCounter() as string)).html;
-  const paintHtml = (await mdParser.parse(await loadPaint() as string)).html;
-
-  return {
-    counterHtml,
-    paintHtml
-  };
+export async function routed(ctx: RouteContext<'/'>, signal: AbortSignal) {
+  return await track.get(getHomeShowcases, { signal });
 }
 
 

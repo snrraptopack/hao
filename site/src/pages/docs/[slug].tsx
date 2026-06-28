@@ -1,56 +1,29 @@
-import { getRouted, type RouteContext } from 'auwla/router'
-import { mdParser } from '../../utils/markdown'
+import { getRouted, type RouteContext } from 'auwla/router';
+import { track } from 'auwla/track';
+import { getDocHtml } from './[slug].server';
 
 
-export const config = {
-  renderMode: 'ssg',
-  async generatePaths() {
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-
-    const docsDir = path.resolve(process.cwd(), 'docs')
-    const files = fs.readdirSync(docsDir)
-
-    return files
-      .filter(f => f.endsWith('.md'))
-      .map(f => ({ slug: f.replace(/\.md$/, '') }))
-  }
+type State = {
+  html: string
 }
 
-/**
- * The Data Loader. 
- * This now handles BOTH fetching the text AND the heavy CPU work.
- */
-export async function routed(ctx: RouteContext<'/docs/:slug'>, signal: AbortSignal) {
-  const docs = import.meta.glob('@docs/*.md', { query: '?raw', import: 'default' })
-  const fileKey = `/docs/${ctx.params.slug}.md`;
-  const loadFile = docs[fileKey];
-
-  if (!loadFile) {
-    throw new Error(`Documentation page "${ctx.params.slug}" not found.`);
-  }
-
-  // 1. Get the raw markdown text
-  const rawMarkdown = await loadFile() as string;
-  const { html } = await mdParser.parse(rawMarkdown);
-
-  // 3. Return the fully computed HTML string
-  return html;
+export async function routed(ctx: RouteContext<any, State>, signal: AbortSignal) {
+  let html = ctx.state.html
+  if (html) return html
+  const result = await track.get(getDocHtml, { signal });
+  ctx.state.html = result
+  return result
 }
 
-/**
- * The UI Component.
- * Pure, lightweight, and completely unaware of marked/prism.
- */
+// we have a global pending and error component configured in the main.tsx
+
 export default function DocPage() {
-  // getRouted now receives the finalized, colored HTML string!
-  const finalHtml = getRouted(routed)?.value ?? '';
-
+  const loader = getRouted(routed);
+  const html = loader?.value || ''
   return () => (
     <article
       class="doc-content max-w-3xl py-4"
-      dangerouslySetInnerHTML={{ __html: finalHtml }}
-    // Boom! No `ref` needed. The HTML is already syntax-highlighted.
+      dangerouslySetInnerHTML={{ __html: html  }}
     />
   );
 }

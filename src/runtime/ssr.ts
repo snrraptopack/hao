@@ -16,6 +16,7 @@ import { __setCurrentContext, __setCurrentLoader, __setCurrentMeta } from '../ro
 import { invokeRemoteServer } from '../server/ssr-invoke';
 import type { SsrInvokeOptions } from '../server/ssr-invoke';
 import { track, __extractTrackState, __resetTrackRegistry } from '../track/core';
+import { setRpcRoutePath, setRpcRouteParams } from '../client/rpc';
 import type { Route, RouteContext, MatchedRoute } from '../router/types';
 import type { ServerManifest } from '../server/types';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -170,6 +171,9 @@ export async function renderToString(
         tag: () => {},
       };
 
+      const prevPath = setRpcRoutePath(context.path);
+      const prevParams = setRpcRouteParams(context.params);
+
       __setCurrentContext(context);
       __setCurrentMeta(route.meta ?? null);
 
@@ -229,6 +233,8 @@ export async function renderToString(
 
         return { html, matched, data: trackData };
       } finally {
+        setRpcRoutePath(prevPath);
+        setRpcRouteParams(prevParams);
         runtimeState.activeRenderState = previousRenderState;
         // The ALS store is scoped to this run() callback so the dispatcher is
         // automatically discarded when it exits — no explicit clearRpcDispatcher needed.
