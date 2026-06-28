@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "title": "Premium Documentation Guide",
+    "author": "Amihere Theophilus Junior",
+    "version": "1.0.0",
+    "draft": false
+  },
+  "headings": [
+    {
+      "level": 1,
+      "text": "Getting Started with Auwla Markdown",
+      "id": "getting-started-with-auwla-markdown"
+    },
+    {
+      "level": 2,
+      "text": "Built-in UI Elements",
+      "id": "built-in-ui-elements"
+    },
+    {
+      "level": 3,
+      "text": "1. Interactive Callout Panels",
+      "id": "1-interactive-callout-panels"
+    },
+    {
+      "level": 3,
+      "text": "2. Tab Selection Panels",
+      "id": "2-tab-selection-panels"
+    },
+    {
+      "level": 2,
+      "text": "Component Tables",
+      "id": "component-tables"
+    },
+    {
+      "level": 2,
+      "text": "Stress-Test Scenarios",
+      "id": "stress-test-scenarios"
+    },
+    {
+      "level": 3,
+      "text": "A. Deeply Nested Component Architecture",
+      "id": "a-deeply-nested-component-architecture"
+    },
+    {
+      "level": 4,
+      "text": "Overview of Nested Elements",
+      "id": "overview-of-nested-elements"
+    },
+    {
+      "level": 3,
+      "text": "B. Self-Closing Tags & Spaces Tolerance",
+      "id": "b-self-closing-tags-spaces-tolerance"
+    }
+  ]
+}

@@ -6,9 +6,16 @@ Before learning how Auwla works, it helps to think about what _state_ actually i
 
 ## What Is State?
 
-State is just a variable whose value changes over time. Here is the simplest possible counter in plain JavaScript with no framework at all:
+State is just a variable whose value changes over time. Here is the simplest possible counter in plain HTML and JavaScript with no framework at all, describing how traditionally we were doing things:
 
-```js
+=<Tabs>
+  =<Tab title="HTML">
+```html [index.html]
+<button id="btn">Count: <span id="display">0</span></button>
+```
+  =</Tab>
+  =<Tab title="JavaScript">
+```js [app.js]
 let count = 0;
 
 const button = document.querySelector('#btn');
@@ -19,20 +26,78 @@ button.addEventListener('click', () => {
   display.textContent = String(count); // 2. manually update the DOM
 });
 ```
+  =</Tab>
+=</Tabs>
 
 Two things happen on every click: you **mutate** `count`, and you **manually update the DOM** to match. This works fine for one variable, but in a real app with dozens of variables and hundreds of DOM nodes, keeping them in sync by hand is where bugs live.
+
 
 ---
 
 ## What a Framework Does
 
-A framework's job is to automate step 2. You write `count++` and the DOM updates itself. Different frameworks solve this differently:
+A framework's job is to automate step 2. You write `count++` and the DOM updates itself. Different frameworks solve this differently. Here is how each framework manages this state:
 
-- **React** re-calls the component function on every state change and diffs the output.
-- **Vue / Solid** wrap variables in reactive objects or signals that track readers and schedule updates.
-- **Svelte** compiles your mutations into explicit DOM update calls at build time.
+=<Tabs>
+  =<Tab title="React">
+```tsx [Counter.tsx]
+import { useState } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      Count: {count}
+    </button>
+  );
+}
+```
+  =</Tab>
+  =<Tab title="Vue">
+```vue [Counter.vue]
+<script setup>
+import { ref } from 'vue';
+const count = ref(0);
+</script>
+
+<template>
+  <button @click="count++">Count: {{ count }}</button>
+</template>
+```
+  =</Tab>
+  =<Tab title="Svelte">
+```svelte [Counter.svelte]
+<script>
+  let count = 0;
+</script>
+
+<button on:click={() => count++}>
+  Count: {count}
+</button>
+```
+  =</Tab>
+  =<Tab title="Solid">
+```tsx [Counter.tsx]
+import { createSignal } from 'solid-js';
+
+export default function Counter() {
+  const [count, setCount] = createSignal(0);
+
+  return (
+    <button onClick={() => setCount(c => c + 1)}>
+      Count: {count()}
+    </button>
+  );
+}
+```
+  =</Tab>
+=</Tabs>
+
+
 
 Auwla takes the simplest path: **it keeps your variable as a plain JavaScript `let` in a closure, and re-runs the render function after every DOM event.**
+
 
 ---
 
@@ -41,8 +106,6 @@ Auwla takes the simplest path: **it keeps your variable as a plain JavaScript `l
 Here is the same counter in Auwla:
 
 ```tsx
-import { createMemoApp } from 'auwla';
-
 function Counter() {
   let count = 0; // a plain JavaScript variable
 
@@ -53,7 +116,6 @@ function Counter() {
   );
 }
 
-createMemoApp(document.getElementById('app')!, <Counter />);
 ```
 
 Auwla **wraps every JSX event handler** you write in an invalidation wrapper. When `onClick` fires and `count++` runs, the wrapper schedules one re-render as a microtask. The render closure re-runs, reads the new `count`, and Auwla patches just the text node in the DOM.

@@ -10,12 +10,14 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@auwla/markdown": "../markdown",
     "@tailwindcss/vite": "^4.3.1",
     "@types/prismjs": "^1.26.6",
+    "auwla": "^0.3.25",
     "marked": "^18.0.5",
     "marked-highlight": "^2.2.4",
-    "auwla": "^0.3.25",
     "prismjs": "^1.30.0",
+    "shiki": "^4.3.0",
     "tailwindcss": "^4.3.1",
     "vite": "^8.1.0"
   },

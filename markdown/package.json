@@ -1,0 +1,29 @@
+{
+  "name": "@auwla/markdown",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/prismjs": "^1.26.6",
+    "prismjs": "^1.30.0",
+    "shiki": "^4.3.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "shiki": {
+      "optional": "true"
+    },
+    "prismjs": {
+      "optional": "true"
+    }
+  },
+  "dependencies": {
+    "marked": "^18.0.5",
+    "marked-highlight": "^2.2.4"
+  }
+}

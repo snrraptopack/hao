@@ -16,8 +16,6 @@ It is designed to give you the performance of direct, compiled DOM operations wi
 Here is what a typical counter component looks like:
 
 ```tsx
-import { createMemoApp } from 'auwla';
-
 function Counter() {
   let count = 0;
 
@@ -27,8 +25,6 @@ function Counter() {
     </button>
   );
 }
-
-createMemoApp(document.getElementById('app')!, <Counter />);
 ```
 
 In the next section, we will walk through the [Installation](/docs/installation) process and configure your first project.
