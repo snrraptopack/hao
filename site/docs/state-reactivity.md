@@ -1,12 +1,12 @@
 # State & Reactivity
 
-Before learning how Auwla works, it helps to think about what _state_ actually is in plain JavaScript — and what problem any UI framework is really solving.
+Before learning how Auwla approaches state, it helps to slow down and look at what the web already gives us, and ask honestly whether we have been working with it or around it.
 
 ---
 
-## What Is State?
+## Where It All Started
 
-State is just a variable whose value changes over time. Here is the simplest possible counter in plain HTML and JavaScript with no framework at all, describing how traditionally we were doing things:
+State is just a variable whose value changes over time. Here is the simplest possible counter in plain HTML and JavaScript, no framework involved:
 
 =<Tabs>
   =<Tab title="HTML">
@@ -22,21 +22,22 @@ const button = document.querySelector('#btn');
 const display = document.querySelector('#display');
 
 button.addEventListener('click', () => {
-  count++;                             // 1. mutate the variable
+  count++;                              // 1. mutate the variable
   display.textContent = String(count); // 2. manually update the DOM
 });
 ```
   =</Tab>
 =</Tabs>
 
-Two things happen on every click: you **mutate** `count`, and you **manually update the DOM** to match. This works fine for one variable, but in a real app with dozens of variables and hundreds of DOM nodes, keeping them in sync by hand is where bugs live.
+Two things happen on every click: you mutate `count`, and you manually update the DOM to reflect the new value. For a single variable this is fine. In a real application with dozens of variables and hundreds of DOM nodes, keeping that sync by hand is exactly where bugs are born and where maintenance cost quietly accumulates.
 
+Frameworks exist to automate step 2. You write `count++` and the DOM updates itself. That is the promise, and it is a good one. But the way each framework delivers on it reveals very different assumptions about what the developer should have to understand.
 
 ---
 
-## What a Framework Does
+## How the Ecosystem Responded
 
-A framework's job is to automate step 2. You write `count++` and the DOM updates itself. Different frameworks solve this differently. Here is how each framework manages this state:
+Each framework below solves the sync problem, and each one does it well. The counter is the simplest possible case, so here is how each one looks at that scale first:
 
 =<Tabs>
   =<Tab title="React">
@@ -49,6 +50,21 @@ export default function Counter() {
   return (
     <button onClick={() => setCount(count + 1)}>
       Count: {count}
+    </button>
+  );
+}
+```
+  =</Tab>
+  =<Tab title="Solid">
+```tsx [Counter.tsx]
+import { createSignal } from 'solid-js';
+
+export default function Counter() {
+  const [count, setCount] = createSignal(0);
+
+  return (
+    <button onClick={() => setCount(c => c + 1)}>
+      Count: {count()}
     </button>
   );
 }
@@ -77,238 +93,299 @@ const count = ref(0);
 </button>
 ```
   =</Tab>
-  =<Tab title="Solid">
-```tsx [Counter.tsx]
-import { createSignal } from 'solid-js';
-
-export default function Counter() {
-  const [count, setCount] = createSignal(0);
-
-  return (
-    <button onClick={() => setCount(c => c + 1)}>
-      Count: {count()}
-    </button>
-  );
-}
-```
-  =</Tab>
 =</Tabs>
 
-
-
-Auwla takes the simplest path: **it keeps your variable as a plain JavaScript `let` in a closure, and re-runs the render function after every DOM event.**
-
+Each of these is a capable solution, and the communities behind them are thoughtful. But a counter hides most of the cost. The mental model each framework introduces becomes clearer when the component has to do more than one thing at once. Below is a `Profile` component that does what most real components eventually do: fetch data when a prop changes, derive a display value from that data, track a separate piece of UI state, and log a side effect without that side effect re-running for the wrong reasons.
 
 ---
 
-## The Auwla Model
+### React
 
-Here is the same counter in Auwla:
+React asks you to replace your `let` with `useState`, split every variable into a getter and setter, and never mutate directly. For a counter that overhead is acceptable. For a component with multiple concerns, the hook surface expands quickly:
 
-```tsx
-function Counter() {
-  let count = 0; // a plain JavaScript variable
+```tsx [Profile.tsx]
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
-  return () => (
-    <button onClick={() => count++}>
-      Count: {count}
-    </button>
-  );
-}
+export default function Profile({ userId }: { userId: string }) {
+  const [user, setUser]   = useState(null);
+  const [theme, setTheme] = useState('dark');
 
-```
+  // fetch when userId changes
+  useEffect(() => {
+    fetchUser(userId).then(setUser);
+  }, [userId]);
 
-Auwla **wraps every JSX event handler** you write in an invalidation wrapper. When `onClick` fires and `count++` runs, the wrapper schedules one re-render as a microtask. The render closure re-runs, reads the new `count`, and Auwla patches just the text node in the DOM.
+  // log a visit when userId changes, but read the latest theme without
+  // making theme a dependency — adding it would re-log on every toggle
+  // the pre-19.2 workaround: mirror theme into a ref and read from there
+  const themeRef = useRef(theme);
+  useEffect(() => { themeRef.current = theme; }, [theme]);
 
-That is the entire reactivity model for the common case: **mutate in an event handler, Auwla re-renders after.**
+  useEffect(() => {
+    logVisit(userId, themeRef.current);
+  }, [userId]);
 
----
+  // stable reference so child components do not re-render unnecessarily
+  const handleThemeToggle = useCallback(() => {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  }, []);
 
-## Working With Objects and Arrays
+  // derived value, recomputed only when user changes
+  const displayName = useMemo(() => {
+    return user ? `${user.firstName} ${user.lastName}` : 'Loading...';
+  }, [user]);
 
-Because state is just JavaScript, mutable containers work exactly as you'd expect — mutate in place, Auwla re-renders:
-
-Keys in lists must be **stable identifiers** — not the array index. Index keys break DOM reuse when items are reordered or removed, because the index of a surviving item changes and Auwla treats it as a different node.
-
-```tsx
-function TodoList() {
-  // Items are objects with a stable `id` — never use the map index as a key.
-  const todos: { id: number; text: string }[] = [];
-  let input = '';
-
-  function add(){
-    if (!input.trim()) return;
-    todos.push({ id: Date.now(), text: input });
-    input = '';
-  }
-
-  return () => (
-    <div>
-      <input
-        value={input}
-        onInput={(e) => { input = (e.target as HTMLInputElement).value; }}
-      />
-      <button onClick={add}>
-        Add
-      </button>
-      <ul>
-        {todos.map((t) => <li key={t.id}>{t.text}</li>)}
-      </ul>
+  return (
+    <div style={{ color: theme }}>
+      <p>{displayName}</p>
+      <button onClick={handleThemeToggle}>Toggle theme</button>
     </div>
   );
 }
 ```
 
-**Derived values** work the same way — you do not need `computed()` wrappers or memoization helpers. Because the render closure re-runs fresh on every update, any expression inside it is automatically up to date:
+The `themeRef` workaround is the standard pre-19.2 answer to reading a value inside an effect without making it a reactive dependency. Two extra hooks just to read one variable cleanly. React 19.2 introduced `useEffectEvent` to address this directly:
 
-```tsx
-function Stats() {
-  const scores: number[] = [];
-  let total = scores.reduce((a, b) => a + b, 0);
-  let average = scores.length ? total / scores.length : 0;
-  // the above derived is auto tracked by the compiler
-  return () => (
-      <div>
-        <p>Count: {scores.length}</p>
-        <p>Average: {average.toFixed(1)}</p>
-      </div>
-    );
-}
+```tsx [Profile.tsx]
+import { useState, useEffect, useCallback, useMemo, useEffectEvent } from 'react';
 
-```
+export default function Profile({ userId }: { userId: string }) {
+  const [user, setUser]   = useState(null);
+  const [theme, setTheme] = useState('dark');
 
-Behind the scene auwla compiles the derived into ``` ts __computed(()=>scores.reduce((a, b) => a + b, 0);) ```
+  useEffect(() => {
+    fetchUser(userId).then(setUser);
+  }, [userId]);
 
-The above code can also be written as
+  // useEffectEvent marks the callback as event-like so it always reads
+  // the latest theme without theme being listed as a dependency
+  const onVisit = useEffectEvent(() => {
+    logVisit(userId, theme);
+  });
 
-=<Tabs>
-  =<Tab title="First">
-```tsx
-function Stats() {
-  const scores: number[] = [];
+  useEffect(() => {
+    onVisit();
+  }, [userId]);
 
-  return () => {
-    let total = scores.reduce((a, b) => a + b, 0);
-    let average = scores.length ? total / scores.length : 0;
-    return (
-        <div>
-          <p>Count: {scores.length}</p>
-          <p>Average: {average.toFixed(1)}</p>
-      </div>
-    )
-  }
-}
-```
-  =</Tab>
-  =<Tab title="Second">
-```tsx
-function Stats() {
-  const scores: number[] = [];
-  let total = ()=> scores.reduce((a, b) => a + b, 0);
-  let average = ()=> scores.length ? total / scores.length : 0;
-  return () => (
-        <div>
-          <p>Count: {scores.length()}</p>
-          <p>Average: {average().toFixed(1)}</p>
-      </div>
-    )
-}
+  const handleThemeToggle = useCallback(() => {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  }, []);
 
-```
-  =</Tab>
-=</Tabs>
+  const displayName = useMemo(() => {
+    return user ? `${user.firstName} ${user.lastName}` : 'Loading...';
+  }, [user]);
 
-Because of how auwla works the two will always rererun when there is an event compared to the compiler derived version that will run only when it dependant changes
-
-The Auwla compiler also tracks variable reads in the **setup scope** to understand dependencies — so if you compute a derived value from other setup variables, the compiler knows how to wire updates without requiring you to wrap them in callbacks.
-
----
-
-## Shared State Across Components
-
-Plain closure variables are private to a single component. When you need state that multiple unrelated components share — a logged-in user, a theme, an open modal — you need a **shared module**.
-
-There are two approaches depending on how automatic you want the updates to be.
-
----
-
-### Option 1: `reactive()` cell
-
-`reactive()` creates a cell with a `.get()` and `.set()`. Any component that calls `.get()` during its render closure is **automatically subscribed** — when `.set()` is called from anywhere, every subscribed component re-renders with no extra work.
-
-```ts
-// store/theme.ts
-import { reactive } from 'auwla';
-
-// Export the cell directly — callers call .get() in render (subscribes them)
-// and .set() to update (invalidates all subscribers).
-export const theme = reactive<'light' | 'dark'>('dark');
-```
-
-```tsx
-function ThemeToggle() {
-  return () => (
-    // theme.get() inside the render closure auto-subscribes this component.
-    // Calling theme.set() from anywhere triggers a re-render here.
-    <button onClick={() => theme.set(theme.get() === 'dark' ? 'light' : 'dark')}>
-      Current: {theme.get()}
-    </button>
+  return (
+    <div style={{ color: theme }}>
+      <p>{displayName}</p>
+      <button onClick={handleThemeToggle}>Toggle theme</button>
+    </div>
   );
 }
 ```
 
-> [!NOTE]
-> The router uses `reactive()` internally for URL state — that is why `getParams()` and `getQuery()` make the components that call them automatically re-render on navigation.
+`useEffectEvent` is a genuine improvement and the React team's reasoning is sound. What is worth noting is how their own documentation frames it: as a way to separate "events from effects." That framing is the right observation. But arriving at it required a new hook, new linter rules, and a new section of documentation. By the time a developer has worked through `useState`, `useEffect`, `useCallback`, `useMemo`, `useRef`, and `useEffectEvent`, they have accumulated a significant amount of framework-specific knowledge to manage something that was not a problem in plain JavaScript.
 
 ---
 
-### Option 2: Plain class singleton
+### Solid
 
-If you prefer not to use `reactive()`, a plain class singleton with `commit()` inside its mutations achieves the same result. There are no cells, no subscriptions — just plain properties and an explicit re-render after mutation:
+Solid approaches reactivity from first principles rather than extending React's model. It is a pure signal-based framework and genuinely very fast, consistently near the top of rendering benchmarks. Every reactive value is a signal, and signals are functions: you call them to read their value.
 
-```ts
-// store/theme.ts
+```tsx [Profile.tsx]
+import { createSignal, createMemo, createEffect } from 'solid-js';
 
-class ThemeStore {
-  // Plain TypeScript property — no reactive wrapper needed.
-  theme: 'light' | 'dark' = 'dark';
+export default function Profile(props: { userId: string }) {
+  const [user, setUser]   = createSignal(null);
+  const [theme, setTheme] = createSignal('dark');
 
-  toggle() {
-    this.theme = this.theme === 'dark' ? 'light' : 'dark';
+  // createEffect auto-subscribes to any signal read inside it
+  createEffect(() => {
+    fetchUser(props.userId).then(setUser);
+  });
+
+  createEffect(() => {
+    logVisit(props.userId, theme()); // theme() called to read
+  });
+
+  const displayName = createMemo(() =>
+    user()
+      ? `${user().firstName} ${user().lastName}`
+      : 'Loading...'
+  );
+
+  function toggleTheme() {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
   }
 
-  set(value: 'light' | 'dark') {
-    this.theme = value;
-  }
-}
-
-// Single instance shared across the whole app
-export const themeStore = new ThemeStore();
-```
-
-```tsx
-function ThemeToggle() {
-  return () => (
-    // themeStore.theme is just a plain property read inside the render closure.
-    // When toggle() calls commit(), this component re-renders and reads the new value.
-    <button onClick={() => themeStore.toggle()}>
-      Current: {themeStore.theme}
-    </button>
+  return (
+    <div style={{ color: theme() }}>   {/* theme() to read */}
+      <p>{displayName()}</p>           {/* memo values are functions too */}
+      <button onClick={toggleTheme}>Toggle theme</button>
+    </div>
   );
 }
 ```
 
+`theme()` not `theme`. `user()` not `user`. `displayName()` not `displayName`. The function-call syntax is what makes Solid's runtime know exactly which computations depend on which signals, and that precision is why it is so fast. But it also means the code no longer reads like plain JavaScript. Every signal access is a call site, and you always have to know which values are signals and which are not.
+
 ---
 
-## Summary
+### Vue
 
-| Concept | Auwla's answer |
-|---|---|
-| What is state? | Plain `let` / `const` variables in the component closure scope |
-| Event mutation → DOM update? | Automatic — every JSX handler is wrapped, re-render is scheduled after |
-| Derived values | Read them directly in the render closure — no `computed()` wrappers needed |
-| List keys | Must be stable identifiers from the data — never use the array index |
-| Shared state (auto-subscription) | `reactive()` cell — components that read `.get()` subscribe automatically |
+Vue wraps reactive values in `ref()`. Inside script you access and mutate them via `.value`. Inside the template the compiler unwraps them automatically, which means the same variable is written two different ways depending on where you are.
 
+```vue [Profile.vue]
+<script setup lang="ts">
+import { ref, computed, watch, watchEffect } from 'vue';
 
-In the next section, [How Rendering Works](/docs/setup-render) covers the two-phase model, the compiled output, what belongs in setup vs render, and how `commit()` bridges the gap for async mutations.
+const props = defineProps<{ userId: string }>();
+
+const user  = ref(null);
+const theme = ref('dark');
+
+// watchEffect re-runs when any ref read inside it changes
+watchEffect(async () => {
+  user.value = await fetchUser(props.userId); // .value to write
+});
+
+// watch is explicit about what triggers the callback
+watch(
+  () => props.userId,
+  (newId) => {
+    logVisit(newId, theme.value); // .value to read in script
+  }
+);
+
+const displayName = computed(() =>
+  user.value
+    ? `${user.value.firstName} ${user.value.lastName}`
+    : 'Loading...'
+);
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+}
+</script>
+
+<template>
+  <!-- the template compiler unwraps refs, no .value here -->
+  <div :style="{ color: theme }">
+    <p>{{ displayName }}</p>
+    <button @click="toggleTheme">Toggle theme</button>
+  </div>
+</template>
+```
+
+Vue's model is consistent once internalized. The `.value` seam between script and template is something every Vue developer eventually has to carry: `theme.value` in one context, `theme` in the other. The same variable, two access patterns.
+
+---
+
+### Svelte
+
+Svelte 5 is the closest of the group to natural JavaScript. The `$state` rune compiles away entirely, mutation is plain assignment, and there is no getter or setter function to call.
+
+```svelte [Profile.svelte]
+<script lang="ts">
+  const { userId }: { userId: string } = $props();
+
+  let user  = $state(null);
+  let theme = $state('dark');
+
+  $effect(() => {
+    fetchUser(userId).then(u => { user = u; });
+  });
+
+  $effect(() => {
+    logVisit(userId, theme);
+  });
+
+  let displayName = $derived(
+    user ? `${user.firstName} ${user.lastName}` : 'Loading...'
+  );
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark'; // plain assignment
+  }
+</script>
+
+<div style:color={theme}>
+  <p>{displayName}</p>
+  <button onclick={toggleTheme}>Toggle theme</button>
+</div>
+```
+
+Svelte 5's runes are clean and the syntax is honest. Plain assignment mutates state, `$derived` reads naturally in the template, and there are no getters or setters to call. But `$state` is still a marker you have to apply. Without it, the variable is inert. Reactivity is something you opt into.
+
+---
+
+The pattern across all of these is consistent: **reactivity is something you acquire.** You import a function, wrap a value, call a constructor, or apply a rune. The variable is only reactive once you have done that work.
+
+---
+
+### Auwla
+
+In Auwla there is nothing to import for reactivity. Every variable is a plain `let`. Every function is a plain function. The one thing you declare is a component handle with `component()` — once that is in scope, the compiler can see which async functions mutate setup variables and wraps them with `commit(self)` automatically.
+
+```tsx [Profile.tsx]
+import { component } from 'auwla';
+
+function Profile({ userId }: { userId: string }) {
+  const self = component(); // gives the compiler a target for scoped re-renders
+
+  let user  = null;
+  let theme = 'dark';
+
+  // plain async function — the compiler detects that it mutates `user`,
+  // which is a setup-scoped variable, and injects commit(self) in a
+  // try/finally block so the component re-renders when the fetch settles
+  async function loadUser() {
+    user = await fetchUser(userId);
+    logVisit(userId, theme); // theme is just a variable — no .value, no ()
+  }
+
+  loadUser();
+
+  // plain expression — the compiler tracks that displayName depends on `user`
+  // and keeps it in sync without any derived wrapper
+  let displayName = user
+    ? `${user.firstName} ${user.lastName}`
+    : 'Loading...';
+
+  // plain function, plain assignment
+  // JSX event handlers are wrapped at compile time, so this triggers
+  // a re-render automatically when the button is clicked
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+  }
+
+  return () => (
+    <div style={{ color: theme }}>
+      <p>{displayName}</p>
+      <button onClick={toggleTheme}>Toggle theme</button>
+    </div>
+  );
+}
+```
+
+No `useState`. No `useEffect`. No dependency arrays. No `.value`. No signal function calls. No `$state` marker. `user`, `theme`, and `displayName` are the same plain JavaScript variables they would be anywhere else. `component()` is the only Auwla-specific call, and its job is to give the compiler a named handle so it knows which component to re-render when an async boundary settles. Everything else is inferred.
+
+---
+
+## Why Events, Not Primitives
+
+Go back to the plain JavaScript counter at the top of this page. There is no `useState`, no `ref()`, no `$state`, no `createSignal`. The variable `count` is just a `let`. And yet it works.
+
+Now ask: why did `count` change? Because a click happened. An event fired. Inside the handler, the variable was mutated.
+
+That is not an implementation detail. It is the actual mechanism. In a browser, state changes because events occur. Not always user events: a fetch completing, a timer firing, a WebSocket message arriving are all events too, but the shape is the same. Something happens, a handler runs, variables change. The `Profile` example above has three of those: a button click that toggles the theme, an async function that settles after a fetch, and a `userId` prop change that kicks off a new load. In every case, the source is an event.
+
+The frameworks covered here each solved the sync problem by introducing a reactive primitive and connecting it to the rendering system. That works, and it works well. But it also means every variable that needs to participate in the UI must be consciously enrolled: wrapped, marked, or called through a specific API. The primitive is the entry point.
+
+Auwla starts from the other direction. If state only ever changes because an event occurred, then the event handler is a natural place to put the reactive boundary. The compiler wraps every JSX event handler and every async task boundary at build time. When one of those boundaries is crossed, a re-render is scheduled. The variables themselves do not need to know they are reactive, because the compiler already knows where mutations can happen.
+
+The result is what you saw in the Auwla section above: plain `let` variables, plain functions, plain expressions. The only Auwla-specific call is `component()`, and its job is not to make the variable reactive — it is to give the compiler a named handle so it knows which component to schedule a re-render for when an async boundary settles. The variables themselves stay ordinary. The event is still the boundary.
+
+---
+
+In the next section, [Working With State](/docs/working-with-state) covers objects, arrays, derived values, and shared state across components.
