@@ -219,3 +219,18 @@ export function hotkeyModifier(shortcuts: string | readonly string[]): EventModi
 
   return modifier;
 }
+
+import { EventChainProto, createEventChain } from './chain';
+
+export function hotkey(keys: string | readonly string[]) {
+  return createEventChain([hotkeyModifier(keys)], 'keydown', true);
+}
+
+// Extend prototype for chaining
+Object.defineProperty(EventChainProto, 'hotkey', {
+  value: function(this: any, keys: string | readonly string[]) {
+    return createEventChain([hotkeyModifier(keys)], 'keydown', true, this._handlers);
+  },
+  writable: true,
+  configurable: true
+});

@@ -135,3 +135,32 @@ export function intersectOutModifier(handler: RuntimeEventHandler): RuntimeEvent
     return handler(event);
   };
 }
+
+import { EventChainProto, appendModifier, createEventChain } from './chain';
+
+export function intersect(optionsOrThreshold?: IntersectOptions | number) {
+  return createEventChain([intersectModifier(optionsOrThreshold)], 'intersect');
+}
+
+// Extend prototype for chaining
+Object.defineProperty(EventChainProto, 'intersect', {
+  value: function(this: any, optionsOrThreshold?: IntersectOptions | number) {
+    return createEventChain([intersectModifier(optionsOrThreshold)], 'intersect', this._isGlobal, this._handlers);
+  },
+  writable: true,
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'in', {
+  get(this: any) {
+    return createEventChain(appendModifier(this._modifiers, intersectInModifier), this._eventName, this._isGlobal, this._handlers);
+  },
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'out', {
+  get(this: any) {
+    return createEventChain(appendModifier(this._modifiers, intersectOutModifier), this._eventName, this._isGlobal, this._handlers);
+  },
+  configurable: true
+});

@@ -69,10 +69,10 @@ const count = ref(0);
   =<Tab title="Svelte">
 ```svelte [Counter.svelte]
 <script>
-  let count = 0;
+  let count = $state(0);
 </script>
 
-<button on:click={() => count++}>
+<button onclick={() => count++}>
   Count: {count}
 </button>
 ```
@@ -165,7 +165,7 @@ function TodoList() {
 function Stats() {
   const scores: number[] = [];
   let total = scores.reduce((a, b) => a + b, 0);
-  let average = scores.length ? total / scores.length : 0; 
+  let average = scores.length ? total / scores.length : 0;
   // the above derived is auto tracked by the compiler
   return () => (
       <div>
@@ -181,13 +181,15 @@ Behind the scene auwla compiles the derived into ``` ts __computed(()=>scores.re
 
 The above code can also be written as
 
+=<Tabs>
+  =<Tab title="First">
 ```tsx
 function Stats() {
   const scores: number[] = [];
- 
+
   return () => {
     let total = scores.reduce((a, b) => a + b, 0);
-    let average = scores.length ? total / scores.length : 0; 
+    let average = scores.length ? total / scores.length : 0;
     return (
         <div>
           <p>Count: {scores.length}</p>
@@ -196,13 +198,14 @@ function Stats() {
     )
   }
 }
-
-//or
-
+```
+  =</Tab>
+  =<Tab title="Second">
+```tsx
 function Stats() {
   const scores: number[] = [];
   let total = ()=> scores.reduce((a, b) => a + b, 0);
-  let average = ()=> scores.length ? total / scores.length : 0; 
+  let average = ()=> scores.length ? total / scores.length : 0;
   return () => (
         <div>
           <p>Count: {scores.length()}</p>
@@ -212,7 +215,10 @@ function Stats() {
 }
 
 ```
-Because of how auwla works the two will always rererun when there is an event compared to the compiler derived version that will run only when it dependant changes 
+  =</Tab>
+=</Tabs>
+
+Because of how auwla works the two will always rererun when there is an event compared to the compiler derived version that will run only when it dependant changes
 
 The Auwla compiler also tracks variable reads in the **setup scope** to understand dependencies — so if you compute a derived value from other setup variables, the compiler knows how to wire updates without requiring you to wrap them in callbacks.
 
@@ -306,4 +312,3 @@ function ThemeToggle() {
 
 
 In the next section, [How Rendering Works](/docs/setup-render) covers the two-phase model, the compiled output, what belongs in setup vs render, and how `commit()` bridges the gap for async mutations.
-

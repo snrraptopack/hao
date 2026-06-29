@@ -1,6 +1,6 @@
 import { component, commit } from 'auwla';
 import { event } from 'auwla/events';
-import type {} from 'auwla/jsx-runtime';
+import type { } from 'auwla/jsx-runtime';
 
 /**
  * Interactive Hotkeys dashboard example.
@@ -23,7 +23,6 @@ export function HotkeysDemo() {
       commit(self); // commit only inside async setTimeout
     }, 2200);
   }
-
   function triggerShortcut(name: string, actionText: string) {
     if (activeTimeout) {
       clearTimeout(activeTimeout);
@@ -40,7 +39,7 @@ export function HotkeysDemo() {
   // -------------------------------------------------------------------------
   // Register all global hotkeys exactly ONCE during component setup
   // -------------------------------------------------------------------------
-  
+
   // Ctrl+S / Cmd+S (Save combo)
   event.hotkey('ctrl+s').prevent.handler(() => {
     triggerShortcut('save', 'Document Saved! (Ctrl+S captured)');
@@ -86,7 +85,7 @@ export function HotkeysDemo() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginTop: '16px' }}>
           {shortcutsList.map((item) => (
-            <div 
+            <div
               key={item.key}
               class="click-area"
               style={{
@@ -113,8 +112,8 @@ export function HotkeysDemo() {
         <h3>Smart Input Field Filtering</h3>
         <p>Auwla filters out hotkeys inside text inputs by default so typing works normally. Focus the text field below and type <b>"g i"</b> or press <b>"Escape"</b>. Nothing will fire. Then, press <b>"Ctrl+S"</b> inside the text field — the shortcut will trigger correctly because it includes modifiers!</p>
 
-        <input 
-          class="input-box" 
+        <input
+          class="input-box"
           placeholder="Type 'g i' or press 'Escape' here..."
           style={{ width: '100%', maxWidth: '400px' }}
         />

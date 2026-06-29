@@ -118,3 +118,43 @@ export const escModifier = keyFilterModifier(['Escape', 'Esc']);
 export const delModifier = keyFilterModifier(['Delete', 'Del']);
 export const tabModifier = keyFilterModifier(['Tab']);
 export const spaceModifier = keyFilterModifier([' ', 'Spacebar']);
+
+import { EventChainProto, appendModifier, createEventChain } from './chain';
+
+export const keyDown = createEventChain([], 'keydown');
+export const keyUp = createEventChain([], 'keyup');
+export const keyPress = createEventChain([], 'keypress');
+
+// Register getters dynamically
+const keyboardGetters: Record<string, any> = {
+  ctrl: ctrlModifier,
+  meta: metaModifier,
+  shift: shiftModifier,
+  alt: altModifier,
+  mod: modModifier,
+  up: upModifier,
+  down: downModifier,
+  enter: enterModifier,
+  esc: escModifier,
+  del: delModifier,
+  tab: tabModifier,
+  space: spaceModifier,
+};
+
+for (const [prop, modifier] of Object.entries(keyboardGetters)) {
+  Object.defineProperty(EventChainProto, prop, {
+    get(this: any) {
+      return createEventChain(appendModifier(this._modifiers, modifier), this._eventName, this._isGlobal, this._handlers);
+    },
+    configurable: true
+  });
+}
+
+// Method for key matching
+Object.defineProperty(EventChainProto, 'key', {
+  value: function(this: any, key: string | readonly string[]) {
+    return createEventChain(appendModifier(this._modifiers, keyModifier(key)), this._eventName, this._isGlobal, this._handlers);
+  },
+  writable: true,
+  configurable: true
+});

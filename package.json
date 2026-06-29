@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.3.26",
+  "version": "0.3.27",
   "description": "A tiny typed DOM runtime with event-driven rerendering and memoized DOM reuse",
   "type": "module",
   "main": "./dist/auwla.js",
@@ -30,6 +30,18 @@
     "./events": {
       "types": "./dist/events/index.d.ts",
       "import": "./dist/events/index.js"
+    },
+    "./events/intersect": {
+      "types": "./dist/events/intersect.d.ts",
+      "import": "./dist/events/intersect.js"
+    },
+    "./events/touch": {
+      "types": "./dist/events/touch.d.ts",
+      "import": "./dist/events/touch.js"
+    },
+    "./events/hotkey": {
+      "types": "./dist/events/hotkey.d.ts",
+      "import": "./dist/events/hotkey.js"
     },
     "./css": {
       "types": "./dist/css/index.d.ts",

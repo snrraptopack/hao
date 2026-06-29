@@ -1,5 +1,3 @@
-import './intersect';
-import './touch';
 import { createEventChain } from './chain';
 
 export const event = createEventChain();

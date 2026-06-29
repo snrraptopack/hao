@@ -301,3 +301,71 @@ export function touchMovedModifier(threshold: number | string, direction?: strin
     return BLOCKED_EVENT;
   };
 }
+
+import { EventChainProto, appendModifier, createEventChain } from './chain';
+
+export const touch = createEventChain([], 'touch');
+export const touchStart = createEventChain([], 'touchstart');
+export const touchMove = createEventChain([], 'touchmove');
+export const touchEnd = createEventChain([], 'touchend');
+export const touchCancel = createEventChain([], 'touchcancel');
+
+// Extend prototype for chaining
+Object.defineProperty(EventChainProto, 'touch', {
+  get(this: any) {
+    return createEventChain(this._modifiers, 'touch', this._isGlobal, this._handlers);
+  },
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'touchStart', {
+  get(this: any) {
+    return createEventChain(this._modifiers, 'touchstart', this._isGlobal, this._handlers);
+  },
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'touchMove', {
+  get(this: any) {
+    return createEventChain(this._modifiers, 'touchmove', this._isGlobal, this._handlers);
+  },
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'touchEnd', {
+  get(this: any) {
+    return createEventChain(this._modifiers, 'touchend', this._isGlobal, this._handlers);
+  },
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'touchCancel', {
+  get(this: any) {
+    return createEventChain(this._modifiers, 'touchcancel', this._isGlobal, this._handlers);
+  },
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'fit', {
+  value: function(this: any, arg1?: any, arg2?: any, arg3?: any) {
+    return createEventChain(appendModifier(this._modifiers, touchFitModifier(arg1, arg2, arg3)), this._eventName, this._isGlobal, this._handlers);
+  },
+  writable: true,
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'sync', {
+  value: function(this: any, obj: any, xProp?: string, yProp?: string) {
+    return createEventChain(appendModifier(this._modifiers, touchSyncModifier(obj, xProp, yProp)), this._eventName, this._isGlobal, this._handlers);
+  },
+  writable: true,
+  configurable: true
+});
+
+Object.defineProperty(EventChainProto, 'moved', {
+  value: function(this: any, threshold: number | string, direction?: string) {
+    return createEventChain(appendModifier(this._modifiers, touchMovedModifier(threshold, direction)), this._eventName, this._isGlobal, this._handlers);
+  },
+  writable: true,
+  configurable: true
+});
