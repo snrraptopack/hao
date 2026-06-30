@@ -1,6 +1,6 @@
 # `@auwla/markdown`
 
-A zero-dependency, type-safe Markdown compilation engine tailored for **Auwla Static Site Generation (SSG)** and premium developer documentation websites.
+A zero-dependency, type-safe Markdown compilation engine with custom component tags, code-block filename headers, line-highlighting, and interactive tabs. Designed for premium developer documentation and Static Site Generation (SSG).
 
 > [!NOTE]
 > **Full Standard Markdown Support:** `@auwla/markdown` is completely backward-compatible. It supports all default, standard Markdown documents (fences, headings, lists, bold text) out of the box. Our custom tag-based component syntax (`=<TagName>`) is designed as a completely **optional layer** to improve markup readability and provide advanced UI customizations (like tabs, collapsible callouts, and customized tables).
@@ -9,21 +9,28 @@ A zero-dependency, type-safe Markdown compilation engine tailored for **Auwla St
 
 ## 🚀 Key Features
 
-* **Visual Component Tags (`=<TagName>`):** Dynamic components registry with built-in or custom elements.
-* **Header Metadata:** `=<Header>` block strips frontmatter configuration from HTML body automatically.
-* **Collapsible Callouts:** Native `<details>`/`<summary>` card blocks.
-* **Tag-Based Tab Panels:** Multi-tab toggle sections using `=<Tabs>` and `=<Tab>`.
-* **Zero Client-Side JS Overhead:** Interactive UI elements use tiny, inline, vanilla handlers.
-* **Code Blocks Meta:** Support filename badges `[Counter.tsx]` and line range highlights `{7-9}`.
-* **Header Anchors:** Self-linking `#` anchors generated for both markdown and tag-based headings.
+*   **Visual Component Tags (`=<TagName>`):** Dynamic components registry with built-in or custom elements.
+*   **Header Metadata:** `=<Header>` block strips frontmatter configuration from HTML body automatically.
+*   **Collapsible Callouts:** Native `<details>`/`<summary>` card blocks.
+*   **Tag-Based Tab Panels:** Multi-tab toggle sections using `=<Tabs>` and `=<Tab>`.
+*   **Zero Client-Side JS Overhead:** Interactive UI elements use tiny, inline, vanilla handlers.
+*   **Code Blocks Meta:** Support filename badges `[Counter.tsx]` and line range highlights `{7-9}`.
+*   **Header Anchors:** Self-linking `#` anchors generated for both markdown and tag-based headings.
 
 ---
 
 ## 📦 Getting Started
 
-### 1. Initialize the Compiler Configuration
+### 1. Install the Package
 
-Create a markdown parser configurations file inside your project:
+```bash
+bun add @auwla/markdown
+# or npm install @auwla/markdown
+```
+
+### 2. Initialize the Compiler Configuration
+
+Create a markdown parser configuration file:
 
 ```typescript
 // src/markdown.config.ts
@@ -70,28 +77,32 @@ draft: false
 ```
 
 ### Metadata Features:
-* **Parsing & Extraction:** The parsed fields are returned programmatically under the `meta` key.
-* **HTML Stripping:** The entire `=<Header>` block is stripped completely from the returned HTML body so it never renders inside page content## 🧩 Built-in Component Tags
+*   **Parsing & Extraction:** The parsed fields are returned programmatically under the `meta` key.
+*   **HTML Stripping:** The entire `=<Header>` block is stripped completely from the returned HTML body so it never renders inside page content.
+
+---
+
+## 🧩 Built-in Component Tags
 
 All custom tags start with `=<` and close with `=</TagName>` or are self-closing `/>`.
 
 ### Customization & Attribute Forwarding:
 Every built-in tag supports **easy CSS class targeting** and **raw HTML attribute forwarding**:
-* **Class name merging:** If you pass `class="..."` on any tag, the custom class names are automatically appended to the component's default class name (e.g. `<div class="callout callout-note my-custom-class">`).
-* **HTML attribute forwarding:** Any custom HTML properties (like `style="..."`, `colspan="..."`, `rowspan="..."`) passed to a component are directly forwarded to the compiled HTML tag (e.g. `<table class="auwla-table" style="color: red;">`).
+*   **Class name merging:** If you pass `class="..."` on any tag, the custom class names are automatically appended to the component's default class name (e.g. `<div class="callout callout-note my-custom-class">`).
+*   **HTML attribute forwarding:** Any custom HTML properties (like `style="..."`, `colspan="..."`, `rowspan="..."`) passed to a component are directly forwarded to the compiled HTML tag (e.g. `<table class="auwla-table" style="color: red;">`).
 
 ---
 
 ### 1. `=<Callout>`
 Displays highlighted message blocks.
 
-* **Attributes:**
-  * `type`: Modifies color theme border. Supported: `note`, `tip`, `important`, `warning`, `caution`. (Default: `note`).
-  * `title`: Overrides default uppercase header text.
-  * `collapsible`: Boolean or presence marker (`collapsible`, `collapsible="true"`). If present, compiles to native interactive `<details>` and `<summary>` elements.
-  * `collapsed`: Boolean (`"true"` / `"false"`). If collapsible, sets whether it is closed by default.
-  * `class`: Custom classes merged onto the element wrapper.
-  * *Additional attributes:* Any other attribute (e.g. `style="..."`) is forwarded directly.
+*   **Attributes:**
+    *   `type`: Modifies color theme border. Supported: `note`, `tip`, `important`, `warning`, `caution`. (Default: `note`).
+    *   `title`: Overrides default uppercase header text.
+    *   `collapsible`: Boolean or presence marker (`collapsible`, `collapsible="true"`). If present, compiles to native interactive `<details>` and `<summary>` elements.
+    *   `collapsed`: Boolean (`"true"` / `"false"`). If collapsible, sets whether it is closed by default.
+    *   `class`: Custom classes merged onto the element wrapper.
+    *   *Additional attributes:* Any other attribute (e.g. `style="..."`) is forwarded directly.
 
 ```markdown
 /* Simple Standard Callout */
@@ -110,10 +121,10 @@ Here is some detailed compilation info that is collapsed by default.
 ### 2. `=<Tabs>` and `=<Tab>`
 Renders selection tabs with zero-dependency toggle buttons.
 
-* **`=<Tabs>`** (Parent Container): Parses nested panels and binds click state handlers. Supports `class` and `style` forwarding.
-* **`=<Tab>`** (Panel):
-  * `title`: The label displayed on the tab button (required).
-  * Supports `class` and `style` forwarding (e.g., custom tab panels).
+*   **`=<Tabs>`** (Parent Container): Parses nested panels and binds click state handlers. Supports `class` and `style` forwarding.
+*   **`=<Tab>`** (Panel):
+    *   `title`: The label displayed on the tab button (required).
+    *   Supports `class` and `style` forwarding (e.g., custom tab panels).
 
 ```markdown
 =<Tabs class="my-custom-tabs">
@@ -137,30 +148,30 @@ bun install @auwla/markdown
 ### 3. Custom Tables (`=<Table>`, `=<Row>`, `=<Column>`, `=<Cell>`)
 Structural tag-based table elements.
 
-* **`=<Table>`** (Wrapper): Accepts table attributes (like `border="1"`, `class`, or `style`).
-* **`=<Row>`** (Row): Compiles to `<tr>`. Supports class/style forwarding.
-* **`=<Column>`** (Header Cell): Compiles to `<th>`. Supports `align` (`"left"`, `"center"`, `"right"`), `colspan`, `rowspan`, class, and style.
-* **`=<Cell>`** (Data Cell): Compiles to `<td>`. Supports `align` (`"left"`, `"center"`, `"right"`), `colspan`, `rowspan`, class, and style.
+*   **`=<Table>`** (Wrapper): Accepts table attributes (like `border="1"`, `class`, or `style`).
+*   **`=<Row>`** (Row): Compiles to `<tr>`. Supports class/style forwarding.
+*   **`=<Column>`** (Header Cell): Compiles to `<th>`. Supports `align` (`"left"`, `"center"`, `"right"`), `colspan`, `rowspan`, class, and style.
+*   **`=<Cell>`** (Data Cell): Compiles to `<td>`. Supports `align` (`"left"`, `"center"`, `"right"`), `colspan`, `rowspan`, class, and style.
 
 ```markdown
 =<Table style="color: red;">
   =<Row class="header-row">
     =<Column align="left" colspan="2">Framework Details=</Column>
-  =</Row>
+  </Row>
   =<Row>
     =<Cell align="left">**Auwla**=</Cell>
     =<Cell align="center">~7 kB=</Cell>
-  =</Row>
-=</Table>
+  </Row>
+</Table>
 ```
 
 ---
 
 ### 4. Custom Headings (`=<h1>` through `=<h6>`)
 Component-driven headings:
-* **Auto-generated IDs:** Heading text is slugified to generate `id="..."` attributes automatically.
-* **Custom IDs:** Custom identifiers are preserved if defined explicitly on the tag (e.g. `=<h2 id="custom-anchor">`).
-* **Hover Anchors:** Self-linking `#` anchors are injected inside heading elements when `features.headerAnchors` is enabled.
+*   **Auto-generated IDs:** Heading text is slugified to generate `id="..."` attributes automatically.
+*   **Custom IDs:** Custom identifiers are preserved if defined explicitly on the tag (e.g. `=<h2 id="custom-anchor">`).
+*   **Hover Anchors:** Self-linking `#` anchors are injected inside heading elements when `features.headerAnchors` is enabled.
 
 ```markdown
 =<h1>Getting Started=</h1>
@@ -170,14 +181,15 @@ Component-driven headings:
 
 ### 5. Fallback Wrappers (Lowercase Tags)
 Standard lowercase HTML tag markers (e.g., `=<p>`, `=<span>`, `=<a>`) can be written directly:
-* **No Double Nesting:** Children inside standard inline wrapper tags (like `p`, `span`, `h1`-`h6`, `li`, `a`) are compiled in **inline mode** to prevent double-block wrapping (e.g., `<p><p>...</p></p>`).
+*   **No Double Nesting:** Children inside standard inline wrapper tags (like `p`, `span`, `h1`-`h6`, `li`, `a`) are compiled in **inline mode** to prevent double-block wrapping (e.g., `<p><p>...</p></p>`).
 
 ---
 
 ## 📝 Code Block Metadata
+
 Annotations are parsed directly from the language fence:
-* **Filename badge:** Add square brackets `[filename.ext]` to render a filename tab header above the code block.
-* **Line Highlights:** Add curly braces `{range}` (e.g. `{1-3,5}`) to highlight specific lines.
+*   **Filename badge:** Add square brackets `[filename.ext]` to render a filename tab header above the code block.
+*   **Line Highlights:** Add curly braces `{range}` (e.g. `{1-3,5}`) to highlight specific lines.
 
 ```typescript
 ```tsx [Counter.tsx] {3,5-7}
@@ -198,27 +210,64 @@ Styling class names generated in the HTML output:
 
 | Component | Class Name | Description |
 | :--- | :--- | :--- |
+| **Callout** | `.auwla-callout` | Main card element. |
+| **Callout Type** | `.auwla-callout-note` | Modifier class based on `type="..."`. |
+| **Callout Title** | `.auwla-callout-title` | Title bar elements. |
+| **Callout Content** | `.auwla-callout-content` | Wrapped markdown content body. |
+| **Tabs Wrapper** | `.auwla-tabs-container` | Main tab selector wrapper. |
+| **Tabs Header** | `.auwla-tabs-header` | Row containing tab buttons. |
+| **Tab Button** | `.auwla-tab-btn` | Interactive tab toggle button. |
+| **Active Tab** | `.auwla-tab-btn.active` | Target tab state. |
+| **Tab Panel** | `.auwla-tab-panel` | Display body container. |
+| **Table** | `.auwla-table` | Global table selector class name. |
 | **Header Anchor** | `.header-anchor` | Hoverable link symbol pointing to heading IDs. |
 | **Copy Button** | `.copy-code-btn` | Interactive absolute-positioned copy button. |
 | **Code Wrapper** | `.code-block-wrapper` | Relative div wrapper surrounding pre/code blocks. |
 | **Code Filename** | `.code-block-filename` | Header text element showing the filename. |
 | **Line Highlight** | `.highlighted-line` | Highlighted code line helper class. |
-| **Callout Card** | `.callout` | Main callout card wrapper (div or details). |
-| **Callout Sub-types** | `.callout-note`, `.callout-tip`, etc. | Modifier classes based on callout type. |
-| **Callout Header** | `.callout-title` | Header title of the callout (div or summary). |
-| **Callout Body** | `.callout-content` | Div wrapping the content of the callout. |
-| **Tabs Container** | `.tabs-container` | Main wrapper around tab headers and panels. |
-| **Tabs Header** | `.tabs-header` | Tab button row wrapper. |
-| **Tab Button** | `.tab-btn` | Interactive tab button. |
-| **Active Tab Button** | `.tab-btn.active` | Currently selected tab header button. |
-| **Tab Panel** | `.tab-panel` | Individual tab panel wrapper. |
-| **Table** | `.auwla-table` | Default structural table class name. |
 
 ---
 
-## 🛠️ Complete SSG Routing Integration
+## 🛠️ Framework Integration Examples
 
-Below is a complete implementation example inside an Auwla SSG page routing handler:
+`@auwla/markdown` compiles down to plain HTML and metadata objects, making it compatible with any modern JS framework.
+
+### 1. Vanilla JS / Node / Bun
+
+```typescript
+import { mdParser } from './markdown.config';
+
+const rawMarkdown = `
+=<Header>
+title: Standalone Markdown Engine
+=</Header>
+# Welcome
+`;
+
+const { html, meta, headings } = await mdParser.parse(rawMarkdown);
+console.log(meta.title); // "Standalone Markdown Engine"
+console.log(html);       // "<h1>Welcome</h1>"
+```
+
+### 2. Svelte / React / Solid (Dynamic Render)
+
+Pass the generated HTML string directly to your framework's raw HTML injector:
+
+```tsx
+// React / Solid
+export function DocView({ html }) {
+  return <article dangerouslySetInnerHTML={{ __html: html }} />;
+}
+```
+
+```svelte
+<!-- Svelte -->
+<article>
+  {@html html}
+</article>
+```
+
+### 3. Static Site Generation (SSG) in Auwla
 
 ```tsx
 // src/pages/docs/[slug].tsx
@@ -228,46 +277,24 @@ import { mdParser } from '../../markdown.config';
 export const config = {
   renderMode: 'ssg',
   async generatePaths() {
-    return [
-      { slug: 'introduction' },
-      { slug: 'installation' }
-    ];
+    return [{ slug: 'introduction' }, { slug: 'installation' }];
   }
 };
 
-// 1. Loader runs on the Server/SSG build phase
 export async function routed(ctx: RouteContext<'/docs/:slug'>) {
-  const files = import.meta.glob('../../../content/*.md', { query: '?raw', import: 'default' });
-  const loadFile = files[`../../../content/${ctx.params.slug}.md`];
-
-  if (!loadFile) throw new Error(`Document not found: ${ctx.params.slug}`);
-
-  const rawMarkdown = (await loadFile()) as string;
-
-  // Compile markdown and extract frontmatter + table-of-contents headings
+  const rawMarkdown = await loadMarkdownFile(ctx.params.slug);
   const { html, meta, headings } = await mdParser.parse(rawMarkdown);
-
   return { html, meta, headings };
 }
 
-// 2. UI Component receives parsed HTML with zero client-side parser bytes
 export default function DocPage() {
   const data = getRouted(routed)?.value;
   if (!data) return () => <div>Loading...</div>;
 
   return () => (
     <div class="docs-layout">
-      {/* Visual Navigation Header built from parsed metadata */}
-      <header class="docs-header">
-        <h1>{data.meta.title}</h1>
-        <span>Author: {data.meta.author} (v{data.meta.version})</span>
-      </header>
-
-      {/* Compiled Page Body */}
-      <article
-        class="markdown-body"
-        dangerouslySetInnerHTML={{ __html: data.html }}
-      />
+      <h1>{data.meta.title}</h1>
+      <article dangerouslySetInnerHTML={{ __html: data.html }} />
     </div>
   );
 }

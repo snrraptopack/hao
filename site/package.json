@@ -10,7 +10,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@auwla/markdown": "../markdown",
     "@tailwindcss/vite": "^4.3.1",
     "@types/prismjs": "^1.26.6",
     "auwla": "^0.3.25",

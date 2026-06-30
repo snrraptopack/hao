@@ -131,5 +131,9 @@
     "typescript": "^5.9.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "auwla": ".",
+    "auwla-markdown": "^0.0.1"
   }
 }

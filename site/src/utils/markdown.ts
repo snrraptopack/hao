@@ -1,10 +1,10 @@
-import { createMDConfig } from '@auwla/markdown';
+import { createMDConfig } from 'auwla-markdown';
 
 let cachedHighlight: any = null;
 
 const highlighter = async (code: string, lang: string) => {
   if (!cachedHighlight) {
-    const { shikiHighlighter } = await import('@auwla/markdown');
+    const { shikiHighlighter } = await import('auwla-markdown');
     cachedHighlight = shikiHighlighter({
       theme: 'github-dark',
       langs: ['typescript', 'tsx', 'javascript', 'jsx', 'bash', 'html', 'css', 'json']
