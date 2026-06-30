@@ -10,14 +10,15 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.1",
+    "@tailwindcss/vite": "^4.3.2",
     "@types/prismjs": "^1.26.6",
-    "auwla": "^0.3.25",
+    "auwla": "^0.3.27",
+    "auwla-markdown": "^0.0.2",
     "marked": "^18.0.5",
     "marked-highlight": "^2.2.4",
     "prismjs": "^1.30.0",
     "shiki": "^4.3.0",
-    "tailwindcss": "^4.3.1",
+    "tailwindcss": "^4.3.2",
     "vite": "^8.1.0"
   },
   "scripts": {

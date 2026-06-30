@@ -1,9 +1,9 @@
 {
   "name": "auwla-markdown",
-  "version": "0.0.1",
-  "main": "src/index.ts",
-  "module": "src/index.ts",
-  "types": "src/index.ts",
+  "version": "0.0.2",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "type": "module",
   "devDependencies": {
     "@types/bun": "latest",
@@ -25,5 +25,8 @@
   "dependencies": {
     "marked": "^18.0.5",
     "marked-highlight": "^2.2.4"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.lib.json"
   }
 }
