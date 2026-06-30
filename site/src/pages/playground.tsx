@@ -7,7 +7,7 @@ export default function Playground() {
       <main class="flex-1 flex items-center justify-center p-8">
         <div class="text-center max-w-md">
           <h2 class="text-2xl font-semibold text-slate-850 font-sans tracking-tight">Playground</h2>
-          <p class="text-slate-500 mt-2 text-sm leading-relaxed">
+          <p class="text-slate-600 mt-2 text-sm leading-relaxed">
             The interactive code workbench is coming soon. Here you will be able to edit Auwla components and inspect their compiled DOM blocks in real-time.
           </p>
           <Link 

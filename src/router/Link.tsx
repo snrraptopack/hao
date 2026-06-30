@@ -75,7 +75,7 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
         exact && exactActiveClass,
       ].filter(Boolean).join(" ") || undefined
 
-      return h('a', { href: actualUrl, class: classes, style: props.style }, ...([] as any[]).concat(props.children ?? []))
+      return h('a', { href: actualUrl, class: classes, style: props.style, 'aria-current': exact ? 'page' : undefined }, ...([] as any[]).concat(props.children ?? []))
     }
   }
 
@@ -104,6 +104,7 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
         href={actualUrl}
         class={classes}
         style={props.style}
+        aria-current={exact ? "page" : undefined}
         onClick={(e: MouseEvent) => {
           // The Navigation API intercepts link clicks before this handler runs,
           // so we only need to handle browsers without it.

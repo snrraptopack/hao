@@ -139,7 +139,7 @@
 
     "@ungap/structured-clone": ["@ungap/structured-clone@1.3.2", "", {}, "sha512-5jsZFwgR5rTdKwidH9Qmat75RKwqfpKlWWB1frDkljN127mwqBu8K0PYo7/hFpF03IEJpfVPpCQDY/eDx3iHvA=="],
 
-    "auwla": ["auwla@0.3.28", "", {}, "sha512-qyDHqkpSQ0HWMKIz+2D78/JhUcnWGkQeEXu30AUl19EG/5Y/0tffHo/7yrmRA9NoWKeDc7cdzdxt+ViLIWRpIA=="],
+    "auwla": ["auwla@0.3.29", "", {}, "sha512-pHqP80nxlRCK9qBqEevaQFUbqSDnX7LVrldu+Msnuy7nf2lY5ZtU4Nl9SumcPz18CHISOIuCx0aI3euDcRtd/Q=="],
 
     "auwla-markdown": ["auwla-markdown@0.0.4", "", { "dependencies": { "marked": "^18.0.5", "marked-highlight": "^2.2.4" }, "peerDependencies": { "typescript": "^5" } }, "sha512-YAXLq6dfuDuD6yDTwhX6NS+V7sEWiyNJ+nSAvOJbWHOugxBzThOZ+a1XQXhe4FlQ+V0UT9v+wxmoVE+A9saulg=="],
 

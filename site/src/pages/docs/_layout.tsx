@@ -28,7 +28,7 @@ export default function DocsLayout(Child: RouteComponent) {
           <div class="space-y-6">
             {docCategories.map((cat) => (
               <div key={cat.title}>
-                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 font-sans">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 font-sans">
                   {cat.title}
                 </h4>
                 <ul class="space-y-1">

@@ -46,7 +46,7 @@ export default function Home() {
             The web framework that doesn&apos;t get in the way.
           </h1>
 
-          <p class="text-lg md:text-xl text-slate-500 font-normal leading-relaxed max-w-2xl mx-auto font-sans pt-2">
+          <p class="text-lg md:text-xl text-slate-600 font-normal leading-relaxed max-w-2xl mx-auto font-sans pt-2">
             Auwla compiles JSX closures into direct, memoized DOM updates. Code with plain JavaScript variables—no reactive state wrappers needed.
           </p>
 
@@ -66,11 +66,11 @@ export default function Home() {
             </Link>
             <button
               onClick={copyInstall}
-              class="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 font-mono text-sm text-slate-500 px-4 py-3 transition group select-none"
+              class="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 font-mono text-sm text-slate-600 px-4 py-3 transition group select-none"
             >
               <span class="text-[#ff3e00] font-bold">$</span>
               <span>npm install auwla</span>
-              <span class="ml-4 text-xs font-bold text-slate-400 group-hover:text-slate-600">
+              <span class="ml-4 text-xs font-bold text-slate-500 group-hover:text-slate-600">
                 {copied ? 'Copied!' : 'Copy'}
               </span>
             </button>
@@ -84,7 +84,7 @@ export default function Home() {
               <h4 class="font-semibold text-slate-900 text-base font-sans flex items-center gap-2">
                 <span class="text-[#ff3e00] font-bold">✓</span> {val.title}
               </h4>
-              <p class="text-sm text-slate-500 leading-relaxed font-sans">{val.desc}</p>
+              <p class="text-sm text-slate-600 leading-relaxed font-sans">{val.desc}</p>
             </div>
           ))}
         </div>
@@ -98,7 +98,7 @@ export default function Home() {
             <h2 class="text-4xl md:text-5xl font-extrabold tracking-[-0.03em] text-black">
               See it in action.
             </h2>
-            <p class="text-slate-500 text-base leading-relaxed font-sans">
+            <p class="text-slate-600 text-base leading-relaxed font-sans">
               Explore how Auwla binds state variables and runs operations. Tap, interact, and draw in real-time.
             </p>
           </div>
@@ -109,7 +109,7 @@ export default function Home() {
               <h3 class="text-2xl font-bold tracking-tight text-black leading-tight">
                 Reactivity through closures
               </h3>
-              <p class="text-slate-500 leading-relaxed font-sans">
+              <p class="text-slate-600 leading-relaxed font-sans">
                 Variables declared in the component setup scope serve as reactive state. Triggering an event automatically schedules a single re-render, patching the exact DOM text node.
               </p>
             </div>
@@ -131,7 +131,7 @@ export default function Home() {
               <h3 class="text-3xl font-extrabold tracking-tight text-black leading-tight">
                 High-performance events
               </h3>
-              <p class="text-slate-500 leading-relaxed font-sans text-base max-w-3xl">
+              <p class="text-slate-600 leading-relaxed font-sans text-base max-w-3xl">
                 Auwla easily handles high-frequency pointer and touch events. Elements can be captured using ref callbacks, bypassing custom wrappers.
               </p>
             </div>
@@ -154,10 +154,10 @@ export default function Home() {
       {/* Footer */}
       <footer class="border-t border-slate-200 bg-white py-12">
         <div class="mx-auto max-w-[1200px] px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p class="text-xs text-slate-400">
+          <p class="text-xs text-slate-500">
             &copy; 2026 Auwla. Under MIT License.
           </p>
-          <div class="flex gap-6 text-xs font-semibold text-slate-400 font-sans">
+          <div class="flex gap-6 text-xs font-semibold text-slate-500 font-sans">
             <Link href="/docs/:slug" params={{ slug: 'introduction' }} class="hover:text-[#ff3e00] transition">Documentation</Link>
             <Link href="/playground" class="hover:text-[#ff3e00] transition">Playground</Link>
           </div>
