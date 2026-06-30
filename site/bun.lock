@@ -7,7 +7,7 @@
       "dependencies": {
         "@tailwindcss/vite": "^4.3.2",
         "@types/prismjs": "^1.26.6",
-        "auwla": "^0.3.28",
+        "auwla": "^0.3.29",
         "auwla-markdown": "^0.0.4",
         "marked": "^18.0.5",
         "marked-highlight": "^2.2.4",
@@ -139,7 +139,7 @@
 
     "@ungap/structured-clone": ["@ungap/structured-clone@1.3.2", "", {}, "sha512-5jsZFwgR5rTdKwidH9Qmat75RKwqfpKlWWB1frDkljN127mwqBu8K0PYo7/hFpF03IEJpfVPpCQDY/eDx3iHvA=="],
 
-    "auwla": ["auwla@0.3.29", "", {}, "sha512-pHqP80nxlRCK9qBqEevaQFUbqSDnX7LVrldu+Msnuy7nf2lY5ZtU4Nl9SumcPz18CHISOIuCx0aI3euDcRtd/Q=="],
+    "auwla": ["auwla@0.3.30", "", {}, "sha512-ZAXQjaPT8DHuOKxGykZ6yuHWxs6HshpZcEqFmrVSPv8STGpdXjmWQXTyYzpuuh0nMqDn+abVD6OyR3Td9C/enA=="],
 
     "auwla-markdown": ["auwla-markdown@0.0.4", "", { "dependencies": { "marked": "^18.0.5", "marked-highlight": "^2.2.4" }, "peerDependencies": { "typescript": "^5" } }, "sha512-YAXLq6dfuDuD6yDTwhX6NS+V7sEWiyNJ+nSAvOJbWHOugxBzThOZ+a1XQXhe4FlQ+V0UT9v+wxmoVE+A9saulg=="],
 

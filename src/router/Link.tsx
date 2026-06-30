@@ -46,6 +46,7 @@ export type LinkProps<P extends ValidRoutePath = ValidRoutePath> = {
    */
   prefetch?: boolean
   children?: MemoChild | MemoChild[]
+  onClick?: (e: MouseEvent) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,11 @@ export function Link<P extends ValidRoutePath>(props: LinkProps<P>) {
         style={props.style}
         aria-current={exact ? "page" : undefined}
         onClick={(e: MouseEvent) => {
+          if (props.onClick) {
+            props.onClick(e)
+          }
+          if (e.defaultPrevented) return
+
           // The Navigation API intercepts link clicks before this handler runs,
           // so we only need to handle browsers without it.
           if (supportsNavigationAPI()) return
