@@ -52,6 +52,12 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       if (loaded) {
         Object.assign(options, loaded.config);
       }
+
+      return {
+        ssr: {
+          noExternal: ['auwla']
+        }
+      };
     },
 
     async closeBundle() {
