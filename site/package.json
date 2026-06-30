@@ -12,8 +12,8 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
     "@types/prismjs": "^1.26.6",
-    "auwla": "^0.3.27",
-    "auwla-markdown": "^0.0.2",
+    "auwla": "^0.3.28",
+    "auwla-markdown": "^0.0.4",
     "marked": "^18.0.5",
     "marked-highlight": "^2.2.4",
     "prismjs": "^1.30.0",
