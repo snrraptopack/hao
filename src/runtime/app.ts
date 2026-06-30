@@ -21,6 +21,7 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
+import { clearComponentComputedGetters, markComponentComputedDirty } from './computed';
 const getTrackGlobals = (): {
   hasPendingLoaders?: () => boolean;
   hydrateTrackState?: (data: Record<string, unknown>) => void;
@@ -208,6 +209,7 @@ export function createMemoApp<TModel>(
         componentInstances.delete(id);
         runtimeState.componentHosts.delete(id);
         componentSourceDeps.delete(id);
+        clearComponentComputedGetters(id);
         getTrackGlobals().cleanupComponentTracks?.(id);
       }
       for (const id of memoBlocks.keys()) {
@@ -262,6 +264,7 @@ export function createMemoApp<TModel>(
 
   const invalidate = (ownerId?: string | null) => {
     if (destroyed) return;
+    markComponentComputedDirty(ownerId);
     markDirty(ownerId);
     if (scheduled) return;
     scheduled = true;

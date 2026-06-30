@@ -130,4 +130,23 @@ describe('automatic commit wrappers', () => {
     const compiled = compileAuwla(source);
     expect(compiled).toContain('(__commit(self), await new Promise(');
   });
+
+  it('does not wrap functions used directly as JSX event handlers', () => {
+    const source = `
+      function App() {
+        const self = component();
+        let count = 0;
+
+        function increment() {
+          count++;
+        }
+
+        return () => <button onClick={increment}>{count}</button>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).not.toContain('__commit(self)');
+  });
 });

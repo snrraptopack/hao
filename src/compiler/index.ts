@@ -17,6 +17,30 @@ export type CompileOptions = {
   ssr?: boolean;
 };
 
+const EVENT_ATTR_PATTERN = /^on[A-Z]/;
+
+/**
+ * Collect function identifiers that are used directly as JSX event handlers.
+ * These functions do not need __commit() wrapping because the event path
+ * already invalidates the component.
+ */
+function collectEventHandlerIdentifiers(source: ts.SourceFile): Set<string> {
+  const identifiers = new Set<string>();
+  function visit(node: ts.Node) {
+    if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && EVENT_ATTR_PATTERN.test(node.name.text)) {
+      if (node.initializer) {
+        const expr = ts.isJsxExpression(node.initializer) ? node.initializer.expression : node.initializer;
+        if (expr && ts.isIdentifier(expr)) {
+          identifiers.add(expr.text);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  ts.forEachChild(source, visit);
+  return identifiers;
+}
+
 function compileRenderClosure(
   source: ts.SourceFile,
   jsx: ts.JsxElement | ts.JsxSelfClosingElement,
@@ -133,6 +157,7 @@ function addDerivedReplacements(
 function findReplacements(
   source: ts.SourceFile,
   skipCompile: Set<string>,
+  eventHandlerNames: Set<string>,
   options?: CompileOptions,
 ): Array<{ start: number; end: number; text: string }> {
   const replacements: Array<{ start: number; end: number; text: string }> = [];
@@ -181,8 +206,13 @@ function findReplacements(
       const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
       let willWrap = false;
 
-      // Wrap helper functions inside component setups that perform local mutations
-      if (activeSelfName && activeLocals && node.body && ts.isBlock(node.body)) {
+      // Wrap helper functions inside component setups that perform local mutations.
+      // Skip functions that are used directly as JSX event handlers — the event
+      // path already invalidates the component, so __commit would be redundant.
+      const isEventHandler =
+        ts.isFunctionDeclaration(node) && node.name && eventHandlerNames.has(node.name.text);
+
+      if (activeSelfName && activeLocals && node.body && ts.isBlock(node.body) && !isEventHandler) {
         if (mutatesLocals(node.body, activeLocals) && !hasCommitCall(node.body, activeSelfName)) {
           willWrap = true;
           // Boundary insertions: insert try/finally wrapper at start/end of function block
@@ -478,7 +508,8 @@ export function compileAuwla(sourceText: string, fileName = 'input.tsx', options
 
   // Pass 2: Compile Auwla DOM blocks
   const source2 = ts.createSourceFile(fileName, textWithSites, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const replacements = findReplacements(source2, skipCompile, options);
+  const eventHandlerNames = collectEventHandlerIdentifiers(source2);
+  const replacements = findReplacements(source2, skipCompile, eventHandlerNames, options);
 
   if (replacements.length === 0 && siteReplacements.length === 0) return sourceText;
 

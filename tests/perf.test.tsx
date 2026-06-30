@@ -1,6 +1,7 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test } from 'vitest';
 import { createMemoApp, memo, type MemoApp } from 'auwla';
+import { compileAuwla, evaluateCompiled, h } from './compiler/_helpers';
 
 type Item = { id: number; value: number };
 
@@ -68,6 +69,68 @@ function measure(label: string, fn: () => void) {
 }
 
 describe('runtime performance smoke metrics', () => {
+  test('__computed memoization: repeated render', () => {
+    const source = `
+      function App() {
+        let count = 0;
+        let items = Array.from({ length: 1000 }, (_, i) => i);
+        let evenItems = items.filter(i => i % 2 === 0);
+
+        exports.bump = () => { count++; };
+
+        return () => <div>{count} {evenItems.length}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(App as any));
+
+    for (let i = 0; i < 10; i++) {
+      app.render();
+    }
+
+    const iterations = 1000;
+    const start = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      app.render();
+    }
+    const end = performance.now();
+
+    const avg = (end - start) / iterations;
+    console.log(`[perf] repeated render with cached derived: ${avg.toFixed(4)} ms per render`);
+    expect(avg).toBeGreaterThan(0);
+  });
+
+  test('__computed memoization: derived updates on dependency change', async () => {
+    const source = `
+      function App() {
+        let count = 0;
+        let items = Array.from({ length: 1000 }, (_, i) => i);
+        let evenItems = items.filter(i => i % 2 === 0);
+
+        function addItem() { items = [...items, items.length]; }
+
+        return () => <div>{count} {evenItems.length} <button onClick={addItem}>Add</button></div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.textContent).toContain('500');
+
+    const button = root.querySelector('button')!;
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.textContent).toContain('501');
+  });
+
   test('large keyed list operations', () => {
     const root = document.createElement('div');
     const { app, actions } = createBench(root);
