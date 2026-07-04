@@ -1,6 +1,7 @@
 /** @jsxImportSource auwla */
 import { describe, expect, test, vi, afterEach } from 'vitest';
 import { event } from 'auwla/events';
+import '../../src/events/touch';
 import { createMemoApp } from 'auwla';
 import { setProp } from '../../src/runtime/dom';
 

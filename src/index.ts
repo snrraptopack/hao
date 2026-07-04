@@ -20,6 +20,7 @@ export {
   __computed,
   __createBlock,
   __dirtySource,
+  __effect,
   __event,
   __escapeHtml,
   __hydrateComment,

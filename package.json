@@ -39,6 +39,10 @@
       "types": "./dist/events/touch.d.ts",
       "import": "./dist/events/touch.js"
     },
+    "./events/keyboard": {
+      "types": "./dist/events/keyboard.d.ts",
+      "import": "./dist/events/keyboard.js"
+    },
     "./events/hotkey": {
       "types": "./dist/events/hotkey.d.ts",
       "import": "./dist/events/hotkey.js"

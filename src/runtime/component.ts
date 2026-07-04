@@ -267,8 +267,10 @@ export function createComponentClosure(
       const prevSetupId = runtimeState.activeSetupComponentId;
       const prevCleanups = runtimeState.pendingCleanups;
       runtimeState.activeSetupComponentId = id;
+      runtimeState.setupExecutingComponents.add(id);
       runtimeState.pendingCleanups = [];
       const output = type(stableProps);
+      runtimeState.setupExecutingComponents.delete(id);
       runtimeState.activeSetupComponentId = prevSetupId;
       const cleanups = runtimeState.pendingCleanups.length > 0 ? runtimeState.pendingCleanups : undefined;
       runtimeState.pendingCleanups = prevCleanups;

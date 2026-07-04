@@ -5,6 +5,7 @@ import {
   __computed,
   __createBlock,
   __dirtySource,
+  __effect,
   __event,
   __escapeHtml,
   __hydrateComment,
@@ -44,11 +45,11 @@ export { compileAuwla };
 
 export function evaluateCompiled(source: string) {
   const withoutImport = source
-    .replace(/import \{([^}]+)\} from 'auwla';/, (match, imports) => {
+    .replace(/import \{([^}]+)\} from 'auwla';/g, (match, imports) => {
       const destructured = imports.replace(/\bas\b/g, ':');
       return `const {${destructured}} = runtime;`;
     })
-    .replace(/import \{([^}]+)\} from 'auwla\/events';/, (match, imports) => {
+    .replace(/import \{([^}]+)\} from 'auwla\/events';/g, (match, imports) => {
       const destructured = imports.replace(/\bas\b/g, ':');
       return `const {${destructured}} = runtime;`;
     });
@@ -64,8 +65,8 @@ export function evaluateCompiled(source: string) {
   }).outputText;
   const exports: Record<string, unknown> = {};
 
-  // Inject h, Fragment, component, commit into scope so transpiled JSX and runtime calls work
-  const jsWithGlobals = `const h = runtime.h; const Fragment = runtime.Fragment; const component = runtime.component; const commit = runtime.commit; const emit = runtime.emit;\n${js}`;
+  // Inject h and Fragment so transpiled JSX works. Compiler-runtime imports are rewritten below.
+  const jsWithGlobals = `const h = runtime.h; const Fragment = runtime.Fragment;\n${js}`;
 
   Function('runtime', 'exports', jsWithGlobals)({
     __componentBlock,
@@ -73,6 +74,7 @@ export function evaluateCompiled(source: string) {
     __computed,
     __createBlock,
     __dirtySource,
+    __effect,
     __event,
     __escapeHtml,
     __hydrateComment,

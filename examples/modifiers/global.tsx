@@ -1,6 +1,9 @@
 import { event } from 'auwla/events';
+import "auwla/events/hotkey"
+import "auwla/events/intersect"
+import "auwla/events/touch"
 import type { } from 'auwla/jsx-runtime';
- 
+
 // const style = css({
 //   maxWidth: css.px(400),
 //   cursor: "default",
@@ -8,7 +11,7 @@ import type { } from 'auwla/jsx-runtime';
 //   padding: css.px(24),
 //   border: css.border({style:"solid"})
 // })
- 
+
 /**
  * Interactive Global Listeners demo.
  * Demonstrates window-level click-outside detection and mouse tracking

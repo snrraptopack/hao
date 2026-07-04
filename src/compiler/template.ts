@@ -268,7 +268,7 @@ export function compileTemplateRowBlock(
     forceUpdate: preUpdateStatements.length > 0,
     block: `__createBlock(() => {
             ${preUpdateStatements.map((line) => `            ${line}`).join('\n')}
-            ${dirtySetupLine(ctx.elementSetup, patches).join('\n            ')}
+            ${dirtySetupLine(ctx.elementSetup, patches, derivedCtx).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             const el0 = __cloneTemplate(${stringLiteral(html)});
             ${ctx.elementSetup.join('\n            ')}
@@ -336,7 +336,7 @@ ${preLines}${preLines ? '\n' : ''}          return \`${expandedHtml}\`;
   ].filter(Boolean).join('\n');
 
   const setupLines = [
-    ...dirtySetupLine(ctx.elementSetup, patches),
+    ...dirtySetupLine(ctx.elementSetup, patches, derivedCtx),
     ...sourceTrackingLines(patches, derivedCtx),
     `const el0 = __cloneTemplate(${stringLiteral(html)});`,
     ...ctx.elementSetup,

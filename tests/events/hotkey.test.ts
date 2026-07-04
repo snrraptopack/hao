@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { event } from 'auwla/events';
+import '../../src/events/hotkey';
 
 describe('global hotkeys', () => {
   beforeEach(() => {

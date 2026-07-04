@@ -10,7 +10,7 @@ import { COMPILER_IMPORT, CompileContext } from './types';
 import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
 import { unwrapJsxReturn, unwrapJsxBody, analyzeComponentSkips } from './utils';
-import { buildDerivedContext, DerivedContext } from './derived';
+import { buildDerivedContext, DerivedContext, extractIdentifiers } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 
 export type CompileOptions = {
@@ -73,9 +73,9 @@ function compileRenderClosure(
   const patches = derivedCtx
     ? ctx.patches.map((p) => ({ ...p, code: derivedCtx.expand(p.code) }))
     : ctx.patches;
-  const dirtyAware = usesDirtyTracking(ctx.setup, patches);
+  const dirtyAware = usesDirtyTracking(ctx.setup, patches, derivedCtx);
   const setupLines = [
-    ...dirtySetupLine(ctx.setup, patches),
+    ...dirtySetupLine(ctx.setup, patches, derivedCtx),
     ...sourceTrackingLines(patches, derivedCtx),
     ...ctx.setup,
   ];
@@ -138,19 +138,153 @@ function addDerivedReplacements(
   replacements: Array<{ start: number; end: number; text: string }>,
 ): void {
   for (const stmt of setupStatements) {
-    if (!ts.isVariableStatement(stmt)) continue;
+    if (!stmt || !ts.isVariableStatement(stmt)) continue;
     for (const decl of stmt.declarationList.declarations) {
       if (!ts.isIdentifier(decl.name)) continue;
       const name = decl.name.text;
       if (!derivedCtx.derived.has(name)) continue;
       if (!decl.initializer) continue;
       const init = decl.initializer.getText(source);
+      const deps = derivedCtx.allSourceDeps(init);
+      const depsStr = deps.length > 0 ? `, [${deps.map((d) => `'${d}'`).join(', ')}]` : '';
       replacements.push({
         start: decl.initializer.getStart(source),
         end: decl.initializer.getEnd(),
-        text: `__computed(() => ${derivedCtx.expand(init)})`,
+        text: `__computed(() => ${derivedCtx.expand(init)}${depsStr})`,
       });
     }
+  }
+}
+
+function addConditionalAssignmentReplacements(
+  derivedCtx: DerivedContext,
+  replacements: Array<{ start: number; end: number; text: string }>,
+): void {
+  for (const [name, info] of derivedCtx.conditionalAssignments) {
+    const deps = derivedCtx.allSourceDeps(info.init);
+    const depsStr = deps.length > 0 ? `, [${deps.map((d) => `'${d}'`).join(', ')}]` : '';
+    replacements.push({
+      start: info.start,
+      end: info.end,
+      text: `let ${name} = __computed(() => ${derivedCtx.expand(info.init)}${depsStr});`,
+    });
+  }
+}
+
+function addLoopReplacements(
+  derivedCtx: DerivedContext,
+  replacements: Array<{ start: number; end: number; text: string }>,
+): void {
+  for (const [name, info] of derivedCtx.loopReplacements) {
+    const deps = derivedCtx.allSourceDeps(info.body);
+    const depsStr = deps.length > 0 ? `, [${deps.map((d) => `'${d}'`).join(', ')}]` : '';
+    replacements.push({
+      start: info.start,
+      end: info.end,
+      text: `let ${name} = __computed(() => {\n${derivedCtx.expand(info.body)}\n}${depsStr});`,
+    });
+  }
+}
+
+function containsReturn(node: ts.Node): boolean {
+  let found = false;
+  function walk(n: ts.Node) {
+    if (found) return;
+    if (ts.isReturnStatement(n)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(n, walk);
+  }
+  walk(node);
+  return found;
+}
+
+function hasSideEffects(node: ts.Node): boolean {
+  let sideEffect = false;
+  function walk(n: ts.Node) {
+    if (sideEffect) return;
+    if (
+      ts.isCallExpression(n) ||
+      ts.isNewExpression(n) ||
+      ts.isReturnStatement(n) ||
+      ts.isThrowStatement(n) ||
+      ts.isDeleteExpression(n)
+    ) {
+      sideEffect = true;
+      return;
+    }
+    if (ts.isBinaryExpression(n)) {
+      const op = n.operatorToken.kind;
+      if (
+        op === ts.SyntaxKind.EqualsToken ||
+        op === ts.SyntaxKind.PlusEqualsToken ||
+        op === ts.SyntaxKind.MinusEqualsToken ||
+        op === ts.SyntaxKind.AsteriskEqualsToken ||
+        op === ts.SyntaxKind.SlashEqualsToken ||
+        op === ts.SyntaxKind.PercentEqualsToken ||
+        op === ts.SyntaxKind.AmpersandEqualsToken ||
+        op === ts.SyntaxKind.BarEqualsToken ||
+        op === ts.SyntaxKind.CaretEqualsToken ||
+        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
+        op === ts.SyntaxKind.BarBarEqualsToken ||
+        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
+        op === ts.SyntaxKind.QuestionQuestionEqualsToken
+      ) {
+        sideEffect = true;
+        return;
+      }
+    }
+    if (
+      (ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) &&
+      (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)
+    ) {
+      sideEffect = true;
+      return;
+    }
+    ts.forEachChild(n, walk);
+  }
+  walk(node);
+  return sideEffect;
+}
+
+function addReactiveEffectReplacements(
+  source: ts.SourceFile,
+  setupStatements: ts.Statement[],
+  derivedCtx: DerivedContext,
+  replacements: Array<{ start: number; end: number; text: string }>,
+): void {
+  const handledRanges = new Set(
+    Array.from(derivedCtx.conditionalAssignments.values()).map((info) => `${info.ifStart}:${info.ifEnd}`),
+  );
+
+  for (const stmt of setupStatements) {
+    if (!stmt || !ts.isIfStatement(stmt)) continue;
+    if (containsReturn(stmt)) continue;
+
+    const rangeKey = `${stmt.getStart(source)}:${stmt.getEnd()}`;
+    if (handledRanges.has(rangeKey)) continue;
+
+    const stmtText = stmt.getText(source);
+    const refs = extractIdentifiers(stmtText).filter((id) => derivedCtx.locals.has(id));
+    if (refs.length === 0) continue;
+
+    if (!hasSideEffects(stmt)) continue;
+
+    const deps = derivedCtx.allSourceDeps(stmtText);
+    const refChecks = deps.map((ref) => `__dirty.has('${ref}')`).join(' || ');
+    const body = refChecks
+      ? `if (__dirty.size === 0 || ${refChecks}) {\n  ${stmtText}\n}`
+      : stmtText;
+    const wrapped = `__effect(() => {\n  ${body}\n});`;
+    replacements.push({
+      start: stmt.getStart(source),
+      end: stmt.getEnd(),
+      text: wrapped,
+    });
   }
 }
 
@@ -211,8 +345,10 @@ function findReplacements(
       // path already invalidates the component, so __commit would be redundant.
       const isEventHandler =
         ts.isFunctionDeclaration(node) && node.name && eventHandlerNames.has(node.name.text);
+      const isAsyncEventHandler = isEventHandler && isAsync;
+      const shouldWrap = !isEventHandler || isAsyncEventHandler;
 
-      if (activeSelfName && activeLocals && node.body && ts.isBlock(node.body) && !isEventHandler) {
+      if (activeSelfName && activeLocals && node.body && ts.isBlock(node.body) && shouldWrap) {
         if (mutatesLocals(node.body, activeLocals) && !hasCommitCall(node.body, activeSelfName)) {
           willWrap = true;
           // Boundary insertions: insert try/finally wrapper at start/end of function block
@@ -238,9 +374,42 @@ function findReplacements(
       const childDerivedCtx = (containingFunction === null && setupStatements.length > 0)
         ? buildDerivedContext(source, setupStatements)
         : null;
-      if (childDerivedCtx && childDerivedCtx.derived.size > 0) {
+
+      if (childDerivedCtx && node.body) {
+        replacements.push({
+          start: node.body.getStart(source) + 1,
+          end: node.body.getStart(source) + 1,
+          text: `\n  const __dirty = new Set();\n`,
+        });
+      }
+      const handledIfRanges = childDerivedCtx
+        ? new Set(Array.from(childDerivedCtx.conditionalAssignments.values()).map((info) => `${info.ifStart}:${info.ifEnd}`))
+        : new Set<string>();
+
+      const hasReactiveSetup = !!(childDerivedCtx && (
+        childDerivedCtx.derived.size > 0 ||
+        childDerivedCtx.conditionalAssignments.size > 0 ||
+        childDerivedCtx.loopReplacements.size > 0
+      ));
+      const hasReactiveEffects = !!(childDerivedCtx && setupStatements.some((stmt) => {
+        if (!ts.isIfStatement(stmt)) return false;
+        if (containsReturn(stmt)) return false;
+        const rangeKey = `${stmt.getStart(source)}:${stmt.getEnd()}`;
+        if (handledIfRanges.has(rangeKey)) return false;
+        const refs = extractIdentifiers(stmt.getText(source)).filter((id) => childDerivedCtx.locals.has(id));
+        return refs.length > 0 && hasSideEffects(stmt);
+      }));
+
+      if (childDerivedCtx) {
+        childDerivedCtx.hasEffects = hasReactiveEffects;
+      }
+
+      if (hasReactiveSetup || hasReactiveEffects) {
         const funcReplacements: Array<{ start: number; end: number; text: string }> = [];
-        addDerivedReplacements(source, setupStatements, childDerivedCtx, funcReplacements);
+        addDerivedReplacements(source, setupStatements, childDerivedCtx!, funcReplacements);
+        addConditionalAssignmentReplacements(childDerivedCtx!, funcReplacements);
+        addLoopReplacements(childDerivedCtx!, funcReplacements);
+        addReactiveEffectReplacements(source, setupStatements, childDerivedCtx!, funcReplacements);
         derivedReplacementsByFunc.set(node, funcReplacements);
       }
 

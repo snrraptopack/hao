@@ -11,13 +11,14 @@ import { runtimeState } from './state';
 
 export type ComputedGetter<T> = (() => T) & {
   _dirty: boolean;
+  _deps?: string[];
 };
 
 /**
  * Create a memoized getter for a derived value.
  * @internal
  */
-export function computed<T>(fn: () => T): ComputedGetter<T> {
+export function computed<T>(fn: () => T, deps?: string[]): ComputedGetter<T> {
   let cached: T;
   let initialized = false;
 
@@ -31,6 +32,9 @@ export function computed<T>(fn: () => T): ComputedGetter<T> {
   }) as ComputedGetter<T>;
 
   getter._dirty = true;
+  if (deps) {
+    getter._deps = deps;
+  }
 
   const ownerId = runtimeState.activeSetupComponentId;
   if (ownerId) {
@@ -51,8 +55,15 @@ export function markComponentComputedDirty(ownerId: string | null | undefined): 
   if (!ownerId) return;
   const getters = runtimeState.computedGetters.get(ownerId);
   if (!getters) return;
+
+  const pending = runtimeState.pendingDirtySources;
+  const hasPending = pending.size > 0;
+
   for (const getter of getters) {
-    getter._dirty = true;
+    const deps = (getter as any)._deps;
+    if (!deps || !hasPending || deps.some((d: string) => pending.has(d))) {
+      getter._dirty = true;
+    }
   }
 }
 
@@ -62,4 +73,51 @@ export function markComponentComputedDirty(ownerId: string | null | undefined): 
  */
 export function clearComponentComputedGetters(ownerId: string): void {
   runtimeState.computedGetters.delete(ownerId);
+}
+
+// ---------------------------------------------------------------------------
+// Effects
+// ---------------------------------------------------------------------------
+
+/**
+ * Register a reactive effect for the current component.
+ * The effect runs once during setup and again every time the component is invalidated.
+ * @internal
+ */
+export function effect(fn: () => void): void {
+  const ownerId = runtimeState.activeSetupComponentId;
+  if (!ownerId) return;
+  const list = runtimeState.effects.get(ownerId) ?? [];
+  list.push(fn);
+  runtimeState.effects.set(ownerId, list);
+  fn();
+}
+
+const runningEffects = new Set<string>();
+
+/**
+ * Run every effect registered for a component.
+ * Called by the invalidation path.
+ * @internal
+ */
+export function runComponentEffects(ownerId: string | null | undefined): void {
+  if (!ownerId || runningEffects.has(ownerId)) return;
+  runningEffects.add(ownerId);
+  try {
+    const effects = runtimeState.effects.get(ownerId);
+    if (!effects) return;
+    for (const fn of effects) {
+      fn();
+    }
+  } finally {
+    runningEffects.delete(ownerId);
+  }
+}
+
+/**
+ * Remove effects for a component that is being unmounted.
+ * @internal
+ */
+export function clearComponentEffects(ownerId: string): void {
+  runtimeState.effects.delete(ownerId);
 }

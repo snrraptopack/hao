@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { event } from 'auwla/events';
+import '../../src/events/keyboard';
+import '../../src/events/intersect';
 
 describe('event chain utilities', () => {
   afterEach(() => {

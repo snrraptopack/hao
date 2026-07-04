@@ -21,7 +21,12 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
-import { clearComponentComputedGetters, markComponentComputedDirty } from './computed';
+import {
+  clearComponentComputedGetters,
+  clearComponentEffects,
+  markComponentComputedDirty,
+  runComponentEffects,
+} from './computed';
 const getTrackGlobals = (): {
   hasPendingLoaders?: () => boolean;
   hydrateTrackState?: (data: Record<string, unknown>) => void;
@@ -167,6 +172,15 @@ export function createMemoApp<TModel>(
     runtimeState.activeEventWrapper = (handler, ownerId) => createEventListener((event) => handler(event), ownerId);
     runtimeState.activeRenderState = renderState;
     try {
+      let loops = 0;
+      while (runtimeState.pendingEffectComponents.size > 0 && loops < 100) {
+        loops++;
+        const pending = Array.from(runtimeState.pendingEffectComponents);
+        runtimeState.pendingEffectComponents.clear();
+        for (const compId of pending) {
+          runComponentEffects(compId);
+        }
+      }
       const output = view ? view(ctx) : isRenderClosure(app) ? app() : app;
 
       if (skipFirstHydrationPatch) {
@@ -210,6 +224,7 @@ export function createMemoApp<TModel>(
         runtimeState.componentHosts.delete(id);
         componentSourceDeps.delete(id);
         clearComponentComputedGetters(id);
+        clearComponentEffects(id);
         getTrackGlobals().cleanupComponentTracks?.(id);
       }
       for (const id of memoBlocks.keys()) {
@@ -264,7 +279,13 @@ export function createMemoApp<TModel>(
 
   const invalidate = (ownerId?: string | null) => {
     if (destroyed) return;
+    if (ownerId && runtimeState.setupExecutingComponents.has(ownerId)) {
+      return;
+    }
     markComponentComputedDirty(ownerId);
+    if (ownerId && ownerId !== '__root') {
+      runtimeState.pendingEffectComponents.add(ownerId);
+    }
     markDirty(ownerId);
     if (scheduled) return;
     scheduled = true;

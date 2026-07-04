@@ -54,6 +54,7 @@ export const COMPILER_IMPORT = [
   '__cloneTemplate',
   '__computed',
   '__createBlock',
+  '__effect',
   '__dirtySource',
   '__event',
   '__escapeHtml',

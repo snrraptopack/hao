@@ -59,7 +59,7 @@ describe('basic render closure compilation', () => {
     expect(compiled).toContain('__componentBlock');
     // Label JSX is inlined — App directly creates the span
     expect(compiled).not.toContain('<Label');
-    expect(compiled).toContain('document.createElement("span")');
+    expect(compiled).toContain('__hydrateElement("span")');
     expect(compiled).toContain('__setElementText(el0, "Hello")');
   });
 
@@ -92,7 +92,7 @@ describe('basic render closure compilation', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('__setText');
+    expect(compiled).toContain('__setElementText');
     // Slice after the import line to avoid matching __setChild in the import list
     const importEnd = compiled.indexOf('\nfunction App');
     const bodyAfterImport = compiled.slice(importEnd);
@@ -121,7 +121,7 @@ describe('basic render closure compilation', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('__setText');
+    expect(compiled).toContain('__setElementText');
     // Slice after the import line to avoid matching __setChild in the import list
     const importEnd = compiled.indexOf('\nfunction App');
     const bodyAfterImport = compiled.slice(importEnd);
@@ -201,7 +201,7 @@ describe('basic render closure compilation', () => {
 
     const compiled = compileAuwla(source);
     expect(compiled).toContain('count = count * 2');
-    expect(compiled).toContain('__setText');
+    expect(compiled).toContain('__setElementText');
 
     const evaluated = evaluateCompiled(compiled) as { App: () => unknown; bump(): void };
     const root = document.createElement('div');
@@ -226,7 +226,7 @@ describe('basic render closure compilation', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('__setText');
+    expect(compiled).toContain('__setElementText');
 
     const evaluated = evaluateCompiled(compiled) as { App: () => unknown; toggle(): void };
     const root = document.createElement('div');
@@ -281,5 +281,134 @@ describe('basic render closure compilation', () => {
     await new Promise<void>((resolve) => queueMicrotask(resolve));
 
     expect(root.querySelector('p')!.textContent).toBe('All done');
+  });
+
+  test('transforms conditional assignment into a computed getter', async () => {
+    const source = `
+      function App() {
+        let user = null;
+
+        let message;
+        if (user) {
+          message = \`Hi \${user.name}\`;
+        } else {
+          message = 'Loading...';
+        }
+
+        function setUser() {
+          user = { name: 'Ada' };
+        }
+
+        return () => <div><p>{message}</p><button onClick={setUser}>Load</button></div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('let message = __computed(');
+    expect(compiled).not.toContain('if (user)');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('p')!.textContent).toBe('Loading...');
+
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('p')!.textContent).toBe('Hi Ada');
+  });
+
+  test('wraps side-effectful reactive if in __effect', async () => {
+    const source = `
+      function App() {
+        let count = 0;
+        let big = false;
+
+        if (count > 10) {
+          big = true;
+        }
+
+        function increment() {
+          count++;
+        }
+
+        return () => <div><p>{big ? 'big' : 'small'}</p><button onClick={increment}>Inc</button></div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__effect(() => {');
+    expect(compiled).toContain('if (count > 10)');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('p')!.textContent).toBe('small');
+
+    for (let i = 0; i < 11; i++) {
+      root.querySelector('button')!.click();
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+    }
+
+    expect(root.querySelector('p')!.textContent).toBe('big');
+  });
+
+  test('Profile example: async load and theme toggle with derived displayName', async () => {
+    const source = `
+      import { component } from 'auwla';
+
+      function Profile({ userId }: { userId: string }) {
+        const self = component();
+
+        let user  = null;
+        let theme = 'red';
+
+        async function loadUser() {
+          user = await fetchUser(userId);
+        }
+
+        loadUser();
+
+        let displayName = user
+          ? \`\${user.firstName} \${user.lastName}\`
+          : 'Loading...';
+
+        function toggleTheme() {
+          theme = theme === 'red' ? 'blue' : 'red';
+        }
+
+        return () => (
+          <div style={{ color: theme }}>
+            <p>{displayName}</p>
+            <button onClick={toggleTheme}>Toggle theme</button>
+          </div>
+        );
+      }
+
+      function fetchUser(id: string) { return Promise.resolve({ firstName: 'Ada', lastName: 'Lovelace' }); }
+
+      exports.Profile = Profile;
+    `;
+
+    const compiled = compileAuwla(source);
+
+    const { Profile } = evaluateCompiled(compiled) as { Profile: (props: { userId: string }) => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(Profile as any, { userId: '123' }));
+
+    expect(root.textContent).toContain('Loading...');
+
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.textContent).toContain('Ada Lovelace');
+
+    const button = root.querySelector('button')!;
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect((root.querySelector('div') as HTMLDivElement).style.color).toBe('blue');
   });
 });

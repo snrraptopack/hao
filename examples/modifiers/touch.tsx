@@ -1,5 +1,8 @@
 import { component, commit } from 'auwla';
 import { event } from 'auwla/events';
+import "auwla/events/hotkey"
+import "auwla/events/intersect"
+import "auwla/events/touch"
 import { css,} from "auwla/css"
 
 

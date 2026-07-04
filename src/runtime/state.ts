@@ -11,6 +11,7 @@
 import type { EventWrapper, RenderState, MountedApp,AuwlaNode } from './types';
 
 type ComputedGetter<T = any> = (() => T) & { _dirty?: boolean };
+type EffectFn = () => void;
 
 /** Sentinel returned by event modifiers to prevent automatic render invalidation. */
 export const BLOCKED_EVENT = Symbol('auwla.blocked');
@@ -28,6 +29,9 @@ export const runtimeState = ((globalThis as any).__auwla_runtimeState ??= {
   componentHosts: new Map<string, Node>(),
   activeBlockComponentIds: null as Set<string> | null,
   computedGetters: new Map<string, Set<ComputedGetter<any>>>(),
+  effects: new Map<string, EffectFn[]>(),
+  setupExecutingComponents: new Set<string>(),
+  pendingEffectComponents: new Set<string>(),
 }) as {
   activeEventWrapper: EventWrapper | null;
   activeRenderState: RenderState | null;
@@ -39,6 +43,9 @@ export const runtimeState = ((globalThis as any).__auwla_runtimeState ??= {
   componentHosts: Map<string, Node>;
   activeBlockComponentIds: Set<string> | null;
   computedGetters: Map<string, Set<ComputedGetter<any>>>;
+  effects: Map<string, EffectFn[]>;
+  setupExecutingComponents: Set<string>;
+  pendingEffectComponents: Set<string>;
 };
 
 /**

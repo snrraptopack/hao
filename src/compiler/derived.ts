@@ -11,6 +11,20 @@
 
 import ts from 'typescript';
 
+export type ConditionalAssignment = {
+  start: number;
+  end: number;
+  ifStart: number;
+  ifEnd: number;
+  init: string;
+};
+
+export type LoopReplacement = {
+  start: number;
+  end: number;
+  body: string;
+};
+
 export type DerivedContext = {
   /** Variables declared in the component setup scope. */
   locals: Set<string>;
@@ -18,12 +32,20 @@ export type DerivedContext = {
   derived: Set<string>;
   /** When compiling a keyed map row, maps the item parameter to the source array name. */
   mapItemSource?: { itemName: string; sourceName: string };
+  /** Uninitialized variables that are assigned inside an if/else, mapped to their synthetic initializer. */
+  conditionalAssignments: Map<string, ConditionalAssignment>;
+  /** Variables declared as empty arrays and populated by a single following loop, mapped to their computed body. */
+  loopReplacements: Map<string, LoopReplacement>;
   /** Rewrite references to computed getters into getter calls. */
   expand(expression: string): string;
   /** Return local source variables an expression depends on. Computed getters contribute nothing static. */
   sourceDeps(expression: string): string[];
+  /** Return all transitive local source dependencies an expression depends on. */
+  allSourceDeps(expression: string): string[];
   /** True if the expression contains no computed derived variables. */
   isPure(expression: string): boolean;
+  /** True if the component setup contains any reactive side-effects. */
+  hasEffects?: boolean;
 };
 
 const GLOBAL_IDENTIFIERS = new Set([
@@ -133,6 +155,20 @@ function looksPure(expression: string): boolean {
   return pure;
 }
 
+/** Extract a simple assignment `name = expr` from a statement or single-statement block. */
+function extractSimpleAssignment(source: ts.SourceFile, stmt: ts.Statement, name: string): string | null {
+  let inner: ts.Statement = stmt;
+  if (ts.isBlock(stmt) && stmt.statements.length === 1) {
+    inner = stmt.statements[0]!;
+  }
+  if (!ts.isExpressionStatement(inner)) return null;
+  const expr = inner.expression;
+  if (!ts.isBinaryExpression(expr)) return null;
+  if (expr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return null;
+  if (!ts.isIdentifier(expr.left) || expr.left.text !== name) return null;
+  return expr.right.getText(source);
+}
+
 /** Build a derived-value context from the setup statements of a component. */
 export function buildDerivedContext(
   source: ts.SourceFile,
@@ -204,6 +240,123 @@ export function buildDerivedContext(
     }
   }
 
+  // Detect uninitialized variables that are assigned inside an immediately
+  // following if/else. These become derived values with a ternary initializer.
+  const conditionalAssignments = new Map<string, ConditionalAssignment>();
+
+  for (let i = 0; i < setupStatements.length; i++) {
+    const stmt = setupStatements[i];
+    if (!stmt || !ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
+      if (!ts.isIdentifier(decl.name)) continue;
+      const name = decl.name.text;
+      if (decl.initializer) continue;
+
+      const nextStmt = setupStatements[i + 1];
+      if (!nextStmt || !ts.isIfStatement(nextStmt)) continue;
+
+      const thenExpr = extractSimpleAssignment(source, nextStmt.thenStatement, name);
+      if (!thenExpr) continue;
+
+      const elseExpr = nextStmt.elseStatement
+        ? extractSimpleAssignment(source, nextStmt.elseStatement, name)
+        : null;
+
+      const condition = nextStmt.expression.getText(source);
+      const init = elseExpr
+        ? `${condition} ? ${thenExpr} : ${elseExpr}`
+        : `${condition} ? ${thenExpr} : undefined`;
+
+      allDecls.set(name, init);
+      conditionalAssignments.set(name, {
+        start: stmt.getStart(source),
+        end: nextStmt.getEnd(),
+        ifStart: nextStmt.getStart(source),
+        ifEnd: nextStmt.getEnd(),
+        init,
+      });
+    }
+  }
+
+  // Detect simple `let items = []; for (const x of list) items.push(...);` loops
+  // that derive an array from local state. They become computed getters whose body
+  // rebuilds the array on every invalidation.
+  const loopReplacements = new Map<string, LoopReplacement>();
+
+  for (let i = 0; i < setupStatements.length - 1; i++) {
+    const declStmt = setupStatements[i];
+    if (!declStmt || !ts.isVariableStatement(declStmt)) continue;
+    if (declStmt.declarationList.declarations.length !== 1) continue;
+    const decl = declStmt.declarationList.declarations[0]!;
+    if (!ts.isIdentifier(decl.name)) continue;
+    const name = decl.name.text;
+    if (!decl.initializer || !ts.isArrayLiteralExpression(decl.initializer)) continue;
+    if (decl.initializer.elements.length !== 0) continue;
+
+    const loopStmt = setupStatements[i + 1];
+    if (!loopStmt || !ts.isForOfStatement(loopStmt)) continue;
+
+    // Only support a single loop variable: `for (const x of ...)` or `for (let x of ...)`
+    const loopVarDecl = ts.isVariableDeclarationList(loopStmt.initializer)
+      ? loopStmt.initializer.declarations[0]
+      : null;
+    if (!loopVarDecl || !ts.isIdentifier(loopVarDecl.name)) continue;
+
+    const loopBody = loopStmt.statement;
+    if (!ts.isBlock(loopBody)) continue;
+
+    // Only allow `name.push(expr)` statements inside the loop.
+    let bodyPure = true;
+    for (const bodyStmt of loopBody.statements) {
+      if (!ts.isExpressionStatement(bodyStmt)) {
+        bodyPure = false;
+        break;
+      }
+      const expr = bodyStmt.expression;
+      if (!ts.isCallExpression(expr)) {
+        bodyPure = false;
+        break;
+      }
+      const callee = expr.expression;
+      if (!ts.isPropertyAccessExpression(callee)) {
+        bodyPure = false;
+        break;
+      }
+      if (!ts.isIdentifier(callee.expression) || callee.expression.text !== name) {
+        bodyPure = false;
+        break;
+      }
+      if (callee.name.text !== 'push') {
+        bodyPure = false;
+        break;
+      }
+      // The pushed expression must be pure (no assignments / side effects).
+      for (const arg of expr.arguments) {
+        if (!looksPure(arg.getText(source))) {
+          bodyPure = false;
+          break;
+        }
+      }
+      if (!bodyPure) break;
+    }
+    if (!bodyPure) continue;
+
+    // The variable must not be reassigned later in setup.
+    if (reassigned.has(name)) continue;
+
+    const sourceList = loopStmt.expression.getText(source);
+    const bodyText = loopBody.getText(source);
+    const loopHeader = `for (${loopStmt.initializer.getText(source)} of ${sourceList})`;
+    const computedBody = `const ${name} = [];\n${loopHeader} ${bodyText}\nreturn ${name};`;
+
+    allDecls.set(name, computedBody);
+    loopReplacements.set(name, {
+      start: declStmt.getStart(source),
+      end: loopStmt.getEnd(),
+      body: computedBody,
+    });
+  }
+
   // Determine which variables are derived:
   // - Has an initialization expression
   // - Expression looks pure
@@ -218,6 +371,12 @@ export function buildDerivedContext(
     const refs = extractIdentifiers(init);
     const localRefs = refs.filter((r) => localNames.has(r) && r !== name);
     if (localRefs.length === 0) continue;
+    derived.add(name);
+  }
+
+  // Loop-derived arrays bypass the normal pure-expression check because their
+  // body is a multi-statement computed getter; still mark them as derived.
+  for (const name of loopReplacements.keys()) {
     derived.add(name);
   }
 
@@ -316,11 +475,32 @@ export function buildDerivedContext(
     return Array.from(deps);
   }
 
+  function allSourceDeps(expression: string): string[] {
+    const deps = new Set<string>();
+    const visited = new Set<string>();
+    function walk(expr: string) {
+      for (const id of extractIdentifiers(expr)) {
+        if (!localNames.has(id)) continue;
+        if (derived.has(id)) {
+          if (!visited.has(id)) {
+            visited.add(id);
+            const body = allDecls.get(id);
+            if (body) walk(body);
+          }
+        } else {
+          deps.add(id);
+        }
+      }
+    }
+    walk(expression);
+    return Array.from(deps);
+  }
+
   function isPure(expression: string): boolean {
     return !extractIdentifiers(expression).some((id) => derived.has(id));
   }
 
-  return { locals: localNames, derived, expand, sourceDeps, isPure };
+  return { locals: localNames, derived, conditionalAssignments, loopReplacements, expand, sourceDeps, allSourceDeps, isPure, hasEffects: false };
 }
 
 /** True if a handler is too complex or mutates through a property path. */

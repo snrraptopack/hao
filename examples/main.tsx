@@ -9,6 +9,10 @@ const state:any = {
 function CounterExample() {
   let one = 0
   let out = one * 2
+
+  if (one > 2) {
+    console.log("one is greater than 2")
+  }
   return () =>(
       <section class="panel">
         <h2>Counter</h2>

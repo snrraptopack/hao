@@ -178,6 +178,16 @@ function dirtySourcesForHandler(expression: ts.Expression, derivedCtx: DerivedCo
   }
 
   walk(expression);
+
+  const mutated = findMutatedVariables(expression);
+  if (mutated && derivedCtx) {
+    for (const name of mutated) {
+      if (derivedCtx.locals.has(name)) {
+        sources.add(name);
+      }
+    }
+  }
+
   return Array.from(sources);
 }
 

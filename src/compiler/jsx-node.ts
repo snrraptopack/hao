@@ -463,7 +463,7 @@ export function compileRowBlock(
     forceUpdate: preUpdateStatements.length > 0,
     block: `__createBlock(() => {
             ${preUpdateStatements.map((line) => `            ${line}`).join('\n')}
-            ${dirtySetupLine(ctx.setup, patches).join('\n            ')}
+            ${dirtySetupLine(ctx.setup, patches, derivedCtx).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             ${ctx.setup.join('\n            ')}
 ${init ? `\n${init}\n` : ''}

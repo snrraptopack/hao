@@ -1,4 +1,7 @@
 import { event } from 'auwla/events';
+import "auwla/events/hotkey"
+import "auwla/events/intersect"
+import "auwla/events/touch"
 import {} from 'auwla/jsx-runtime';
 
 export function IntersectModifiersDemo() {

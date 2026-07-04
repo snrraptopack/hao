@@ -56,13 +56,27 @@ function patchDeps(patch: DynamicPatch, derivedCtx: DerivedContext | null): stri
   return Array.from(deps);
 }
 
-export function usesDirtyTracking(setup: readonly string[], patches: readonly DynamicPatch[]): boolean {
-  return setup.some((line) => line.includes('__dirty.add('))
-    || patches.some((patch) => patch.code.includes('__dirty.add('));
+export function usesDirtyTracking(
+  setup: readonly string[],
+  patches: readonly DynamicPatch[],
+  derivedCtx?: DerivedContext | null,
+): boolean {
+  return setup.some((line) => /\b__dirty\b/.test(line))
+    || patches.some((patch) => /\b__dirty\b/.test(patch.code))
+    || !!derivedCtx?.hasEffects
+    || !!(derivedCtx && (
+        derivedCtx.derived.size > 0 ||
+        derivedCtx.conditionalAssignments.size > 0 ||
+        derivedCtx.loopReplacements.size > 0
+       ));
 }
 
-export function dirtySetupLine(setup: readonly string[], patches: readonly DynamicPatch[]): string[] {
-  return usesDirtyTracking(setup, patches) ? ['const __dirty = new Set<string>();'] : [];
+export function dirtySetupLine(
+  _setup: readonly string[],
+  _patches: readonly DynamicPatch[],
+  _derivedCtx?: DerivedContext | null,
+): string[] {
+  return [];
 }
 
 export function externalPatchDeps(patches: readonly DynamicPatch[], derivedCtx: DerivedContext | null): string[] {
