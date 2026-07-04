@@ -18,7 +18,8 @@ import { createMemoApp } from 'auwla';
 function Counter() {
   let count = 0;
 
-  return () => (
+  // Direct JSX Return: clean, declarative, and AI-friendly!
+  return (
     <button onClick={() => count++}>
       Count: {count}
     </button>
@@ -28,17 +29,89 @@ function Counter() {
 createMemoApp(document.getElementById('app')!, <Counter />);
 ```
 
-That's it. Event handlers automatically trigger re-renders
+That's it. Event handlers automatically trigger re-renders.
 
 ## How It Works
 
-- **Component functions run once for setup.**
-- **A component returns a render closure** that runs on every re-render.
-- **Local variables in setup are stable state.**
+- **Component functions run once for setup.** Local variables in setup are stable state.
+- **Support for Two Return Styles**:
+  * **Direct JSX Return (`return <JSX />`)**: Highly recommended for clean, declarative components. The compiler automatically handles render optimization and updates only the specific elements that change.
+  * **Render Closure Return (`return () => <JSX />` or `return () => { ... }`)**: Useful if you need custom procedural code (like `console.log` or dynamic calculations) to run on every single render pass.
 - **JSX event handlers mutate those variables directly.**
 - **After an event, Auwla schedules one re-render.**
 - **The re-render output is patched into the existing DOM.**
 - **Elements with the same tag and `key` are reused,** so `.map()` lists preserve DOM nodes.
+
+## Reactive Setup Scope
+
+In Auwla, the component's setup function runs only once, but the variables declared in it are **reactive by default**. You don't need to manually import or write computed/effect wrappers. You can write flat, clean, standard JavaScript, and any **derived values** (computed properties, side-effects, dynamic bindings) will be reactively tracked automatically.
+
+### What you write
+
+You can write completely clean, idiomatic JavaScript:
+
+```tsx
+function Counter() {
+  let count = 0;
+
+  // Derived values are automatically detected as computed state!
+  let double = count * 2;
+
+  // Standard `if` statements in setup are compiled into side-effects!
+  if (count > 5) {
+    console.log('Count is getting high!');
+  }
+
+  return (
+    <div>
+      <button onClick={() => count++}>Count: {count}</button>
+      <p>Double: {double}</p>
+    </div>
+  );
+}
+```
+
+### What the compiler generates under the hood
+
+The Auwla compiler automatically lowers the plain JS into fine-grained reactive blocks, wrapping derived assignments in `__computed` and reactive blocks in `__effect`:
+
+```typescript
+import { __componentBlock, __computed, __effect, __setText } from 'auwla';
+
+function Counter() {
+  const __dirty = new Set();
+  const __self = __component();
+  let count = 0;
+
+  // 1. Derived assignments are wrapped in computed getters with dependency arrays
+  let double = __computed(() => count * 2, ['count']);
+
+  // 2. Setup-level reactive conditions are wrapped in side-effects
+  __effect(() => {
+    if (__dirty.size === 0 || __dirty.has('count')) {
+      if (count > 5) {
+        console.log('Count is getting high!');
+      }
+    }
+  });
+
+  return __componentBlock(() => {
+    // ... cloned templates ...
+    return __createBlock(() => ({
+      node: el0,
+      update() {
+        const _count = __dirty.delete('count');
+        if (_count) {
+          __setText(text1, count); // Patches count button
+        }
+        __setText(text2, double()); // 3. Reads computed getter and patches double text
+      }
+    }));
+  });
+}
+```
+
+This flat, reactive setup structure allows you to build highly responsive, declarative components with zero runtime signals, boilerplate, or manual closure overhead.
 
 ## Manual Commit
 
@@ -91,56 +164,84 @@ function LiveClock() {
 
 ## Automatic Commit Wrapping
 
-Auwla includes a compile-time transform that eliminates manual `commit()` boilerplate for most asynchronous workflows and timers. 
+Auwla includes a compile-time transform that eliminates manual `commit()` boilerplate for most asynchronous workflows and timers.
 
-If you declare a component instance handle (e.g. `const self = component()`), the Auwla compiler will automatically identify helper functions and timer callbacks inside the setup scope that mutate setup-scoped local variables. It wraps their bodies in a `try/finally` block that calls `commit(self)` when they finish execution.
+The Auwla compiler automatically identifies helper functions, timer callbacks, and `await` statements inside the setup scope that mutate setup-scoped local variables. It wraps their bodies in a `try/finally` block that calls `commit(handle)` when they finish execution, and automatically schedules a commit after every `await` resume.
 
-### Example
+### Implicit Component Handle Injection (Zero Boilerplate)
 
-You can write normal, clean JavaScript without manual `commit()` calls:
+You can write completely clean, standard JavaScript without even declaring a component handle yourself. If the compiler detects that a component needs an instance handle for async/callback commits, it **automatically injects a private handle under the hood** (e.g. `const __self = __component();`) and registers the import:
 
 ```tsx
-import { component, cleanup } from 'auwla';
-
 function TimerDemo() {
-  const self = component(); // 1. Component handle is required
   let count = 0;
 
-  // The callback mutates `count`, so the compiler automatically wraps it.
+  // The callback mutates `count`, so the compiler automatically
+  // wraps the callback and injects `__self = __component()` for you!
   const interval = setInterval(() => {
     count++;
   }, 1000);
 
   cleanup(() => clearInterval(interval));
 
-  return () => <div>Ticks: {count}</div>;
+  return <div>Ticks: {count}</div>;
 }
 ```
 
-The compiler transforms the `setInterval` callback to:
+The compiler transforms this into:
 
 ```typescript
-const interval = setInterval(() => {
-  try {
+import { component as __component, commit as __commit } from 'auwla';
+
+function TimerDemo() {
+  const __self = __component();
+  let count = 0;
+
+  const interval = setInterval(() => {
+    try {
+      count++;
+    } finally {
+      __commit(__self);
+    }
+  }, 1000);
+
+  // ...
+}
+```
+
+### Explicit Scoped Handling (Manual Declaration)
+
+If you prefer to manually control your handles or want to explicitly name your component instance, you can declare a component instance handle (e.g. `const self = component()`). The compiler will respect your declared variable and use it for wrapping instead:
+
+```tsx
+import { component, cleanup } from 'auwla';
+
+function TimerDemo() {
+  const self = component(); // 1. Custom named handle
+  let count = 0;
+
+  const interval = setInterval(() => {
     count++;
-  } finally {
-    commit(self);
-  }
-}, 1000);
+  }, 1000);
+
+  cleanup(() => clearInterval(interval));
+
+  return <div>Ticks: {count}</div>;
+}
 ```
 
 ### Supported Scenarios
 
 The compiler automatically wraps:
 - **Timer Callbacks:** Callbacks inside `setTimeout` or `setInterval` that mutate state.
-- **Async Functions & Promises:** `async function` declarations or arrow functions that resolve fetches/promises and assign values to setup-scoped variables.
+- **Async Functions & Promises:** `async function` declarations, async event handlers, and promise callbacks that perform mutations.
+- **Await Expressions:** Every `await` expression is compiled to commit on resume (`(__commit(__self), await ...)`).
 
 ### What is Ignored?
 
 To maintain optimal performance and prevent unnecessary re-renders, the compiler ignores:
 1. **No Mutations:** Functions or callbacks that do not write to or mutate setup-local variables.
 2. **Manual Commits:** Functions that already contain a manual `commit(...)` call.
-3. **No Component Handle:** If the component setup does not assign `component()` to a local variable (e.g., `const self = component()`), the transform is skipped.
 
 ## Two-Way Data Binding
 

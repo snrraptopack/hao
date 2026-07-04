@@ -370,7 +370,7 @@ function findReplacements(
       }
 
       const setupStatements = extractSetupStatements(node);
-      const selfName = findComponentSelfName(setupStatements);
+      let selfName = findComponentSelfName(setupStatements);
       if (selfName) {
         componentSelfNames.set(node, selfName);
       }
@@ -380,10 +380,15 @@ function findReplacements(
         : null;
 
       if (childDerivedCtx && node.body) {
+        let selfDecl = '';
+        if (!selfName) {
+          selfName = '__self';
+          selfDecl = `  const __self = __component();\n`;
+        }
         replacements.push({
           start: node.body.getStart(source) + 1,
           end: node.body.getStart(source) + 1,
-          text: `\n  const __dirty = new Set();\n`,
+          text: `\n  const __dirty = new Set();\n${selfDecl}`,
         });
       }
       const handledIfRanges = childDerivedCtx
