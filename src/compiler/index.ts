@@ -9,7 +9,7 @@ import ts from 'typescript';
 import { COMPILER_IMPORT, CompileContext } from './types';
 import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
-import { unwrapJsxReturn, unwrapJsxBody, analyzeComponentSkips } from './utils';
+import { unwrapJsxReturn, unwrapJsxBody, unwrapJsxExpression, analyzeComponentSkips } from './utils';
 import { buildDerivedContext, DerivedContext, extractIdentifiers } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 
@@ -106,22 +106,26 @@ function transformReturn(
   options?: CompileOptions,
 ): string | null {
   const expression = node.expression;
-  if (!expression || !ts.isArrowFunction(expression)) return null;
+  if (!expression) return null;
 
   let body: ts.JsxElement | ts.JsxSelfClosingElement | null = null;
   const leadingStatements: string[] = [];
 
-  if (ts.isBlock(expression.body)) {
-    body = unwrapJsxReturn(expression.body);
-    if (!body) return null;
+  if (ts.isArrowFunction(expression)) {
+    if (ts.isBlock(expression.body)) {
+      body = unwrapJsxReturn(expression.body);
+      if (!body) return null;
 
-    for (const stmt of expression.body.statements) {
-      if (ts.isReturnStatement(stmt)) break;
-      leadingStatements.push(stmt.getText(source));
+      for (const stmt of expression.body.statements) {
+        if (ts.isReturnStatement(stmt)) break;
+        leadingStatements.push(stmt.getText(source));
+      }
+    } else {
+      body = unwrapJsxBody(expression.body);
+      if (!body) return null;
     }
-
   } else {
-    body = unwrapJsxBody(expression.body);
+    body = unwrapJsxExpression(expression);
     if (!body) return null;
   }
 
