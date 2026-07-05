@@ -283,6 +283,23 @@ describe('basic render closure compilation', () => {
     expect(root.querySelector('p')!.textContent).toBe('All done');
   });
 
+  test('dangerouslySetInnerHTML with derived html calls the computed getter once', () => {
+    const source = `
+      function DocPage() {
+        const loader = { value: '<p>Hello</p>' };
+        const html = loader?.value || '';
+        return () => (
+          <article dangerouslySetInnerHTML={{ __html: html }} />
+        );
+      }
+      exports.DocPage = DocPage;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('innerHTML = ({ __html: html() })?.__html');
+    expect(compiled).not.toContain('html()()');
+  });
+
   test('transforms conditional assignment into a computed getter', async () => {
     const source = `
       function App() {
@@ -509,12 +526,7 @@ describe('Auwla Islands Architecture', () => {
 
     const CounterMock = (props: { initial: number }) => {
       let count = props.initial;
-      const button = root.querySelector('button')!;
-      button.addEventListener('click', () => {
-        count++;
-        button.textContent = `Count: ${count}`;
-      });
-      return () => button;
+      return () => h('button', { onClick: () => count++ }, 'Count: ', count);
     };
 
     hydrateIslands((name) => {
@@ -523,12 +535,13 @@ describe('Auwla Islands Architecture', () => {
     });
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-    const button = root.querySelector('button')!;
+    let button = root.querySelector('button')!;
     expect(button.textContent).toBe('Count: 10');
 
     button.click();
     await new Promise<void>((resolve) => queueMicrotask(resolve));
 
+    button = root.querySelector('button')!;
     expect(button.textContent).toBe('Count: 11');
 
     document.body.removeChild(root);
@@ -539,7 +552,7 @@ describe('Auwla Islands Architecture', () => {
 
     const root = document.createElement('div');
     root.innerHTML = `
-      <div data-auwla-island="Counter" data-props="{&quot;initial&quot;:4}">
+      <div data-auwla-island="ObjectRegistryCounter" data-props="{&quot;initial&quot;:4}">
         <button>Count: 4</button>
       </div>
     `;
@@ -549,9 +562,9 @@ describe('Auwla Islands Architecture', () => {
     const previousObserver = (globalThis as any).IntersectionObserver;
     (globalThis as any).IntersectionObserver = undefined;
     (globalThis as any).__auwla_islandModules = {
-      Counter: {
+      ObjectRegistryCounter: {
         load: async () => ({
-          Counter: (props: { initial: number }) => {
+          ObjectRegistryCounter: (props: { initial: number }) => {
             let count = props.initial;
             return () => h('button', { onClick: () => count++ }, 'Hydrated: ', count);
           },

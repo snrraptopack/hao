@@ -6,7 +6,7 @@
  */
 
 import type { SsrNode } from '../runtime/types';
-import { isSsrNode } from '../runtime/types';
+import { isSsrNode, isTemplateNode } from '../runtime/types';
 import { compiledStyleValue } from '../shared/style-helpers';
 
 export class SsrSafeHtml {
@@ -28,6 +28,14 @@ function ssrChildToString(child: unknown): string {
   }
   if (isSsrNode(child)) {
     return ssrNodeToString(child);
+  }
+  if (isTemplateNode(child)) {
+    return ssrNodeToString({
+      __auwlaSsr: true,
+      tag: child.tag,
+      props: child.props,
+      children: child.children,
+    });
   }
   if (child && typeof child === 'object') {
     if ('__isSsrSafeHtml' in child) {

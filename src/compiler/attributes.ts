@@ -627,7 +627,7 @@ export function compileTemplateAttribute(
     if (ctx.ssr) return '';
     ctx.deps.push(value);
     ctx.patches.push({
-      code: `${elementVar}.innerHTML = (${expandedValue})?.__html ?? '';`,
+      code: `${elementVar}.innerHTML = (${value})?.__html ?? '';`,
       deps: [value],
     });
     return '';

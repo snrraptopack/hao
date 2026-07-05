@@ -46,6 +46,19 @@ describe('SSR runtime bailout', () => {
     expect(__ssrNode(outer)).toBe('<div><span>inner</span></div>');
   });
 
+  it('__ssrNode stringifies template descriptors produced by compiled JSX', () => {
+    const node = {
+      __auwlaTemplate: true,
+      ownerId: null,
+      tag: 'li',
+      props: { class: 'item' },
+      children: ['Introduction'],
+      key: 'intro',
+    };
+
+    expect(__ssrNode([node])).toBe('<li class="item">Introduction</li>');
+  });
+
   it('__ssrNode stringifies boolean attributes', () => {
     ;(globalThis as any).document = undefined;
     const node = h('input', { disabled: true, required: false, type: 'text' });
