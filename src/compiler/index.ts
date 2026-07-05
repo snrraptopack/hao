@@ -15,6 +15,7 @@ import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTrackin
 
 export type CompileOptions = {
   ssr?: boolean;
+  islands?: boolean;
 };
 
 const EVENT_ATTR_PATTERN = /^on[A-Z]/;
@@ -48,9 +49,10 @@ function compileRenderClosure(
   forceAllUpdate = false,
   preUpdateStatements: readonly string[] = [],
   options?: CompileOptions,
+  containingFunction?: ts.Node | null,
 ): string | null {
   const ssr = options?.ssr === true;
-  const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx, forceAllUpdate, preUpdateStatements, ssr);
+  const templateResult = compileTemplateRootBlock(source, jsx, derivedCtx, forceAllUpdate, preUpdateStatements, ssr, options, containingFunction);
   if (templateResult) return templateResult;
 
   if (ssr) return null;
@@ -129,7 +131,7 @@ function transformReturn(
     if (!body) return null;
   }
 
-  const compiled = compileRenderClosure(source, body, derivedCtx, leadingStatements.length > 0, leadingStatements, options);
+  const compiled = compileRenderClosure(source, body, derivedCtx, leadingStatements.length > 0, leadingStatements, options, _containingFunction);
   if (!compiled) return null;
 
   return `return ${compiled};`;
@@ -202,6 +204,146 @@ function containsReturn(node: ts.Node): boolean {
   }
   walk(node);
   return found;
+}
+
+export function detectComponentReactivity(node: ts.Node, derivedCtx: DerivedContext | null): boolean {
+  let isReactive = false;
+
+  function walk(n: ts.Node) {
+    if (isReactive) return;
+
+    // 1. Check for event handlers or bind attributes in JSX
+    if (ts.isJsxAttribute(n) && ts.isIdentifier(n.name)) {
+      const name = n.name.text;
+      if (name.startsWith('on') || name === 'bind' || name.startsWith('emit:')) {
+        isReactive = true;
+        return;
+      }
+    }
+
+    // 2. Check for local variable mutations
+    if (derivedCtx && derivedCtx.locals.size > 0) {
+      if (ts.isBinaryExpression(n)) {
+        const op = n.operatorToken.kind;
+        const isAssign = op === ts.SyntaxKind.EqualsToken ||
+          (op >= ts.SyntaxKind.FirstAssignment && op <= ts.SyntaxKind.LastAssignment);
+        if (isAssign && ts.isIdentifier(n.left) && derivedCtx.locals.has(n.left.text)) {
+          isReactive = true;
+          return;
+        }
+      }
+      if (ts.isPostfixUnaryExpression(n) || ts.isPrefixUnaryExpression(n)) {
+        if (ts.isIdentifier(n.operand) && derivedCtx.locals.has(n.operand.text)) {
+          isReactive = true;
+          return;
+        }
+      }
+    }
+
+    ts.forEachChild(n, walk);
+  }
+
+  walk(node);
+  return isReactive;
+}
+
+export function returnsJsx(node: ts.Node): boolean {
+  let found = false;
+  function walk(n: ts.Node) {
+    if (found) return;
+    if (ts.isReturnStatement(n) && n.expression) {
+      const expr = n.expression;
+      if (ts.isArrowFunction(expr)) {
+        const body = expr.body;
+        if (ts.isBlock(body)) {
+          const innerReturn = unwrapJsxReturn(body);
+          if (innerReturn) {
+            found = true;
+            return;
+          }
+        } else if (ts.isJsxElement(body) || ts.isJsxSelfClosingElement(body) || ts.isJsxFragment(body)) {
+          found = true;
+          return;
+        }
+      } else {
+        const unwrapped = unwrapJsxExpression(expr);
+        if (unwrapped) {
+          found = true;
+          return;
+        }
+      }
+    }
+    ts.forEachChild(n, walk);
+  }
+  walk(node);
+  return found;
+}
+
+export function componentNameFromFunction(node: ts.Node): string | null {
+  if (
+    (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) &&
+    node.name
+  ) {
+    return node.name.text;
+  }
+
+  const parent = node.parent;
+  if (parent && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
+    return parent.name.text;
+  }
+
+  if (
+    parent &&
+    ts.isExportAssignment(parent)
+  ) {
+    return 'default';
+  }
+
+  if (
+    parent &&
+    ts.isParenthesizedExpression(parent) &&
+    parent.parent &&
+    ts.isExportAssignment(parent.parent)
+  ) {
+    return 'default';
+  }
+
+  return null;
+}
+
+function bindingPropertyName(source: ts.SourceFile, element: ts.BindingElement): string | null {
+  if (!element.propertyName) {
+    return ts.isIdentifier(element.name) ? element.name.text : null;
+  }
+  if (ts.isIdentifier(element.propertyName)) return element.propertyName.text;
+  if (ts.isStringLiteral(element.propertyName) || ts.isNumericLiteral(element.propertyName)) {
+    return element.propertyName.text;
+  }
+  return element.propertyName.getText(source);
+}
+
+export function extractPropsExpression(parameters: ts.NodeArray<ts.ParameterDeclaration>): string {
+  if (parameters.length === 0) return '{}';
+  const firstParam = parameters[0]!;
+  if (ts.isIdentifier(firstParam.name)) {
+    return `(${firstParam.name.text} ?? {})`;
+  }
+  if (ts.isObjectBindingPattern(firstParam.name)) {
+    const props: string[] = [];
+    for (const element of firstParam.name.elements) {
+      if (!ts.isBindingElement(element)) continue;
+      if (element.dotDotDotToken && ts.isIdentifier(element.name)) {
+        props.push(`...${element.name.text}`);
+        continue;
+      }
+      if (ts.isIdentifier(element.name)) {
+        const key = bindingPropertyName(firstParam.getSourceFile(), element);
+        if (key) props.push(`${JSON.stringify(key)}: ${element.name.text}`);
+      }
+    }
+    return `{ ${props.join(', ')} }`;
+  }
+  return '{}';
 }
 
 function hasSideEffects(node: ts.Node): boolean {
@@ -340,6 +482,23 @@ function findReplacements(
 
     if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
       if (isSkippedComponent(node)) return;
+
+      if (containingFunction === null && options?.islands && !options?.ssr && returnsJsx(node)) {
+        const setupStatements = extractSetupStatements(node);
+        const childDerivedCtx = setupStatements.length > 0
+          ? buildDerivedContext(source, setupStatements)
+          : null;
+        if (!detectComponentReactivity(node, childDerivedCtx)) {
+          if (node.body) {
+            replacements.push({
+              start: node.body.getStart(source),
+              end: node.body.getEnd(),
+              text: `{ return null; }`,
+            });
+            return;
+          }
+        }
+      }
 
       const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
       let willWrap = false;

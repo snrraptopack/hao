@@ -121,7 +121,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc --project tsconfig.lib.json && cp src/vite-router/client.d.ts dist/vite-router/client.d.ts",
+    "build": "vite build && tsc --project tsconfig.lib.json && cp src/vite-router/client.d.ts dist/vite-router/client.d.ts && bun run scratch/sync_site.ts",
     "preview": "vite preview",
     "prepublishOnly": "bun run build",
     "test": "vitest run --coverage",

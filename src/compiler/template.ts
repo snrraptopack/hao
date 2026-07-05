@@ -3,6 +3,7 @@
  */
 
 import ts from 'typescript';
+import { componentNameFromFunction, detectComponentReactivity, extractPropsExpression, CompileOptions } from './index';
 import { TemplateContext, isSvgTag } from './types';
 import { compileTemplateAttribute, jsxAttributeName } from './attributes';
 import type { DerivedContext } from './derived';
@@ -293,6 +294,8 @@ export function compileTemplateRootBlock(
   forceAllUpdate = false,
   preUpdateStatements: readonly string[] = [],
   ssr = false,
+  options?: CompileOptions,
+  containingFunction?: ts.Node | null,
 ): string | null {
   const ctx: TemplateContext = {
     source,
@@ -315,7 +318,12 @@ export function compileTemplateRootBlock(
 
   if (ssr) {
     const preLines = preUpdateStatements.map((line) => `          ${line}`).join('\n');
-    const expandedHtml = html;
+    let expandedHtml = html;
+    if (options?.islands && containingFunction && detectComponentReactivity(containingFunction, derivedCtx)) {
+      const componentName = componentNameFromFunction(containingFunction) || 'default';
+      const propsExpr = extractPropsExpression((containingFunction as any).parameters || []);
+      expandedHtml = `<div data-auwla-island="${componentName}" data-props="\\\${__escapeHtml(JSON.stringify(${propsExpr}))}">${expandedHtml}</div>`;
+    }
     return `__ssrBlock(() => {
 ${preLines}${preLines ? '\n' : ''}          return \`${expandedHtml}\`;
         })`;

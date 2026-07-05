@@ -98,6 +98,14 @@ export function generateVirtualModule(pages: PageFile[]): string {
   lines.push('])')
   lines.push('')
 
+  lines.push('if (typeof window !== \'undefined\') {')
+  lines.push('  globalThis.__auwla_islandModules = globalThis.__auwla_islandModules ?? []')
+  for (const [i] of pages.entries()) {
+    lines.push(`  globalThis.__auwla_islandModules.push({ exports: page${i} })`)
+  }
+  lines.push('}')
+  lines.push('')
+
   return lines.join('\n')
 }
 
@@ -253,6 +261,19 @@ export function generateLazyVirtualModule(pages: PageFile[]): string {
   }
 
   lines.push('])')
+  lines.push('')
+
+  lines.push('if (typeof window !== \'undefined\') {')
+  lines.push('  globalThis.__auwla_islandModules = globalThis.__auwla_islandModules ?? []')
+  for (const [i] of staticPages.entries()) {
+    lines.push(`  globalThis.__auwla_islandModules.push({ exports: sp${i} })`)
+  }
+  for (const page of lazyPages) {
+    const key        = JSON.stringify(page.routePath)
+    const importPath = JSON.stringify(page.filePath.replace(/\\/g, '/'))
+    lines.push(`  globalThis.__auwla_islandModules.push({ load: () => __load(${key}, () => import(${importPath})) })`)
+  }
+  lines.push('}')
   lines.push('')
 
   // Export a __prefetch map so Link can pre-warm chunks on hover.
@@ -482,6 +503,26 @@ export function generateVirtualModuleWithLayouts(
   }
 
   lines.push('])')
+  lines.push('')
+
+  lines.push('if (typeof window !== \'undefined\') {')
+  lines.push('  globalThis.__auwla_islandModules = globalThis.__auwla_islandModules ?? []')
+  for (const layout of allLayouts) {
+    const alias = layoutAlias.get(layout.filePath)!
+    lines.push(`  globalThis.__auwla_islandModules.push({ exports: ${alias} })`)
+  }
+  for (const page of allPages) {
+    const alias = pageAlias.get(page.filePath)
+    if (alias) {
+      lines.push(`  globalThis.__auwla_islandModules.push({ exports: ${alias} })`)
+    }
+  }
+  for (const page of lazyPages) {
+    const key        = JSON.stringify(page.routePath)
+    const importPath = JSON.stringify(page.filePath.replace(/\\/g, '/'))
+    lines.push(`  globalThis.__auwla_islandModules.push({ load: () => __load(${key}, () => import(${importPath})) })`)
+  }
+  lines.push('}')
   lines.push('')
 
   // Prefetch map for lazy pages

@@ -1,6 +1,6 @@
 import type { Register } from '../router/types';
 
-export type AuwlaRenderMode = 'ssr' | 'ssg' | 'spa';
+export type AuwlaRenderMode = 'ssr' | 'ssg' | 'spa' | 'islands' | 'island';
 
 export interface RouteRule {
   renderMode?: AuwlaRenderMode;

@@ -11,6 +11,7 @@ export {
   reactive,
   toNode,
   patchNode,
+  hydrateIslands,
 } from './runtime/index';
 
 

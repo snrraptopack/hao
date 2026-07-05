@@ -182,7 +182,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       //      This is the signal that distinguishes the server pass from the client pass for the
       //      same file. Using OR here (the previous bug) caused client modules to be compiled
       //      as SSR too, producing `[object Object]` instead of DOM nodes during hydration.
-      const wantsServerRendering = options.target === 'ssr' || options.target === 'ssg';
+      const wantsServerRendering = options.target === 'ssr' || options.target === 'ssg' || options.target === 'islands' || options.target === 'island';
       const viteIsInSsrContext =
         transformOptions?.ssr === true ||
         // @ts-ignore: Vite 6 Environment API
@@ -191,9 +191,10 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         this.environment?.name === 'server';
 
       const ssr = wantsServerRendering && viteIsInSsrContext;
+      const islands = options.target === 'islands' || options.target === 'island';
         
       let compiled = cssHandler.transform(code, file);
-      compiled = compileAuwla(compiled, file, { ssr });
+      compiled = compileAuwla(compiled, file, { ssr, islands });
 
       if (compiled === code) {
         const marker = markerCode(false, options.compiler?.debugFlag);

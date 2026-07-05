@@ -412,3 +412,158 @@ describe('basic render closure compilation', () => {
     expect((root.querySelector('div') as HTMLDivElement).style.color).toBe('blue');
   });
 });
+
+describe('Auwla Islands Architecture', () => {
+  test('static components in islands ssr mode render to raw html', () => {
+    const source = `
+      function StaticComp() {
+        return <div>Hello Static</div>;
+      }
+      exports.StaticComp = StaticComp;
+    `;
+    const compiled = compileAuwla(source, 'static.tsx', { ssr: true, islands: true });
+    expect(compiled).toContain('__ssrBlock');
+    expect(compiled).not.toContain('data-auwla-island');
+    expect(compiled).toContain('Hello Static');
+  });
+
+  test('reactive components in islands ssr mode render with island wrappers and props', () => {
+    const source = `
+      function Counter(props: { initial: number }) {
+        let count = props.initial;
+        return <button onClick={() => count++}>Count: {count}</button>;
+      }
+      exports.Counter = Counter;
+    `;
+    const compiled = compileAuwla(source, 'counter.tsx', { ssr: true, islands: true });
+    expect(compiled).toContain('data-auwla-island="Counter"');
+    expect(compiled).toContain('data-props="\\${__escapeHtml(JSON.stringify((props ?? {})))}"');
+  });
+
+  test('destructured props in reactive components are correctly serialized in islands ssr mode', () => {
+    const source = `
+      function Counter({ initial, step }) {
+        let count = initial;
+        return <button onClick={() => count += step}>Count: {count}</button>;
+      }
+      exports.Counter = Counter;
+    `;
+    const compiled = compileAuwla(source, 'counter.tsx', { ssr: true, islands: true });
+    expect(compiled).toContain('data-auwla-island="Counter"');
+    expect(compiled).toContain('JSON.stringify({ "initial": initial, "step": step })');
+  });
+
+  test('arrow function components use their variable name as island id', () => {
+    const source = `
+      const Counter = (props) => {
+        let count = props.initial;
+        return <button onClick={() => count++}>Count: {count}</button>;
+      };
+      exports.Counter = Counter;
+    `;
+    const compiled = compileAuwla(source, 'counter.tsx', { ssr: true, islands: true });
+    expect(compiled).toContain('data-auwla-island="Counter"');
+    expect(compiled).not.toContain('AnonymousIsland');
+  });
+
+  test('no-prop island components serialize empty props object', () => {
+    const source = `
+      function Counter() {
+        let count = 0;
+        return <button onClick={() => count++}>Count: {count}</button>;
+      }
+      exports.Counter = Counter;
+    `;
+    const compiled = compileAuwla(source, 'counter.tsx', { ssr: true, islands: true });
+    expect(compiled).toContain('JSON.stringify({})');
+  });
+
+  test('static components in client islands mode compile to null stub', () => {
+    const source = `
+      function StaticComp() {
+        return <div>Hello Static</div>;
+      }
+      exports.StaticComp = StaticComp;
+    `;
+    const compiled = compileAuwla(source, 'static.tsx', { ssr: false, islands: true });
+    expect(compiled).toContain('function StaticComp() { return null; }');
+    expect(compiled).not.toContain('__componentBlock');
+  });
+
+  test('hydrateIslands resolves and boots elements carrying data-auwla-island', async () => {
+    const { hydrateIslands } = await import('../../src/runtime/app');
+
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <div data-auwla-island="Counter" data-props="{&quot;initial&quot;:10}">
+        <button>Count: 10</button>
+      </div>
+    `;
+    document.body.appendChild(root);
+
+    const CounterMock = (props: { initial: number }) => {
+      let count = props.initial;
+      const button = root.querySelector('button')!;
+      button.addEventListener('click', () => {
+        count++;
+        button.textContent = `Count: ${count}`;
+      });
+      return () => button;
+    };
+
+    hydrateIslands((name) => {
+      if (name === 'Counter') return CounterMock;
+      return null;
+    });
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    const button = root.querySelector('button')!;
+    expect(button.textContent).toBe('Count: 10');
+
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(button.textContent).toBe('Count: 11');
+
+    document.body.removeChild(root);
+  });
+
+  test('createMemoApp auto-hydrates island roots instead of patching whole SSR tree', async () => {
+    const { createMemoApp } = await import('../../src/runtime/app');
+
+    const root = document.createElement('div');
+    root.setAttribute('data-auwla-ssr', 'true');
+    root.innerHTML = `
+      <section>
+        <p class="static-copy">Static SSR copy</p>
+        <div data-auwla-island="Counter" data-props="{&quot;initial&quot;:2}">
+          <button>Count: 2</button>
+        </div>
+      </section>
+    `;
+    document.body.appendChild(root);
+
+    const previous = (globalThis as any).__auwla_islandModules;
+    (globalThis as any).__auwla_islandModules = [{
+      exports: {
+        Counter: (props: { initial: number }) => {
+          let count = props.initial;
+          return () => h('button', { onClick: () => count++ }, 'Count: ', count);
+        },
+      },
+    }];
+
+    createMemoApp(root, () => h('main', null, 'client root should not replace SSR'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelector('.static-copy')?.textContent).toBe('Static SSR copy');
+    const button = root.querySelector('button')!;
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(button.textContent).toBe('Count: 3');
+
+    (globalThis as any).__auwla_islandModules = previous;
+    document.body.removeChild(root);
+  });
+});
+

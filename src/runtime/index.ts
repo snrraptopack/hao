@@ -28,6 +28,7 @@ export {
 export {
   commit,
   createMemoApp,
+  hydrateIslands,
 } from './app';
 
 export {

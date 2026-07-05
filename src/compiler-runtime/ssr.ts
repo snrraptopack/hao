@@ -33,6 +33,18 @@ function ssrChildToString(child: unknown): string {
     if ('__isSsrSafeHtml' in child) {
       return (child as SsrSafeHtml).html;
     }
+    if ('nodeType' in child) {
+      const node = child as any;
+      if (node.nodeType === 8) {
+        return `<!--${node.textContent}-->`;
+      }
+      if (node.nodeType === 3) {
+        return __escapeHtml(node.textContent);
+      }
+      if (node.nodeType === 11) {
+        return node.childNodes.map(ssrChildToString).join('');
+      }
+    }
   }
   if (typeof child === 'function') {
     return ssrChildToString((child as () => unknown)());
