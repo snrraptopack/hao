@@ -100,14 +100,14 @@ describe('remote track functions', () => {
       new Response(JSON.stringify({ id: '1', title: 'Hello' }), { status: 200 }),
     )
 
-    const first = track.get('posts.getPost' as any, { routePath: '/posts/1' })
+    const first = track.get('posts.getPost' as any, { routePath: '/posts/1', global: true })
     await new Promise((r) => setTimeout(r, 10))
     expect(first.resolved).toBe(true)
 
     mockFetch.mockClear()
 
     // Simulate the same query being reached again after navigating away.
-    const second = track.get('posts.getPost' as any, { routePath: '/posts' })
+    const second = track.get('posts.getPost' as any, { routePath: '/posts', global: true })
     await new Promise((r) => setTimeout(r, 10))
 
     expect(second.resolved).toBe(true)

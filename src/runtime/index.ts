@@ -28,8 +28,10 @@ export {
 export {
   commit,
   createMemoApp,
-  hydrateIslands,
 } from './app';
+
+export { hydrateIslands, createIslandsApp } from './islands';
+export { createStaticApp } from './static';
 
 export {
   createMemoElement,

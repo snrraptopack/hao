@@ -427,3 +427,87 @@ function sortRoutes(files: PageFile[]): PageFile[] {
     return a.routePath.localeCompare(b.routePath)
   })
 }
+
+/**
+ * Scans `srcDir` recursively for all components and exports a mapping of component names to file paths.
+ */
+export function scanAllComponents(
+  srcDir: string,
+  options: { extensions?: string[] } = {},
+): { name: string; filePath: string }[] {
+  const extensions = options.extensions ?? DEFAULT_EXTENSIONS;
+  const collected: { name: string; filePath: string }[] = [];
+
+  function walk(currentDir: string) {
+    let entries: string[];
+    try {
+      entries = readdirSync(currentDir);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = join(currentDir, entry);
+      let stat;
+      try {
+        stat = statSync(fullPath);
+      } catch {
+        continue;
+      }
+      if (stat.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+      if (!extensions.includes(extname(entry))) continue;
+
+      let source = '';
+      try {
+        source = readFileSync(fullPath, 'utf-8');
+      } catch {
+        continue;
+      }
+
+      const componentNames = new Set<string>();
+
+      // Matches: export function MyComponent, export async function MyComponent
+      const funcRegex = /\bexport\s+(?:async\s+)?function\s+([A-Z]\w*)\b/g;
+      let match;
+      while ((match = funcRegex.exec(source)) !== null) {
+        if (match[1]) componentNames.add(match[1]);
+      }
+
+      // Matches: export const MyComponent = ...
+      const constRegex = /\bexport\s+const\s+([A-Z]\w*)\b/g;
+      while ((match = constRegex.exec(source)) !== null) {
+        if (match[1]) componentNames.add(match[1]);
+      }
+
+      // Matches: export default function MyComponent
+      const defaultFuncRegex = /\bexport\s+default\s+(?:async\s+)?function\s+([A-Z]\w*)\b/g;
+      while ((match = defaultFuncRegex.exec(source)) !== null) {
+        if (match[1]) componentNames.add(match[1]);
+      }
+
+      // Matches: export default MyComponent
+      const defaultRefRegex = /\bexport\s+default\s+([A-Z]\w*)\b/g;
+      while ((match = defaultRefRegex.exec(source)) !== null) {
+        if (match[1]) componentNames.add(match[1]);
+      }
+
+      // If it has a default export but no named component matched:
+      // (e.g. export default function() { ... } or export default () => { ... })
+      if (/\bexport\s+default\b/.test(source) && componentNames.size === 0) {
+        const basename = entry.replace(/\.[^./]+$/, '');
+        if (/^[A-Z]/.test(basename)) {
+          componentNames.add(basename);
+        }
+      }
+
+      for (const name of componentNames) {
+        collected.push({ name, filePath: fullPath });
+      }
+    }
+  }
+
+  walk(srcDir);
+  return collected;
+}

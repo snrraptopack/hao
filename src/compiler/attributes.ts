@@ -617,8 +617,23 @@ export function compileTemplateAttribute(
     return '';
   }
 
+  // `dangerouslySetInnerHTML` is a special prop that maps to `el.innerHTML`.
+  // SSR: handled in compileTemplateNode (returns the HTML string inline).
+  // Client: generate a reactive patch that assigns `el.innerHTML = value.__html`
+  //         so the content updates whenever the loader value changes.
+  //         Falling through to `__setAttribute` here would stringify the object
+  //         to "[object Object]" on a DOM attribute — innerHTML would never be set.
+  if (name === 'dangerouslySetInnerHTML') {
+    if (ctx.ssr) return '';
+    ctx.deps.push(value);
+    ctx.patches.push({
+      code: `${elementVar}.innerHTML = (${expandedValue})?.__html ?? '';`,
+      deps: [value],
+    });
+    return '';
+  }
+
   if (ctx.ssr) {
-    if (name === 'dangerouslySetInnerHTML') return '';
     if (BOOLEAN_HTML_ATTRS.has(name)) {
       return `\${${expandedValue} ? ' ${name}' : ''}`;
     }

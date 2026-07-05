@@ -12,6 +12,8 @@ export {
   toNode,
   patchNode,
   hydrateIslands,
+  createIslandsApp,
+  createStaticApp,
 } from './runtime/index';
 
 

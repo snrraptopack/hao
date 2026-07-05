@@ -12,6 +12,11 @@ declare module 'auwla:routes' {
   export default routes
 }
 
+declare module 'auwla:islands' {
+  const islands: unknown[]
+  export default islands
+}
+
 declare module 'auwla:server-manifest' {
   import type { ServerManifest } from 'auwla/server'
   const manifest: ServerManifest

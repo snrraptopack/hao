@@ -21,6 +21,7 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
+import { hydrateIslands } from './islands';
 import {
   clearComponentComputedGetters,
   clearComponentEffects,
@@ -133,13 +134,7 @@ export function createMemoApp<TModel>(
     root.hasAttribute('data-auwla-ssr') &&
     root.querySelector('[data-auwla-island]')
   ) {
-    hydrateIslands(resolveRegisteredIslandComponent);
-    return {
-      ...(view ? { model: modelOrApp as TModel } : {}),
-      root,
-      render() {},
-      destroy() {},
-    };
+    hydrateIslands();
   }
 
   const cache = new Map<string | number, MemoEntry>();
@@ -430,97 +425,3 @@ export function flushSync(): void {
     app.flushSync();
   }
 }
-
-type IslandModuleEntry = {
-  exports?: Record<string, any>;
-  load?: () => Promise<Record<string, any>>;
-};
-
-function resolveFromModule(mod: Record<string, any> | undefined, name: string): any {
-  if (!mod) return null;
-  if (mod[name]) return mod[name];
-  if (name === 'default' && mod.default) return mod.default;
-  if (mod.default && typeof mod.default === 'function' && mod.default.name === name) {
-    return mod.default;
-  }
-  for (const value of Object.values(mod)) {
-    if (typeof value === 'function' && value.name === name) return value;
-  }
-  return null;
-}
-
-async function resolveRegisteredIslandComponent(name: string): Promise<any> {
-  const entries = ((globalThis as any).__auwla_islandModules ?? []) as IslandModuleEntry[];
-  for (const entry of entries) {
-    const eager = resolveFromModule(entry.exports, name);
-    if (eager) return eager;
-  }
-  for (const entry of entries) {
-    if (!entry.load) continue;
-    const mod = await entry.load();
-    entry.exports = mod;
-    const loaded = resolveFromModule(mod, name);
-    if (loaded) return loaded;
-  }
-  return null;
-}
-
-export function hydrateIslands(getComponent: (name: string) => any | Promise<any>): void {
-  if (typeof window === 'undefined') return;
-  const elements = document.querySelectorAll('[data-auwla-island]');
-  const hydrated = new WeakSet<HTMLElement>();
-
-  async function triggerHydration(el: HTMLElement) {
-    if (hydrated.has(el)) return;
-    hydrated.add(el);
-    const componentName = el.getAttribute('data-auwla-island');
-    const rawProps = el.getAttribute('data-props');
-    if (!componentName) return;
-
-    let props = {};
-    try {
-      props = rawProps ? JSON.parse(rawProps) : {};
-    } catch (error) {
-      console.warn(`[Auwla] Failed to parse props for island "${componentName}".`, error);
-    }
-
-    const Component = await getComponent(componentName);
-    if (!Component) {
-      console.warn(`[Auwla] Island component "${componentName}" not found.`);
-      return;
-    }
-
-    el.setAttribute('data-auwla-ssr', 'true');
-    createMemoApp(el, Component(props));
-  }
-
-  const useObserver = typeof IntersectionObserver !== 'undefined';
-  if (!useObserver) {
-    for (const el of Array.from(elements)) {
-      triggerHydration(el as HTMLElement);
-    }
-    return;
-  }
-
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        const el = entry.target as HTMLElement;
-        observer.unobserve(el);
-        triggerHydration(el);
-      }
-    }
-  }, { rootMargin: '200px' });
-
-  for (const el of Array.from(elements)) {
-    const rect = el.getBoundingClientRect();
-    const isAboveFold = rect.top < window.innerHeight;
-
-    if (isAboveFold) {
-      triggerHydration(el as HTMLElement);
-    } else {
-      observer.observe(el);
-    }
-  }
-}
-

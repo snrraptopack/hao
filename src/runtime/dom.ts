@@ -406,6 +406,9 @@ export function h<P extends Record<string, unknown>>(
   ...children: MemoChild[]
 ): Node | RenderClosure;
 export function h(type: any, props?: MemoProps, ...children: MemoChild[]): MemoChild {
+  if (type && typeof type === 'object' && typeof type.default === 'function') {
+    type = type.default;
+  }
   if (typeof type === 'function') {
     return createComponentClosure(type, props, children);
   }

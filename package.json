@@ -74,6 +74,18 @@
       "types": "./dist/runtime/ssr.d.ts",
       "import": "./dist/runtime/ssr.js"
     },
+    "./runtime/app": {
+      "types": "./dist/runtime/app.d.ts",
+      "import": "./dist/runtime/app.js"
+    },
+    "./runtime/islands": {
+      "types": "./dist/runtime/islands.d.ts",
+      "import": "./dist/runtime/islands.js"
+    },
+    "./runtime/static": {
+      "types": "./dist/runtime/static.d.ts",
+      "import": "./dist/runtime/static.js"
+    },
     "./client": {
       "types": "./dist/client/rpc.d.ts",
       "import": "./dist/client/rpc.js"
@@ -121,7 +133,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc --project tsconfig.lib.json && cp src/vite-router/client.d.ts dist/vite-router/client.d.ts && bun run scratch/sync_site.ts",
+    "build": "vite build && tsc --project tsconfig.lib.json && node -e \"import('node:fs').then(fs => fs.copyFileSync('src/vite-router/client.d.ts', 'dist/vite-router/client.d.ts'))\" && bun run scratch/sync_site.ts",
     "preview": "vite preview",
     "prepublishOnly": "bun run build",
     "test": "vitest run --coverage",

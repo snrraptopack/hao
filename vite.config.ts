@@ -11,7 +11,7 @@ export default defineConfig({
     },
     // Vite 8: rollupOptions is deprecated, use rolldownOptions
     rolldownOptions: {
-      external: ['typescript', 'vite', 'path', 'fs', 'node:fs', 'node:path', 'node:os', 'node:async_hooks', 'node:url', 'node:module', 'auwla/adapters/fetch'],
+      external: ['typescript', 'vite', 'path', 'fs', 'node:fs', 'node:path', 'node:os', 'node:async_hooks', 'node:url', 'node:module', 'auwla/adapters/fetch', 'auwla:islands'],
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
@@ -31,6 +31,9 @@ export default defineConfig({
         'config/index': resolve(__dirname, 'src/config/index.ts'),
         'server/index': resolve(__dirname, 'src/server/index.ts'),
         'runtime/ssr': resolve(__dirname, 'src/runtime/ssr.ts'),
+        'runtime/app': resolve(__dirname, 'src/runtime/app.ts'),
+        'runtime/islands': resolve(__dirname, 'src/runtime/islands.ts'),
+        'runtime/static': resolve(__dirname, 'src/runtime/static.ts'),
         'client/rpc': resolve(__dirname, 'src/client/rpc.ts'),
         'adapters/fetch': resolve(__dirname, 'src/adapters/fetch.ts'),
         'adapters/hono': resolve(__dirname, 'src/adapters/hono.ts'),
@@ -58,7 +61,7 @@ export default defineConfig({
   assetsInclude: [],
   optimizeDeps: {
     entries: ['index.html'],
-    exclude: ['auwla:server-manifest', 'auwla:routes'],
+    exclude: ['auwla:server-manifest', 'auwla:routes', 'auwla:islands'],
     include: [],
     // Vite 8: esbuildOptions is deprecated, use rolldownOptions
     // loader → moduleTypes
@@ -75,6 +78,9 @@ export default defineConfig({
       { find: 'auwla/jsx-dev-runtime', replacement: resolve(__dirname, 'src/jsx-dev-runtime.ts') },
       { find: 'auwla/compiler', replacement: resolve(__dirname, 'src/compiler.ts') },
       { find: 'auwla/vite', replacement: resolve(__dirname, 'src/vite.ts') },
+      { find: 'auwla/runtime/app', replacement: resolve(__dirname, 'src/runtime/app.ts') },
+      { find: 'auwla/runtime/islands', replacement: resolve(__dirname, 'src/runtime/islands.ts') },
+      { find: 'auwla/runtime/static', replacement: resolve(__dirname, 'src/runtime/static.ts') },
       { find: 'auwla/events/intersect', replacement: resolve(__dirname, 'src/events/intersect.ts') },
       { find: 'auwla/events/touch', replacement: resolve(__dirname, 'src/events/touch.ts') },
       { find: 'auwla/events/keyboard', replacement: resolve(__dirname, 'src/events/keyboard.ts') },

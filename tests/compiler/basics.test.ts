@@ -437,7 +437,13 @@ describe('Auwla Islands Architecture', () => {
     `;
     const compiled = compileAuwla(source, 'counter.tsx', { ssr: true, islands: true });
     expect(compiled).toContain('data-auwla-island="Counter"');
-    expect(compiled).toContain('data-props="\\${__escapeHtml(JSON.stringify((props ?? {})))}"');
+    expect(compiled).toContain('data-props="${__escapeHtml(JSON.stringify((props ?? {})))}"');
+    expect(compiled).not.toContain('data-props="\\${__escapeHtml');
+
+    const { Counter } = evaluateCompiled(compiled) as { Counter: (props: { initial: number }) => unknown };
+    const html = String(Counter({ initial: 7 }));
+    expect(html).toContain('data-props="{&quot;initial&quot;:7}"');
+    expect(html).not.toContain('${__escapeHtml');
   });
 
   test('destructured props in reactive components are correctly serialized in islands ssr mode', () => {
@@ -478,7 +484,7 @@ describe('Auwla Islands Architecture', () => {
     expect(compiled).toContain('JSON.stringify({})');
   });
 
-  test('static components in client islands mode compile to null stub', () => {
+  test('static components in client islands mode compile normally for router hydration', () => {
     const source = `
       function StaticComp() {
         return <div>Hello Static</div>;
@@ -486,12 +492,12 @@ describe('Auwla Islands Architecture', () => {
       exports.StaticComp = StaticComp;
     `;
     const compiled = compileAuwla(source, 'static.tsx', { ssr: false, islands: true });
-    expect(compiled).toContain('function StaticComp() { return null; }');
-    expect(compiled).not.toContain('__componentBlock');
+    expect(compiled).not.toContain('function StaticComp() { return null; }');
+    expect(compiled).toContain('__componentBlock');
   });
 
   test('hydrateIslands resolves and boots elements carrying data-auwla-island', async () => {
-    const { hydrateIslands } = await import('../../src/runtime/app');
+    const { hydrateIslands } = await import('../../src/runtime/islands');
 
     const root = document.createElement('div');
     root.innerHTML = `
@@ -515,7 +521,7 @@ describe('Auwla Islands Architecture', () => {
       if (name === 'Counter') return CounterMock;
       return null;
     });
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     const button = root.querySelector('button')!;
     expect(button.textContent).toBe('Count: 10');
@@ -528,7 +534,49 @@ describe('Auwla Islands Architecture', () => {
     document.body.removeChild(root);
   });
 
-  test('createMemoApp auto-hydrates island roots instead of patching whole SSR tree', async () => {
+  test('hydrateIslands resolves object-shaped island registries', async () => {
+    const { hydrateIslands } = await import('../../src/runtime/islands');
+
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <div data-auwla-island="Counter" data-props="{&quot;initial&quot;:4}">
+        <button>Count: 4</button>
+      </div>
+    `;
+    document.body.appendChild(root);
+
+    const previous = (globalThis as any).__auwla_islandModules;
+    const previousObserver = (globalThis as any).IntersectionObserver;
+    (globalThis as any).IntersectionObserver = undefined;
+    (globalThis as any).__auwla_islandModules = {
+      Counter: {
+        load: async () => ({
+          Counter: (props: { initial: number }) => {
+            let count = props.initial;
+            return () => h('button', { onClick: () => count++ }, 'Hydrated: ', count);
+          },
+        }),
+      },
+    };
+
+    hydrateIslands();
+    for (let i = 0; i < 5; i++) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+
+    let button = root.querySelector('button')!;
+    expect(button.textContent).toBe('Hydrated: 4');
+    button.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    button = root.querySelector('button')!;
+    expect(button.textContent).toBe('Hydrated: 5');
+
+    (globalThis as any).__auwla_islandModules = previous;
+    (globalThis as any).IntersectionObserver = previousObserver;
+    document.body.removeChild(root);
+  });
+
+  test('createMemoApp hydrates island roots while preserving the SSR app shell', async () => {
     const { createMemoApp } = await import('../../src/runtime/app');
 
     const root = document.createElement('div');
@@ -553,8 +601,15 @@ describe('Auwla Islands Architecture', () => {
       },
     }];
 
-    createMemoApp(root, () => h('main', null, 'client root should not replace SSR'));
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    createMemoApp(root, () => h('section', null,
+      h('p', { class: 'static-copy' }, 'Static SSR copy'),
+      h('div', { 'data-auwla-island': 'Counter', 'data-props': '{"initial":2}' },
+        h('button', null, 'Count: 2'),
+      ),
+    ));
+    for (let i = 0; i < 5; i++) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
 
     expect(root.querySelector('.static-copy')?.textContent).toBe('Static SSR copy');
     const button = root.querySelector('button')!;

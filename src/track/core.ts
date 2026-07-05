@@ -685,6 +685,7 @@ export type TrackRemoteOptions = TrackOptions & {
   signal?: AbortSignal;
   /** Override the route path used to extract server params. Defaults to the current browser URL. */
   routePath?: string;
+  global?: boolean;
 };
 
 

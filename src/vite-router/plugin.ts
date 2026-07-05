@@ -24,7 +24,7 @@ import { resolve, dirname, basename, relative } from 'node:path'
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import * as ts from 'typescript'
 import type { AuwlaRouterOptions } from './types'
-import { scanPagesAndLayouts, buildDirectoryTree } from './scanner'
+import { scanPagesAndLayouts, buildDirectoryTree, scanAllComponents } from './scanner'
 import { generateVirtualModule, generateLazyVirtualModule, generateVirtualModuleWithLayouts, generateTypeFile } from './codegen'
 import { scanServerModules, SERVER_EXTENSIONS, filePathToRouteName, filePathToServerRouteName } from './server-scanner'
 import { buildServerManifest, writeServerManifest } from './manifest'
@@ -32,6 +32,7 @@ import type { ServerManifest } from '../server/types'
 
 /** The public import specifier users write in their app code. */
 const VIRTUAL_MODULE_ID = 'auwla:routes'
+const ISLANDS_VIRTUAL_MODULE_ID = 'auwla:islands'
 
 /**
  * The resolved ID Vite uses internally for the virtual module.
@@ -39,6 +40,7 @@ const VIRTUAL_MODULE_ID = 'auwla:routes'
  * trying to process this module as a real file.
  */
 const RESOLVED_VIRTUAL_ID = '\0auwla:routes'
+const RESOLVED_ISLANDS_VIRTUAL_ID = '\0auwla:islands'
 
 /** Virtual module for the server manifest consumed by client RPC. */
 const MANIFEST_VIRTUAL_MODULE_ID = 'auwla:server-manifest'
@@ -300,6 +302,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
     resolveId(source: string): string | null {
       if (source === VIRTUAL_MODULE_ID) return RESOLVED_VIRTUAL_ID
+      if (source === ISLANDS_VIRTUAL_MODULE_ID) return RESOLVED_ISLANDS_VIRTUAL_ID
       if (source === MANIFEST_VIRTUAL_MODULE_ID) return RESOLVED_MANIFEST_VIRTUAL_ID
       return null
     },
@@ -368,6 +371,12 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           cachedManifestModule = `export default ${JSON.stringify(manifest, null, 2)};`
         }
         return cachedManifestModule
+      }
+
+      if (id === RESOLVED_ISLANDS_VIRTUAL_ID) {
+        const srcDir = resolve(resolvedPagesDir, '..')
+        const components = scanAllComponents(srcDir, { extensions: options.router?.extensions })
+        return generateIslandClientVirtualModule(components)
       }
 
       // Returning null tells Vite this plugin does not handle the module.
@@ -614,6 +623,29 @@ function buildRoutes(
   }
 
   return { moduleCode, typeCode }
+}
+
+function generateIslandClientVirtualModule(
+  components: { name: string; filePath: string }[],
+): string {
+  const lines: string[] = [
+    '// auwla:islands - island client registry',
+    '// Do not edit. Re-generated whenever the pages directory changes.',
+    '',
+    'if (typeof window !== \'undefined\') {',
+    '  globalThis.__auwla_islandModules = globalThis.__auwla_islandModules || {}',
+  ]
+
+  for (const comp of components) {
+    const importPath = JSON.stringify(comp.filePath.replace(/\\/g, '/'))
+    lines.push(`  globalThis.__auwla_islandModules[${JSON.stringify(comp.name)}] = { load: () => import(${importPath}) }`)
+  }
+
+  lines.push('}')
+  lines.push('export default []')
+  lines.push('')
+
+  return lines.join('\n')
 }
 
 /**

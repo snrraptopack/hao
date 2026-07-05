@@ -478,10 +478,12 @@ export function generateVirtualModuleWithLayouts(
       const componentExpr = buildComponentExpr(cacheExpr, aliasChain)
       lines.push(`    component: ${componentExpr},`)
 
-      lines.push(`    routed: async (ctx, signal) => {`)
-      lines.push(`      const mod = await __load(${key}, () => import(${importPath}))`)
-      lines.push(`      return mod.routed(ctx, signal)`)
-      lines.push(`    },`)
+      if (ex.hasRouted) {
+        lines.push(`    routed: async (ctx, signal) => {`)
+        lines.push(`      const mod = await __load(${key}, () => import(${importPath}))`)
+        lines.push(`      return mod.routed(ctx, signal)`)
+        lines.push(`    },`)
+      }
 
       if (ex.hasPending) lines.push(`    pendingComponent: () => __mods.get(${key})?.pending?.() ?? null,`)
       if (ex.hasError) {

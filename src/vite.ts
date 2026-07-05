@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import ts from 'typescript';
 import { compileAuwla } from './compiler';
 import { ViteCSSHandler, RESOLVED_ID } from './vite-css';
 import { clearThemeCache } from './css/compiler/css-compiler';
@@ -21,9 +22,149 @@ function isTrackedStyleFile(file: string): boolean {
   return file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.js') || file.endsWith('.jsx');
 }
 
+type ClientMountRewriteMode = 'islands' | 'static';
+
+function rewriteClientMount(code: string, file: string, mode: ClientMountRewriteMode): string {
+  if (!code.includes('createMemoApp')) return code;
+
+  const source = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const replacements: Array<{ start: number; end: number; text: string }> = [];
+  const createMemoNames = new Set<string>();
+  const strippedNames = new Set<string>();
+  const runtimeImport = mode === 'islands' ? 'auwla/runtime/islands' : 'auwla/runtime/static';
+  const runtimeExport = mode === 'islands' ? 'createIslandsApp' : 'createStaticApp';
+
+  function collectIdentifiers(node: ts.Node) {
+    if (ts.isIdentifier(node)) strippedNames.add(node.text);
+    ts.forEachChild(node, collectIdentifiers);
+  }
+
+  function getImportLocalNames(statement: ts.ImportDeclaration): string[] {
+    const clause = statement.importClause;
+    if (!clause) return [];
+    const names: string[] = [];
+    if (clause.name) names.push(clause.name.text);
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) {
+      names.push(named.name.text);
+    } else if (named && ts.isNamedImports(named)) {
+      for (const element of named.elements) names.push(element.name.text);
+    }
+    return names;
+  }
+
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const specifier = statement.moduleSpecifier.text;
+
+    if (specifier === 'auwla:routes') {
+      replacements.push({
+        start: statement.getFullStart(),
+        end: statement.getEnd(),
+        text: '',
+      });
+      continue;
+    }
+
+    if (specifier === 'auwla/router') {
+      const clause = statement.importClause;
+      const named = clause?.namedBindings;
+      if (
+        !clause?.name &&
+        named &&
+        ts.isNamedImports(named) &&
+        named.elements.length === 1 &&
+        (named.elements[0]!.propertyName?.text ?? named.elements[0]!.name.text) === 'Router'
+      ) {
+        replacements.push({
+          start: statement.getFullStart(),
+          end: statement.getEnd(),
+          text: '',
+        });
+      }
+      continue;
+    }
+
+    if (specifier !== 'auwla') continue;
+    const clause = statement.importClause;
+    const named = clause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    if (clause.name || named.elements.length !== 1) continue;
+
+    for (const element of named.elements) {
+      const imported = element.propertyName?.text ?? element.name.text;
+      if (imported !== 'createMemoApp') continue;
+
+      const local = element.name.text;
+      createMemoNames.add(local);
+      const replacement = local === runtimeExport ? runtimeExport : `${runtimeExport} as ${local}`;
+      replacements.push({
+        start: element.getStart(source),
+        end: element.getEnd(),
+        text: replacement,
+      });
+      replacements.push({
+        start: statement.moduleSpecifier.getStart(source),
+        end: statement.moduleSpecifier.getEnd(),
+        text: JSON.stringify(runtimeImport),
+      });
+    }
+  }
+
+  if (createMemoNames.size === 0) return code;
+
+  function visit(node: ts.Node) {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      createMemoNames.has(node.expression.text) &&
+      node.arguments.length > 1
+    ) {
+      for (const argument of node.arguments.slice(1)) collectIdentifiers(argument);
+      replacements.push({
+        start: node.arguments[0]!.getEnd(),
+        end: node.getEnd() - 1,
+        text: '',
+      });
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const specifier = statement.moduleSpecifier.text;
+    if (specifier === 'auwla' || specifier === 'auwla:routes' || specifier === 'auwla/router') continue;
+    const names = getImportLocalNames(statement);
+    if (names.length > 0 && names.every((name) => strippedNames.has(name))) {
+      replacements.push({
+        start: statement.getFullStart(),
+        end: statement.getEnd(),
+        text: '',
+      });
+    }
+  }
+
+  let output = code;
+  for (const replacement of replacements.sort((a, b) => b.start - a.start)) {
+    output = `${output.slice(0, replacement.start)}${replacement.text}${output.slice(replacement.end)}`;
+  }
+
+  return output;
+}
+
 export function auwla(options: AuwlaViteOptions = {}): Plugin {
   let cssHandler: ViteCSSHandler;
   let viteConfig: any;
+
+  function getCssHandler() {
+    if (!cssHandler) {
+      cssHandler = new ViteCSSHandler(!!options.compiler?.css, !!options.compiler?.debugFlag);
+    }
+    return cssHandler;
+  }
 
   return {
     name: 'auwla',
@@ -87,9 +228,9 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
     },
 
     async configureServer(server) {
-      cssHandler.setServer(server);
+      getCssHandler().setServer(server);
       ;(globalThis as any).__auwla_vite_server = server;
-      ;(globalThis as any).__auwla_vite_css_handler = cssHandler;
+      ;(globalThis as any).__auwla_vite_css_handler = getCssHandler();
       if (options.server?.entry) {
         console.log('[auwla:vite] configureServer running, serverEntry:', options.server?.entry)
         const { createDevServerMiddleware } = await import('./dev-middleware.js')
@@ -111,7 +252,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         clearThemeCache();
       }
 
-      if (!cssHandler.isEnabled()) {
+      if (!getCssHandler().isEnabled()) {
         return modules;
       }
 
@@ -133,7 +274,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         clearThemeCache();
       }
 
-      if (!cssHandler.isEnabled()) {
+      if (!getCssHandler().isEnabled()) {
         return modules;
       }
 
@@ -148,16 +289,16 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
 
     watchChange(id, change) {
       if (change.event === 'delete') {
-        cssHandler.deleteFile(id);
+        getCssHandler().deleteFile(id);
       }
     },
 
     resolveId(source, _importer, _options) {
-      return cssHandler.resolveId(source);
+      return getCssHandler().resolveId(source);
     },
 
     load(id) {
-      return cssHandler.load(id);
+      return getCssHandler().load(id);
     },
 
     transform(code, id, transformOptions) {
@@ -193,7 +334,12 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       const ssr = wantsServerRendering && viteIsInSsrContext;
       const islands = options.target === 'islands' || options.target === 'island';
         
-      let compiled = cssHandler.transform(code, file);
+      let compiled = getCssHandler().transform(code, file);
+      if (!ssr && !viteIsInSsrContext) {
+        if (options.target === 'ssg') {
+          compiled = rewriteClientMount(compiled, file, 'static');
+        }
+      }
       compiled = compileAuwla(compiled, file, { ssr, islands });
 
       if (compiled === code) {

@@ -1,5 +1,5 @@
 import { reactive } from '../runtime/reactive';
-import { rpcCall, getCurrentRoutePath } from '../client/rpc';
+import { rpcCall, getCurrentRoutePath, getCurrentRouteParams } from '../client/rpc';
 import { getRpcDispatcher } from '../runtime/rpc-dispatcher';
 import type { ServerManifestTypes } from 'auwla/server-manifest';
 import type { RemoteFunction } from '../server/types';
@@ -28,6 +28,12 @@ type PostKeys = {
     : never;
 }[keyof ServerManifestTypes];
 
+type ReturnType<K extends keyof ServerManifestTypes> = ServerManifestTypes[K] extends {
+  return: infer R;
+}
+  ? R
+  : never;
+
 function dispatchRpc(
   key: string,
   args: unknown[],
@@ -47,7 +53,7 @@ function dispatchRpc(
 export function trackGet<K extends GetKeys>(
   key: K,
   options?: TrackRemoteOptions,
-): TrackHandle<ServerManifestTypes[K]['return']>;
+): TrackHandle<ReturnType<K>>;
 export function trackGet<TReturn>(
   fn: RemoteFunction<any[], TReturn, any, any, any>,
   options?: TrackRemoteOptions,
@@ -74,12 +80,21 @@ export function trackGet(
     throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
   }
   const routePath = options?.routePath ?? getCurrentRoutePath();
-  const remoteName = `remote:${key}:${routePath}`;
+  
+  let remoteName = `remote:${key}`;
+  if (!options?.global) {
+    const params = getCurrentRouteParams();
+    const sortedKeys = Object.keys(params).sort();
+    if (sortedKeys.length > 0) {
+      const paramValues = sortedKeys.map(k => params[k]).join(':');
+      remoteName = `remote:${key}:${paramValues}`;
+    }
+  }
 
   // If a resolved global query was started on a different route, don't fire
   // a background sync with the current (wrong) route path. Just return the
   // cached handle and let a future call on the original route refresh it.
-  const stateKey = makeKey(remoteName, '__global');
+  const stateKey = makeKey(remoteName, options?.global ? '__global' : routePath);
   const existing = getRegistry().get(stateKey);
   if (
     existing &&

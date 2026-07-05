@@ -3,7 +3,8 @@
  */
 
 import ts from 'typescript';
-import { componentNameFromFunction, detectComponentReactivity, extractPropsExpression, CompileOptions } from './index';
+import { componentNameFromFunction, detectComponentReactivity, extractPropsExpression, isLayoutComponent, CompileOptions } from './index';
+
 import { TemplateContext, isSvgTag } from './types';
 import { compileTemplateAttribute, jsxAttributeName } from './attributes';
 import type { DerivedContext } from './derived';
@@ -318,14 +319,30 @@ export function compileTemplateRootBlock(
 
   if (ssr) {
     const preLines = preUpdateStatements.map((line) => `          ${line}`).join('\n');
-    let expandedHtml = html;
-    if (options?.islands && containingFunction && detectComponentReactivity(containingFunction, derivedCtx)) {
+
+    // Island-reactive components are client-only. Their SSR role is solely to
+    // emit the `data-auwla-island` boundary marker so the client knows where
+    // to hydrate. We must NOT embed the inner `html` here because it may
+    // contain raw `.map()` JSX source text (pulled via `expressionText`) that
+    // the OXC transform will never see again (the plugin returns `moduleType:
+    // 'js'`), causing runtime evaluation to produce `[object Object]`.
+    //
+    // Layout components (e.g. DocsLayout(Child)) are explicitly excluded:
+    // their `Child` parameter is a function reference that cannot be serialized
+    // to JSON props. hydrateIslands would call Layout({}) which gives Child={}.
+    // rendering `<Child />` as `createElement('[object Object]')` and crashing.
+    if (options?.islands && containingFunction && detectComponentReactivity(containingFunction, derivedCtx) && !isLayoutComponent(containingFunction)) {
       const componentName = componentNameFromFunction(containingFunction) || 'default';
       const propsExpr = extractPropsExpression((containingFunction as any).parameters || []);
-      expandedHtml = `<div data-auwla-island="${componentName}" data-props="\\\${__escapeHtml(JSON.stringify(${propsExpr}))}">${expandedHtml}</div>`;
+      // Empty shell — the client will mount fresh DOM inside this boundary.
+      const shellHtml = `<div data-auwla-island="${componentName}" data-props="\${__escapeHtml(JSON.stringify(${propsExpr}))}"></div>`;
+      return `__ssrBlock(() => {
+${preLines}${preLines ? '\n' : ''}          return \`${shellHtml}\`;
+        })`;
     }
+
     return `__ssrBlock(() => {
-${preLines}${preLines ? '\n' : ''}          return \`${expandedHtml}\`;
+${preLines}${preLines ? '\n' : ''}          return \`${html}\`;
         })`;
   }
 

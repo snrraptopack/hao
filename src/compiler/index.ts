@@ -247,6 +247,47 @@ export function detectComponentReactivity(node: ts.Node, derivedCtx: DerivedCont
   return isReactive;
 }
 
+/**
+ * Returns true if the function is a layout component — one whose parameter
+ * names appear as JSX element tag names inside its own body.
+ *
+ * Layout components follow the pattern:
+ *   function MyLayout(Child: RouteComponent) { return () => (<div><Child /></div>) }
+ *
+ * They MUST NOT be treated as islands because `Child` is a function reference
+ * that cannot be serialized to JSON props. If hydrateIslands tried to call
+ * `MyLayout({})` it would receive an object instead of a function, and the
+ * `<Child />` JSX inside would attempt `createElement('[object Object]')`.
+ */
+export function isLayoutComponent(node: ts.Node): boolean {
+  const params = (node as any).parameters as ts.NodeArray<ts.ParameterDeclaration> | undefined;
+  if (!params || params.length === 0) return false;
+
+  // Collect all parameter names (handles simple identifiers only — destructured
+  // params cannot be used as JSX tags so we skip them).
+  const paramNames = new Set<string>();
+  for (const p of params) {
+    if (ts.isIdentifier(p.name)) paramNames.add(p.name.text);
+  }
+  if (paramNames.size === 0) return false;
+
+  // Walk the function body looking for JSX component tags that match a param name.
+  let found = false;
+  function walk(n: ts.Node) {
+    if (found) return;
+    if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+      const tagName = n.tagName;
+      if (ts.isIdentifier(tagName) && paramNames.has(tagName.text)) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(n, walk);
+  }
+  ts.forEachChild(node, walk);
+  return found;
+}
+
 export function returnsJsx(node: ts.Node): boolean {
   let found = false;
   function walk(n: ts.Node) {
@@ -482,23 +523,6 @@ function findReplacements(
 
     if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
       if (isSkippedComponent(node)) return;
-
-      if (containingFunction === null && options?.islands && !options?.ssr && returnsJsx(node)) {
-        const setupStatements = extractSetupStatements(node);
-        const childDerivedCtx = setupStatements.length > 0
-          ? buildDerivedContext(source, setupStatements)
-          : null;
-        if (!detectComponentReactivity(node, childDerivedCtx)) {
-          if (node.body) {
-            replacements.push({
-              start: node.body.getStart(source),
-              end: node.body.getEnd(),
-              text: `{ return null; }`,
-            });
-            return;
-          }
-        }
-      }
 
       const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
       let willWrap = false;
