@@ -1,7 +1,7 @@
-import { commit, component } from 'auwla'
 import { Link, getRouted, type RouteContext } from 'auwla/router'
 import LiveCounter from '../components/live-preview/LiveCounter'
 import LivePaint from '../components/live-preview/LivePaint'
+import CopyInstallButton from '../components/CopyInstallButton'
 
 import { track } from 'auwla/track'
 import { getHomeShowcases } from './index.server'
@@ -13,24 +13,12 @@ export async function routed(ctx: RouteContext<'/'>, signal: AbortSignal) {
 
 // ─── Homepage Layout ──────────────────────────────────────────────────────────
 export default function Home() {
-  let copied = false;
-  const self = component();
-
   const grid = [
     { title: "Direct compilation", desc: "Transforms TSX into optimized DOM patches, skipping Virtual DOM trees entirely." },
     { title: "No hooks or signals", desc: "No complex state wrappers. State is held in plain variables inside component closures." },
     { title: "Native DOM speed", desc: "Updates only what changed using direct templates and memoized element reuse." },
     { title: "Isomorphic by design", desc: "Built-in server rendering and type-safe RPC client hydration in one workspace." }
   ]
-
-  function copyInstall() {
-    navigator.clipboard.writeText('npm install auwla');
-    copied = true;
-    setTimeout(() => {
-      copied = false;
-      commit(self);
-    }, 2000);
-  }
 
   const data = getRouted(routed)?.value;
   const counterHtml = data?.counterHtml || '';
@@ -64,16 +52,7 @@ export default function Home() {
             >
               Playground
             </Link>
-            <button
-              onClick={copyInstall}
-              class="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 font-mono text-sm text-slate-600 px-4 py-3 transition group select-none"
-            >
-              <span class="text-[#ff3e00] font-bold">$</span>
-              <span>npm install auwla</span>
-              <span class="ml-4 text-xs font-bold text-slate-500 group-hover:text-slate-600">
-                {copied ? 'Copied!' : 'Copy'}
-              </span>
-            </button>
+            <CopyInstallButton />
           </div>
         </div>
 
