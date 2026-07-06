@@ -25,7 +25,7 @@ export default function PostsPage() {
 
   console.log("loader value type:", typeof loader?.value, "is array?", Array.isArray(loader?.value), "value:", loader?.value)
 
-  const me = track.get('auth.me')
+  const me = track.get('auth.me',{global:true})
   const create = track.form('posts.createPost', { schema })
 
   if (loader?.pending) return <div class="page">Loading posts…</div>

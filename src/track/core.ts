@@ -120,7 +120,7 @@ export function makeKey(name: string, componentId?: string | null): string {
   return `${cid}::${name}`;
 }
 
-function getOrCreate(key: string): TrackState {
+export function getOrCreate(key: string): TrackState {
   const reg = getRegistry();
   let state = reg.get(key);
   if (!state) {
@@ -232,15 +232,22 @@ export function __resetTrackRegistry(): void {
   getComponentTracks().clear();
 }
 
-/** @internal Extract the resolved state of all global queries and loaders for SSR hydration. */
+/** @internal Extract the resolved state of all queries and loaders for SSR hydration.
+ *
+ * Scans ALL registry entries (regardless of namespace prefix) for resolved remote:
+ * and __loader: keys. On the server each routed query is stored under the request
+ * route path as the namespace (e.g. `/posts/42::remote:posts.getPost:42`), so we
+ * cannot restrict to `__global::` only — we strip the namespace prefix and emit
+ * the bare key (`remote:posts.getPost:42`) for the client hydration script.
+ */
 export function __extractTrackState(): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const [key, state] of getRegistry().entries()) {
-    if (
-      (key.startsWith('__global::remote:') || key.startsWith('__global::__loader:')) &&
-      state.statusCell.get() === 'resolved'
-    ) {
-      const name = key.slice('__global::'.length);
+    if (state.statusCell.get() !== 'resolved') continue;
+    const separatorIdx = key.indexOf('::');
+    if (separatorIdx === -1) continue;
+    const name = key.slice(separatorIdx + 2); // strip `<namespace>::`
+    if (name.startsWith('remote:') || name.startsWith('__loader:')) {
       data[name] = state.value;
     }
   }
@@ -686,6 +693,14 @@ export type TrackRemoteOptions = TrackOptions & {
   /** Override the route path used to extract server params. Defaults to the current browser URL. */
   routePath?: string;
   global?: boolean;
+  /**
+   * Custom cache identifier. When provided, the result is stored under `id:<id>` instead
+   * of the current route path. This lets different routes (e.g. `/posts/123` and
+   * `/posts/123/edit`) share the same cached entry without a global singleton.
+   * The entry persists across navigations (no component-unmount cleanup), but still
+   * runs a Stale-While-Revalidate background sync on re-access.
+   */
+  id?: string;
 };
 
 

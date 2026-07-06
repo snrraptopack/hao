@@ -4,12 +4,12 @@ import { track } from 'auwla/track'
 type Me = { id: string; name: string; role: string }
 
 export async function guard(_context: RouteContext<"*", Me>) {
-  await track.get("auth.me")
+  await track.get("auth.me",{global:true})
   return true // always allow
 }
 
 export default function Layout(Child: RouteComponent) {
-  const me = track.get('auth.me')
+  const me = track.get('auth.me',{global:true})
   console.log("data logged", me.value)
   const logout = track.post('auth.logout')
   const user = me.value as { id: string; name: string; role: string } | null | undefined

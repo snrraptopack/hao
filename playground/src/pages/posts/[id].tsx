@@ -27,7 +27,7 @@ export default function PostPage() {
   const { id } = getParams('/posts/:id')
   const loader = getRouted(routed)
   console.log("loader", loader?.value)
-  const me = track.get('auth.me')
+  const me = track.get('auth.me',{global:true})
   const update = track.form('posts.updatePost', { schema: updateSchema })
   const remove = track.post('posts.deletePost')
 

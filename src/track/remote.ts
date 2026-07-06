@@ -9,6 +9,7 @@ import {
   CommandHandle,
   TrackRemoteOptions,
   getRegistry,
+  getOrCreate,
   makeKey,
   createHandle,
   subscribeSetupComponent,
@@ -80,8 +81,12 @@ export function trackGet(
     throw new Error('Auwla: track.get expects a key string or an imported server function reference.');
   }
   const routePath = options?.routePath ?? getCurrentRoutePath();
-  
+
   let remoteName = `remote:${key}`;
+  const namespace = options?.global ? '__global' : (options?.id ? `id:${options.id}` : routePath);
+
+  // Append route params to the name so different resource IDs have distinct cache entries.
+  // We skip this for global (app-wide) queries since they have no route scope.
   if (!options?.global) {
     const params = getCurrentRouteParams();
     const sortedKeys = Object.keys(params).sort();
@@ -91,37 +96,114 @@ export function trackGet(
     }
   }
 
-  // If a resolved global query was started on a different route, don't fire
-  // a background sync with the current (wrong) route path. Just return the
-  // cached handle and let a future call on the original route refresh it.
-  const stateKey = makeKey(remoteName, options?.global ? '__global' : routePath);
+  const stateKey = makeKey(remoteName, namespace);
   const existing = getRegistry().get(stateKey);
+
+  // 1. Deduplicate: if a request for this exact key is already in-flight, return
+  // the same promise — no new network request is fired. This is the fix for the
+  // race condition where multiple components render synchronously and all call
+  // dispatchRpc before any of them has stored the pending promise in the registry.
+  if (existing && existing.statusCell.get() === 'pending' && existing.promise) {
+    subscribeSetupComponent(existing.statusCell);
+    return createHandle(stateKey, existing.promise) as any;
+  }
+
+  // 2. Resolved from a different route — return as-is, skip background sync.
   if (
     existing &&
     existing.statusCell.get() === 'resolved' &&
     existing.routePath &&
     existing.routePath !== routePath
   ) {
+    subscribeSetupComponent(existing.statusCell);
     return createHandle(stateKey, existing.promise!) as any;
   }
 
-  // If the entry was pre-seeded by hydrateTrackState (resolved, no routePath,
-  // promise already set), return it immediately without dispatching any RPC.
-  // The SWR background sync will kick in on the NEXT call (after first render).
+  // 3. Pre-seeded by hydrateTrackState (resolved, no routePath): return immediately.
+  // The SWR background sync will kick in on the NEXT render after first paint.
   if (
     existing &&
     existing.statusCell.get() === 'resolved' &&
     !existing.routePath &&
     existing.promise
   ) {
-    // Tag it with the current route so future calls can sync normally.
     existing.routePath = routePath;
     subscribeSetupComponent(existing.statusCell);
     return createHandle(stateKey, existing.promise) as any;
   }
 
+  // 4. SSR hydration fallback: when not using global/id mode, the namespace is routePath
+  // but hydrateTrackState always seeds under __global::. Check there as a fallback so
+  // a page rendered server-side can hydrate without the caller needing global: true.
+  if (!options?.global && !options?.id) {
+    const globalKey = makeKey(remoteName, '__global');
+    const globalEntry = getRegistry().get(globalKey);
+    if (
+      globalEntry &&
+      globalEntry.statusCell.get() === 'resolved' &&
+      globalEntry.promise
+    ) {
+      // Migrate the hydrated entry into the routePath namespace so subsequent
+      // calls on this route use the correct key and SWR can sync properly.
+      const state = getOrCreate(stateKey);
+      state.statusCell = globalEntry.statusCell;
+      state.value = globalEntry.value;
+      state.promise = globalEntry.promise;
+      state.routePath = routePath;
+      // Remove the __global entry to avoid double-caching.
+      getRegistry().delete(globalKey);
+      subscribeSetupComponent(state.statusCell);
+      return createHandle(stateKey, state.promise) as any;
+    }
+  }
+
+  // 5. Stale-While-Revalidate: already resolved on this route/namespace.
+  // Return cached data immediately and schedule a background sync.
+  if (existing && existing.statusCell.get() === 'resolved' && existing.promise) {
+    subscribeSetupComponent(existing.statusCell);
+
+    if (!options?.skipBackgroundSync) {
+      const bgPromise = dispatchRpc(key, [], routePath, { ...options, method: 'GET' });
+      bgPromise.then(
+        (value) => {
+          if (JSON.stringify(existing.value) !== JSON.stringify(value)) {
+            applyTransition(stateKey, 'resolved', value, undefined, options);
+          }
+          existing.promise = Promise.resolve(value);
+        },
+        (reason) => {
+          console.error(`[auwla] Background sync failed for "${remoteName}":`, reason);
+          applyTransition(stateKey, 'rejected', undefined, reason, options);
+          existing.promise = Promise.reject(reason);
+        }
+      );
+    }
+    return createHandle(stateKey, existing.promise) as any;
+  }
+
+
+  // 6. Cold start: seed the registry with a pending state BEFORE firing dispatchRpc
+  // so that any concurrent calls that arrive before the first microtask tick will
+  // hit check #1 above and share this same promise instead of firing their own requests.
+  const state = getOrCreate(stateKey);
+  state.statusCell = reactive<TrackStatus>('pending');
+  state.routePath = routePath;
+
   const promise = dispatchRpc(key, [], routePath, { ...options, method: 'GET' });
-  return trackImpl(remoteName, promise, options, true) as any;
+
+  const tracked = promise.then(
+    (value) => {
+      applyTransition(stateKey, 'resolved', value, undefined, options);
+      return value;
+    },
+    (reason) => {
+      applyTransition(stateKey, 'rejected', undefined, reason, options);
+      return undefined;
+    },
+  );
+  state.promise = tracked;
+  subscribeSetupComponent(state.statusCell);
+  return createHandle(stateKey, tracked) as any;
 }
 
 /** Invalidate all cached global queries and actively refetch those that are already resolved. */
