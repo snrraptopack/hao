@@ -44,14 +44,13 @@ export interface HonoAdapterOptions extends FetchAdapterOptions {
 /** Minimal Hono context shape needed by the adapter. */
 export type HonoContext = {
   req: { raw: Request }
-  next(): Promise<void>
 }
 
 /** Hono middleware signature, structurally compatible with Hono's own type. */
 export type HonoMiddlewareHandler = (
   c: HonoContext,
   next: () => Promise<void>
-) => Response | Promise<Response> | void | Promise<void> | Promise<Response | void>
+) => Promise<void | Response>
 
 /**
  * Create a Hono middleware that serves Auwla RPC and SSR page rendering.
@@ -99,9 +98,6 @@ export function createHonoAdapter(options: HonoAdapterOptions = {}): HonoMiddlew
       }
     }
 
-    if (typeof next === 'function') {
-      return next()
-    }
-    return c.next()
+    return next()
   }
 }
