@@ -338,6 +338,8 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       if (!ssr && !viteIsInSsrContext) {
         if (options.target === 'ssg') {
           compiled = rewriteClientMount(compiled, file, 'static');
+        } else if (options.target === 'islands' || options.target === 'island') {
+          compiled = rewriteClientMount(compiled, file, 'islands');
         }
       }
       compiled = compileAuwla(compiled, file, { ssr, islands });

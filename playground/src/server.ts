@@ -1,10 +1,10 @@
-import { createBunAdapter } from 'auwla/adapters/bun'
+// import { createBunAdapter } from 'auwla/adapters/bun'
 
-const port = Number(process.env.PORT ?? 0)
+// const port = Number(process.env.PORT ?? 0)
 
-const server = {
-  port,
-  fetch: createBunAdapter()
-}
+// const server = {
+//   port,
+//   fetch: createBunAdapter()
+// }
 
-export default server
+// export default server

@@ -62,7 +62,6 @@ export default function RootLayout(Child: RouteComponent) {
           </div>
         </div>
       </header>
-
       {/* Dynamic page content */}
       <Child />
     </div>
