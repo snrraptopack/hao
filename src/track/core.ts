@@ -355,6 +355,13 @@ export function hasPendingLoaders(): boolean {
 }
 
 export function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
+  // Attach a no-op catch so that if the caller only reads reactive state
+  // (.rejected / .reason) without ever awaiting the handle, the runtime
+  // does not surface an "unhandled rejection" warning. This does NOT swallow
+  // the error — `await handle` still re-throws because .then() delegates to
+  // the original promise before this catch runs.
+  promise.catch(() => {});
+
   const handle = {
     get name() {
       return key.split('::')[1]!;
@@ -585,8 +592,11 @@ export function trackImpl(
         return value;
       },
       (reason) => {
+        // Mark the handle as rejected for reactive component use (.rejected / .reason).
+        // Re-throw so that `await track.get()` in a routed loader propagates the
+        // error naturally — the Router catches it and renders the errorComponent.
         applyTransition(key, 'rejected', undefined, reason, options);
-        return undefined;
+        throw reason;
       },
     );
     state.promise = promise;

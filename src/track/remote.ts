@@ -197,8 +197,11 @@ export function trackGet(
       return value;
     },
     (reason) => {
+      // Mark the handle as rejected for reactive component use (.rejected / .reason).
+      // Re-throw so that `await track.get()` in a routed loader propagates the
+      // error naturally — the Router catches it and renders the errorComponent.
       applyTransition(stateKey, 'rejected', undefined, reason, options);
-      return undefined;
+      throw reason;
     },
   );
   state.promise = tracked;
