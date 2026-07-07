@@ -15,7 +15,7 @@ export default defineConfig({
       input: {
         'auwla': resolve(__dirname, 'src/index.ts'),
         'compiler': resolve(__dirname, 'src/compiler.ts'),
-        'vite': resolve(__dirname, 'src/vite.ts'),
+        'vite': resolve(__dirname, 'src/vite/index.ts'),
         'dev-middleware': resolve(__dirname, 'src/dev-middleware.ts'),
         'events/index': resolve(__dirname, 'src/events/index.ts'),
         'events/intersect': resolve(__dirname, 'src/events/intersect.ts'),

@@ -15,7 +15,7 @@
     "src/memo-dom.ts",
     "src/compiler-runtime.ts",
     "src/compiler.ts",
-    "src/vite.ts",
+    "src/vite/**/*.ts",
     "src/events/**/*.ts",
     "src/router/index.ts",
     "src/vite-router/**/*.ts",

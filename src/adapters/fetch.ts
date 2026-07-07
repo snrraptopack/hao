@@ -126,7 +126,6 @@ function errorResponse(error: unknown): Response {
 }
 
 export function createFetchAdapter(options: FetchAdapterOptions = {}) {
-  let manifest = options.manifest
   const load = options.load ?? defaultLoad
   const rpcPath = options.rpcPath ?? DEFAULT_RPC_PATH
   const onError = options.onError
@@ -139,6 +138,7 @@ export function createFetchAdapter(options: FetchAdapterOptions = {}) {
     const url = new URL(request.url)
     if (url.pathname !== rpcPath) return undefined
 
+    let manifest = options.manifest
     if (!manifest) {
       try {
         manifest = (await import('auwla:server-manifest')).default

@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { auwla } from '../../src/vite';
+import { auwla } from '../../src/vite/index';
 
 function transform(plugin: ReturnType<typeof auwla>, code: string, id: string) {
   const hook = plugin.transform;
-  if (typeof hook !== 'function') throw new Error('Expected function transform hook');
-  return hook.call({} as any, code, id);
+  const handler = typeof hook === 'function' ? hook : hook?.handler;
+  if (typeof handler !== 'function') throw new Error('Expected function transform hook');
+  return handler.call({} as any, code, id);
 }
+
 
 describe('auwla vite plugin', () => {
   test('compiles TSX files through the package plugin entry', () => {

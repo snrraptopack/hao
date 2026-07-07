@@ -1,8 +1,8 @@
 import type { Plugin } from 'vite';
 import ts from 'typescript';
-import { compileAuwla } from './compiler';
-
-import { type AuwlaConfig } from './config';
+import { compileAuwla } from '../compiler';
+import type { AuwlaConfig } from '../config';
+import { getAuwlaConfig } from './config-loader';
 
 export type AuwlaViteOptions = AuwlaConfig;
 
@@ -160,24 +160,10 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       viteConfig = resolvedConfig;
     },
 
-    async config(viteConfig, env) {
-      const { loadConfigFromFile } = await import('vite');
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const root = viteConfig.root || process.cwd();
-      
-      let loaded = null;
-      if (fs.existsSync(path.resolve(root, 'auwla.config.ts'))) {
-        loaded = await loadConfigFromFile(env, 'auwla.config.ts', root);
-      } else if (fs.existsSync(path.resolve(root, 'auwla.config.js'))) {
-        loaded = await loadConfigFromFile(env, 'auwla.config.js', root);
-      } else if (fs.existsSync(path.resolve(root, 'auwla.config.mjs'))) {
-        loaded = await loadConfigFromFile(env, 'auwla.config.mjs', root);
-      }
-
-      if (loaded) {
-        Object.assign(options, loaded.config);
-      }
+    async config(config, env) {
+      const root = config.root || process.cwd();
+      const loadedOptions = await getAuwlaConfig(root, env);
+      Object.assign(options, loadedOptions);
 
       return {
         ssr: {
@@ -187,7 +173,6 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
     },
 
     async closeBundle() {
-      // Automatic two-pass build orchestration
       if (
         options.server?.entry &&
         !viteConfig.build.ssr &&
@@ -213,71 +198,58 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
     },
 
     async configureServer(server) {
-      ;(globalThis as any).__auwla_vite_server = server;
+      (globalThis as any).__auwla_vite_server = server;
       if (options.server?.entry) {
-        console.log('[auwla:vite] configureServer running, serverEntry:', options.server?.entry)
-        const { createDevServerMiddleware } = await import('./dev-middleware.js')
-        const middleware = await createDevServerMiddleware(server, options.server.entry)
-        server.middlewares.use(middleware)
-        console.log('[auwla:vite] dev middleware registered!')
+        console.log('[auwla:vite] configureServer running, serverEntry:', options.server?.entry);
+        const { createDevServerMiddleware } = await import('../dev-middleware.js');
+        const middleware = await createDevServerMiddleware(server, options.server.entry);
+        server.middlewares.use(middleware);
+        console.log('[auwla:vite] dev middleware registered!');
       }
     },
 
-    transform(code, id, transformOptions) {
-      const include = options.compiler?.include ?? /\.[tj]sx$/;
-      const exclude = options.compiler?.exclude;
-
-      const file = normalizeId(id);
-      if (!include.test(file)) return null;
-      if (exclude?.test(file)) return null;
-      if (file.includes('/node_modules/') || file.includes('\\node_modules\\')) return null;
-
-      const hasJsx = /<[a-zA-Z]/.test(code);
-      if (!options.compiler?.debugFlag && !code.includes('css') && !code.includes('define') && !hasJsx) {
-        return null;
-      }
-
-      // SSR compilation requires BOTH conditions to be true:
-      //   1. The project opts into server-side HTML rendering via `target: 'ssr'` or `target: 'ssg'`.
-      //      Without this, a project with a server entry (e.g. SPA fullstack or API-only) would
-      //      never want page modules compiled to SSR string output.
-      //   2. Vite confirms this specific module load is happening in a server-side context.
-      //      This is the signal that distinguishes the server pass from the client pass for the
-      //      same file. Using OR here (the previous bug) caused client modules to be compiled
-      //      as SSR too, producing `[object Object]` instead of DOM nodes during hydration.
-      const wantsServerRendering = options.target === 'ssr' || options.target === 'ssg' || options.target === 'islands' || options.target === 'island';
-      const viteIsInSsrContext =
-        transformOptions?.ssr === true ||
-        // @ts-ignore: Vite 6 Environment API
-        this.environment?.name === 'ssr' ||
-        // @ts-ignore: Vite 6 Environment API fallback
-        this.environment?.name === 'server';
-
-      const ssr = wantsServerRendering && viteIsInSsrContext;
-      const islands = options.target === 'islands' || options.target === 'island';
-        
-      let compiled = code;
-      if (!ssr && !viteIsInSsrContext) {
-        if (options.target === 'ssg') {
-          compiled = rewriteClientMount(compiled, file, 'static');
-        } else if (options.target === 'islands' || options.target === 'island') {
-          compiled = rewriteClientMount(compiled, file, 'islands');
+    transform: {
+      filter: {
+        id: /^(?!.*[\\/]node_modules[\\/]).*\.[tj]sx$/
+      },
+      handler(code, id) {
+        if (id.includes('/node_modules/') || id.includes('\\node_modules\\')) return null;
+        const file = normalizeId(id);
+        const debugFlag = options.compiler?.debugFlag || (options as any).debugFlag;
+        const hasJsx = /<[a-zA-Z]/.test(code);
+        if (!debugFlag && !code.includes('css') && !code.includes('define') && !hasJsx) {
+          return null;
         }
-      }
-      compiled = compileAuwla(compiled, file, { ssr, islands });
 
-      if (compiled === code) {
-        const marker = markerCode(false, options.compiler?.debugFlag);
-        return marker ? { code: `${marker}${code}`, map: null } : null;
-      }
+        const wantsServerRendering =
+          options.target === 'ssr' ||
+          options.target === 'ssg' ||
+          options.target === 'islands' ||
+          options.target === 'island';
+        
+        const ssr = wantsServerRendering && this.environment?.name === 'ssr';
+        const islands = options.target === 'islands' || options.target === 'island';
+          
+        let compiled = code;
+        if (!ssr && this.environment?.name !== 'ssr') {
+          if (options.target === 'ssg') {
+            compiled = rewriteClientMount(compiled, file, 'static');
+          } else if (options.target === 'islands' || options.target === 'island') {
+            compiled = rewriteClientMount(compiled, file, 'islands');
+          }
+        }
+        compiled = compileAuwla(compiled, file, { ssr, islands });
 
-      return {
-        code: `${markerCode(true, options.compiler?.debugFlag)}${compiled}`,
-        map: null,
-        moduleType: 'js',
-      };
-    },
+        if (compiled === code) {
+          const marker = markerCode(false, debugFlag);
+          return marker ? { code: `${marker}${code}`, map: null } : null;
+        }
+
+        return {
+          code: `${markerCode(true, debugFlag)}${compiled}`,
+          map: null,
+        };
+      }
+    }
   };
 }
-
-export default auwla;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { auwlaRouter } from '../../src/vite-router/plugin'
+import { auwlaRouter } from '../../src/vite/router-plugin'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import * as fs from 'node:fs'

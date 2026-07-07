@@ -77,20 +77,22 @@ export function createHonoAdapter(options: HonoAdapterOptions = {}): HonoMiddlew
     // 2. SSR Page Rendering (only for HTML requests)
     const acceptsHtml = (request.headers.get('accept') ?? '').includes('text/html')
     if (acceptsHtml) {
-      if (!options.routes) {
+      let routes = options.routes
+      if (!routes) {
         try {
-          options.routes = (await import('auwla:routes')).default
+          routes = (await import('auwla:routes')).default
         } catch (err) {}
       }
-      if (!options.manifest) {
+      let manifest = options.manifest
+      if (!manifest) {
         try {
-          options.manifest = (await import('auwla:server-manifest')).default
+          manifest = (await import('auwla:server-manifest')).default
         } catch (err) {}
       }
 
-      if (options.routes && options.manifest) {
+      if (routes && manifest) {
         try {
-          const ssrResponse = await ssrRender(request, options, staticDir as string)
+          const ssrResponse = await ssrRender(request, { ...options, routes, manifest }, staticDir as string)
           if (ssrResponse) return ssrResponse
         } catch (e) {
           console.error('[auwla] SSR render failed in Hono adapter:', e)
