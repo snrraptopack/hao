@@ -17,7 +17,6 @@
     "src/compiler.ts",
     "src/vite.ts",
     "src/events/**/*.ts",
-    "src/css/index.ts",
     "src/router/index.ts",
     "src/vite-router/**/*.ts",
     "src/server/**/*.ts",

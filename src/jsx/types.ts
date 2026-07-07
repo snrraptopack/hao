@@ -10,7 +10,6 @@
  * standard HTML and SVG element is supported without manual maintenance.
  */
 
-import type { StyleObject } from '../css/types';
 import type { MemoChild, RenderClosure } from '../runtime/types';
 
 export type Child = MemoChild;
@@ -154,12 +153,12 @@ export type BaseProps<E extends Element> = EventProps & {
   key?: string | number;
   ref?: (el: E) => void;
   bind?: any;
-  class?: string | StyleObject | Function;
-  className?: string | StyleObject | Function;
+  class?: string | Function;
+  className?: string | Function;
   id?: string;
   title?: string;
   hidden?: boolean;
-  style?: string | CSSProperties | StyleObject | Function;
+  style?: string | CSSProperties | Function;
   tabIndex?: number;
   draggable?: boolean;
   contentEditable?: boolean | 'true' | 'false' | 'inherit' | 'plaintext-only';
@@ -456,7 +455,7 @@ type SVGProps = {
   strokeMiterlimit?: number | string;
   strokeOpacity?: number | string;
   strokeWidth?: number | string;
-  style?: string | CSSProperties | StyleObject | Function;
+  style?: string | CSSProperties | Function;
   surfaceScale?: number | string;
   systemLanguage?: string;
   tableValues?: string;

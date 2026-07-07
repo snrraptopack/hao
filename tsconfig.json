@@ -18,7 +18,6 @@
       "auwla/events": ["src/events/index.ts"],
       "auwla/track": ["src/track/index.ts"],
       "auwla/router": ["src/router/index.ts"],
-      "auwla/css": ["src/css/index.ts"],
     },
 
     // Bundler mode

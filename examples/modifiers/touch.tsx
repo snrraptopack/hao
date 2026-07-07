@@ -3,11 +3,21 @@ import { event } from 'auwla/events';
 import "auwla/events/hotkey"
 import "auwla/events/intersect"
 import "auwla/events/touch"
-import { css,} from "auwla/css"
 
 
-let colors = css.color.palette('oklch(0.72 0.16 195)')
-let colorIndex = Object.keys(colors)
+// Hardcoded teal color palette steps (replaces css.color.palette)
+const paletteColors: Record<string, string> = {
+  '50':  'oklch(0.96 0.04 195)',
+  '100': 'oklch(0.92 0.07 195)',
+  '200': 'oklch(0.86 0.10 195)',
+  '300': 'oklch(0.80 0.13 195)',
+  '400': 'oklch(0.75 0.15 195)',
+  '500': 'oklch(0.72 0.16 195)',
+  '600': 'oklch(0.64 0.16 195)',
+  '700': 'oklch(0.55 0.15 195)',
+  '800': 'oklch(0.44 0.12 195)',
+  '900': 'oklch(0.33 0.09 195)',
+};
 
 
 
@@ -52,12 +62,12 @@ export function TouchModifiersDemo() {
 
   return () => (
     <div class="docs-section">
-      {colorIndex.map(it => (
-        <button style={css({
-          background: colors[it],
-          padding: css.rem(0.95),
-          marginLeft: css.px(5)
-        })}>{it}</button>
+      {Object.entries(paletteColors).map(([step, color]) => (
+        <button style={{
+          background: color,
+          padding: '0.95rem',
+          marginLeft: '5px'
+        }}>{step}</button>
       ))}
 
       <h1>Touch Gestures & Advanced Modifiers</h1>
@@ -89,8 +99,8 @@ export function TouchModifiersDemo() {
           <div
             style={{
               position: 'absolute',
-              left: css.px(rawPosition.x),
-              top: css.px(rawPosition.y),
+              left: `${rawPosition.x}px`,
+              top: `${rawPosition.y}px`,
               height: '80px',
               background: 'linear-gradient(135deg, var(--color-accent), #4f46e5)',
               color: '#ffffff',

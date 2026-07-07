@@ -38,9 +38,6 @@
       "auwla/router": [
         "src/router/index.ts"
       ],
-      "auwla/css": [
-        "src/css/index.ts"
-      ],
     },
     // Bundler mode
     "moduleResolution": "bundler",

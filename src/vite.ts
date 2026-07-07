@@ -1,8 +1,6 @@
 import type { Plugin } from 'vite';
 import ts from 'typescript';
 import { compileAuwla } from './compiler';
-import { ViteCSSHandler, RESOLVED_ID } from './vite-css';
-import { clearThemeCache } from './css/compiler/css-compiler';
 
 import { type AuwlaConfig } from './config';
 
@@ -16,10 +14,6 @@ function markerCode(value: boolean, debugFlag: boolean | string | undefined): st
   if (!debugFlag) return '';
   const name = typeof debugFlag === 'string' ? debugFlag : '__AUWLA_COMPILED__';
   return `globalThis.${name} = ${value};\n`;
-}
-
-function isTrackedStyleFile(file: string): boolean {
-  return file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.js') || file.endsWith('.jsx');
 }
 
 type ClientMountRewriteMode = 'islands' | 'static';
@@ -156,15 +150,7 @@ function rewriteClientMount(code: string, file: string, mode: ClientMountRewrite
 }
 
 export function auwla(options: AuwlaViteOptions = {}): Plugin {
-  let cssHandler: ViteCSSHandler;
   let viteConfig: any;
-
-  function getCssHandler() {
-    if (!cssHandler) {
-      cssHandler = new ViteCSSHandler(!!options.compiler?.css, !!options.compiler?.debugFlag);
-    }
-    return cssHandler;
-  }
 
   return {
     name: 'auwla',
@@ -172,7 +158,6 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
 
     configResolved(resolvedConfig) {
       viteConfig = resolvedConfig;
-      cssHandler = new ViteCSSHandler(!!options.compiler?.css, !!options.compiler?.debugFlag);
     },
 
     async config(viteConfig, env) {
@@ -228,9 +213,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
     },
 
     async configureServer(server) {
-      getCssHandler().setServer(server);
       ;(globalThis as any).__auwla_vite_server = server;
-      ;(globalThis as any).__auwla_vite_css_handler = getCssHandler();
       if (options.server?.entry) {
         console.log('[auwla:vite] configureServer running, serverEntry:', options.server?.entry)
         const { createDevServerMiddleware } = await import('./dev-middleware.js')
@@ -238,67 +221,6 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
         server.middlewares.use(middleware)
         console.log('[auwla:vite] dev middleware registered!')
       }
-    },
-
-    /**
-     * Vite 6+ environment-aware HMR hook.
-     * Ensures the aggregated CSS virtual module is invalidated and included
-     * in the update whenever a tracked source file changes.
-     */
-    hotUpdate(options) {
-      const { file, modules } = options;
-
-      if (file.includes('theme') || isTrackedStyleFile(file)) {
-        clearThemeCache();
-      }
-
-      if (!getCssHandler().isEnabled()) {
-        return modules;
-      }
-
-      const cssMod = this.environment.moduleGraph.getModuleById(RESOLVED_ID);
-      if (cssMod) {
-        this.environment.moduleGraph.invalidateModule(cssMod);
-        return [...modules, cssMod];
-      }
-
-      return modules;
-    },
-
-    /**
-     * Legacy HMR hook for Vite 5 and early Vite 6 projects.
-     * Does the same CSS-virtual-module invalidation via the root server graph.
-     */
-    handleHotUpdate({ file, server, modules }) {
-      if (file.includes('theme') || isTrackedStyleFile(file)) {
-        clearThemeCache();
-      }
-
-      if (!getCssHandler().isEnabled()) {
-        return modules;
-      }
-
-      const cssMod = server?.moduleGraph?.getModuleById(RESOLVED_ID);
-      if (cssMod) {
-        server.moduleGraph.invalidateModule(cssMod);
-        return [...modules, cssMod];
-      }
-
-      return modules;
-    },
-
-    watchChange(id, change) {
-      if (change.event === 'delete') {
-        getCssHandler().deleteFile(id);
-      }
-    },
-
-    resolveId(source, _importer, _options) {
-      return getCssHandler().resolveId(source);
-    },
-
-    load(id) {
-      return getCssHandler().load(id);
     },
 
     transform(code, id, transformOptions) {
@@ -334,7 +256,7 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       const ssr = wantsServerRendering && viteIsInSsrContext;
       const islands = options.target === 'islands' || options.target === 'island';
         
-      let compiled = getCssHandler().transform(code, file);
+      let compiled = code;
       if (!ssr && !viteIsInSsrContext) {
         if (options.target === 'ssg') {
           compiled = rewriteClientMount(compiled, file, 'static');

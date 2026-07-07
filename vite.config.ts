@@ -24,7 +24,6 @@ export default defineConfig({
         'events/hotkey': resolve(__dirname, 'src/events/hotkey.ts'),
         'track/index': resolve(__dirname, 'src/track/index.ts'),
         'router/index': resolve(__dirname, 'src/router/index.ts'),
-        'css/index': resolve(__dirname, 'src/css/index.ts'),
         'vite-router/index': resolve(__dirname, 'src/vite-router/index.ts'),
         'jsx-runtime': resolve(__dirname, 'src/jsx-runtime.ts'),
         'jsx-dev-runtime': resolve(__dirname, 'src/jsx-dev-runtime.ts'),
@@ -88,7 +87,6 @@ export default defineConfig({
       { find: /^auwla\/events$/, replacement: resolve(__dirname, 'src/events/index.ts') },
       { find: 'auwla/track', replacement: resolve(__dirname, 'src/track/index.ts') },
       { find: 'auwla/router', replacement: resolve(__dirname, 'src/router/index.ts') },
-      { find: 'auwla/css', replacement: resolve(__dirname, 'src/css/index.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]
   },
