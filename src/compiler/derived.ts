@@ -215,8 +215,100 @@ export function buildDerivedContext(
     ts.forEachChild(node, visitForMutations);
   }
 
+  /** Collect every simple identifier that is the target of an assignment. */
+  function collectAssignedIdentifiers(node: ts.Node, out: Set<string>): void {
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      const isAssignment =
+        op === ts.SyntaxKind.EqualsToken ||
+        op === ts.SyntaxKind.PlusEqualsToken ||
+        op === ts.SyntaxKind.MinusEqualsToken ||
+        op === ts.SyntaxKind.AsteriskEqualsToken ||
+        op === ts.SyntaxKind.SlashEqualsToken ||
+        op === ts.SyntaxKind.PercentEqualsToken ||
+        op === ts.SyntaxKind.AmpersandEqualsToken ||
+        op === ts.SyntaxKind.BarEqualsToken ||
+        op === ts.SyntaxKind.CaretEqualsToken ||
+        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
+        op === ts.SyntaxKind.BarBarEqualsToken ||
+        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
+        op === ts.SyntaxKind.QuestionQuestionEqualsToken;
+      if (isAssignment) {
+        collectPatternIdentifiers(node.left, out);
+        // Only recurse into the right side; the left side was handled as a pattern.
+        collectAssignedIdentifiers(node.right, out);
+        return;
+      }
+    }
+
+    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
+      if (
+        node.operator === ts.SyntaxKind.PlusPlusToken ||
+        node.operator === ts.SyntaxKind.MinusMinusToken
+      ) {
+        if (ts.isIdentifier(node.operand)) {
+          out.add(node.operand.text);
+        }
+      }
+    }
+
+    ts.forEachChild(node, (child) => collectAssignedIdentifiers(child, out));
+  }
+
+  /** Collect identifiers from a destructuring or simple assignment target. */
+  function collectPatternIdentifiers(node: ts.Node, out: Set<string>): void {
+    if (ts.isIdentifier(node)) {
+      out.add(node.text);
+      return;
+    }
+    if (ts.isArrayLiteralExpression(node)) {
+      for (const element of node.elements) {
+        collectPatternIdentifiers(element, out);
+      }
+      return;
+    }
+    if (ts.isObjectLiteralExpression(node)) {
+      for (const property of node.properties) {
+        if (ts.isPropertyAssignment(property)) {
+          collectPatternIdentifiers(property.initializer, out);
+        } else if (ts.isShorthandPropertyAssignment(property)) {
+          out.add(property.name.text);
+        }
+      }
+      return;
+    }
+    if (ts.isBindingElement(node)) {
+      if (node.name) collectPatternIdentifiers(node.name, out);
+      if (node.initializer) collectAssignedIdentifiers(node.initializer, out);
+      return;
+    }
+  }
+
+  // Identify if/else statements that are the initializer for an immediately
+  // preceding uninitialized variable. These are not reassignments; they are
+  // conditional initializers and should be skipped by reassignment detection.
+  const conditionalAssignmentIfs = new Set<ts.IfStatement>();
+  for (let i = 0; i < setupStatements.length - 1; i++) {
+    const declStmt = setupStatements[i];
+    const nextStmt = setupStatements[i + 1];
+    if (!declStmt || !nextStmt || !ts.isVariableStatement(declStmt) || !ts.isIfStatement(nextStmt)) continue;
+    for (const decl of declStmt.declarationList.declarations) {
+      if (!ts.isIdentifier(decl.name) || decl.initializer) continue;
+      const name = decl.name.text;
+      if (!extractSimpleAssignment(source, nextStmt.thenStatement, name)) continue;
+      if (nextStmt.elseStatement && !extractSimpleAssignment(source, nextStmt.elseStatement, name)) continue;
+      conditionalAssignmentIfs.add(nextStmt);
+    }
+  }
+
   for (const stmt of setupStatements) {
     visitForMutations(stmt);
+    if (!conditionalAssignmentIfs.has(stmt as ts.IfStatement)) {
+      collectAssignedIdentifiers(stmt, reassigned);
+    }
 
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
@@ -226,55 +318,6 @@ export function buildDerivedContext(
           allDecls.set(name, decl.initializer.getText(source));
         } else {
           allDecls.set(name, 'undefined');
-        }
-      }
-    }
-
-    // Track simple reassignments: `x = ...`, `x += ...`
-    if (ts.isExpressionStatement(stmt)) {
-      const expr = stmt.expression;
-      if (ts.isBinaryExpression(expr) && ts.isIdentifier(expr.left)) {
-        const op = expr.operatorToken.kind;
-        if (
-          op === ts.SyntaxKind.EqualsToken ||
-          op === ts.SyntaxKind.PlusEqualsToken ||
-          op === ts.SyntaxKind.MinusEqualsToken ||
-          op === ts.SyntaxKind.AsteriskEqualsToken ||
-          op === ts.SyntaxKind.SlashEqualsToken ||
-          op === ts.SyntaxKind.PercentEqualsToken ||
-          op === ts.SyntaxKind.AmpersandEqualsToken ||
-          op === ts.SyntaxKind.BarEqualsToken ||
-          op === ts.SyntaxKind.CaretEqualsToken ||
-          op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
-          op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
-          op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
-          op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
-          op === ts.SyntaxKind.BarBarEqualsToken ||
-          op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
-          op === ts.SyntaxKind.QuestionQuestionEqualsToken
-        ) {
-          reassigned.add(expr.left.text);
-        }
-      }
-      if (ts.isPrefixUnaryExpression(expr)) {
-        if (
-          expr.operator === ts.SyntaxKind.PlusPlusToken ||
-          expr.operator === ts.SyntaxKind.MinusMinusToken
-        ) {
-          const operand = expr.operand;
-          if (ts.isIdentifier(operand)) {
-            reassigned.add(operand.text);
-          }
-        }
-      }
-      if (ts.isPostfixUnaryExpression(expr)) {
-        if (
-          expr.operator === ts.SyntaxKind.PlusPlusToken ||
-          expr.operator === ts.SyntaxKind.MinusMinusToken
-        ) {
-          if (ts.isIdentifier(expr.operand)) {
-            reassigned.add(expr.operand.text);
-          }
         }
       }
     }

@@ -165,10 +165,11 @@ function addDerivedReplacements(
       const init = decl.initializer.getText(source);
       const deps = derivedCtx.allSourceDeps(init);
       const depsStr = deps.length > 0 ? `, [${deps.map((d) => `'${d}'`).join(', ')}]` : '';
+      const needsParens = ts.isObjectLiteralExpression(decl.initializer);
       replacements.push({
         start: decl.initializer.getStart(source),
         end: decl.initializer.getEnd(),
-        text: `__computed(() => ${derivedCtx.expand(init)}${depsStr})`,
+        text: `__computed(() => ${needsParens ? '(' : ''}${derivedCtx.expand(init)}${needsParens ? ')' : ''}${depsStr})`,
       });
     }
   }
