@@ -318,40 +318,54 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const isLayout = /^_layout\.[jt]sx?$/.test(basename(file));
       const isSrv = isServerFile(file);
 
+      // Diagnostic: always log when hotUpdate fires so we know the hook is being called
+      console.log(`[auwla:router] hotUpdate fired — file: ${file}, isPage: ${isPage}, isLayout: ${isLayout}, isSrv: ${isSrv}`);
+
       if (isSrv) {
+        // Regenerate the server manifest — let Vite's default HMR handle the rest
         generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir);
         return;
       }
 
       if (!isPage && !isLayout) return;
 
-      const oldModuleCode = cachedVirtualModule;
+      // Rebuild the route table so the virtual module reflects any added/removed pages
       const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, extensions);
       cachedVirtualModule = null;
-
       writeSafe(resolvedGenFile, typeCode);
 
-      const clientEnv = ctx.server.environments?.client;
-      const moduleGraph = clientEnv?.moduleGraph ?? ctx.server.moduleGraph;
-      const mod = moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
-      if (mod) {
-        moduleGraph.invalidateModule(mod);
+      // Bust the virtual routes module AND the changed file in every environment
+      // (client + ssr). The SSR env must be invalidated so ssrLoadModule re-executes
+      // the changed file on the next request instead of serving the stale cached version.
+      const environments = ctx.server.environments ? Object.values(ctx.server.environments) : [];
+      for (const env of environments) {
+        const virtualMod = env.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
+        if (virtualMod) env.moduleGraph.invalidateModule(virtualMod);
+
+        const changedMod = env.moduleGraph.getModuleById(file);
+        if (changedMod) env.moduleGraph.invalidateModule(changedMod);
       }
 
-      const routeTableChanged = oldModuleCode !== moduleCode;
-      const needsReload = isLayout || routeTableChanged;
+      // Fallback: older Vite without the environments map
+      if (environments.length === 0) {
+        const virtualMod = ctx.server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
+        if (virtualMod) ctx.server.moduleGraph.invalidateModule(virtualMod);
 
-      if (needsReload) {
-        ctx.server.hot.send({ type: 'full-reload' });
+        const changedMod = ctx.server.moduleGraph.getModuleById(file);
+        if (changedMod) ctx.server.moduleGraph.invalidateModule(changedMod);
       }
 
       cachedVirtualModule = moduleCode;
 
-      if (!needsReload) {
-        return mod ? [...ctx.modules, mod] : ctx.modules;
-      }
-      return;
+      // Always trigger a full page reload for any page or layout change.
+      // SSR apps re-render the entire HTML on each request — there is no
+      // meaningful "component-level" HMR boundary here. Returning [] after
+      // sending the reload tells Vite we've handled it and prevents it from
+      // doing its own (potentially silent / incomplete) HMR propagation.
+      ctx.server.hot.send({ type: 'full-reload' });
+      return [];
     },
+
 
     configureServer(server: ViteDevServer) {
       server.watcher.add(resolvedPagesDir);

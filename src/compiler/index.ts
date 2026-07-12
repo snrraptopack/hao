@@ -21,19 +21,31 @@ export type CompileOptions = {
 const EVENT_ATTR_PATTERN = /^on[A-Z]/;
 
 /**
- * Collect function identifiers that are used directly as JSX event handlers.
- * These functions do not need __commit() wrapping because the event path
- * already invalidates the component.
+ * Collect locally declared helpers invoked by JSX event handlers. These
+ * functions do not need __commit() wrapping because the event path already
+ * invalidates the component after their synchronous work completes.
  */
 function collectEventHandlerIdentifiers(source: ts.SourceFile): Set<string> {
   const identifiers = new Set<string>();
+
+  function collectCalls(expression: ts.Expression): void {
+    function visitExpression(node: ts.Node): void {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        identifiers.add(node.expression.text);
+      }
+      ts.forEachChild(node, visitExpression);
+    }
+    visitExpression(expression);
+  }
+
   function visit(node: ts.Node) {
     if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name) && EVENT_ATTR_PATTERN.test(node.name.text)) {
-      if (node.initializer) {
-        const expr = ts.isJsxExpression(node.initializer) ? node.initializer.expression : node.initializer;
-        if (expr && ts.isIdentifier(expr)) {
-          identifiers.add(expr.text);
-        }
+      const expr = node.initializer && ts.isJsxExpression(node.initializer)
+        ? node.initializer.expression
+        : null;
+      if (expr) {
+        if (ts.isIdentifier(expr)) identifiers.add(expr.text);
+        else collectCalls(expr);
       }
     }
     ts.forEachChild(node, visit);

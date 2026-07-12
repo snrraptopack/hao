@@ -142,10 +142,16 @@ function looksPure(expression: string): boolean {
       }
     }
 
-    // Reject new expressions (conservative safety)
+    // Constructing the built-in collection types is a read-only operation for
+    // derived-state purposes. Their iterable arguments may read reactive local
+    // state (for example, `new Set(categories.values())`), but do not mutate it.
+    // Keep other constructors conservative because they can have side effects.
     if (ts.isNewExpression(node)) {
-      pure = false;
-      return;
+      if (!ts.isIdentifier(node.expression) ||
+          (node.expression.text !== 'Set' && node.expression.text !== 'Map')) {
+        pure = false;
+        return;
+      }
     }
 
     ts.forEachChild(node, walk);

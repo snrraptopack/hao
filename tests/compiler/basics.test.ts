@@ -283,6 +283,114 @@ describe('basic render closure compilation', () => {
     expect(root.querySelector('p')!.textContent).toBe('All done');
   });
 
+  test('recomputes derived Map collection reads after an event mutation', async () => {
+    const source = `
+      function App() {
+        const categories = new Map([[1, 'Health']]);
+        let categoryCounts = [...new Set(categories.values())].map(name => ({
+          name,
+          count: [...categories.values()].filter(category => category === name).length,
+        }));
+
+        function addHealthCategory() {
+          categories.set(2, 'Health');
+        }
+
+        return () => (
+          <div>
+            <span id="counts">{categoryCounts.map(category => category.name + ':' + category.count).join(',')}</span>
+            <button onClick={() => addHealthCategory()}>Add</button>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain("__computed(() => [...new Set(categories.values())]");
+    expect(compiled).toContain("['categories']");
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('#counts')!.textContent).toBe('Health:1');
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.querySelector('#counts')!.textContent).toBe('Health:2');
+  });
+
+  test('recomputes Set size and Map lookups after collection deletes', async () => {
+    const source = `
+      function App() {
+        const categories = new Map([[1, 'Health']]);
+        const starred = new Set([1]);
+        let starredCount = starred.size;
+        let firstCategory = categories.get(1) ?? 'None';
+
+        function removeHabit() {
+          categories.delete(1);
+          starred.delete(1);
+        }
+
+        return () => (
+          <div>
+            <span id="starred">{starredCount}</span>
+            <span id="category">{firstCategory}</span>
+            <button onClick={() => removeHabit()}>Remove</button>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__computed(() => starred.size, [\'starred\'])');
+    expect(compiled).toContain('__computed(() => categories.get(1) ?? \'None\', [\'categories\'])');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('#starred')!.textContent).toBe('1');
+    expect(root.querySelector('#category')!.textContent).toBe('Health');
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.querySelector('#starred')!.textContent).toBe('0');
+    expect(root.querySelector('#category')!.textContent).toBe('None');
+  });
+
+  test('updates keyed-row classes after a helper toggles an item property', async () => {
+    const source = `
+      function App() {
+        const habits = [{ id: 1, done: false, name: 'Walk' }];
+
+        function toggleHabit(habit) {
+          habit.done = !habit.done;
+        }
+
+        return () => (
+          <ul>{habits.map(habit => (
+            <li key={habit.id} class={habit.done ? 'done' : 'pending'}>
+              <button onClick={() => toggleHabit(habit)}>{habit.name}</button>
+            </li>
+          ))}</ul>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const { App } = evaluateCompiled(compileAuwla(source)) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    const habit = root.querySelector('li')!;
+    expect(habit.className).toBe('pending');
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(habit.className).toBe('done');
+  });
+
   test('dangerouslySetInnerHTML with derived html calls the computed getter once', () => {
     const source = `
       function DocPage() {
