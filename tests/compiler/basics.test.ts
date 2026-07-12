@@ -360,6 +360,56 @@ describe('basic render closure compilation', () => {
     expect(root.querySelector('#category')!.textContent).toBe('None');
   });
 
+  test('does not wrap mutable collections that reference locals in computed getters', async () => {
+    const source = `
+      function App() {
+        const alice = { name: 'Alice' };
+        const bob = { name: 'Bob' };
+        const selected = new Set([alice]);
+        let selectedNames = [...selected].map(p => p.name).join(', ') || '(none)';
+
+        function toggleSelected(person: any) {
+          if (selected.has(person)) selected.delete(person);
+          else selected.add(person);
+        }
+
+        return () => (
+          <div>
+            <span id="names">{selectedNames}</span>
+            <button id="alice" onClick={() => toggleSelected(alice)}>Toggle Alice</button>
+            <button id="bob" onClick={() => toggleSelected(bob)}>Toggle Bob</button>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    // The mutable Set should stay a plain variable, not become a computed getter.
+    expect(compiled).toContain('const selected = new Set([alice])');
+    expect(compiled).not.toContain('const selected = __computed');
+    // The derived read should still be a computed getter.
+    expect(compiled).toContain('__computed(() => [...selected].map(p => p.name).join(\', \') || \'(none)\', [\'selected\'])');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    expect(root.querySelector('#names')!.textContent).toBe('Alice');
+
+    root.querySelector('#alice')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.querySelector('#names')!.textContent).toBe('(none)');
+
+    root.querySelector('#alice')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.querySelector('#names')!.textContent).toBe('Alice');
+
+    root.querySelector('#bob')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(root.querySelector('#names')!.textContent).toBe('Alice, Bob');
+  });
+
   test('updates keyed-row classes after a helper toggles an item property', async () => {
     const source = `
       function App() {

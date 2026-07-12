@@ -140,8 +140,8 @@ describe('fine-grained DOM patching', () => {
     `;
 
     const compiled = compileAuwla(source);
-    // Derived value is wrapped in a computed getter.
-    expect(compiled).toContain('__computed(() => count * 2)');
+    // Derived value is wrapped in a computed getter with source deps.
+    expect(compiled).toContain('__computed(() => count * 2');
     // The derived patch reads the getter.
     expect(compiled).toContain('__setElementText(el2, doubled())');
   });

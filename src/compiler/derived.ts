@@ -182,8 +182,42 @@ export function buildDerivedContext(
 ): DerivedContext {
   const allDecls = new Map<string, string>(); // varName -> init expression
   const reassigned = new Set<string>();
+  const mutated = new Set<string>();
+
+  /** Detect mutating method calls like `set.add()`, `map.set()`, `arr.push()`. */
+  function collectMutatedReceivers(node: ts.Node): void {
+    if (!ts.isCallExpression(node)) return;
+    const callee = node.expression;
+    if (!ts.isPropertyAccessExpression(callee)) return;
+
+    const methodName = callee.name.text;
+    const MUTATING_METHODS = new Set([
+      // Array
+      'push', 'pop', 'shift', 'unshift', 'splice', 'reverse', 'sort', 'fill', 'copyWithin',
+      // Map
+      'set', 'delete', 'clear',
+      // Set
+      'add', 'delete', 'clear',
+    ]);
+    if (!MUTATING_METHODS.has(methodName)) return;
+
+    let root: ts.Expression = callee.expression;
+    while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root)) {
+      root = root.expression;
+    }
+    if (ts.isIdentifier(root)) {
+      mutated.add(root.text);
+    }
+  }
+
+  function visitForMutations(node: ts.Node): void {
+    collectMutatedReceivers(node);
+    ts.forEachChild(node, visitForMutations);
+  }
 
   for (const stmt of setupStatements) {
+    visitForMutations(stmt);
+
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
         if (!ts.isIdentifier(decl.name)) continue;
@@ -367,12 +401,12 @@ export function buildDerivedContext(
   // - Has an initialization expression
   // - Expression looks pure
   // - References at least one other local variable
-  // - Never reassigned
+  // - Never reassigned or mutated (e.g. `set.add()`, `map.set()`, `arr.push()`)
   const derived = new Set<string>();
   const localNames = new Set(allDecls.keys());
 
   for (const [name, init] of allDecls) {
-    if (reassigned.has(name)) continue;
+    if (reassigned.has(name) || mutated.has(name)) continue;
     if (!looksPure(init)) continue;
     const refs = extractIdentifiers(init);
     const localRefs = refs.filter((r) => localNames.has(r) && r !== name);

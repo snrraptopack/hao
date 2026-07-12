@@ -425,6 +425,7 @@ export function compileRowBlock(
   derivedCtx: DerivedContext | null = null,
   preUpdateStatements: readonly string[] = [],
   sourceArrayName?: string,
+  syntheticPreUpdateStatements: readonly string[] = [],
 ): { block: string; deps: string[]; forceUpdate?: boolean } | null {
   const rowDerivedCtx = derivedCtx && sourceArrayName
     ? { ...derivedCtx, mapItemSource: { itemName, sourceName: sourceArrayName } }
@@ -456,13 +457,16 @@ export function compileRowBlock(
     ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
   const preUpdateLines = preUpdateStatements.map((line) => `              ${line}`).join('\n');
+  const syntheticPreUpdateLines = syntheticPreUpdateStatements.map((line) => `              ${line}`).join('\n');
   const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
+
+  const allPreUpdateStatements = [...syntheticPreUpdateStatements, ...preUpdateStatements];
 
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
     forceUpdate: preUpdateStatements.length > 0,
     block: `__createBlock(() => {
-            ${preUpdateStatements.map((line) => `            ${line}`).join('\n')}
+            ${allPreUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.setup, patches, derivedCtx).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             ${ctx.setup.join('\n            ')}
@@ -471,7 +475,7 @@ ${init ? `\n${init}\n` : ''}
             return {
               node: ${result.root},
               update(${itemName}, ${indexName}) {
-${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}
+${syntheticPreUpdateLines ? `${syntheticPreUpdateLines}\n` : ''}${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}
               },
             };
           })`,
@@ -489,8 +493,9 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
 
   const callback = expression.arguments[0]!;
   if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) return false;
-  const itemParam = callback.parameters[0];
-  if (!itemParam || !ts.isIdentifier(itemParam.name)) return false;
+  const paramInfo = normalizeMapItemParam(callback.parameters[0]);
+  if (!paramInfo) return false;
+  const { itemName, leadingStatements: paramLeadingStatements, substitutions } = paramInfo;
   const indexParam = callback.parameters[1];
   const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
 
@@ -502,14 +507,14 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
 
   const key = keyAttribute(row);
   const isUnkeyed = !key;
-  const keyText = key ? expressionText(ctx.source, key) : indexName;
+  const rawKeyText = key ? expressionText(ctx.source, key) : indexName;
+  const keyText = applySubstitutions(rawKeyText, substitutions);
   const items = expressionText(ctx.source, expression.expression.expression);
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements, items);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items, paramLeadingStatements)
+    ?? compileRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, leadingStatements, items, paramLeadingStatements);
 
   const mapVar = `map${ctx.mapId++}`;
   const childVar = `child${ctx.textId++}`;
-  const itemName = itemParam.name.text;
 
   let rowBlockCode: string;
   let rowDeps: string[];
@@ -517,12 +522,12 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
 
   if (rowBlock) {
     rowBlockCode = rowBlock.block;
-    rowDeps = rowBlock.deps;
+    rowDeps = rowBlock.deps.map((dep) => applySubstitutions(dep, substitutions));
     forceUpdate = rowBlock.forceUpdate ?? false;
   } else {
     // Fallback row block for custom components inside map loops
     const jsxCode = row.getText(ctx.source);
-    const expandedJsxCode = ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode;
+    const expandedJsxCode = applySubstitutions(ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode, substitutions);
     const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
     rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
 
@@ -583,8 +588,9 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
 
   const callback = expression.arguments[0]!;
   if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) return null;
-  const itemParam = callback.parameters[0];
-  if (!itemParam || !ts.isIdentifier(itemParam.name)) return null;
+  const paramInfo = normalizeMapItemParam(callback.parameters[0]);
+  if (!paramInfo) return null;
+  const { itemName, leadingStatements: paramLeadingStatements, substitutions } = paramInfo;
   const indexParam = callback.parameters[1];
   const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
 
@@ -596,13 +602,13 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
 
   const key = keyAttribute(row);
   const isUnkeyed = !key;
-  const keyText = key ? expressionText(ctx.source, key) : indexName;
+  const rawKeyText = key ? expressionText(ctx.source, key) : indexName;
+  const keyText = applySubstitutions(rawKeyText, substitutions);
   const items = expressionText(ctx.source, expression.expression.expression);
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items)
-    ?? compileRowBlock(ctx.source, row, itemParam.name.text, indexName, keyText, ctx.derivedCtx, leadingStatements, items);
+  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items, paramLeadingStatements)
+    ?? compileRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, leadingStatements, items, paramLeadingStatements);
 
   const mapVar = `map${ctx.mapId++}`;
-  const itemName = itemParam.name.text;
 
   let rowBlockCode: string;
   let rowDeps: string[];
@@ -610,12 +616,12 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
 
   if (rowBlock) {
     rowBlockCode = rowBlock.block;
-    rowDeps = rowBlock.deps;
+    rowDeps = rowBlock.deps.map((dep) => applySubstitutions(dep, substitutions));
     forceUpdate = rowBlock.forceUpdate ?? false;
   } else {
     // Fallback row block for custom components inside map loops
     const jsxCode = row.getText(ctx.source);
-    const expandedJsxCode = ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode;
+    const expandedJsxCode = applySubstitutions(ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode, substitutions);
     const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
     rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
 
@@ -659,6 +665,57 @@ export function substituteProps(code: string, props: Map<string, string>): strin
   return code.replace(/\bprops\.([A-Za-z_$][\w$]*)\b/g, (_, name) => {
     return props.get(name) ?? 'undefined';
   });
+}
+
+/**
+ * Build support metadata for a keyed-map callback parameter.
+ *
+ * Plain identifiers pass through unchanged. Array destructuring patterns like
+ * `([key, team])` are rewritten to a synthetic parameter name and a leading
+ * destructuring statement so the original names stay in scope inside the row.
+ */
+function normalizeMapItemParam(
+  param: ts.ParameterDeclaration | undefined,
+): {
+  itemName: string;
+  leadingStatements: string[];
+  substitutions: Map<string, string>;
+} | null {
+  if (!param) {
+    return null;
+  }
+
+  if (ts.isIdentifier(param.name)) {
+    return { itemName: param.name.text, leadingStatements: [], substitutions: new Map() };
+  }
+
+  if (ts.isArrayBindingPattern(param.name)) {
+    const itemName = '__auwlaItem';
+    const elements = param.name.elements
+      .map((el, i) => {
+        if (ts.isOmittedExpression(el)) return null;
+        if (!ts.isIdentifier(el.name)) return null;
+        return { name: el.name.text, index: i };
+      })
+      .filter((el): el is { name: string; index: number } => el !== null);
+
+    const binding = `[${elements.map((el) => el.name).join(', ')}]`;
+    const leadingStatements = [`const ${binding} = ${itemName};`];
+    const substitutions = new Map<string, string>();
+    for (const el of elements) {
+      substitutions.set(el.name, `${itemName}[${el.index}]`);
+    }
+    return { itemName, leadingStatements, substitutions };
+  }
+
+  // Other binding patterns are not supported.
+  return null;
+}
+
+function applySubstitutions(code: string, substitutions: Map<string, string>): string {
+  if (substitutions.size === 0) return code;
+  const pattern = new RegExp(`\\b(${Array.from(substitutions.keys()).join('|')})\\b`, 'g');
+  return code.replace(pattern, (match) => substitutions.get(match) ?? match);
 }
 
 export function tryInlineComponent(

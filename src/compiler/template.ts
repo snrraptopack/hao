@@ -226,6 +226,7 @@ export function compileTemplateRowBlock(
   ssr = false,
   preUpdateStatements: readonly string[] = [],
   sourceArrayName?: string,
+  syntheticPreUpdateStatements: readonly string[] = [],
 ): { block: string; deps: string[]; forceUpdate?: boolean } | null {
   const rowDerivedCtx = derivedCtx && sourceArrayName
     ? { ...derivedCtx, mapItemSource: { itemName, sourceName: sourceArrayName } }
@@ -259,17 +260,20 @@ export function compileTemplateRowBlock(
     ? patches.map((patch) => `            ${patch.code}`).join('\n')
     : '';
   const preUpdateLines = preUpdateStatements.map((line) => `              ${line}`).join('\n');
+  const syntheticPreUpdateLines = syntheticPreUpdateStatements.map((line) => `              ${line}`).join('\n');
   const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
   const refLines = ctx.refSetup.length
     ? `\n                if (!_init) {\n${ctx.refSetup.map((r) => `                  ${r}`).join('\n')}\n                  _init = true;\n                }`
     : '';
 
+  const allPreUpdateStatements = [...syntheticPreUpdateStatements, ...preUpdateStatements];
+
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
     forceUpdate: preUpdateStatements.length > 0,
     block: `__createBlock(() => {
-            ${preUpdateStatements.map((line) => `            ${line}`).join('\n')}
+            ${allPreUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.elementSetup, patches, derivedCtx).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
             const el0 = __cloneTemplate(${stringLiteral(html)});
@@ -281,7 +285,7 @@ ${init ? `\n${init}\n` : ''}
             return {
               node: el0,
               update(${itemName}, ${indexName}) {
-${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}${refLines}
+${syntheticPreUpdateLines ? `${syntheticPreUpdateLines}\n` : ''}${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}${refLines}
               },
             };
           })`,

@@ -357,5 +357,51 @@ describe('keyed list compilation', () => {
     expect(shuffled[0]).toBe(secondLi);
     expect(shuffled[1]).toBe(firstLi);
   });
+
+  test('compiles maps with array-destructured callback parameters', async () => {
+    const source = `
+      function App() {
+        const teams = new Map([
+          ['red', { members: new Map([[1, 'Alice']]) }],
+          ['blue', { members: new Map([[2, 'Bob']]) }],
+        ]);
+
+        function addMember(teamKey: string) {
+          const id = Date.now();
+          teams.get(teamKey)!.members.set(id, 'New');
+        }
+
+        return () => (
+          <div>
+            <button onClick={() => addMember('red')}>Add to Red</button>
+            <div>
+              {[...teams.entries()].map(([key, team]) => (
+                <span>{key}: {team.members.size}</span>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('__keyedMap');
+    expect(compiled).toContain('const [key, team] = __auwlaItem');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(App as any));
+
+    const spans = root.querySelectorAll('span');
+    expect(spans.length).toBe(2);
+    expect(spans[0]!.textContent).toBe('red: 1');
+    expect(spans[1]!.textContent).toBe('blue: 1');
+
+    root.querySelector('button')!.click();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(root.querySelectorAll('span')[0]!.textContent).toBe('red: 2');
+  });
 });
 
