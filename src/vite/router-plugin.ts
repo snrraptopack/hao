@@ -1,6 +1,6 @@
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname, basename, relative } from 'node:path';
-import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
+import type { EnvironmentModuleNode, Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import * as ts from 'typescript';
 import type { AuwlaRouterOptions } from '../vite-router/types';
 import { scanPagesAndLayouts, buildDirectoryTree, scanAllComponents } from '../vite-router/scanner';
@@ -29,6 +29,21 @@ const RESOLVED_MANIFEST_VIRTUAL_ID = '\0auwla:server-manifest';
 
 let cachedManifestModule: string | null = null;
 let ssgIsRunning = false;
+
+function appendHotModules(
+  modules: EnvironmentModuleNode[],
+  ...additional: Array<EnvironmentModuleNode | undefined>
+): EnvironmentModuleNode[] {
+  const result = [...modules];
+  const seen = new Set(result);
+  for (const module of additional) {
+    if (module && !seen.has(module)) {
+      seen.add(module);
+      result.push(module);
+    }
+  }
+  return result;
+}
 
 export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
   let pagesRelDir = options.directories?.pages ?? 'src/pages';
@@ -317,53 +332,30 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const isPage = isPageFile(file, resolvedPagesDir, extensions);
       const isLayout = /^_layout\.[jt]sx?$/.test(basename(file));
       const isSrv = isServerFile(file);
-
-      // Diagnostic: always log when hotUpdate fires so we know the hook is being called
-      console.log(`[auwla:router] hotUpdate fired — file: ${file}, isPage: ${isPage}, isLayout: ${isLayout}, isSrv: ${isSrv}`);
+      const moduleGraph = this.environment.moduleGraph;
 
       if (isSrv) {
-        // Regenerate the server manifest — let Vite's default HMR handle the rest
         generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir);
-        return;
+        return appendHotModules(
+          ctx.modules,
+          moduleGraph.getModuleById(RESOLVED_MANIFEST_VIRTUAL_ID),
+        );
       }
 
       if (!isPage && !isLayout) return;
 
-      // Rebuild the route table so the virtual module reflects any added/removed pages
       const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, extensions);
-      cachedVirtualModule = null;
+      cachedVirtualModule = moduleCode;
       writeSafe(resolvedGenFile, typeCode);
 
-      // Bust the virtual routes module AND the changed file in every environment
-      // (client + ssr). The SSR env must be invalidated so ssrLoadModule re-executes
-      // the changed file on the next request instead of serving the stale cached version.
-      const environments = ctx.server.environments ? Object.values(ctx.server.environments) : [];
-      for (const env of environments) {
-        const virtualMod = env.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
-        if (virtualMod) env.moduleGraph.invalidateModule(virtualMod);
-
-        const changedMod = env.moduleGraph.getModuleById(file);
-        if (changedMod) env.moduleGraph.invalidateModule(changedMod);
-      }
-
-      // Fallback: older Vite without the environments map
-      if (environments.length === 0) {
-        const virtualMod = ctx.server.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
-        if (virtualMod) ctx.server.moduleGraph.invalidateModule(virtualMod);
-
-        const changedMod = ctx.server.moduleGraph.getModuleById(file);
-        if (changedMod) ctx.server.moduleGraph.invalidateModule(changedMod);
-      }
-
-      cachedVirtualModule = moduleCode;
-
-      // Always trigger a full page reload for any page or layout change.
-      // SSR apps re-render the entire HTML on each request — there is no
-      // meaningful "component-level" HMR boundary here. Returning [] after
-      // sending the reload tells Vite we've handled it and prevents it from
-      // doing its own (potentially silent / incomplete) HMR propagation.
-      ctx.server.hot.send({ type: 'full-reload' });
-      return [];
+      // Vite 8 invokes hotUpdate once per environment. Returning the generated
+      // modules lets that environment's native HMR pipeline invalidate and
+      // propagate them. Returning [] here would suppress propagation entirely.
+      return appendHotModules(
+        ctx.modules,
+        moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID),
+        moduleGraph.getModuleById(RESOLVED_ISLANDS_VIRTUAL_ID),
+      );
     },
 
 

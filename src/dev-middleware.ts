@@ -5,11 +5,20 @@ export async function createDevServerMiddleware(
   serverEntry?: string
 ) {
   return async function auwlaDevMiddleware(req: any, res: any, next: any) {
-    if (req.url?.startsWith('/@')) return next()
-    if (req.url?.includes('?import')) return next()
-    
-    // Ignore static assets commonly requested
-    if (req.url?.match(/\.(js|css|ico|png|jpg|jpeg|svg|gif|woff2?)$/)) {
+    const requestUrl = req.url ?? ''
+    const pathname = requestUrl.split('?', 1)[0] ?? requestUrl
+
+    // Vite owns source modules, internal endpoints, dependency modules, and
+    // asset requests. Letting the SSR adapter handle a `.ts`/`.tsx` request
+    // returns its 404 response and prevents the browser from applying HMR.
+    if (
+      pathname.startsWith('/@') ||
+      pathname.startsWith('/__vite') ||
+      pathname.startsWith('/src/') ||
+      pathname.startsWith('/node_modules/') ||
+      /[?&](?:import|direct|raw|url|worker)(?:[=&]|$)/.test(requestUrl) ||
+      /\.(?:[cm]?[jt]sx?|css|scss|sass|less|styl|map|ico|png|jpe?g|svg|gif|webp|avif|woff2?|ttf|otf|wasm)$/.test(pathname)
+    ) {
       return next()
     }
 
