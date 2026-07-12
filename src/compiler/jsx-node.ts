@@ -14,6 +14,7 @@ import {
   expressionText,
   expressionDependencies,
   isMapCall,
+  containsMapCall,
   isWhitespaceJsxText,
   keyAttribute,
   needsChildPatch,
@@ -462,9 +463,11 @@ export function compileRowBlock(
 
   const allPreUpdateStatements = [...syntheticPreUpdateStatements, ...preUpdateStatements];
 
+  const hasNestedMap = containsMapCall(row);
+
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
-    forceUpdate: preUpdateStatements.length > 0,
+    forceUpdate: preUpdateStatements.length > 0 || hasNestedMap,
     block: `__createBlock(() => {
             ${allPreUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.setup, patches, derivedCtx).join('\n            ')}

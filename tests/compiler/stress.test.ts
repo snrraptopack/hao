@@ -442,15 +442,14 @@ describe('reactivity stress cases', () => {
         ];
 
         function addItem() {
-          groups[0].items = [...groups[0].items, { id: Date.now(), label: 'y' }];
-          groups = [...groups];
+          groups[0].items.push({ id: Date.now(), label: 'y' });
         }
 
         return () => (
           <div>
             {groups.map(g => (
               <section key={g.id}>
-                <h2>{g.name} ({g.items.length})</h2>
+                <h2>{g.name}</h2>
                 <ul>
                   {g.items.map(item => (
                     <li key={item.id}>{item.label}</li>

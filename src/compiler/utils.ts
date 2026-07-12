@@ -229,6 +229,21 @@ export function isMapCall(expression: ts.Expression): boolean {
   return unwrapMapCall(expression) !== null;
 }
 
+/** Return true if the JSX node contains a nested `.map()` call in its children. */
+export function containsMapCall(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  let found = false;
+  function walk(n: ts.Node) {
+    if (found) return;
+    if (ts.isCallExpression(n) && isMapCall(n)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(n, walk);
+  }
+  walk(node);
+  return found;
+}
+
 /** Extract the `key` attribute expression from a JSX element, if present. */
 export function keyAttribute(
   node: ts.JsxElement | ts.JsxSelfClosingElement,

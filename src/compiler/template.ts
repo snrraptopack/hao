@@ -18,6 +18,7 @@ import {
   pathExpression,
   childExpression,
   isMapCall,
+  containsMapCall,
   needsChildPatch,
   intrinsicName,
   expressionDependencies,
@@ -269,9 +270,11 @@ export function compileTemplateRowBlock(
 
   const allPreUpdateStatements = [...syntheticPreUpdateStatements, ...preUpdateStatements];
 
+  const hasNestedMap = containsMapCall(row);
+
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
-    forceUpdate: preUpdateStatements.length > 0,
+    forceUpdate: preUpdateStatements.length > 0 || hasNestedMap,
     block: `__createBlock(() => {
             ${allPreUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.elementSetup, patches, derivedCtx).join('\n            ')}
