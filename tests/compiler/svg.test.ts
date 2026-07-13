@@ -46,7 +46,7 @@ describe('SVG compilation', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('createElementNS("http://www.w3.org/2000/svg"');
+    expect(compiled).toContain('__hydrateElement("circle", true)');
     expect(compiled).not.toContain('__cloneTemplate("');
 
     const evaluated = evaluateCompiled(compiled) as { App: () => unknown; update(): void };

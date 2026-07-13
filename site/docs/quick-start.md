@@ -23,13 +23,13 @@ function App() {
   }
 
   // 2. Render Closure: Returns the JSX and is evaluated on re-renders
-  return () => (
+  return (
     <div style={{ padding: "20px" }}>
       <h1>Auwla Task List</h1>
-      
+
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <input 
-          type="text" 
+        <input
+          type="text"
           bind={text}
           placeholder="New task..."
         />

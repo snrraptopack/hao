@@ -24,8 +24,8 @@ describe('manifest', () => {
     expect(manifest['posts.createPost']).toMatchObject({
       exportName: 'createPost',
       method: 'POST',
-      argsType: ['{ title: string }'],
-      returnType: '{ id: number }',
+      argsType: ['{ title: string; }'],
+      returnType: '{ id: number; }',
     })
 
     expect(manifest['posts.getPost']).toMatchObject({
@@ -33,7 +33,7 @@ describe('manifest', () => {
       method: 'GET',
       routePattern: '/posts/:id',
       paramsType: '{ id: string }',
-      returnType: '{ id: string; title: string }',
+      returnType: '{ id: string; title: string; }',
     })
 
     expect(manifest['about.getAbout']).toMatchObject({

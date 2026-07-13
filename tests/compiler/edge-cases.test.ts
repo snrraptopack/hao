@@ -281,7 +281,7 @@ describe('known compiler limitations', () => {
     // Table with direct <tr> should NOT use template cloning for the TABLE,
     // because the browser inserts an implicit <tbody>, breaking childNodes paths.
     // However, the <tr> row template itself is safe (it's a root template).
-    expect(compiled).toContain('document.createElement("table")');
+    expect(compiled).toContain('__hydrateElement("table")');
     expect(compiled).toContain('__keyedMap');
 
     const { App } = evaluateCompiled(compiled) as { App: () => unknown };

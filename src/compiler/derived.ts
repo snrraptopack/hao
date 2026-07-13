@@ -59,13 +59,42 @@ const GLOBAL_IDENTIFIERS = new Set([
   '__computed',
 ]);
 
+function collectScopeDeclarations(node: ts.Node, scope: Set<string>) {
+  if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+    scope.add(node.name.text);
+  }
+  if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
+    return;
+  }
+  ts.forEachChild(node, (child) => collectScopeDeclarations(child, scope));
+}
+
 /** Extract top-level identifiers from a code string using the AST. */
 export function extractIdentifiers(code: string): string[] {
   const sourceFile = ts.createSourceFile('temp.ts', `(${code})`, ts.ScriptTarget.Latest, true);
   const ids: string[] = [];
   const seen = new Set<string>();
+  const scopes: Set<string>[] = [new Set()];
 
   function walk(node: ts.Node) {
+    const isFunction = ts.isFunctionDeclaration(node) ||
+                       ts.isFunctionExpression(node) ||
+                       ts.isArrowFunction(node);
+
+    if (isFunction) {
+      const scope = new Set<string>();
+      const fn = node as ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction;
+      for (const param of fn.parameters) {
+        if (ts.isIdentifier(param.name)) {
+          scope.add(param.name.text);
+        }
+      }
+      if (fn.body) {
+        collectScopeDeclarations(fn.body, scope);
+      }
+      scopes.push(scope);
+    }
+
     if (ts.isIdentifier(node)) {
       const name = node.text;
       
@@ -84,13 +113,25 @@ export function extractIdentifiers(code: string): string[] {
       }
 
       if (!isPropName && !GLOBAL_IDENTIFIERS.has(name)) {
-        if (!seen.has(name)) {
+        let isShadowed = false;
+        for (let i = scopes.length - 1; i >= 0; i--) {
+          if (scopes[i]!.has(name)) {
+            isShadowed = true;
+            break;
+          }
+        }
+        if (!isShadowed && !seen.has(name)) {
           seen.add(name);
           ids.push(name);
         }
       }
     }
+
     ts.forEachChild(node, walk);
+
+    if (isFunction) {
+      scopes.pop();
+    }
   }
 
   walk(sourceFile);

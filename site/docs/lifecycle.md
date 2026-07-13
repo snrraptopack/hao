@@ -9,21 +9,20 @@ An Auwla component has three moments: it **mounts** (setup runs once), it **re-r
 The outer function body is the setup phase. It runs exactly once when the component first appears. By the time the render closure returns JSX, all your state variables, side effects, and cleanup registrations are already in place.
 
 ```tsx
-import { commit, cleanup } from 'auwla';
+import { cleanup } from 'auwla';
 
 function LiveClock() {
   let time = new Date().toLocaleTimeString();
 
-  // setInterval runs in setup — starts once, keeps ticking
+  // Starts once, ticks automatically
   const id = setInterval(() => {
     time = new Date().toLocaleTimeString();
-    commit(); // async mutation — needs a manual commit (see State & Reactivity)
   }, 1000);
 
-  // Register cleanup so the interval stops when the component is removed
+  // Stop the interval when the component is removed
   cleanup(() => clearInterval(id));
 
-  return () => <p class="clock">{time}</p>;
+  return <p class="clock">{time}</p>;
 }
 ```
 
@@ -51,20 +50,19 @@ cleanup(() => document.removeEventListener('keydown', handler));
 **Timers**
 
 ```tsx
-import { commit, cleanup } from 'auwla';
+import { cleanup } from 'auwla';
 
 function Poller() {
   let items: { id: number; text: string }[] = [];
 
   const id = setInterval(async () => {
     const res = await fetch('/api/feed');
-    items = await res.json(); // each item has a stable .id from the server
-    commit();
+    items = await res.json();
   }, 5_000);
 
   cleanup(() => clearInterval(id));
 
-  return () => (
+  return (
     <ul>{items.map((item) => <li key={item.id}>{item.text}</li>)}</ul>
   );
 }
@@ -93,66 +91,46 @@ function EscapeHandler() {
 **WebSockets**
 
 ```tsx
-import { commit, cleanup } from 'auwla';
+import { cleanup } from 'auwla';
 
 function LiveFeed() {
-  let messages: { id: string; text: string }[] = [];
-
   const socket = new WebSocket('wss://api.example.com/feed');
 
-  socket.onmessage = (e) => {
-    const msg = JSON.parse(e.data); // assume each message has a stable .id
-    messages.push(msg);
-    commit();
-  };
-
+  // Register cleanup so the socket closes when the component is removed
   cleanup(() => socket.close());
 
-  return () => (
-    <ul>{messages.map((m) => <li key={m.id}>{m.text}</li>)}</ul>
-  );
+  return <div>Feed Active</div>;
 }
 ```
 
 ---
 
-## Scoped Re-renders: `component()`
+## Custom Helpers and Hooks (Cleanup Outside of Components)
 
-`commit()` with no arguments re-renders the entire app. That is fast for most updates, but for **high-frequency sources** — a clock ticking every second, a chart updating on every data point — re-rendering the whole app repeatedly is wasteful.
-
-`component()` returns a handle to the current component instance. Pass it to `commit(handle)` and only that component's subtree re-renders:
+Because `cleanup()` registers its callback on the currently executing component setup context, it is not limited to the component body itself. You can call `cleanup()` inside custom helper functions or utility hooks declared outside your component, as long as they are called synchronously during the component's setup phase:
 
 ```tsx
-import { component, commit, cleanup } from 'auwla';
+import { cleanup } from 'auwla';
 
-function LiveClock() {
-  const self = component(); // call in setup, not in the render closure
+// A custom utility helper defined outside the component
+function useDocumentTitle(title: string) {
+  const originalTitle = document.title;
+  document.title = title;
 
-  let time = new Date().toLocaleTimeString();
+  // Automatically registers cleanup on the calling component instance
+  cleanup(() => {
+    document.title = originalTitle;
+  });
+}
 
-  const id = setInterval(() => {
-    time = new Date().toLocaleTimeString();
-    commit(self); // only this component re-renders
-  }, 1000);
-
-  cleanup(() => clearInterval(id));
-
-  return () => <p>{time}</p>;
+// Usage inside components
+function DetailPage() {
+  useDocumentTitle("Product Details");
+  return <h1>Product details...</h1>;
 }
 ```
 
-> [!IMPORTANT]
-> `component()` must be called synchronously at the top level of setup. It reads the active component context, which is only available during that synchronous setup execution.
-
-### Choosing between `commit()` and `commit(self)`
-
-| Source of update | Recommendation |
-|---|---|
-| Button click, form submit | Nothing — event handlers re-render automatically |
-| Single `fetch` in setup | `commit()` — page-level update, one-off |
-| `setInterval` ticking per second | `commit(self)` — limit the blast radius |
-| WebSocket streaming data | `commit(self)` — avoid re-rendering unrelated UI |
-| A `reactive()` store changing | Automatic — no commit needed |
+This makes it extremely easy to encapsulate setup-and-cleanup logic in reusable hooks without having to pass cleanup callbacks back and forth.
 
 ---
 
@@ -165,11 +143,10 @@ Component appears in tree
       - side effects started (fetch, timers, sockets)
       - cleanup() handlers registered
 
-Event / commit() / reactive cell change
-  → Render closure runs
+Event / state change
+  → Render closure / template runs
       - reads current state
-      - returns JSX
-      - Auwla patches the DOM
+      - returns JSX / patches the DOM
 
 Component removed from tree
   → cleanup() handlers fire (children first, then parents)

@@ -325,20 +325,13 @@ The pattern across all of these is consistent: **reactivity is something you acq
 
 ### Auwla
 
-In Auwla there is nothing to import for reactivity. Every variable is a plain `let`. Every function is a plain function. The one thing you declare is a component handle with `component()` — once that is in scope, the compiler can see which async functions mutate setup variables and wraps them with `commit(self)` automatically.
+In Auwla there is nothing to import for reactivity. Every variable is a plain `let`. Every function is a plain function
 
 ```tsx [Profile.tsx]
-import { component } from 'auwla';
-
 function Profile({ userId }: { userId: string }) {
-  const self = component(); // gives the compiler a target for scoped re-renders
-
   let user  = null;
   let theme = 'dark';
 
-  // plain async function — the compiler detects that it mutates `user`,
-  // which is a setup-scoped variable, and injects commit(self) in a
-  // try/finally block so the component re-renders when the fetch settles
   async function loadUser() {
     user = await fetchUser(userId);
     logVisit(userId, theme); // theme is just a variable — no .value, no ()
@@ -359,7 +352,7 @@ function Profile({ userId }: { userId: string }) {
     theme = theme === 'dark' ? 'light' : 'dark';
   }
 
-  return () => (
+  return (
     <div style={{ color: theme }}>
       <p>{displayName}</p>
       <button onClick={toggleTheme}>Toggle theme</button>
@@ -368,7 +361,7 @@ function Profile({ userId }: { userId: string }) {
 }
 ```
 
-No `useState`. No `useEffect`. No dependency arrays. No `.value`. No signal function calls. No `$state` marker. `user`, `theme`, and `displayName` are the same plain JavaScript variables they would be anywhere else. `component()` is the only Auwla-specific call, and its job is to give the compiler a named handle so it knows which component to re-render when an async boundary settles. Everything else is inferred.
+No `useState`. No `useEffect`. No dependency arrays. No `.value`. No signal function calls. No `$state` marker. `user`, `theme`, and `displayName` are the same plain JavaScript variables they would be anywhere else.
 
 ---
 
@@ -384,7 +377,7 @@ The frameworks covered here each solved the sync problem by introducing a reacti
 
 Auwla starts from the other direction. If state only ever changes because an event occurred, then the event handler is a natural place to put the reactive boundary. The compiler wraps every JSX event handler and every async task boundary at build time. When one of those boundaries is crossed, a re-render is scheduled. The variables themselves do not need to know they are reactive, because the compiler already knows where mutations can happen.
 
-The result is what you saw in the Auwla section above: plain `let` variables, plain functions, plain expressions. The only Auwla-specific call is `component()`, and its job is not to make the variable reactive — it is to give the compiler a named handle so it knows which component to schedule a re-render for when an async boundary settles. The variables themselves stay ordinary. The event is still the boundary.
+The result is what you saw in the Auwla section above: plain `let` or `const` variables, plain functions, plain expressions.
 
 ---
 

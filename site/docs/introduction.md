@@ -19,7 +19,7 @@ Here is what a typical counter component looks like:
 function Counter() {
   let count = 0;
 
-  return () => (
+  return (
     <button onClick={() => count++}>
       Count: {count}
     </button>

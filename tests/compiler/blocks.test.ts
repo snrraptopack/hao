@@ -15,7 +15,7 @@ describe('block-bodied render closures', () => {
 
     const compiled = compileAuwla(source);
     expect(compiled).toContain('__componentBlock');
-    expect(compiled).toContain('__setText');
+    expect(compiled).toContain('__setElementText');
     expect(compiled).not.toContain('return () => {\n          return <button');
 
     const { App } = evaluateCompiled(compiled) as { App: () => unknown };

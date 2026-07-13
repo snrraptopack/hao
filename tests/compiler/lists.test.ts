@@ -278,7 +278,7 @@ describe('keyed list compilation', () => {
     expect(compiled).toContain('__keyedMap');
     // Row should use direct element creation, not template cloning,
     // because dynamic text is followed by static text.
-    expect(compiled).toContain('document.createElement("li")');
+    expect(compiled).toContain('__hydrateElement("li")');
 
     const { List } = evaluateCompiled(compiled) as { List: () => unknown };
     const root = document.createElement('div');
@@ -292,6 +292,7 @@ describe('keyed list compilation', () => {
   test('compiles maps returning custom components into keyedMap with fallback block', () => {
     const source = `
       function Child(props) {
+        let dummy = 0;
         return () => <li>{props.text}</li>;
       }
       function List() {

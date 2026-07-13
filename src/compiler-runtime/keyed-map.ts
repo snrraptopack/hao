@@ -35,7 +35,7 @@ export type AuwlaRowBlock<TItem> = CompiledBlock<[TItem, number]> & {
 };
 
 /** @internal */
-function placeCompiledNodes<TItem>(parent: Node, rows: AuwlaRowBlock<TItem>[], anchor: Node, oldRows: AuwlaRowBlock<TItem>[]) {
+function placeCompiledNodes<TItem>(parent: Node, rows: AuwlaRowBlock<TItem>[], anchor: Node) {
   const len = rows.length;
   const indexes = new Array<number>(len);
   for (let i = 0; i < len; i++) {
@@ -133,11 +133,8 @@ export function __keyedMap<TItem, TKey>(
   const orderedRows: AuwlaRowBlock<TItem>[] = [];
   let destroyableRows = 0;
 
-  let cachedFrag: DocumentFragment | null = null;
-
   const block: CompiledBlock<[readonly TItem[]]> = {
     get node() {
-      if (cachedFrag) return cachedFrag;
       const frag = document.createDocumentFragment();
       for (const row of orderedRows) {
         frag.appendChild(row.node);
@@ -151,7 +148,7 @@ export function __keyedMap<TItem, TKey>(
         nodes.push(anchor);
         return nodes;
       };
-      return cachedFrag = frag;
+      return frag;
     },
     update(nextItems) {
       const parent = anchor.parentNode ?? fragment;
@@ -282,7 +279,7 @@ export function __keyedMap<TItem, TKey>(
 
         if (mismatchA === -1) {
           if (needsPlacement) {
-            placeCompiledNodes(parent, orderedRows, anchor, orderedRows);
+            placeCompiledNodes(parent, orderedRows, anchor);
           }
           return;
         }
@@ -366,7 +363,7 @@ export function __keyedMap<TItem, TKey>(
       for (const [key, row] of nextRows) rows.set(key, row);
 
       if (orderChanged) {
-        placeCompiledNodes(parent, orderedRows, anchor, oldOrderedRows);
+        placeCompiledNodes(parent, orderedRows, anchor);
       }
 
       for (let i = 0; i < orderedRows.length; i++) {

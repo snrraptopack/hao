@@ -90,7 +90,7 @@ export default function PostDetail() {
   if (data?.pending)  return <p>Loading…</p>;
   if (data?.rejected) return <p>Error: {String(data.reason)}</p>;
 
-  return () => <h1>{data?.value?.title}</h1>;
+  return <h1>{data?.value?.title}</h1>;
 }
 ```
 
@@ -105,7 +105,7 @@ A `_layout.tsx` file wraps all pages in its directory and subdirectories.
 import type { RouteComponent } from 'auwla/router';
 
 export default function AppShell(Child: RouteComponent) {
-  return () => (
+  return(
     <div class="app">
       <nav>…</nav>
       <main><Child /></main>
@@ -143,7 +143,7 @@ export const guard = (ctx: RouteContext) => {
 };
 
 export default function DashShell(Child: RouteComponent) {
-  return () => <div class="dashboard"><Child /></div>;
+  return <div class="dashboard"><Child /></div>;
 }
 ```
 
@@ -164,7 +164,7 @@ export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSigna
 export default function PostDetail() {
   const data = getRouted(routed);
 
-  return () => (
+  return(
     <article>
       {data?.pending && <p>Loading…</p>}
       {data?.rejected && <p>Error: {String(data.reason)}</p>}
@@ -189,7 +189,7 @@ You can handle errors inline (as shown above) or via route-level exports.
 export function error() {
   const err = getRouteError();
 
-  return () => (
+  return(
     <div>
       <h2>Could not load post</h2>
       <p>{String(err?.reason)}</p>
@@ -204,7 +204,7 @@ When an `error` export exists, the router renders it instead of the default comp
 ### Pending component
 
 ```tsx
-export const pending = () => <p>Loading post…</p>;
+export const pending =  <p>Loading post…</p>;
 ```
 
 `pending` is shown while `routed` is in flight. It is ignored during suspend navigations — the previous route stays visible instead.
@@ -224,7 +224,7 @@ function PostDetail() {
   const loc = getLocation();                // '/posts/42?tab=comments'
   const meta = getRouteMeta<{ title: string }>();
 
-  return () => <h1>Post {id}</h1>;
+  return <h1>Post {id}</h1>;
 }
 ```
 

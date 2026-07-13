@@ -19,7 +19,7 @@ describe('component inlining', () => {
     const compiled = compileAuwla(source);
     expect(compiled).not.toContain('<Label');
     expect(compiled).toContain('__componentBlock');
-    expect(compiled).toContain('__setText');
+    expect(compiled).toContain('__setElementText');
 
     const evaluated = evaluateCompiled(compiled) as { App: () => unknown; update(): void };
     const root = document.createElement('div');
@@ -94,6 +94,7 @@ describe('component inlining', () => {
 
   test('supports bubbling emit payloads through emit:custom listeners', async () => {
     const source = `
+      import { component, emit } from 'auwla';
       function DeleteButton(props: { userId: string }) {
         const self = component();
         return () => (

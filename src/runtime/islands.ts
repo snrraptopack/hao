@@ -27,7 +27,9 @@ function resolveFromModule(mod: Record<string, any> | undefined, name: string): 
 }
 
 async function resolveRegisteredIslandComponent(name: string): Promise<any> {
-  await loadIslandManifest();
+  if (!(globalThis as any).__auwla_islandModules) {
+    await loadIslandManifest();
+  }
   const registry = (globalThis as any).__auwla_islandModules;
   if (!registry) return null;
 

@@ -44,7 +44,7 @@ describe('conditional child expressions', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('__setChild');
+    expect(compiled).toContain('__setElementText');
 
     const evaluated = evaluateCompiled(compiled) as { App: () => unknown; toggle(): void };
     const root = document.createElement('div');
@@ -69,7 +69,7 @@ describe('conditional child expressions', () => {
     `;
 
     const compiled = compileAuwla(source);
-    expect(compiled).toContain('__setChild');
+    expect(compiled).toContain('__setElementText');
 
     const evaluated = evaluateCompiled(compiled) as { App: () => unknown; toggle(): void };
     const root = document.createElement('div');

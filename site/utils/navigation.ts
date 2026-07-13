@@ -24,8 +24,8 @@ export const docCategories: NavCategory[] = [
       { label: "State & Reactivity", href: "/docs/:slug", slug: "state-reactivity" },
       { label: "Working With State", href: "/docs/:slug", slug: "working-with-state" },
       { label: "How Rendering Works", href: "/docs/:slug", slug: "setup-render" },
-      { label: "Component Lifecycle", href: "/docs/:slug", slug: "lifecycle" },
-      { label: "Compiler", href: "/docs/:slug", slug: "compiler" }
+      { label: "What the Compiler Can't See", href: "/docs/:slug", slug: "what-the-compiler-cant-see" },
+      { label: "Component Lifecycle", href: "/docs/:slug", slug: "lifecycle" }
     ]
   },
   {
@@ -33,8 +33,7 @@ export const docCategories: NavCategory[] = [
     links: [
       { label: "Two-Way Binding", href: "/docs/:slug", slug: "two-way-binding" },
       { label: "Event Modifiers", href: "/docs/:slug", slug: "event-modifiers" },
-      { label: "Async & Data", href: "/docs/:slug", slug: "async-lifecycle" },
-      { label: "CSS & Styling", href: "/docs/:slug", slug: "css" }
+      { label: "Async & Data", href: "/docs/:slug", slug: "async-lifecycle" }
     ]
   },
   {

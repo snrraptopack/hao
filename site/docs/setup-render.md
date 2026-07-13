@@ -28,6 +28,31 @@ The render closure is a real JavaScript closure — it still has access to `coun
 
 ---
 
+## Direct JSX Returns (Syntax Sugar)
+
+While returning a render closure (`return () => JSX`) is the explicit way to define setup and render boundaries, Auwla supports returning the JSX directly:
+
+```tsx
+// Direct JSX Return (Recommended)
+function Counter() {
+  let count = 0;
+  return (
+    <button onClick={() => count++}>
+      Count: {count}
+    </button>
+  );
+}
+```
+
+Behind the scenes, the compiler automatically extracts setup state and transforms this into the exact same optimized setup-once and render-closure architecture.
+
+This syntax sugar:
+* Eliminates the boilerplate of nested return functions.
+* Controls how AI coding models reason about the component, avoiding the false assumption that setup variables aren't reactive.
+* Makes components look like standard, clean, predictable TSX.
+
+---
+
 ## Why State Doesn't Reset
 
 In React the entire component function re-runs on every render, so local variables reset unless you wrap them with `useState`. In Auwla the setup function runs **once** — local variables are ordinary JavaScript variables that live in the closure scope and persist naturally:
@@ -106,53 +131,20 @@ This is why you never need to announce a state change for event-driven interacti
 
 ---
 
-## `commit()` — Re-rendering Outside of Events
+## Component Update Propagation
 
-The event wrapper only activates when a JSX handler runs. Some mutations happen in places the wrapper never touches: a `fetch` response arriving, a `setInterval` ticking, a WebSocket message coming in.
+Auwla uses a highly optimized parent-child rendering boundary.
 
-```tsx
-function UserList() {
-  let users: { id: number; name: string }[] = [];
+### Parent-to-Child: Memoized Updates
+When a parent component re-renders, its child components **do not** automatically run their render closures. Auwla memoizes child components at compile time:
+* A child component only re-renders if the props passed down by its parent have changed.
+* Unaffected sibling children are guaranteed to skip their update cycles entirely, keeping DOM updates localized.
 
-  fetch('/api/users')
-    .then(res => res.json())
-    .then(data => {
-      users = data;
-      // No event wrapper ran — Auwla has no idea this happened.
-      // The DOM stays showing an empty list.
-    });
+### Child-to-Parent: Upward Invalidation
+When a child component re-renders (due to an event occurring inside it), its parent components are also re-rendered. This allows children to propagate changes directly (for example, by mutating a shared array passed down as a prop). The parent re-renders to reflect these changes, but thanks to memoization, unaffected sibling children are guaranteed not to run when not needed.
 
-  return () => (
-    <ul>{users.map((u) => <li key={u.id}>{u.name}</li>)}</ul>
-  );
-}
-```
-
-`commit()` is the manual equivalent of the event wrapper's re-render signal. Call it after any async mutation and Auwla schedules one re-render:
-
-```tsx
-import { commit } from 'auwla';
-
-function UserList() {
-  let users: { id: number; name: string }[] = [];
-
-  fetch('/api/users')
-    .then(res => res.json())
-    .then(data => {
-      users = data;
-      commit(); // Auwla now knows to re-render
-    });
-
-  return () => (
-    <ul>{users.map((u) => <li key={u.id}>{u.name}</li>)}</ul>
-  );
-}
-```
-
-Multiple `commit()` calls within the same microtask are batched — Auwla re-renders once regardless of how many times you call it.
-
-> [!TIP]
-> For async work with loading and error states, the `track()` API from `auwla/track` calls `commit()` for you automatically. See the **Async & Data** guide.
+### Shared & External State
+Reactivity is not confined to the component's setup function. You can declare state variables outside components or in the same file. When components reference outside state, they naturally read the latest values during event-driven re-renders. We will cover advanced patterns for shared and global state in detail in a later section.
 
 ---
 
