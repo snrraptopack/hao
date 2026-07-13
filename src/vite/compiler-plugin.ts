@@ -160,6 +160,26 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       viteConfig = resolvedConfig;
     },
 
+    resolveId(source) {
+      if (source === 'auwla:islands') {
+        // Fallback resolver for 'auwla:islands' if the auwla-router plugin is not active.
+        // This prevents Vite's import analysis from throwing resolution errors
+        // during dev startup or reload of non-islands client SPAs.
+        const hasRouter = viteConfig?.plugins?.some((p: any) => p.name === 'auwla-router');
+        if (!hasRouter) {
+          return '\0auwla:islands';
+        }
+      }
+      return null;
+    },
+
+    load(id) {
+      if (id === '\0auwla:islands') {
+        return 'export default [];';
+      }
+      return null;
+    },
+
     async config(config, env) {
       const root = config.root || process.cwd();
       const loadedOptions = await getAuwlaConfig(root, env);

@@ -8,7 +8,6 @@ import {
   composeRoutes,
 } from "auwla/router"
 import './index.css'
-import 'virtual:auwla.css';
 
 // Simple examples
 import { ExampleApp } from "./main"
@@ -33,7 +32,7 @@ import { navigationRoutes, NavigationShell } from "./navigation"
 import { childRoutes, ChildShell } from "./child"
 import { loaderRoutes, LoaderShell } from "./loader"
 import { modifiersRoutes, ModifiersShell } from "./modifiers"
-import { showcaseRoutes, ShowcaseShell } from "./showcase"
+
 
 // ---------------------------------------------------------------------------
 // Central route definitions — compose everything and register once
@@ -68,7 +67,6 @@ let routes = defineRoutes(
     group("/child", { layout: ChildShell }, childRoutes),
     group("/loader", { layout: LoaderShell }, loaderRoutes),
     group("/modifiers", { layout: ModifiersShell }, modifiersRoutes),
-    group("/showcase", { layout: ShowcaseShell }, showcaseRoutes),
 
     // Catch-all
     [
