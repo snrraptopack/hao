@@ -53,7 +53,7 @@ const GLOBAL_IDENTIFIERS = new Set([
   'console', 'window', 'document', 'Math', 'JSON', 'Date', 'String', 'Number',
   'Array', 'Object', 'RegExp', 'Error', 'Promise', 'Set', 'Map',
   'parseInt', 'parseFloat', 'isNaN', 'isFinite',
-  '__event', '__componentBlock', '__createBlock', '__setText',
+  '__event', '__componentBlock', '__createBlock', '__createBlockSimple', '__setText',
   '__setElementText', '__setClass', '__setProperty', '__setAttribute',
   '__setStyle', '__setChild', '__spreadProps', '__keyedMap', '__cloneTemplate',
   '__computed',

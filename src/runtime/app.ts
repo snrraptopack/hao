@@ -152,25 +152,33 @@ export function createMemoApp<TModel>(
   const model = view ? modelOrApp as TModel : undefined;
   const app = view ? null : modelOrApp as MemoChild | RenderClosure;
 
+  // Pooled render-cycle structures — reused across renders to avoid GC pressure.
+  const pooledSeen = new Set<string>();
+  const pooledRendered = new Set<string>();
+  const pooledCounters = new Map<string, number>();
+  const pooledStack: string[] = ['root'];
+  const pooledEventWrapper: import('./types').EventWrapper = (handler, ownerId) => createEventListener((event) => handler(event), ownerId);
+
   const renderNow = () => {
     if (!scheduled || destroyed) return;
     scheduled = false;
     const previousWrapper = runtimeState.activeEventWrapper;
     const previousRenderState = runtimeState.activeRenderState;
+
+    // Reset pooled structures instead of allocating new ones.
+    pooledSeen.clear();
+    pooledRendered.clear();
+    pooledCounters.clear();
+    pooledStack.length = 1;
+    pooledStack[0] = 'root';
+
     const renderState: import('./types').RenderState = {
       instances: componentInstances,
       memos: memoBlocks,
-      seen: new Set(),
-      rendered: new Set(),
-      stack: ['root'],
-      /**
-       * Fresh Map every render cycle so stale counter entries from
-       * previous renders never accumulate.  Each `createComponentId`
-       * call increments only its own `(parent, name)` slot inside this
-       * Map, and `runInComponent` no longer needs to manually reset
-       * any depth-based index.
-       */
-      counters: new Map(),
+      seen: pooledSeen,
+      rendered: pooledRendered,
+      stack: pooledStack,
+      counters: pooledCounters,
       dirty: dirtyComponents,
       dirtySources,
       sourceDeps: componentSourceDeps,
@@ -178,7 +186,7 @@ export function createMemoApp<TModel>(
     };
     dirtyComponents = new Set();
     dirtySources = new Set();
-    runtimeState.activeEventWrapper = (handler, ownerId) => createEventListener((event) => handler(event), ownerId);
+    runtimeState.activeEventWrapper = pooledEventWrapper;
     runtimeState.activeRenderState = renderState;
     try {
       let loops = 0;

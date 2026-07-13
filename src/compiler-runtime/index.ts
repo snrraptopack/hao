@@ -6,7 +6,7 @@
 
 export type { CompiledBlock } from './block';
 
-export { __createBlock, __componentBlock, __dirtySource, __trackSources } from './block';
+export { __createBlock, __createBlockSimple, __componentBlock, __dirtySource, __trackSources } from './block';
 
 export {
   __setElementText,

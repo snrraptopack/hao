@@ -65,6 +65,20 @@ export function __createBlock<TArgs extends readonly unknown[]>(
 }
 
 /**
+ * Lightweight block factory for rows that contain no child components.
+ *
+ * The compiler emits this instead of `__createBlock` when it statically
+ * determines the row template has zero nested component calls. Skips all
+ * collector allocation, runtimeState read/write, and update wrapping.
+ * @internal
+ */
+export function __createBlockSimple<TArgs extends readonly unknown[]>(
+  factory: () => CompiledBlock<TArgs>,
+): CompiledBlock<TArgs> {
+  return factory();
+}
+
+/**
  * Wrap a compiled block factory as a render closure.
  *
  * The factory runs once during the first render; afterwards only

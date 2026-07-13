@@ -22,6 +22,7 @@ export {
   __cloneTemplate,
   __computed,
   __createBlock,
+  __createBlockSimple,
   __dirtySource,
   __effect,
   __event,

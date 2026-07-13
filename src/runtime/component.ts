@@ -95,8 +95,8 @@ export function runInstanceCleanups(entries: [string, ComponentInstance][]): voi
     return depthB - depthA;
   });
   for (const [, inst] of entries) {
-    if (inst.abortController) {
-      inst.abortController.abort();
+    if ('_abortController' in inst) {
+      (inst as any)._abortController.abort();
     }
     if (inst.cleanups) {
       for (const fn of inst.cleanups) fn();
@@ -257,8 +257,8 @@ export function createComponentClosure(
     let instance = state.instances.get(id);
     if (!instance || instance.type !== type) {
       // Run old instance's cleanups before replacing (type change)
-      if (instance?.abortController) {
-        instance.abortController.abort();
+      if (instance && '_abortController' in instance) {
+        (instance as any)._abortController.abort();
       }
       if (instance?.cleanups) {
         for (const fn of instance.cleanups) fn();
@@ -280,7 +280,20 @@ export function createComponentClosure(
         props: stableProps,
         render: isRenderClosure(output) ? output : () => output,
         cleanups,
-        abortController: new AbortController(),
+        get abortController() {
+          const controller = new AbortController();
+          Object.defineProperty(this, '_abortController', {
+            value: controller,
+            writable: true,
+            configurable: true,
+          });
+          Object.defineProperty(this, 'abortController', {
+            value: controller,
+            writable: true,
+            configurable: true,
+          });
+          return controller;
+        }
       };
       state.instances.set(id, instance);
     } else {

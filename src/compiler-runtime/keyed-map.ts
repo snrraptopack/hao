@@ -31,20 +31,22 @@ export type AuwlaRowBlock<TItem> = CompiledBlock<[TItem, number]> & {
   __auwlaKey?: unknown;
   __auwlaItem?: TItem;
   __auwlaDeps?: unknown;
+  __auwlaIndex?: number;
 };
 
 /** @internal */
-function placeCompiledNodes(parent: Node, nodes: Node[], anchor: Node, oldChildren: Node[]) {
-  const oldIndexes = new Map<Node, number>();
-  for (let i = 0; i < oldChildren.length; i++) oldIndexes.set(oldChildren[i]!, i);
-
-  const indexes = nodes.map((node) => oldIndexes.get(node) ?? NO_INDEX);
+function placeCompiledNodes<TItem>(parent: Node, rows: AuwlaRowBlock<TItem>[], anchor: Node, oldRows: AuwlaRowBlock<TItem>[]) {
+  const len = rows.length;
+  const indexes = new Array<number>(len);
+  for (let i = 0; i < len; i++) {
+    indexes[i] = rows[i]!.__auwlaIndex ?? NO_INDEX;
+  }
   const stableIndexes = longestIncreasingSubsequence(indexes);
   let stableCursor = stableIndexes.length - 1;
 
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    const node = nodes[i]!;
-    const next = nodes[i + 1] ?? anchor;
+  for (let i = len - 1; i >= 0; i--) {
+    const node = rows[i]!.node;
+    const next = i + 1 < len ? rows[i + 1]!.node : anchor;
     const isStable = stableCursor >= 0 && stableIndexes[stableCursor] === i;
 
     if (isStable && node.parentNode === parent && node.nextSibling === next) {
@@ -181,6 +183,7 @@ export function __keyedMap<TItem, TKey>(
           row.__auwlaKey = key;
           row.__auwlaItem = item;
           row.__auwlaDeps = deps;
+          row.__auwlaIndex = index;
 
           if (row.destroy) destroyableRows++;
           if (updateCreatedRows) updateRow(row, item, index);
@@ -195,29 +198,6 @@ export function __keyedMap<TItem, TKey>(
       let mismatchA = -1;
       let mismatchB = -1;
       let needsPlacement = false;
-
-      if (orderedRows.length === 0) {
-        const batch = document.createDocumentFragment();
-
-        for (let index = 0; index < nextItems.length; index++) {
-          const item = nextItems[index]!;
-          const key = keyOf(item, index);
-          const deps = depsOf ? depsOf(item, index) : null;
-          const row: AuwlaRowBlock<TItem> = createRow(item, index);
-          row.__auwlaKey = key;
-          row.__auwlaItem = item;
-          row.__auwlaDeps = deps;
-
-          if (row.destroy) destroyableRows++;
-          if (updateCreatedRows) updateRow(row, item, index);
-          rows.set(key, row);
-          orderedRows.push(row);
-          batch.appendChild(row.node);
-        }
-
-        parent.insertBefore(batch, anchor);
-        return;
-      }
 
       if (orderedRows.length > 0 && nextItems.length > orderedRows.length) {
         let canAppend = true;
@@ -254,6 +234,7 @@ export function __keyedMap<TItem, TKey>(
             row.__auwlaKey = key;
             row.__auwlaItem = item;
             row.__auwlaDeps = deps;
+            row.__auwlaIndex = index;
 
             if (row.destroy) destroyableRows++;
             if (updateCreatedRows) updateRow(row, item, index);
@@ -262,6 +243,7 @@ export function __keyedMap<TItem, TKey>(
             batch.appendChild(row.node);
           }
 
+          for (let i = 0; i < orderedRows.length; i++) orderedRows[i]!.__auwlaIndex = i;
           parent.insertBefore(batch, anchor);
           return;
         }
@@ -297,8 +279,7 @@ export function __keyedMap<TItem, TKey>(
 
         if (mismatchA === -1) {
           if (needsPlacement) {
-            const nodes = orderedRows.map((row) => row.node);
-            placeCompiledNodes(parent, nodes, anchor, nodes);
+            placeCompiledNodes(parent, orderedRows, anchor, orderedRows);
           }
           return;
         }
@@ -332,14 +313,16 @@ export function __keyedMap<TItem, TKey>(
           leftRow.__auwlaItem = rightItem;
 
           swapCompiledRows(parent, orderedRows, mismatchA, mismatchB, anchor);
+          orderedRows[mismatchA]!.__auwlaIndex = mismatchA;
+          orderedRows[mismatchB]!.__auwlaIndex = mismatchB;
           return;
         }
       }
 
       const nextRows = new Map<TKey, AuwlaRowBlock<TItem>>();
-      const orderedNodes: Node[] = [];
-      const oldNodes = orderedRows.map((row) => row.node);
-      let orderChanged = oldNodes.length !== nextItems.length;
+      // Snapshot the old ordered rows before we overwrite them.
+      const oldOrderedRows = orderedRows.slice();
+      let orderChanged = oldOrderedRows.length !== nextItems.length;
       orderedRows.length = 0;
 
       for (let index = 0; index < nextItems.length; index++) {
@@ -365,8 +348,7 @@ export function __keyedMap<TItem, TKey>(
         row.__auwlaItem = item;
         nextRows.set(key, row);
         orderedRows.push(row);
-        orderedNodes.push(row.node);
-        if (!orderChanged && oldNodes[index] !== row.node) orderChanged = true;
+        if (!orderChanged && (index >= oldOrderedRows.length || oldOrderedRows[index] !== row)) orderChanged = true;
         if (!orderChanged && row.node.parentNode !== parent) orderChanged = true;
       }
 
@@ -381,7 +363,11 @@ export function __keyedMap<TItem, TKey>(
       for (const [key, row] of nextRows) rows.set(key, row);
 
       if (orderChanged) {
-        placeCompiledNodes(parent, orderedNodes, anchor, oldNodes);
+        placeCompiledNodes(parent, orderedRows, anchor, oldOrderedRows);
+      }
+
+      for (let i = 0; i < orderedRows.length; i++) {
+        orderedRows[i]!.__auwlaIndex = i;
       }
     },
     destroy() {

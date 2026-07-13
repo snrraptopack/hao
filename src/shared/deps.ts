@@ -20,6 +20,7 @@ function sameArrayDeps(a: readonly unknown[], b: readonly unknown[]): boolean {
  * @internal
  */
 export function sameDeps(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
   if (Array.isArray(a) && Array.isArray(b)) return sameArrayDeps(a, b);
-  return Object.is(a, b);
+  return false;
 }

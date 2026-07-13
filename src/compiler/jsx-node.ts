@@ -468,7 +468,7 @@ export function compileRowBlock(
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
     forceUpdate: preUpdateStatements.length > 0 || hasNestedMap,
-    block: `__createBlock(() => {
+    block: `__createBlockSimple(() => {
             ${allPreUpdateStatements.map((line) => `            ${line}`).join('\n')}
             ${dirtySetupLine(ctx.setup, patches, derivedCtx).join('\n            ')}
             ${sourceTrackingLines(patches, derivedCtx).join('\n            ')}
