@@ -133,8 +133,11 @@ export function __keyedMap<TItem, TKey>(
   const orderedRows: AuwlaRowBlock<TItem>[] = [];
   let destroyableRows = 0;
 
+  let cachedFrag: DocumentFragment | null = null;
+
   const block: CompiledBlock<[readonly TItem[]]> = {
     get node() {
+      if (cachedFrag) return cachedFrag;
       const frag = document.createDocumentFragment();
       for (const row of orderedRows) {
         frag.appendChild(row.node);
@@ -148,7 +151,7 @@ export function __keyedMap<TItem, TKey>(
         nodes.push(anchor);
         return nodes;
       };
-      return frag;
+      return cachedFrag = frag;
     },
     update(nextItems) {
       const parent = anchor.parentNode ?? fragment;
