@@ -27,10 +27,12 @@ function resolveFromModule(mod: Record<string, any> | undefined, name: string): 
 }
 
 async function resolveRegisteredIslandComponent(name: string): Promise<any> {
-  if (!(globalThis as any).__auwla_islandModules) {
+  let registry = (globalThis as any).__auwla_islandModules;
+  const isAlreadyRegistered = registry && !Array.isArray(registry) && registry[name];
+  if (!isAlreadyRegistered) {
     await loadIslandManifest();
+    registry = (globalThis as any).__auwla_islandModules;
   }
-  const registry = (globalThis as any).__auwla_islandModules;
   if (!registry) return null;
 
   if (Array.isArray(registry)) {
