@@ -25,9 +25,19 @@ export function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Build a `childNodes` path expression from a root variable and index array. */
 export function pathExpression(root: string, path: number[]): string {
-  return path.reduce((expression, index) => `${expression}.childNodes[${index}]!`, root);
+  let expr = root;
+  for (const index of path) {
+    if (index === 0) {
+      expr = `${expr}.firstChild!`;
+    } else {
+      expr = `${expr}.firstChild!`;
+      for (let i = 0; i < index; i++) {
+        expr = `${expr}.nextSibling!`;
+      }
+    }
+  }
+  return expr;
 }
 
 /** Decode JSX entity escapes into literal characters. */

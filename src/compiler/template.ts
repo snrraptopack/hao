@@ -264,13 +264,13 @@ export function compileTemplateRowBlock(
   const syntheticPreUpdateLines = syntheticPreUpdateStatements.map((line) => `              ${line}`).join('\n');
   const update = renderUpdateBody(updatePatches, derivedCtx, '              ', dirtyAware);
 
-  const refLines = ctx.refSetup.length
-    ? `\n                if (!_init) {\n${ctx.refSetup.map((r) => `                  ${r}`).join('\n')}\n                  _init = true;\n                }`
-    : '';
-
   const allPreUpdateStatements = [...syntheticPreUpdateStatements, ...preUpdateStatements];
 
   const hasNestedMap = containsMapCall(row);
+
+  const refInit = ctx.refSetup.length
+    ? `\n            ${ctx.refSetup.map((r) => `            ${r}`).join('\n')}`
+    : '';
 
   return {
     deps: preUpdateStatements.length > 0 ? [] : rowDependencies(ctx.deps, itemName),
@@ -282,13 +282,12 @@ export function compileTemplateRowBlock(
             const el0 = __cloneTemplate(${stringLiteral(html)});
             ${ctx.elementSetup.join('\n            ')}
             ${ctx.textSetup.join('\n            ')}
-${init ? `\n${init}\n` : ''}
+${init ? `\n${init}\n` : ''}${refInit}
 
-            ${ctx.refSetup.length ? 'let _init = false;' : ''}
             return {
               node: el0,
               update(${itemName}, ${indexName}) {
-${syntheticPreUpdateLines ? `${syntheticPreUpdateLines}\n` : ''}${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}${refLines}
+${syntheticPreUpdateLines ? `${syntheticPreUpdateLines}\n` : ''}${preUpdateLines ? `${preUpdateLines}\n` : ''}${update}
               },
             };
           })`,
@@ -367,6 +366,10 @@ ${preLines}${preLines ? '\n' : ''}          return \`${html}\`;
     patchUpdate,
   ].filter(Boolean).join('\n');
 
+  const refSetupLines = ctx.refSetup.length
+    ? ctx.refSetup.map((r) => `        ${r}`).join('\n')
+    : '';
+
   const setupLines = [
     ...dirtySetupLine(ctx.elementSetup, patches, derivedCtx),
     ...sourceTrackingLines(patches, derivedCtx),
@@ -375,23 +378,18 @@ ${preLines}${preLines ? '\n' : ''}          return \`${html}\`;
     ...ctx.textSetup,
   ];
 
-  const refLines = ctx.refSetup.length
-    ? `\n            if (first) {\n${ctx.refSetup.map((r) => `              ${r}`).join('\n')}\n            }`
-    : '';
-
   return `__componentBlock(() => {
 ${setupLines.map((line) => `        ${line}`).join('\n')}
-
+${refSetupLines ? `\n${refSetupLines}\n` : ''}
         let _init = false;
         return __createBlock(() => ({
           node: el0,
           update() {
-            const first = !_init;
             if (!_init) {
 ${staticPatches.map((p) => `              ${p.code}`).join('\n')}
               _init = true;
             }
-${update}${refLines}
+${update}
           },
         }));
       })`;

@@ -10,7 +10,7 @@
  * compiled setup code "grab" real DOM refs without touching the DOM structure.
  */
 
-const templateCache = new Map<string, HTMLTemplateElement>();
+const templateCache = new Map<string, HTMLElement>();
 
 /**
  * Pointer to the next server-rendered sibling that the hydration pass should
@@ -158,13 +158,14 @@ export function __cloneTemplate(html: string): HTMLElement {
     }
   }
 
-  // Normal mode: clone from a cached <template>.
-  let template = templateCache.get(html);
-  if (!template) {
-    template = document.createElement('template');
+  // Normal mode: clone from a cached element.
+  let element = templateCache.get(html);
+  if (!element) {
+    const template = document.createElement('template');
     template.innerHTML = html;
-    templateCache.set(html, template);
+    element = template.content.firstElementChild as HTMLElement;
+    templateCache.set(html, element);
   }
 
-  return template.content.firstElementChild!.cloneNode(true) as HTMLElement;
+  return element.cloneNode(true) as HTMLElement;
 }
