@@ -28,7 +28,7 @@ function resolveFromModule(mod: Record<string, any> | undefined, name: string): 
 
 async function resolveRegisteredIslandComponent(name: string): Promise<any> {
   let registry = (globalThis as any).__auwla_islandModules;
-  const isAlreadyRegistered = registry && !Array.isArray(registry) && registry[name];
+  const isAlreadyRegistered = registry && (Array.isArray(registry) ? (registry as any)[name] : registry[name]);
   if (!isAlreadyRegistered) {
     await loadIslandManifest();
     registry = (globalThis as any).__auwla_islandModules;
@@ -36,6 +36,19 @@ async function resolveRegisteredIslandComponent(name: string): Promise<any> {
   if (!registry) return null;
 
   if (Array.isArray(registry)) {
+    const keyedEntry = (registry as any)[name] as IslandModuleEntry | undefined;
+    if (keyedEntry) {
+      if (keyedEntry.exports) {
+        const eager = resolveFromModule(keyedEntry.exports, name);
+        if (eager) return eager;
+      }
+      if (keyedEntry.load) {
+        const mod = await keyedEntry.load();
+        keyedEntry.exports = mod;
+        return resolveFromModule(mod, name);
+      }
+    }
+
     const entries = registry as IslandModuleEntry[];
     for (const entry of entries) {
       const eager = resolveFromModule(entry.exports, name);

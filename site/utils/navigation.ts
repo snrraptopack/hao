@@ -37,12 +37,11 @@ export const docCategories: NavCategory[] = [
     ]
   },
   {
-    title: "Routing & RPC",
+    title: "Fullstack",
     links: [
       { label: "File-Based Router", href: "/docs/:slug", slug: "router" },
-      { label: "Router API", href: "/docs/:slug", slug: "router-api" },
-      { label: "Server Functions", href: "/docs/:slug", slug: "server-functions" },
-      { label: "SSR", href: "/docs/:slug", slug: "ssr" }
+      { label: "Fullstack Setup", href: "/docs/:slug", slug: "fullstack-setup" },
+      { label: "Loading Data", href: "/docs/:slug", slug: "loading-data" }
     ]
   },
   {
