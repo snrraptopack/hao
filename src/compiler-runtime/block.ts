@@ -31,8 +31,14 @@ export function __createBlock<TArgs extends readonly unknown[]>(
   factory: () => CompiledBlock<TArgs>,
 ): CompiledBlock<TArgs> {
   const previous = runtimeState.activeBlockComponentIds;
-  const ids = new Set<string>();
-  runtimeState.activeBlockComponentIds = ids;
+  const collector = {
+    set: null as Set<string> | null,
+    add(id: string) {
+      if (!this.set) this.set = new Set();
+      this.set.add(id);
+    }
+  };
+  runtimeState.activeBlockComponentIds = collector;
   let block: CompiledBlock<TArgs>;
   try {
     block = factory();
@@ -41,7 +47,8 @@ export function __createBlock<TArgs extends readonly unknown[]>(
   }
 
   const originalUpdate = block.update;
-  if (originalUpdate) {
+  if (originalUpdate && collector.set) {
+    const ids = collector.set;
     block.update = function(this: any, ...args: TArgs) {
       const prev = runtimeState.activeBlockComponentIds;
       runtimeState.activeBlockComponentIds = ids;
@@ -51,9 +58,9 @@ export function __createBlock<TArgs extends readonly unknown[]>(
         runtimeState.activeBlockComponentIds = prev;
       }
     };
+    (block as any).__auwlaComponentIds = ids;
   }
 
-  (block as any).__auwlaComponentIds = ids;
   return block;
 }
 

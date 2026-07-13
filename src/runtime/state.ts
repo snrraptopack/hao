@@ -27,7 +27,7 @@ export const runtimeState = ((globalThis as any).__auwla_runtimeState ??= {
   pendingDirtySources: new Set<string>(),
   mountedApps: new Set<MountedApp>(),
   componentHosts: new Map<string, Node>(),
-  activeBlockComponentIds: null as Set<string> | null,
+  activeBlockComponentIds: null as { add(id: string): void } | null,
   computedGetters: new Map<string, Set<ComputedGetter<any>>>(),
   effects: new Map<string, EffectFn[]>(),
   setupExecutingComponents: new Set<string>(),
@@ -41,7 +41,7 @@ export const runtimeState = ((globalThis as any).__auwla_runtimeState ??= {
   pendingDirtySources: Set<string>;
   mountedApps: Set<MountedApp>;
   componentHosts: Map<string, Node>;
-  activeBlockComponentIds: Set<string> | null;
+  activeBlockComponentIds: { add(id: string): void } | null;
   computedGetters: Map<string, Set<ComputedGetter<any>>>;
   effects: Map<string, EffectFn[]>;
   setupExecutingComponents: Set<string>;
