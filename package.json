@@ -1,6 +1,6 @@
 {
   "name": "auwla",
-  "version": "0.3.34",
+  "version": "0.3.35",
   "description": "A tiny typed DOM runtime with event-driven rerendering and memoized DOM reuse",
   "type": "module",
   "main": "./dist/auwla.js",
@@ -133,7 +133,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc --project tsconfig.lib.json && node -e \"import('node:fs').then(fs => fs.copyFileSync('src/vite-router/client.d.ts', 'dist/vite-router/client.d.ts'))\" && bun run scratch/sync_site.ts",
+    "build": "vite build && tsc --project tsconfig.lib.json && node -e \"import('node:fs').then(fs => fs.copyFileSync('src/vite-router/client.d.ts', 'dist/vite-router/client.d.ts'))\"",
     "preview": "vite preview",
     "prepublishOnly": "bun run build",
     "test": "vitest run --coverage",

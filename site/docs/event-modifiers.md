@@ -127,7 +127,7 @@ function AppShortcuts() {
   });
 
   // Hotkeys return an unbind function for manual teardowns
-  return () => <p>Press Ctrl+K to search, or "g i" to open the inbox.</p>;
+  return <p>Press Ctrl+K to search, or "g i" to open the inbox.</p>;
 }
 ```
 

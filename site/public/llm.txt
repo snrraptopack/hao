@@ -1,0 +1,4081 @@
+========================================================================
+AUWLA FRAMEWORK DOCUMENTATION (LLM CONTEXT)
+Generated: 2026-07-14T14:35:26.207Z
+========================================================================
+
+
+
+========================================================================
+CATEGORY: GETTING STARTED
+========================================================================
+
+
+------------------------------------------------------------------------
+DOCUMENT: Introduction (introduction.md)
+------------------------------------------------------------------------
+
+# Introduction to Auwla
+
+Auwla is a tiny, typed DOM runtime for JSX apps with event-driven rerendering and DOM reuse.
+
+It is designed to give you the performance of direct, compiled DOM operations with the clean developer experience of TSX and raw JavaScript closure state.
+
+## Core Philosophies
+
+1. **No Hooks, Refs, or Signals**: You don't need complex reactive primitives. Component state is just plain JavaScript variables declared in your setup function.
+2. **Setup-Once Execution**: Components run exactly once to initialize state. Event handlers update variables directly, scheduling a single microtask-aligned re-render.
+3. **Memoized DOM Reuse**: Instead of rebuilding the DOM tree or maintaining a virtual DOM, Auwla patches changes directly and reuses elements with stable keys.
+4. **Isomorphic & SSR Ready**: With built-in server-side rendering and client-side hydration, your app is SEO-friendly and fast from the start.
+
+## Quick Start Example
+
+Here is what a typical counter component looks like:
+
+```tsx
+function Counter() {
+  let count = 0;
+
+  return (
+    <button onClick={() => count++}>
+      Count: {count}
+    </button>
+  );
+}
+```
+
+In the next section, we will walk through the [Installation](/docs/installation) process and configure your first project.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Installation (installation.md)
+------------------------------------------------------------------------
+
+# Installation
+
+Get up and running with Auwla by installing the package and setting up your bundler and compiler configurations.
+
+## 1. Install the Package
+
+Add `auwla` to your project dependencies using your package manager of choice:
+
+```bash
+# npm
+npm install auwla
+
+# pnpm
+pnpm add auwla
+
+# bun
+bun add auwla
+```
+
+## 2. Configure Vite
+
+Auwla relies on its custom JSX compiler to optimize your reactive scopes. Register the `auwla` plugin in your `vite.config.ts`:
+
+```typescript
+import { defineConfig } from "vite";
+import { auwla } from "auwla/vite";
+
+export default defineConfig({
+  plugins: [
+    auwla() // Compiles Auwla JSX templates
+  ]
+});
+```
+
+## 3. Configure TypeScript
+
+To ensure TypeScript understands Auwla's JSX syntax and type definitions, add the following configuration to your `tsconfig.json` under `compilerOptions`:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "auwla",
+    "moduleResolution": "bundler"
+  }
+}
+```
+
+## 4. Setup Entry Point
+
+Initialize your application by mounting your root component to the DOM in your entry file (e.g., `main.tsx`):
+
+```tsx
+import { createMemoApp } from "auwla";
+import App from "./App";
+
+createMemoApp(document.getElementById("app")!, <App />);
+```
+
+---
+
+In the next section, we will walk through the [Quick Start](/docs/quick-start) to build your first reactive component.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Quick Start (quick-start.md)
+------------------------------------------------------------------------
+
+# Quick Start
+
+Let's build a simple interactive component with Auwla to see how components, local state, and event-driven updates work in practice.
+
+## Your First Component
+
+In Auwla, a component is just a standard JavaScript/TypeScript function. It runs exactly once to initialize local variables (state) and returns a **render function** (closure) that defines the JSX structure:
+
+```tsx
+// App.tsx
+import { createMemoApp } from "auwla";
+
+function App() {
+  // 1. Setup State: Plain local variables are your component state
+  let text = "";
+  let items: string[] = [];
+
+  function addItem() {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    items.push(trimmed);
+    text = ""; // Reset the state
+  }
+
+  // 2. Render Closure: Returns the JSX and is evaluated on re-renders
+  return (
+    <div style={{ padding: "20px" }}>
+      <h1>Auwla Task List</h1>
+
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+        <input
+          type="text"
+          bind={text}
+          placeholder="New task..."
+        />
+        <button onClick={addItem}>Add Task</button>
+      </div>
+
+      <ul>
+        {items.map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Mount the app
+createMemoApp(document.getElementById("app")!, <App />);
+```
+
+## Key Reactivity Takeaways
+
+1. **Zero Reactive Wrappers**: You don't need `useState()`, `ref()`, or signals. Plain local variables hold your state.
+2. **Setup Runs Once**: The outer function (`App`) only executes once, while the returned inner function executes whenever state changes.
+3. **Automatic Updates**: Mutating state inside any event handler automatically schedules a DOM update.
+
+---
+
+In the next section, we will delve deeper into [Core Reactivity](/docs/state-reactivity) to see the differences between the Setup and Render phases.
+
+
+========================================================================
+CATEGORY: CORE CONCEPTS
+========================================================================
+
+
+------------------------------------------------------------------------
+DOCUMENT: State & Reactivity (state-reactivity.md)
+------------------------------------------------------------------------
+
+# State & Reactivity
+
+Before learning how Auwla approaches state, it helps to slow down and look at what the web already gives us, and ask honestly whether we have been working with it or around it.
+
+---
+
+## Where It All Started
+
+State is just a variable whose value changes over time. Here is the simplest possible counter in plain HTML and JavaScript, no framework involved:
+
+=<Tabs>
+  =<Tab title="HTML">
+```html [index.html]
+<button id="btn">Count: <span id="display">0</span></button>
+```
+  =</Tab>
+  =<Tab title="JavaScript">
+```js [app.js]
+let count = 0;
+
+const button = document.querySelector('#btn');
+const display = document.querySelector('#display');
+
+button.addEventListener('click', () => {
+  count++;                              // 1. mutate the variable
+  display.textContent = String(count); // 2. manually update the DOM
+});
+```
+  =</Tab>
+=</Tabs>
+
+Two things happen on every click: you mutate `count`, and you manually update the DOM to reflect the new value. For a single variable this is fine. In a real application with dozens of variables and hundreds of DOM nodes, keeping that sync by hand is exactly where bugs are born and where maintenance cost quietly accumulates.
+
+Frameworks exist to automate step 2. You write `count++` and the DOM updates itself. That is the promise, and it is a good one. But the way each framework delivers on it reveals very different assumptions about what the developer should have to understand.
+
+---
+
+## How the Ecosystem Responded
+
+Each framework below solves the sync problem, and each one does it well. The counter is the simplest possible case, so here is how each one looks at that scale first:
+
+=<Tabs>
+  =<Tab title="React">
+```tsx [Counter.tsx]
+import { useState } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      Count: {count}
+    </button>
+  );
+}
+```
+  =</Tab>
+  =<Tab title="Solid">
+```tsx [Counter.tsx]
+import { createSignal } from 'solid-js';
+
+export default function Counter() {
+  const [count, setCount] = createSignal(0);
+
+  return (
+    <button onClick={() => setCount(c => c + 1)}>
+      Count: {count()}
+    </button>
+  );
+}
+```
+  =</Tab>
+  =<Tab title="Vue">
+```vue [Counter.vue]
+<script setup>
+import { ref } from 'vue';
+const count = ref(0);
+</script>
+
+<template>
+  <button @click="count++">Count: {{ count }}</button>
+</template>
+```
+  =</Tab>
+  =<Tab title="Svelte">
+```svelte [Counter.svelte]
+<script>
+  let count = $state(0);
+</script>
+
+<button onclick={() => count++}>
+  Count: {count}
+</button>
+```
+  =</Tab>
+=</Tabs>
+
+Each of these is a capable solution, and the communities behind them are thoughtful. But a counter hides most of the cost. The mental model each framework introduces becomes clearer when the component has to do more than one thing at once. Below is a `Profile` component that does what most real components eventually do: fetch data when a prop changes, derive a display value from that data, track a separate piece of UI state, and log a side effect without that side effect re-running for the wrong reasons.
+
+---
+
+### React
+
+React asks you to replace your `let` with `useState`, split every variable into a getter and setter, and never mutate directly. For a counter that overhead is acceptable. For a component with multiple concerns, the hook surface expands quickly:
+
+```tsx [Profile.tsx]
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
+export default function Profile({ userId }: { userId: string }) {
+  const [user, setUser]   = useState(null);
+  const [theme, setTheme] = useState('dark');
+
+  // fetch when userId changes
+  useEffect(() => {
+    fetchUser(userId).then(setUser);
+  }, [userId]);
+
+  // log a visit when userId changes, but read the latest theme without
+  // making theme a dependency — adding it would re-log on every toggle
+  // the pre-19.2 workaround: mirror theme into a ref and read from there
+  const themeRef = useRef(theme);
+  useEffect(() => { themeRef.current = theme; }, [theme]);
+
+  useEffect(() => {
+    logVisit(userId, themeRef.current);
+  }, [userId]);
+
+  // stable reference so child components do not re-render unnecessarily
+  const handleThemeToggle = useCallback(() => {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  // derived value, recomputed only when user changes
+  const displayName = useMemo(() => {
+    return user ? `${user.firstName} ${user.lastName}` : 'Loading...';
+  }, [user]);
+
+  return (
+    <div style={{ color: theme }}>
+      <p>{displayName}</p>
+      <button onClick={handleThemeToggle}>Toggle theme</button>
+    </div>
+  );
+}
+```
+
+The `themeRef` workaround is the standard pre-19.2 answer to reading a value inside an effect without making it a reactive dependency. Two extra hooks just to read one variable cleanly. React 19.2 introduced `useEffectEvent` to address this directly:
+
+```tsx [Profile.tsx]
+import { useState, useEffect, useCallback, useMemo, useEffectEvent } from 'react';
+
+export default function Profile({ userId }: { userId: string }) {
+  const [user, setUser]   = useState(null);
+  const [theme, setTheme] = useState('dark');
+
+  useEffect(() => {
+    fetchUser(userId).then(setUser);
+  }, [userId]);
+
+  // useEffectEvent marks the callback as event-like so it always reads
+  // the latest theme without theme being listed as a dependency
+  const onVisit = useEffectEvent(() => {
+    logVisit(userId, theme);
+  });
+
+  useEffect(() => {
+    onVisit();
+  }, [userId]);
+
+  const handleThemeToggle = useCallback(() => {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  const displayName = useMemo(() => {
+    return user ? `${user.firstName} ${user.lastName}` : 'Loading...';
+  }, [user]);
+
+  return (
+    <div style={{ color: theme }}>
+      <p>{displayName}</p>
+      <button onClick={handleThemeToggle}>Toggle theme</button>
+    </div>
+  );
+}
+```
+
+`useEffectEvent` is a genuine improvement and the React team's reasoning is sound. What is worth noting is how their own documentation frames it: as a way to separate "events from effects." That framing is the right observation. But arriving at it required a new hook, new linter rules, and a new section of documentation. By the time a developer has worked through `useState`, `useEffect`, `useCallback`, `useMemo`, `useRef`, and `useEffectEvent`, they have accumulated a significant amount of framework-specific knowledge to manage something that was not a problem in plain JavaScript.
+
+---
+
+### Solid
+
+Solid approaches reactivity from first principles rather than extending React's model. It is a pure signal-based framework and genuinely very fast, consistently near the top of rendering benchmarks. Every reactive value is a signal, and signals are functions: you call them to read their value.
+
+```tsx [Profile.tsx]
+import { createSignal, createMemo, createEffect } from 'solid-js';
+
+export default function Profile(props: { userId: string }) {
+  const [user, setUser]   = createSignal(null);
+  const [theme, setTheme] = createSignal('dark');
+
+  // createEffect auto-subscribes to any signal read inside it
+  createEffect(() => {
+    fetchUser(props.userId).then(setUser);
+  });
+
+  createEffect(() => {
+    logVisit(props.userId, theme()); // theme() called to read
+  });
+
+  const displayName = createMemo(() =>
+    user()
+      ? `${user().firstName} ${user().lastName}`
+      : 'Loading...'
+  );
+
+  function toggleTheme() {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'));
+  }
+
+  return (
+    <div style={{ color: theme() }}>   {/* theme() to read */}
+      <p>{displayName()}</p>           {/* memo values are functions too */}
+      <button onClick={toggleTheme}>Toggle theme</button>
+    </div>
+  );
+}
+```
+
+`theme()` not `theme`. `user()` not `user`. `displayName()` not `displayName`. The function-call syntax is what makes Solid's runtime know exactly which computations depend on which signals, and that precision is why it is so fast. But it also means the code no longer reads like plain JavaScript. Every signal access is a call site, and you always have to know which values are signals and which are not.
+
+---
+
+### Vue
+
+Vue wraps reactive values in `ref()`. Inside script you access and mutate them via `.value`. Inside the template the compiler unwraps them automatically, which means the same variable is written two different ways depending on where you are.
+
+```vue [Profile.vue]
+<script setup lang="ts">
+import { ref, computed, watch, watchEffect } from 'vue';
+
+const props = defineProps<{ userId: string }>();
+
+const user  = ref(null);
+const theme = ref('dark');
+
+// watchEffect re-runs when any ref read inside it changes
+watchEffect(async () => {
+  user.value = await fetchUser(props.userId); // .value to write
+});
+
+// watch is explicit about what triggers the callback
+watch(
+  () => props.userId,
+  (newId) => {
+    logVisit(newId, theme.value); // .value to read in script
+  }
+);
+
+const displayName = computed(() =>
+  user.value
+    ? `${user.value.firstName} ${user.value.lastName}`
+    : 'Loading...'
+);
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+}
+</script>
+
+<template>
+  <!-- the template compiler unwraps refs, no .value here -->
+  <div :style="{ color: theme }">
+    <p>{{ displayName }}</p>
+    <button @click="toggleTheme">Toggle theme</button>
+  </div>
+</template>
+```
+
+Vue's model is consistent once internalized. The `.value` seam between script and template is something every Vue developer eventually has to carry: `theme.value` in one context, `theme` in the other. The same variable, two access patterns.
+
+---
+
+### Svelte
+
+Svelte 5 is the closest of the group to natural JavaScript. The `$state` rune compiles away entirely, mutation is plain assignment, and there is no getter or setter function to call.
+
+```svelte [Profile.svelte]
+<script lang="ts">
+  const { userId }: { userId: string } = $props();
+
+  let user  = $state(null);
+  let theme = $state('dark');
+
+  $effect(() => {
+    fetchUser(userId).then(u => { user = u; });
+  });
+
+  $effect(() => {
+    logVisit(userId, theme);
+  });
+
+  let displayName = $derived(
+    user ? `${user.firstName} ${user.lastName}` : 'Loading...'
+  );
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark'; // plain assignment
+  }
+</script>
+
+<div style:color={theme}>
+  <p>{displayName}</p>
+  <button onclick={toggleTheme}>Toggle theme</button>
+</div>
+```
+
+Svelte 5's runes are clean and the syntax is honest. Plain assignment mutates state, `$derived` reads naturally in the template, and there are no getters or setters to call. But `$state` is still a marker you have to apply. Without it, the variable is inert. Reactivity is something you opt into.
+
+---
+
+The pattern across all of these is consistent: **reactivity is something you acquire.** You import a function, wrap a value, call a constructor, or apply a rune. The variable is only reactive once you have done that work.
+
+---
+
+### Auwla
+
+In Auwla there is nothing to import for reactivity. Every variable is a plain `let`. Every function is a plain function
+
+```tsx [Profile.tsx]
+function Profile({ userId }: { userId: string }) {
+  let user  = null;
+  let theme = 'dark';
+
+  async function loadUser() {
+    user = await fetchUser(userId);
+    logVisit(userId, theme); // theme is just a variable — no .value, no ()
+  }
+
+  loadUser();
+
+  // plain expression — the compiler tracks that displayName depends on `user`
+  // and keeps it in sync without any derived wrapper
+  let displayName = user
+    ? `${user.firstName} ${user.lastName}`
+    : 'Loading...';
+
+  // plain function, plain assignment
+  // JSX event handlers are wrapped at compile time, so this triggers
+  // a re-render automatically when the button is clicked
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+  }
+
+  return (
+    <div style={{ color: theme }}>
+      <p>{displayName}</p>
+      <button onClick={toggleTheme}>Toggle theme</button>
+    </div>
+  );
+}
+```
+
+No `useState`. No `useEffect`. No dependency arrays. No `.value`. No signal function calls. No `$state` marker. `user`, `theme`, and `displayName` are the same plain JavaScript variables they would be anywhere else.
+
+---
+
+## Why Events, Not Primitives
+
+Go back to the plain JavaScript counter at the top of this page. There is no `useState`, no `ref()`, no `$state`, no `createSignal`. The variable `count` is just a `let`. And yet it works.
+
+Now ask: why did `count` change? Because a click happened. An event fired. Inside the handler, the variable was mutated.
+
+That is not an implementation detail. It is the actual mechanism. In a browser, state changes because events occur. Not always user events: a fetch completing, a timer firing, a WebSocket message arriving are all events too, but the shape is the same. Something happens, a handler runs, variables change. The `Profile` example above has three of those: a button click that toggles the theme, an async function that settles after a fetch, and a `userId` prop change that kicks off a new load. In every case, the source is an event.
+
+The frameworks covered here each solved the sync problem by introducing a reactive primitive and connecting it to the rendering system. That works, and it works well. But it also means every variable that needs to participate in the UI must be consciously enrolled: wrapped, marked, or called through a specific API. The primitive is the entry point.
+
+Auwla starts from the other direction. If state only ever changes because an event occurred, then the event handler is a natural place to put the reactive boundary. The compiler wraps every JSX event handler and every async task boundary at build time. When one of those boundaries is crossed, a re-render is scheduled. The variables themselves do not need to know they are reactive, because the compiler already knows where mutations can happen.
+
+The result is what you saw in the Auwla section above: plain `let` or `const` variables, plain functions, plain expressions.
+
+---
+
+In the next section, [Working With State](/docs/working-with-state) covers objects, arrays, derived values, and shared state across components.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Working With State (working-with-state.md)
+------------------------------------------------------------------------
+
+# Working With State
+
+State in Auwla is plain JavaScript. There are no wrappers to import, no constructors to call, and no markers to apply. A variable declared in the component setup scope is state. If it changes, the next render will reflect the new value.
+
+---
+
+## The Basics
+
+The simplest component is a counter. A `let` variable, mutated directly inside a click handler:
+
+```tsx [Counter.tsx]
+function Counter() {
+  let count = 0;
+
+  return (
+    <button onClick={() => count++}>
+      Count: {count}
+    </button>
+  );
+}
+```
+
+The component function runs once. It sets up `count` as a plain variable. Every time the button is clicked, `count++` runs inside an event handler. Auwla wraps every JSX event handler at compile time with an invalidation step, so after the handler completes, the update loop runs, reads the new value of `count`, and patches just the text node that changed.
+
+Nothing reactive about the variable. The event is the boundary.
+
+---
+
+## Setup Scope is Unrestricted JavaScript
+
+Because the outer function body is a standard setup phase that executes exactly once, you are free to write any standard JavaScript/TypeScript code inside it. This includes conditional `if` statements, logging, data normalization, or checking properties before mounting. 
+
+```tsx [SettingsPanel.tsx]
+interface Props {
+  initialMode: 'light' | 'dark';
+  userId?: string;
+}
+
+function SettingsPanel(props: Props) {
+  // ── Setup (Runs once) ──
+  // You can execute any arbitrary calculations or variable declarations here.
+  let isGuest = !props.userId;
+
+  // You can write normal conditional statements inside the setup block:
+  if (isGuest) {
+    console.log("Rendering settings panel in guest mode.");
+  } else {
+    console.log(`Loading settings for user: ${props.userId}`);
+  }
+
+  let theme = props.initialMode;
+  let label = isGuest ? 'Guest Settings' : 'Account Settings';
+
+  return (
+    <div>
+      <h3>{label}</h3>
+      <p>Theme: {theme}</p>
+      <button onClick={() => { theme = theme === 'light' ? 'dark' : 'light'; }}>
+        Toggle Theme
+      </button>
+    </div>
+  );
+}
+```
+
+This demonstrates to both developers and AI models that the setup scope isn't a restricted DSL or pure declarative area—it is standard JavaScript. You can initialize, mutate, validate, and debug your variables using standard control structures.
+
+---
+
+## Objects, Arrays, and Derived Values
+
+Because state is just JavaScript, objects and arrays work exactly as you would expect. Mutate in place and Auwla re-renders:
+
+```tsx [TodoList.tsx]
+function TodoList() {
+  const todos: { id: number; text: string; done: boolean }[] = [];
+  let input = '';
+
+  function add() {
+    if (!input.trim()) return;
+    todos.push({ id: Date.now(), text: input, done: false });
+    input = '';
+  }
+
+  return (
+    <div>
+      <input
+        value={input}
+        onInput={(e) => { input = (e.target as HTMLInputElement).value; }}
+      />
+      <button onClick={add}>Add</button>
+      <ul>
+        {todos.map((t) => (
+          <li key={t.id}>
+            <input
+              type="checkbox"
+              checked={t.done}
+              onChange={() => { t.done = !t.done; }}
+            />
+            {t.text}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+Keys in lists must be stable identifiers from the data, never the array index. When items are reordered or removed, an index key changes for surviving items and Auwla would treat them as new nodes. A stable `id` from the data tells Auwla which DOM node belongs to which item and reuses it correctly.
+
+Derived values require no wrappers either. Declare them in setup scope and the compiler tracks what they depend on:
+
+```tsx [Stats.tsx]
+function Stats() {
+  const scores: number[] = [10, 20, 30];
+
+  let total   = scores.reduce((a, b) => a + b, 0);
+  let average = scores.length ? total / scores.length : 0;
+
+  return (
+    <div>
+      <p>Total: {total}</p>
+      <p>Average: {average.toFixed(1)}</p>
+    </div>
+  );
+}
+```
+
+The compiler detects that `total` and `average` depend on `scores` and compiles them into tracked computations. When `scores` changes, they update. You do not write that tracking yourself.
+
+This works for `Map` and `Set` too, at any depth. There is no special reactive collection class to reach for:
+
+```tsx [TeamRoster.tsx]
+function TeamRoster() {
+  const members = new Map([[1, 'Alice'], [2, 'Bob']]);
+
+  let count = members.size;
+  let names = [...members.values()].join(', ');
+
+  function add(id: number, name: string) {
+    members.set(id, name);
+  }
+
+  return (
+    <div>
+      <p>{count} members: {names}</p>
+      <button onClick={() => add(Date.now(), 'New')}>Add member</button>
+    </div>
+  );
+}
+```
+
+---
+
+## Async Just Works
+
+Not every mutation happens inside a click. A component might load data when it mounts, or tick on a timer. Write it the way you would write plain JavaScript, and it works:
+
+```tsx [UserCard.tsx]
+function UserCard() {
+  let user: { name: string; email: string } | null = null;
+
+  fetch('/api/user')
+    .then((r) => r.json())
+    .then((data) => {
+      user = data;
+    });
+
+  return (
+    <div>
+      {user ? <p>{user.name}</p> : <p>Loading...</p>}
+    </div>
+  );
+}
+```
+
+No import, no wrapper, no boilerplate. The fetch resolves, `user` is assigned, and the card re-renders with the new data — and only this card, not the rest of the page.
+
+The same is true for timers:
+
+```tsx [Ticker.tsx]
+function Ticker() {
+  let time = new Date().toLocaleTimeString();
+
+  setInterval(() => {
+    time = new Date().toLocaleTimeString();
+  }, 1000);
+
+  return <p>{time}</p>;
+}
+```
+
+The clock updates every second. Nothing else on the page is touched.
+
+> [!NOTE]
+> This works for `fetch().then()`, `async`/`await`, `setTimeout`, `setInterval`, and other common async boundaries the compiler recognizes. It automatically schedules re-renders when mutations occur inside these asynchronous scopes.
+
+
+------------------------------------------------------------------------
+DOCUMENT: How Rendering Works (setup-render.md)
+------------------------------------------------------------------------
+
+# How Rendering Works
+
+You now know that state in Auwla is just a plain closure variable. The next question is: **how does re-rendering actually happen?**
+
+---
+
+## Two Phases, One Component
+
+An Auwla component is a function that runs once to set up its state, and returns a JSX layout. 
+
+```tsx
+// Direct JSX Return (Recommended)
+function Counter() {
+  // ── Setup Phase ────────────────────────────────────────────────────────
+  // This block runs exactly once when the component first appears in the tree.
+  let count = 0;
+
+  // ── Render Phase ───────────────────────────────────────────────────────
+  // The compiler automatically extracts this into the update loop.
+  return (
+    <button onClick={() => count++}>
+      Count: {count}
+    </button>
+  );
+}
+```
+
+Behind the scenes, the compiler automatically extracts setup state and transforms this into an optimized setup-once and update architecture. 
+
+This direct return syntax:
+* Eliminates the boilerplate of nesting render closures (`return () => JSX`).
+* Controls how AI coding models reason about the component, avoiding the false assumption that setup variables aren't reactive.
+* Makes components look like standard, clean, predictable TSX.
+
+---
+
+## Why State Doesn't Reset
+
+In React, the entire component function re-runs on every render, so local variables reset unless you wrap them with `useState`. In Auwla, the component setup runs **once** — local variables are ordinary JavaScript variables that live in the closure scope and persist naturally:
+
+```tsx
+// count lives in the setup scope — survives every re-render
+function Counter() {
+  let count = 0;
+  return <button onClick={() => count++}>Count: {count}</button>;
+}
+
+// count lives inside the event handler scope — resets to 0 on every call
+function BrokenCounter() {
+  const resetCount = () => {
+    let count = 0; // ← this is re-declared on every call
+    count++;
+  };
+  return <button onClick={resetCount}>Count: {count}</button>;
+}
+```
+
+---
+
+## What the Compiler Generates
+
+The Vite plugin transforms your component into direct, imperative DOM operations. This removes the virtual DOM entirely — no tree diff, just targeted native calls.
+
+Here is the compiled output for the counter:
+
+```js
+function Counter() {
+  let count = 0; // the variable is untouched — still a plain number
+
+  return __componentBlock(() => {
+    // ── Runs once on mount ──────────────────────────────────────
+    const button = document.createElement('button');
+    const text = document.createTextNode('');
+    button.append(text);
+
+    // The click handler is wrapped — after it runs, a re-render is queued.
+    button.addEventListener('click', __event(() => {
+      count++; // mutates the closure variable directly
+    }));
+
+    return {
+      node: button,
+
+      // ── Runs on every re-render ─────────────────────────────────
+      update() {
+        __setText(text, count); // only this text node is touched
+      },
+    };
+  });
+}
+```
+
+The DOM node is created once. From that point on, only the `update()` function runs — it patches exactly the pieces that can change. This is why Auwla is fast without a virtual DOM.
+
+---
+
+## How Event Handlers Schedule Re-renders
+
+Looking at the compiled output, every JSX event handler you write is passed through `__event()`. This wrapper does two things: runs your handler, then queues one re-render as a microtask.
+
+```
+Click fires
+  → __event wrapper executes your onClick handler
+  → count++ mutates the closure variable
+  → wrapper schedules a re-render (microtask, batched)
+  → update() patches the text node with the new count
+```
+
+This is why you never need to announce a state change for event-driven interactions — the wrapper takes care of it.
+
+---
+
+## Component Update Propagation
+
+Auwla uses a highly optimized parent-child rendering boundary.
+
+### Parent-to-Child: Memoized Updates
+When a parent component re-renders, its child components **do not** automatically run their update logic. Auwla memoizes child components at compile time:
+* A child component only updates if the props passed down by its parent have changed.
+* Unaffected sibling children are guaranteed to skip their update cycles entirely, keeping DOM updates localized.
+
+### Child-to-Parent: Upward Invalidation
+When a child component updates (due to an event occurring inside it), its parent components are also updated. This allows children to propagate changes directly (for example, by mutating a shared array passed down as a prop). The parent re-renders to reflect these changes, but thanks to memoization, unaffected sibling children are guaranteed not to run when not needed.
+
+### Shared & External State
+Reactivity is not confined to the component's setup function. You can declare state variables outside components or in the same file. When components reference outside state, they naturally read the latest values during event-driven updates. We will cover advanced patterns for shared and global state in detail in a later section.
+
+
+------------------------------------------------------------------------
+DOCUMENT: What the Compiler Can't See (what-the-compiler-cant-see.md)
+------------------------------------------------------------------------
+
+# What the Compiler Can't See
+
+Auwla is designed so that standard asynchronous mutations "just work" without wrappers or manual setup. However, because Auwla's reactivity relies on static compile-time analysis, there are boundaries where the compiler cannot trace changes.
+
+Knowing what happens behind the scenes allows you to use Auwla's manual escape hatches when working with third-party libraries, WebSockets, or untrackable references.
+
+---
+
+## Normal State Operations (Auto-Scheduling)
+
+When you write asynchronous updates using built-in macros like `setTimeout`, `setInterval`, `fetch`, or `async/await`, Auwla automatically schedules a component re-render when the state mutates.
+
+For example, this timer updates the screen every second:
+
+```tsx
+function Ticker() {
+  let time = new Date().toLocaleTimeString();
+
+  setInterval(() => {
+    time = new Date().toLocaleTimeString();
+  }, 1000);
+
+  return <p>{time}</p>;
+}
+```
+
+The compiler detects that `time` is mutated inside the `setInterval` callback and automatically schedules the re-render. You do not need to import any reactive primitives or trigger functions.
+
+---
+
+## What the Compiler Actually Does
+
+To understand why the compiler can automate this, and how to write custom triggers when it cannot, let's look at the underlying primitives: `component()` and `commit()`.
+
+### `component()`
+Every Auwla component can access a reference to its host instance using `component()`. This reference (commonly named `self`) serves as a unique key for scoping re-renders:
+
+```ts
+import { component } from 'auwla';
+const self = component();
+```
+
+### `commit(self)`
+The `commit()` function is the manual invalidation signal. When you pass `self` (the component handle), Auwla schedules a microtask-aligned re-render for **only** that specific component and its dirty descendants:
+
+```ts
+import { commit } from 'auwla';
+commit(self);
+```
+
+### Batching
+Multiple calls to `commit(self)` within the same microtask are automatically batched. If you mutate five variables and call `commit(self)` five times in the same synchronous block, Auwla will perform exactly one DOM update pass at the end of the tick.
+
+---
+
+### The Compiler's Transformation
+
+When the compiler parses the `Ticker` example, it automatically injects a `component()` handle and wraps your asynchronous callbacks in a `try/finally` block that invokes `commit(self)` at the end of the work:
+
+```ts
+// What the compiler actually generates:
+function Ticker() {
+  const self = __component(); // Setup component reference
+  let time = new Date().toLocaleTimeString();
+
+  setInterval(() => {
+    try {
+      time = new Date().toLocaleTimeString(); // Mutates state
+    } finally {
+      __commit(self); // Triggers re-render for this component
+    }
+  }, 1000);
+
+  // ...
+}
+```
+
+---
+
+## Third-Party Libraries & Limitations
+
+The compiler's auto-scheduling relies on the ability to statically trace a mutation back to the variables declared in the component setup scope. Two scenarios fall outside what the compiler can automatically trace:
+
+### 1. Unrecognized Callbacks
+If you register a callback inside a third-party library or custom SDK (like a WebSocket, a native state stream, or an RxJS observer), the compiler cannot identify that the callback contains mutations that affect the component.
+
+### 2. Untraceable Aliases
+If you mutate variables through aliases or remote module caches (such as changing a property on a global object import without reassigning the variable name), the compiler cannot prove a mutation occurred on a setup-scoped variable.
+
+---
+
+## The Manual Escape Hatch: `commit(self)`
+
+For cases the compiler cannot see, you can manually import `component` and `commit` to trigger re-renders. 
+
+Here is how you handle a WebSocket message listener from a third-party library:
+
+```tsx
+import { component, commit } from 'auwla';
+import { socket } from './socket';
+
+function LiveFeed() {
+  const self = component(); // Grab the host component handle
+  let messages: string[] = [];
+
+  socket.on('message', (msg) => {
+    messages.push(msg); // Mutate array in-place
+    
+    // Explicitly notify Auwla that this component needs to re-render
+    commit(self); 
+  });
+
+  return (
+    <ul>
+      {messages.map((m, index) => (
+        <li key={index}>{m}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+---
+
+## Global Invalidation: `commit()`
+
+If you call `commit()` with **no arguments**, it signals a global invalidation, scheduling a re-render for all mounted components on the page:
+
+```ts
+import { commit } from 'auwla';
+
+function logoutUser() {
+  clearAuthSession();
+  commit(); // Re-renders every component to reflect the logged-out state
+}
+```
+
+You will rarely need the global `commit()` in regular component development, but it is extremely useful for high-level event bus handlers or global state libraries.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Component Lifecycle (lifecycle.md)
+------------------------------------------------------------------------
+
+# Component Lifecycle
+
+An Auwla component has three moments: it **mounts** (setup runs once), it **re-renders** (the render closure runs again), and it **unmounts** (removed from the tree). Knowing what happens at each moment lets you manage timers, subscriptions, and global listeners without leaks.
+
+---
+
+## Mount: Setup Runs Once
+
+The outer function body is the setup phase. It runs exactly once when the component first appears. By the time the render closure returns JSX, all your state variables, side effects, and cleanup registrations are already in place.
+
+```tsx
+import { cleanup } from 'auwla';
+
+function LiveClock() {
+  let time = new Date().toLocaleTimeString();
+
+  // Starts once, ticks automatically
+  const id = setInterval(() => {
+    time = new Date().toLocaleTimeString();
+  }, 1000);
+
+  // Stop the interval when the component is removed
+  cleanup(() => clearInterval(id));
+
+  return <p class="clock">{time}</p>;
+}
+```
+
+---
+
+## Unmount: `cleanup()`
+
+`cleanup()` registers a function that Auwla calls when the component is removed from the tree — either because a conditional hid it, or the user navigated away. Without it, intervals keep ticking, sockets stay open, and listeners pile up.
+
+```tsx
+import { cleanup } from 'auwla';
+
+// cleanup() can be called multiple times — each registration is independent.
+// Cleanups fire children-before-parents.
+cleanup(() => clearInterval(id));
+cleanup(() => socket.close());
+cleanup(() => document.removeEventListener('keydown', handler));
+```
+
+> [!IMPORTANT]
+> Call `cleanup()` synchronously in the setup scope. Calling it inside the render closure or an event handler will throw an error.
+
+### Common patterns
+
+**Timers**
+
+```tsx
+import { cleanup } from 'auwla';
+
+function Poller() {
+  let items: { id: number; text: string }[] = [];
+
+  const id = setInterval(async () => {
+    const res = await fetch('/api/feed');
+    items = await res.json();
+  }, 5_000);
+
+  cleanup(() => clearInterval(id));
+
+  return (
+    <ul>{items.map((item) => <li key={item.id}>{item.text}</li>)}</ul>
+  );
+}
+```
+
+**Raw event listeners**
+
+```tsx
+import { cleanup } from 'auwla';
+
+function EscapeHandler() {
+  const handler = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeModal();
+  };
+
+  document.addEventListener('keydown', handler);
+  cleanup(() => document.removeEventListener('keydown', handler));
+
+  return <div>Press Esc to close</div>;
+}
+```
+
+> [!NOTE]
+> `event.hotkey()` and `event.click.global` register and clean up automatically — you only need `cleanup()` for raw `addEventListener` calls and other external resources you manage yourself.
+
+**WebSockets**
+
+```tsx
+import { cleanup } from 'auwla';
+
+function LiveFeed() {
+  const socket = new WebSocket('wss://api.example.com/feed');
+
+  // Register cleanup so the socket closes when the component is removed
+  cleanup(() => socket.close());
+
+  return <div>Feed Active</div>;
+}
+```
+
+---
+
+## Custom Helpers and Hooks (Cleanup Outside of Components)
+
+Because `cleanup()` registers its callback on the currently executing component setup context, it is not limited to the component body itself. You can call `cleanup()` inside custom helper functions or utility hooks declared outside your component, as long as they are called synchronously during the component's setup phase:
+
+```tsx
+import { cleanup } from 'auwla';
+
+// A custom utility helper defined outside the component
+function useDocumentTitle(title: string) {
+  const originalTitle = document.title;
+  document.title = title;
+
+  // Automatically registers cleanup on the calling component instance
+  cleanup(() => {
+    document.title = originalTitle;
+  });
+}
+
+// Usage inside components
+function DetailPage() {
+  useDocumentTitle("Product Details");
+  return <h1>Product details...</h1>;
+}
+```
+
+This makes it extremely easy to encapsulate setup-and-cleanup logic in reusable hooks without having to pass cleanup callbacks back and forth.
+
+---
+
+## Lifecycle at a Glance
+
+```
+Component appears in tree
+  → Setup runs (once)
+      - state variables initialized
+      - side effects started (fetch, timers, sockets)
+      - cleanup() handlers registered
+
+Event / state change
+  → Render closure / template runs
+      - reads current state
+      - returns JSX / patches the DOM
+
+Component removed from tree
+  → cleanup() handlers fire (children first, then parents)
+      - intervals cleared
+      - sockets closed
+      - listeners removed
+```
+
+---
+
+In the next section, we will cover the [Compiler](/docs/compiler) and how it optimizes your JSX into direct DOM operations.
+
+
+========================================================================
+CATEGORY: GUIDES
+========================================================================
+
+
+------------------------------------------------------------------------
+DOCUMENT: Two-Way Binding (two-way-binding.md)
+------------------------------------------------------------------------
+
+# Two-Way Data Binding
+
+Auwla features a compile-time `bind={variable}` syntax that simplifies working with form inputs. 
+
+Instead of writing verbose event listeners and property setters manually, you can bind an element's value directly to a local variable. The compiler will automatically wire up the event listeners and handle type casting.
+
+---
+
+## Basic Usage
+
+To bind an input element to a local setup variable, use the `bind` attribute:
+
+```tsx
+function BasicForm() {
+  let name = "Guest";
+  let subscribed = false;
+
+  return (
+    <form onSubmit={(e) => e.preventDefault()}>
+      {/* Updates name automatically on input */}
+      <input type="text" bind={name} />
+      
+      {/* Updates subscribed automatically on change */}
+      <input type="checkbox" bind={subscribed} />
+
+      <p>Hello {name}, newsletter status: {subscribed ? "Active" : "Inactive"}</p>
+    </form>
+  );
+}
+```
+
+---
+
+## Supported Inputs and Behaviors
+
+The compiler handles different input types by targeting the appropriate property, listening to the correct event, and performing type casting when necessary:
+
+| Element & Type | Target Property | Intercepted Event | Binding Behavior & Cast |
+| :--- | :--- | :--- | :--- |
+| `<input type="text" />` | `value` | `input` | Binds to a `string` |
+| `<input type="number" />` | `value` | `input` | Automatically casts value to a `number` |
+| `<input type="range" />` | `value` | `input` | Automatically casts value to a `number` |
+| `<input type="checkbox" />` | `checked` | `change` | Binds to a `boolean` |
+| `<input type="checkbox" />` (Grouped) | `checked` | `change` | Pushes/pulls value from an `Array` or `Set` |
+| `<input type="radio" />` | `checked` | `change` | Binds the selected value to a `string` |
+| `<select>` (Single) | `value` | `change` | Binds the selected option value to a variable |
+| `<select multiple>` | `value` | `change` | Binds multiple selected option values to an `Array` or `Set` |
+| `<textarea>` | `value` | `input` | Binds to a `string` |
+
+---
+
+## Interactive Examples
+
+### 1. Text & Textareas
+Text-based inputs listen to the `input` event and update the variable synchronously.
+
+```tsx
+function FeedbackForm() {
+  let message = "";
+
+  return (
+    <div>
+      <textarea bind={message} placeholder="Write something..." />
+      <p>Character count: {message.length}</p>
+    </div>
+  );
+}
+```
+
+### 2. Numeric & Range Inputs (Auto-Casting)
+When binding to inputs of type `number` or `range`, Auwla automatically casts the value to a JavaScript `number` type. If the input is empty or invalid (`NaN`), it falls back to an empty string `""`.
+
+```tsx
+function AgeForm() {
+  let age = 18; // Initialized as a number
+
+  return (
+    <div>
+      <input type="number" bind={age} min="0" max="120" />
+      <p>Age next year: {typeof age === 'number' ? age + 1 : 'Invalid age'}</p>
+    </div>
+  );
+}
+```
+
+### 3. Checkbox Group (Arrays & Sets)
+You can bind multiple checkboxes to a single collection (such as an Array or a Set). Checking a box appends its `value` to the collection; unchecking it removes it.
+
+#### Binding to an Array:
+```tsx
+function HobbySelector() {
+  let hobbies: string[] = ["Reading"];
+
+  return (
+    <div>
+      <label>
+        <input type="checkbox" value="Reading" bind={hobbies} /> Reading
+      </label>
+      <label>
+        <input type="checkbox" value="Gaming" bind={hobbies} /> Gaming
+      </label>
+      <label>
+        <input type="checkbox" value="Cooking" bind={hobbies} /> Cooking
+      </label>
+      
+      <p>Selected hobbies: {hobbies.join(", ")}</p>
+    </div>
+  );
+}
+```
+
+#### Binding to a Set:
+```tsx
+function TagSelector() {
+  let tags = new Set<string>(["tech"]);
+
+  return (
+    <div>
+      <label>
+        <input type="checkbox" value="tech" bind={tags} /> Technology
+      </label>
+      <label>
+        <input type="checkbox" value="design" bind={tags} /> Design
+      </label>
+      
+      <p>Selected: {[...tags].join(", ")}</p>
+    </div>
+  );
+}
+```
+
+### 4. Radio Groups
+Radio buttons sharing a name and a bound variable will update that variable with the `value` of the selected option.
+
+```tsx
+function ColorTheme() {
+  let theme = "dark";
+
+  return (
+    <div>
+      <label>
+        <input type="radio" name="theme" value="dark" bind={theme} /> Dark Mode
+      </label>
+      <label>
+        <input type="radio" name="theme" value="light" bind={theme} /> Light Mode
+      </label>
+      
+      <p>Active theme: {theme}</p>
+    </div>
+  );
+}
+```
+
+### 5. Select Dropdowns (Single & Multiple)
+Select dropdowns bind the selection list to your variable.
+
+#### Single Select:
+```tsx
+function FruitPicker() {
+  let fruit = "apple";
+
+  return (
+    <div>
+      <select bind={fruit}>
+        <option value="apple">Apple</option>
+        <option value="banana">Banana</option>
+        <option value="orange">Orange</option>
+      </select>
+      <p>You chose: {fruit}</p>
+    </div>
+  );
+}
+```
+
+#### Multiple Select (Dropdown list):
+```tsx
+function MultiUserSelector() {
+  let selectedUsers: string[] = [];
+
+  return (
+    <div>
+      <select multiple bind={selectedUsers}>
+        <option value="alice">Alice</option>
+        <option value="bob">Bob</option>
+        <option value="charlie">Charlie</option>
+      </select>
+      <p>Selected: {selectedUsers.join(", ")}</p>
+    </div>
+  );
+}
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Event Modifiers (event-modifiers.md)
+------------------------------------------------------------------------
+
+# Event Modifiers
+
+Auwla features a powerful, chainable event builder API that keeps your JSX clean and declarative. 
+
+Instead of polluting your handler functions with boilerplate for preventing default behaviors, filtering specific keys, debouncing high-frequency events, or tracking drag gestures, you can chain modifiers directly onto your event listeners.
+
+To keep client-side bundle sizes as small as possible, Auwla's event system is designed to be fully **tree-shakable**. Heavy features (like touch gestures, intersection observers, and global hotkeys) are split into dedicated entry points, ensuring you only bundle what you actually use.
+
+---
+
+## 1. Core Events (`auwla/events`)
+
+The default `auwla/events` entry point contains the lightweight core builder and standard DOM modifiers. It has a near-zero bundle footprint and is used for daily event operations.
+
+```tsx
+import { event } from 'auwla/events';
+
+function SimpleForm() {
+  return (
+    <form onSubmit={event.trap(handleSubmit)}>
+      {/* Prevents default action and stops bubbling */}
+      <button type="submit">Submit</button>
+      
+      {/* Save action that fires at most once */}
+      <button onClick={event.once.prevent(save)}>Save Once</button>
+    </form>
+  );
+}
+```
+
+### Core Modifiers:
+* **`.prevent`** — Calls `event.preventDefault()`
+* **`.stop`** — Calls `event.stopPropagation()`
+* **`.stopImmediate`** — Calls `event.stopImmediatePropagation()`
+* **`.trap`** — Shorthand that calls both `preventDefault` and `stopPropagation`
+* **`.once`** — Detaches the listener automatically after firing once
+* **`.self`** — Only fires the callback if the event target is the host element itself (not a child)
+* **`.trusted`** — Only fires for browser-trusted user events
+* **`.capture`** / **`.passive`** — Sets event listener capture or passive options
+* **`.silent`** — Runs the handler but suppresses component re-rendering
+
+### Timing & Rate-Limiting Modifiers:
+* **`.debounce(ms)`** — Defers execution until the event stops firing for `ms` milliseconds.
+* **`.throttle(ms)`** — Executes the callback at most once every `ms` milliseconds.
+* **`.cooldown(ms)`** — Ignores new incoming events for `ms` milliseconds after a run.
+
+```tsx
+// Debounces text search inputs
+<input onInput={event.debounce(300).handler(performSearch)} />
+
+// Throttles high-frequency mouse movements
+<div onPointerMove={event.throttle(80).handler(trackPointer)} />
+```
+
+### Global Listeners (`.global`)
+You can listen to events directly at the window or document level. These listeners are automatically attached on mount and cleaned up when the component unmounts.
+
+```tsx
+// Listens for clicks anywhere on the document
+event.click.global.handler(() => {
+  console.log("Clicked somewhere on the page");
+});
+```
+
+---
+
+## 2. Keyboard Filters (`auwla/events/keyboard`)
+
+The keyboard module isolates key matchers and modifier key validation. It exposes three event chains: `keyDown`, `keyUp`, and `keyPress`.
+
+```tsx
+import { keyDown } from 'auwla/events/keyboard';
+
+function InputField() {
+  return (
+    <div>
+      {/* Trigger on Enter */}
+      <input onKeyDown={keyDown.enter.prevent.handler(submit)} />
+      
+      {/* Trigger on custom multiple keys */}
+      <input onKeyDown={keyDown.key(['Tab', 'Space']).handler(handleA11y)} />
+    </div>
+  );
+}
+```
+
+### Supported Key Filters:
+* **`.enter`** — Enter / Return key
+* **`.esc`** — Escape key
+* **`.space`** — Spacebar
+* **`.tab`** — Tab key
+* **`.up` / `.down`** — Arrow Up / Arrow Down
+* **`.del`** — Delete key
+* **`.key(name | name[])`** — Explicit key name(s) (e.g. `['Enter', 'NumpadEnter']`)
+
+### Modifier Keys:
+You can restrict listeners to only fire when modifier keys are pressed:
+* **`.mod`** — Shorthand for `Cmd` on macOS and `Ctrl` on Windows/Linux
+* **`.ctrl`** — Control key
+* **`.meta`** — Meta / Command key
+* **`.shift`** — Shift key
+* **`.alt`** — Alt / Option key
+
+```tsx
+// Fire action only on Ctrl+Shift+Enter
+<input onKeyDown={keyDown.ctrl.shift.enter.handler(postComment)} />
+```
+
+---
+
+## 3. Global Hotkeys (`auwla/events/hotkey`)
+
+The hotkey module enables global, document-wide keyboard shortcuts. It automatically ignores inputs when typing in `<input>` or `<textarea>` elements unless they contain command modifiers (like `Ctrl` or `Cmd`).
+
+```tsx
+import { hotkey } from 'auwla/events/hotkey';
+
+function AppShortcuts() {
+  // Registers Ctrl+K search globally
+  const unbind = hotkey('ctrl+k').prevent.handler(() => {
+    openSearchModal();
+  });
+
+  // Registers sequence shortcuts (press 'g' then 'i')
+  hotkey('g i').handler(() => {
+    navigateTo('/inbox');
+  });
+
+  // Hotkeys return an unbind function for manual teardowns
+  return <p>Press Ctrl+K to search, or "g i" to open the inbox.</p>;
+}
+```
+
+---
+
+## 4. Touch & Gestures (`auwla/events/touch`)
+
+The gesture module packs unified pointer listeners and gesture trackers. It exposes pointer starters: `touchStart`, `touchMove`, `touchEnd`, `touchCancel`, and `touch`.
+
+```tsx
+import { touchStart } from 'auwla/events/touch';
+```
+
+### Gestures:
+
+#### Swipe Filtering (`.moved`)
+Filters swipe actions by threshold distance (in pixels) and direction to prevent accidental taps from firing events.
+
+```tsx
+// Fire only if swiped right by at least 50px
+<div onTouch={touchStart.moved(50, 'right').prevent.handler(swipeAction)}>
+  Swipe right to complete task
+</div>
+```
+
+#### Coordinate Syncing (`.sync`)
+Tracks dragging and coordinates, binding values directly to a local coordinate object on move and cleaning up on release.
+
+```tsx
+function DraggableItem() {
+  let coords = { x: 0, y: 0 };
+
+  return (
+    <div 
+      style={{ left: `${coords.x}px`, top: `${coords.y}px`, position: 'absolute' }}
+      onTouch={touchStart.sync(coords, 'x', 'y').handler(() => {
+        // Coords are updated automatically; layout is patched on drag
+      })}
+    >
+      Drag me
+    </div>
+  );
+}
+```
+
+#### Coordinate Fitting & Interpolation (`.fit`)
+Interpolates dragging offsets relative to the element's width/height, mapping positions into custom numeric ranges. Excellent for custom sliders.
+
+```tsx
+function VolumeSlider() {
+  let volume = 50; // Constrained between 0 and 100
+
+  return (
+    <div 
+      class="slider-track"
+      onTouch={touchStart.fit(0, 100).handler((event) => {
+        volume = event.detail.x; // Fitted value is available on event detail
+      })}
+    >
+      <div class="slider-handle" style={{ left: `${volume}%` }} />
+    </div>
+  );
+}
+```
+
+---
+
+## 5. Intersection Observer (`auwla/events/intersect`)
+
+The intersection observer module exposes the `intersect` builder, allowing you to catch entry and exit points of elements relative to the viewport.
+
+```tsx
+import { intersect } from 'auwla/events/intersect';
+
+function LazyImage() {
+  let visible = false;
+
+  return (
+    <div 
+      class="lazy-wrapper"
+      onIntersect={intersect(0.1).in.once.handler(() => {
+        visible = true; // Trigger load when 10% visible
+      })}
+    >
+      {visible ? <img src="/large-image.jpg" /> : <div class="placeholder" />}
+    </div>
+  );
+}
+```
+
+### Modifiers:
+* **`intersect(threshold)`** — Takes a threshold ratio between `0.0` and `1.0`
+* **`.in`** — Triggers when the element enters the viewport
+* **`.out`** — Triggers when the element exits the viewport
+* **`.once`** — Detaches the intersection observer after the first matching trigger (useful for lazy-loading)
+
+
+========================================================================
+CATEGORY: ROUTER
+========================================================================
+
+
+------------------------------------------------------------------------
+DOCUMENT: File-Based Router (router.md)
+------------------------------------------------------------------------
+
+# File-Based Router
+
+Auwla features a client-side router built directly on top of Vite and the runtime's reactivity. 
+
+The `auwlaRouter()` Vite plugin scans your `src/pages/` directory to generate a fully typed, code-split route table.
+
+---
+
+## Simple Route Setup
+
+To set up the file-based router in your application, follow these two steps:
+
+### 1. Register the Vite Plugin
+Add the router plugin to your `vite.config.ts` configuration:
+
+```ts
+import { defineConfig } from 'vite';
+import { auwla } from 'auwla/vite';
+import { auwlaRouter } from 'auwla/vite-router';
+
+export default defineConfig({
+  plugins: [
+    auwla(),
+    auwlaRouter({ dir: 'src/pages' })
+  ]
+});
+```
+
+### 2. Mount the Router Component
+Import the virtual routes registry generated by the plugin and pass them into the `<Router />` component in your main application file (e.g., `src/App.tsx`):
+
+```tsx
+import { Router } from 'auwla/router';
+import routes from 'auwla:routes'; // Virtual module generated by Vite
+
+export default function App() {
+  return (
+    <Router routes={routes} />
+  );
+}
+```
+
+---
+
+## File Naming Conventions
+
+The router translates the file structure of your `src/pages/` folder into route paths automatically:
+
+```
+src/pages/
+  index.tsx          → /
+  about.tsx          → /about
+  _layout.tsx        → (Wraps about.tsx and index.tsx)
+  posts/
+    index.tsx        → /posts
+    [id].tsx         → /posts/:id
+    [id]/
+      comments.tsx   → /posts/:id/comments
+  [...404].tsx       → /* (Catch-all fallback)
+```
+
+### Routing Rules:
+* **`index.tsx`**: Maps to the root of that folder. A file at `src/pages/index.tsx` resolves to `/`, and a file at `src/pages/posts/index.tsx` resolves to `/posts`.
+* **Dynamic Parameters (`[param]`)**: Brackets create dynamic path parameters. For example, `src/pages/posts/[id].tsx` maps to `/posts/:id`.
+* **Catch-All Wildcards (`[...name]`)**: Brackets prefixed with `...` match any remaining subpath. For example, `src/pages/[...404].tsx` will capture any unmatched routes.
+* **Layouts (`_layout.tsx`)**: Any directory can contain a `_layout.tsx` file. This layout will automatically wrap all pages defined in that directory and its subdirectories.
+
+---
+
+## Creating Pages and Layouts
+
+### 1. Basic Page component
+A page component is a standard export from a page file that returns your JSX template:
+
+```tsx
+// src/pages/about.tsx
+export default function About() {
+  return (
+    <div>
+      <h1>About Us</h1>
+      <p>This is a simple Auwla page.</p>
+    </div>
+  );
+}
+```
+
+### 2. Layout Component
+A layout component wraps sibling pages in the same directory. It receives the active `Child` component as a parameter and returns the layout template:
+
+```tsx
+// src/pages/_layout.tsx
+import type { RouteComponent } from 'auwla/router';
+
+export default function Layout(Child: RouteComponent) {
+  return (
+    <div class="app-layout">
+      <header>My Website Header</header>
+      <main>
+        {/* Renders the matched sibling page */}
+        <Child />
+      </main>
+      <footer>Footer Content</footer>
+    </div>
+  );
+}
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Link Component (link-component.md)
+------------------------------------------------------------------------
+
+# Link Component
+
+Auwla provides the `<Link>` component to handle declarative, client-side routing.
+
+Instead of writing standard HTML anchor tags (`<a>`), which trigger a full page reload and wipe out your reactive application state, the `<Link>` component intercepts clicks to perform instant transitions.
+
+---
+
+## Basic Usage
+
+Import `Link` from `'auwla/router'` and pass the path inside the `href` attribute:
+
+```tsx
+import { Link } from 'auwla/router';
+
+export default function Navbar() {
+  return (
+    <nav class="navbar">
+      <Link href="/">Home</Link>
+      <Link href="/about">About Us</Link>
+    </nav>
+  );
+}
+```
+
+---
+
+## All Configuration Props
+
+The `<Link>` component accepts a comprehensive set of properties for path interpolation, active styling, event handling, and optimization:
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| **`href`** | `string` | *(Required)* | The target route path pattern. Can be static (e.g. `/about`) or parameterized (e.g. `/posts/:id`). |
+| **`params`** | `Record<string, string>` | `undefined` | Key-value pairs matching the parameters of your dynamic path. Required when `href` is parameterized. |
+| **`query`** | `Record<string, string \| number \| boolean>` | `undefined` | Query string parameters appended to the URL (e.g. `{ ref: "nav", limit: 10 }`). |
+| **`class`** | `string` | `undefined` | Custom CSS class names applied to the rendered anchor element. |
+| **`style`** | `string \| Record<string, string>` | `undefined` | Inline styles applied to the anchor element. Accepts CSS string or object. |
+| **`activeClass`** | `string` | `"active"` | CSS class applied when the current URL starts with this link's resolved URL path. |
+| **`exactActiveClass`** | `string` | `"exact-active"` | CSS class applied only when the current URL matches the link's resolved URL path exactly. |
+| **`prefetch`** | `boolean` | `true` | When true, hovering the link pre-downloads the target page's code chunk and triggers its data loader immediately. |
+| **`onClick`** | `(e: MouseEvent) => void` | `undefined` | Custom event listener executed on click. Runs before navigation. |
+
+---
+
+## Practical Examples
+
+### 1. Dynamic Parameter Interpolation (`params` & `query`)
+For routes with dynamic segments, pass the path pattern to `href` and resolve values using `params`:
+
+```tsx
+import { Link } from 'auwla/router';
+
+function PostCard(props: { id: string, category: string }) {
+  return (
+    <div class="card">
+      <Link 
+        href="/posts/:id" 
+        params={{ id: props.id }}
+        query={{ source: 'feed', cat: props.category }}
+      >
+        Read Full Post
+      </Link>
+    </div>
+  );
+}
+```
+* **Rendered output URL:** `/posts/123?source=feed&cat=tech`
+
+### 2. Custom CSS Styles and Classes
+```tsx
+<Link 
+  href="/profile"
+  class="btn-primary"
+  style={{ display: 'inline-flex', padding: '10px' }}
+>
+  View Profile
+</Link>
+```
+
+### 3. Active Styling
+Configure custom styles for active page headers:
+
+```tsx
+<Link 
+  href="/docs/:slug"
+  params={{ slug: 'introduction' }}
+  activeClass="border-b-2 border-[#ff3e00]"
+  exactActiveClass="font-bold text-[#ff3e00]"
+>
+  Documentation
+</Link>
+```
+
+---
+
+## Dynamic Prefetching (`prefetch`)
+
+By default, `<Link>` is equipped with **smart prefetching** (`prefetch={true}`):
+* When a user hovers their mouse cursor over a link, the router begins prefetching the code chunk for that page and starts executing the route's `routed` loader function in the background.
+* By the time the user clicks, the page is often already loaded and resolves instantly.
+
+To disable prefetching (e.g. for long lists of links or menus that are hovered frequently but rarely clicked), set the prop to `false`:
+
+```tsx
+<Link href="/settings" prefetch={false}>
+  Settings
+</Link>
+```
+
+---
+
+## Native Browser Interactions
+
+While `<Link>` intercepts navigation to keep routing inside the client-side lifecycle, it is fully accessible and automatically falls back to native browser behaviors when appropriate:
+* **Modifier Key Clicks**: Hold down **Cmd (Mac)**, **Ctrl (Windows/Linux)**, **Shift**, or **Alt** while clicking a link to open the page in a new window or tab.
+* **Middle-Clicks**: Mouse wheel clicks open the link in a new tab natively.
+* **Custom event handling**: The `onClick` listener is executed first. You can call `e.preventDefault()` inside your click listener to block navigation if necessary:
+
+```tsx
+<Link 
+  href="/profile" 
+  onClick={(e) => {
+    if (!confirm("Discard unsaved changes?")) {
+      e.preventDefault(); // Blocks routing
+    }
+  }}
+>
+  Go to Profile
+</Link>
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Loading Data (loading-data.md)
+------------------------------------------------------------------------
+
+# Loading Data
+
+Auwla integrates routing and async data fetching into a single unified step. 
+
+Instead of triggering asynchronous queries inside your component view (which can cause layout flashing and redundant renders), you can export a page loader function that retrieves data before the route is mounted.
+
+---
+
+## The `routed` Loader Function
+
+Each page in your `src/pages` directory can export a `routed` asynchronous function. The router executes this function when the route is matched, injecting a context object and a cancellation `AbortSignal`.
+
+```tsx
+// src/pages/posts/[id].tsx
+import { getRouted, type RouteContext } from 'auwla/router';
+
+// 1. Export the routed function to load data
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  const res = await fetch(`/api/posts/${ctx.params.id}`, { signal });
+  return res.json();
+};
+```
+
+### Abort Signal (Auto-Cancellation)
+Auwla automatically passes an `AbortSignal` as the second argument to your `routed` function. If the user navigates away to a different route before the loader completes, the in-flight request is automatically aborted, saving bandwidth and preventing race conditions.
+
+---
+
+## Reading Loader Data (`getRouted`)
+
+To read the loader data inside your component, import `getRouted` and pass your `routed` function reference to it:
+
+```tsx
+// src/pages/posts/[id].tsx (continued)
+export default function PostDetail() {
+  // 2. Read the loaded data reactively
+  const data = getRouted(routed);
+
+  // Handle loading states
+  if (data?.pending) return <p>Loading post...</p>;
+
+  // Render the resolved values
+  return (
+    <article>
+      <h1>{data?.value?.title}</h1>
+      <p>{data?.value?.body}</p>
+    </article>
+  );
+}
+```
+
+### The Loader Handle API
+The object returned by `getRouted` is fully typed and exposes the following reactive properties:
+* **`.pending`** (`boolean`): `true` if the loader is currently fetching data.
+* **`.resolved`** (`boolean`): `true` if the loader completed successfully.
+* **`.rejected`** (`boolean`): `true` if the loader failed.
+* **`.value`** (`any`): The data returned from your `routed` function.
+* **`.reason`** (`any`): The error object if the loader rejected.
+* **`.cancel()`** (`() => void`): Aborts the active loader promise.
+* **`.refresh()`** (`() => void`): Re-runs the `routed` function to refetch data.
+
+---
+
+## Default Behavior: Instant Navigation
+
+By default, data loading **does not block or defer navigation**. The URL changes and the new page component mounts immediately, running the `routed` function in the background.
+
+When doing instant navigation, you can handle the pending loading state in three ways:
+
+### 1. Local Inline Loading (Page Level)
+Check the `pending` state directly inside the component body using `getRouted(routed)?.pending`:
+
+```tsx
+export default function Page() {
+  const loader = getRouted(routed);
+  if (loader?.pending) return <p>Loading content...</p>;
+  return <div>{loader?.value}</div>;
+}
+```
+
+### 2. Route-Level `pending` Component Export
+You can export a custom component named `pending` directly from your page file. When the route is matched and the data is loading, the router will automatically mount this placeholder component:
+
+```tsx
+// src/pages/dashboard.tsx
+export const routed = async (ctx: RouteContext, signal: AbortSignal) => {
+  return await fetch('/api/dashboard', { signal }).then(r => r.json());
+};
+
+// Export the pending placeholder component
+export function pending() {
+  return (
+    <div class="skeleton-wrapper">
+      <p>Loading Dashboard...</p>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const data = getRouted(routed);
+  return <div>{data?.value?.analytics}</div>;
+}
+```
+
+### 3. Global Pending Component
+Define a global fallback component on your `<Router>` to handle loading states for all routes:
+
+```tsx
+// src/App.tsx
+import { Router } from 'auwla/router';
+import { GlobalLoader } from './GlobalLoader';
+
+export default function App() {
+  return (
+    <Router 
+      routes={routes} 
+      pendingComponent={GlobalLoader} 
+    />
+  );
+}
+```
+
+---
+
+## Deferring Navigation (Suspension)
+
+If you want to defer the route transition and block the new page from mounting until its data resolves, enable **Suspension**. 
+
+With suspension enabled, when a user clicks a link, the router **keeps the previous page visible in the DOM** while the loader runs in the background. 
+
+```tsx
+// src/App.tsx
+import { Router } from 'auwla/router';
+
+export default function App() {
+  return (
+    <Router 
+      routes={routes} 
+      suspend // Defer route changes until loaders resolve
+    />
+  );
+}
+```
+
+### Hard Refreshes during Suspension
+If the user performs a **hard refresh** (or visits a route directly for the first time), there is no "previous page" to show during suspension. To avoid showing a blank white screen:
+1. The router will fall back to rendering your exported page-level `pending` component (if present).
+2. If no page-level loader placeholder exists, it will render the global `pendingComponent` configured on the `<Router>`.
+
+---
+
+## Suspension Styling
+
+While a route loader is resolving in the background during suspension, the router adds CSS class names and attributes to the root `<html>` element to let you style the transition.
+
+### 1. Default Style Class (`.suspended`)
+By default, the router adds the class name `.suspended` and the attribute `data-suspended` to the `<html>` element. You can style them in your CSS:
+
+```css
+/* Dim the page slightly and disable clicks during transitions */
+html.suspended {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+```
+
+### 2. Custom Styling Configurations
+If you want to use custom class names or attributes, pass a configuration object to the `suspend` prop:
+
+```tsx
+<Router 
+  routes={routes} 
+  suspend={{
+    className: "navigating",     // Custom class added to <html> during loading
+    attr: "data-navigating",     // Custom attribute added to <html> during loading
+    viewTransition: true         // Enables document.startViewTransition()
+  }}
+/>
+```
+
+You can then reference these custom classes in your stylesheets:
+
+```css
+/* Custom class styling */
+html.navigating {
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Add a loading indicator stripe at the top of the viewport */
+html.navigating::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ff3e00;
+  z-index: 9999;
+  animation: progress 1.5s infinite linear;
+}
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Route Caching (route-caching.md)
+------------------------------------------------------------------------
+
+# Route Caching
+
+Auwla includes a built-in route-level caching system. It enables developers to store data and components directly in the route context, avoiding unnecessary network requests when navigating back and forth between pages.
+
+---
+
+## Route State (`ctx.state`)
+
+The `RouteContext` passed as the first parameter to your page loader (`routed`) function contains a persistent, route-specific `state` object (`ctx.state`). This object is associated with the exact resolved path (e.g. `/posts/123`).
+
+Writing to `ctx.state` caches data directly on that route. When users revisit the exact same URL, you can return the cached value instantly, avoiding duplicate fetches:
+
+```tsx
+// src/pages/posts/[id].tsx
+import { getRouted, type RouteContext } from 'auwla/router';
+
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  // 1. Check if the post data is already cached in this route state
+  if (ctx.state.post) {
+    return ctx.state.post;
+  }
+
+  // 2. Fetch fresh data if the cache is empty
+  const res = await fetch(`/api/posts/${ctx.params.id}`, { signal });
+  const post = await res.json();
+
+  // 3. Cache the post data in the route state
+  ctx.state.post = post;
+  return post;
+};
+
+export default function PostDetail() {
+  const data = getRouted(routed);
+  return <h1>{data?.value?.title}</h1>;
+}
+```
+
+---
+
+## Tag-Based Cache Invalidation
+
+Often, you need to clear cached route states when data is updated (e.g., when a user edits a post, you want to make sure the post detail page gets refetched). Auwla handles this using a declarative tagging system.
+
+### 1. Tagging Routes (`ctx.tag`)
+Tag the active route context during data loading using `ctx.tag(...tags)`. You must specify the `signal` argument in your loader function signature:
+
+```tsx
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  // Tag this route context with the general group and the specific post ID
+  ctx.tag('posts', `post-${ctx.params.id}`);
+
+  if (ctx.state.post) {
+    return ctx.state.post;
+  }
+  
+  const post = await fetch(`/api/posts/${ctx.params.id}`, { signal }).then(r => r.json());
+  ctx.state.post = post;
+  return post;
+};
+```
+
+### 2. Invalidating Cache (`invalidate`)
+Import `invalidate` from `auwla/router` inside event handlers or form mutation functions. You can clear caches globally using three matching strategies:
+
+```ts
+import { invalidate } from 'auwla/router';
+
+// Strategy A: Invalidate by tag names
+// Clears cache for all routes tagged with 'posts'
+invalidate({ tags: ['posts'] });
+
+// Strategy B: Invalidate an exact route path
+invalidate({ path: '/posts/123' });
+
+// Strategy C: Invalidate using wildcards
+// Clears cache for all subpaths under /posts
+invalidate({ path: '/posts/*' });
+```
+
+Once a route's state cache is invalidated, the next visit to that URL will execute the `routed` loader function from scratch.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Router Utilities (router-utils.md)
+------------------------------------------------------------------------
+
+# Router Utilities
+
+Auwla exports a set of functional utilities to read the active location, query path parameters, check active states, build URLs, and register global lifecycle hooks.
+
+All location accessors read directly from the router's active reactive context and trigger component updates automatically when the location changes.
+
+---
+
+## Component Usage Example
+
+Here is a comprehensive component example showcasing how to read path parameters, query parameters, metadata, errors, and perform programmatic navigation. In Auwla, you write components without `return () =>` wrappers, letting the compiler handle early returns reactively:
+
+```tsx
+// src/components/DashboardHeader.tsx
+import { 
+  getLocation, 
+  getParams, 
+  getQuery, 
+  getRouteMeta, 
+  getRouteError, 
+  isActive, 
+  isExactActive,
+  navigate,
+  back
+} from 'auwla/router';
+
+export default function DashboardHeader() {
+  // 1. Read route parameters
+  const params = getParams(); // e.g. { userId: "42" }
+  
+  // 2. Read query strings
+  const query = getQuery(); // e.g. { search: "tech", page: "2" }
+  
+  // 3. Read metadata defined on the route config
+  const meta = getRouteMeta<{ category?: string }>();
+  
+  // 4. Retrieve route loading errors (if any)
+  const error = getRouteError();
+
+  // 5. Navigation helper methods
+  const handleSignOut = () => {
+    navigate('/login', { replace: true });
+  };
+
+  const currentPath = getLocation(); // e.g. "/users/42?search=tech"
+  const isProfileActive = isActive('/users');
+  const isExactUser = isExactActive(`/users/${params.userId}`);
+
+  return (
+    <header class="header">
+      <h2>Dashboard Header</h2>
+      
+      {/* Render read location states */}
+      <p>Active URL: {currentPath}</p>
+      <p>User ID: {params.userId}</p>
+      <p>Search Term: {query.search || 'None'}</p>
+      <p>Route Category: {meta?.category || 'General'}</p>
+
+      {/* Conditional styling using active indicators */}
+      <div class="nav-links">
+        <span class={isProfileActive ? 'active' : ''}>Profile Section</span>
+        <span class={isExactUser ? 'exact-active' : ''}>Exact User Page</span>
+      </div>
+
+      {/* Render error banner if loader failed */}
+      {error && (
+        <div class="error-banner">
+          Failed to load data: {String(error.reason)}
+          <button onClick={() => error.refresh()}>Retry</button>
+        </div>
+      )}
+
+      {/* Programmatic Navigation Controls */}
+      <div class="controls">
+        <button onClick={() => back()}>Go Back</button>
+        <button onClick={handleSignOut}>Log Out</button>
+      </div>
+    </header>
+  );
+}
+```
+
+---
+
+## Detailed Utility Reference
+
+### 1. URL and Location Accessors
+
+#### `getLocation()`
+Returns the complete current path string including query strings:
+* **Returns:** `string` (e.g. `"/posts/123?ref=search"`)
+
+#### `getParams()`
+Returns an object containing the route's dynamic path parameters:
+* **Returns:** `Record<string, string>` (e.g. `{ id: "123" }`)
+
+#### `getQuery()`
+Returns an object mapping the active URL query parameters:
+* **Returns:** `Record<string, string>` (e.g. `{ sort: "desc", limit: "10" }`)
+
+---
+
+### 2. Route Definition Readers
+
+#### `getRouteMeta()`
+Returns the custom metadata object declared inside the matched route's configuration:
+* **Signature:** `getRouteMeta<T>(): T`
+* **Example:**
+  ```ts
+  const meta = getRouteMeta<{ requiresAuth: boolean }>();
+  if (meta.requiresAuth) { ... }
+  ```
+
+#### `getRouteError()`
+Returns the `RouteError` context object if the loader (`routed`) throws an error:
+* **Returns:** `RouteError | null`
+* **Properties:**
+  * `reason`: The error instance.
+  * `refresh()`: Clears the error and retries execution.
+
+---
+
+### 3. Active State Indicators
+
+#### `isActive(path)`
+Checks if the current path starts with the specified path prefix:
+* **Signature:** `isActive(path: string): boolean`
+* **Example:** `isActive('/users')` returns true if URL is `/users` or `/users/42`.
+
+#### `isExactActive(path)`
+Checks if the current path equals the specified path exactly:
+* **Signature:** `isExactActive(path: string): boolean`
+* **Example:** `isExactActive('/users')` returns true only if URL is `/users`.
+
+---
+
+### 4. Navigation Control
+
+#### `navigate(path, options?)`
+Performs programmatic routing transitions:
+* **Signature:** `navigate(path: string, options?: { replace?: boolean }): void`
+* **Options:**
+  * `replace`: If true, replaces the current history state instead of pushing.
+
+#### `back()`
+Moves back one entry in the session history.
+
+#### `forward()`
+Moves forward one entry in the session history.
+
+---
+
+### 5. URL Path Building
+
+#### `pathFor(pattern, params, query)`
+Interpolates parameters and appends query strings to construct a safe, escaped URL path:
+* **Signature:** `pathFor(pattern: string, params: Record<string, string>, query?: Record<string, any>): string`
+* **Example:**
+  ```ts
+  const path = pathFor('/users/:id/photos', { id: '42' }, { sort: 'newest' });
+  // Returns "/users/42/photos?sort=newest"
+  ```
+
+---
+
+### 6. Router Lifecycle Hooks
+
+#### `afterEach(hookFn)`
+Registers a global lifecycle hook that executes after every successful route transition:
+* **Signature:** `afterEach((from: string | null, to: string) => void): () => void`
+* **Returns:** An unregister callback function.
+* **Example:**
+  ```ts
+  const unbind = afterEach((from, to) => {
+    console.log(`Navigated from ${from} to ${to}`);
+  });
+  
+  // Unbind later:
+  // unbind();
+  ```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Error Component (error-component.md)
+------------------------------------------------------------------------
+
+# Error Component
+
+Auwla includes built-in hooks and layout wrappers to capture errors during data loading and rendering gracefully, protecting your application from crashing.
+
+---
+
+## The Route Error Object
+
+When a page loader (`routed`) fails or throws an exception, the router captures the rejection and creates a `RouteError` context object. This object exposes:
+* **`.reason`** (`any`): The error instance or description thrown by the async operation.
+* **`.refresh`** (`() => void`): A callback to clear the error state and retry executing the `routed` function.
+
+---
+
+## Route-Level `error` Component Export
+
+Each page file in your `src/pages` directory can export a custom component named `error`. When the `routed` function fails, the router will automatically mount this custom component in place of the page view:
+
+```tsx
+// src/pages/posts/[id].tsx
+import { getRouted, type RouteContext, type RouteError } from 'auwla/router';
+
+export const routed = async (ctx: RouteContext, signal: AbortSignal) => {
+  const res = await fetch(`/api/posts/${ctx.params.id}`, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to load post: ${res.statusText}`);
+  }
+  return res.json();
+};
+
+// Export the custom error page component
+export function error(err: RouteError) {
+  return (
+    <div class="error-container">
+      <h3>Error Loading Post</h3>
+      <p>{String(err.reason)}</p>
+      
+      {/* Retries the routed fetch operation */}
+      <button onClick={() => err.refresh()}>
+        Try Again
+      </button>
+    </div>
+  );
+}
+
+export default function PostDetail() {
+  const data = getRouted(routed);
+  return <h1>{data?.value?.title}</h1>;
+}
+```
+
+---
+
+## Global Fallback Error Component
+
+You can define a global fallback error component on your `<Router>` to handle errors across all matched pages:
+
+```tsx
+// src/App.tsx
+import { Router, type RouteError } from 'auwla/router';
+import routes from 'auwla:routes';
+
+function GlobalErrorView(err: RouteError) {
+  return (
+    <div class="p-8 border border-red-200 bg-red-50 rounded-xl text-red-800">
+      <h2>Something went wrong</h2>
+      <p class="text-sm mt-2">{String(err.reason)}</p>
+      <button 
+        class="mt-4 px-4 py-2 bg-red-600 text-white rounded" 
+        onClick={() => err.refresh()}
+      >
+        Retry Connection
+      </button>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router 
+      routes={routes} 
+      errorComponent={GlobalErrorView} 
+    />
+  );
+}
+```
+
+---
+
+## Programmatic Access (`getRouteError`)
+
+You can read the active route error context programmatically from any component inside the `<Router />` tree:
+
+```tsx
+import { getRouteError } from 'auwla/router';
+
+export function SidebarErrorWidget() {
+  const error = getRouteError();
+
+  if (!error) return null;
+  return (
+    <div class="text-xs text-red-500">
+      System is currently offline. <span class="underline cursor-pointer" onClick={() => error.refresh()}>Retry</span>
+    </div>
+  );
+}
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Page Exports (page-exports.md)
+------------------------------------------------------------------------
+
+# Page Exports
+
+Auwla routes use named exports inside page files (`src/pages/**/*.tsx`) to declare loading boundaries, authorization rules, static configurations, metadata, and rendering behaviors.
+
+---
+
+## Overview of Page Exports
+
+The following named exports can be defined inside any page component file:
+
+| Export | Type | Description |
+| :--- | :--- | :--- |
+| **`export default`** | `Component` | **Required.** The main page view component. |
+| **`export const routed`** | `Function` | Data loader that runs to fetch backend dependencies before rendering the page. |
+| **`export const pending`** | `Component` | Loading UI component displayed while `routed` is in-flight. |
+| **`export const error`** | `Component` | Fallback component displayed if `routed` rejects or throws an error. |
+| **`export const guard`** | `Function` | Authorization interceptor executing before `routed`. Can block/redirect navigation. |
+| **`export const meta`** | `Object` | Static key-value metadata available to layouts and routers. |
+| **`export const config`** | `Object` | Render mode overrides and dynamic paths generators. |
+
+---
+
+## 1. Page Component (`export default`)
+The main view returned by the page route. It is written as a standard functional component returning JSX:
+
+```tsx
+export default function Home() {
+  return <h1>Welcome to Auwla</h1>;
+}
+```
+
+---
+
+## 2. Data Loader (`export const routed`)
+The `routed` export handles data loading. It is triggered during route transitions and resolves the data payload before the template mounts:
+
+```tsx
+import { type RouteContext } from 'auwla/router';
+import { track } from 'auwla/track';
+
+export const routed = async (ctx: RouteContext, signal: AbortSignal) => {
+  return await track.get('posts.getPost', { id: ctx.params.id }, { signal });
+};
+```
+
+---
+
+## 3. Loading Fallback (`export const pending`)
+A dedicated component displaying loading indicators or skeleton screens while the `routed` loader is executing:
+
+```tsx
+export function pending() {
+  return <div class="skeleton-loader">Loading article data...</div>;
+}
+```
+
+---
+
+## 4. Error Fallback (`export const error`)
+An error boundary component displayed if the `routed` loader fails or throws. It receives the thrown error object as an argument:
+
+```tsx
+export function error(err: Error) {
+  return (
+    <div class="error-panel">
+      <h3>Failed to Load Data</h3>
+      <p>{err.message}</p>
+    </div>
+  );
+}
+```
+
+---
+
+## 5. Navigation Guard (`export const guard`)
+The `guard` function executes **before** `routed` data loaders run. It inspects parameters or user authentication states, allowing you to abort navigation (by returning `false`) or redirect immediately (by throwing a redirect response):
+
+```tsx
+import { type RouteContext } from 'auwla/router';
+
+export const guard = async (ctx: RouteContext) => {
+  const user = ctx.state.currentUser; // Access authenticated state
+
+  if (!user) {
+    // Redirect to login page immediately before fetching data
+    throw ctx.redirect('/login');
+  }
+
+  if (!user.roles.includes('admin')) {
+    // Abort navigation
+    return false;
+  }
+  
+  return true; // Proceed to data loading
+};
+```
+
+---
+
+## 6. Route Metadata (`export const meta`)
+Static metadata containing key-value configurations. These parameters can be read inside layouts (e.g., to set document titles or select header styles):
+
+```tsx
+export const meta = {
+  title: 'Dashboard Panel',
+  requiresSidebar: true,
+  theme: 'dark'
+};
+```
+
+---
+
+## 7. Render Configuration (`export const config`)
+Overrides global targets and configures static pre-rendering setups:
+
+```tsx
+export const config = {
+  renderMode: 'ssg', // 'spa' | 'ssr' | 'ssg'
+  async generatePaths() {
+    return [{ id: '1' }, { id: '2' }];
+  }
+};
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Rendering Modes (rendering-modes.md)
+------------------------------------------------------------------------
+
+# Rendering Modes
+
+Auwla supports flexible rendering architectures, allowing you to configure rendering modes globally or override them on a per-page level.
+
+---
+
+## Supported Modes
+
+* **`spa`** (Single Page Application): Pages are rendered dynamically on the client. This is the default mode and is ideal for admin panels or highly interactive dashboards.
+* **`ssr`** (Server-Side Rendering): Pages are pre-rendered on the server for every request, delivering pre-rendered HTML to the browser before hydrating. This is best for landing pages and content requiring SEO.
+* **`ssg`** (Static Site Generation): Pages are compiled into static HTML files during the build phase (`npm run build`). This is best for blogs, documentation, or marketing sites.
+
+---
+
+## Page-Level Configuration (`export const config`)
+
+You can define a page's rendering mode by exporting a static `config` object from its template file:
+
+```tsx
+// src/pages/about.tsx
+
+// Define render mode for this page specifically
+export const config = {
+  renderMode: 'ssr' // Override default target
+};
+
+export default function About() {
+  return <h1>About Us</h1>;
+}
+```
+
+---
+
+## Pre-Bundling Dynamic Routes (`generatePaths`)
+
+For dynamic parameterized routes (such as `/posts/[id].tsx`), static generation (`ssg`) requires knowing which IDs or slugs to compile at build time. 
+
+You pre-bundle these pages by specifying a **`generatePaths()`** function inside your `config` object. This function returns an array of segment objects that map to the route parameters:
+
+```tsx
+// src/pages/posts/[id].tsx
+import { getRouted, type RouteContext } from 'auwla/router';
+import { track } from 'auwla/track';
+
+// 1. Configure SSG and pre-bundle target parameters
+export const config = {
+  renderMode: 'ssg',
+  async generatePaths() {
+    // Generate static pages for post IDs 1, 2, and 3 at build time
+    return [
+      { id: '1' },
+      { id: '2' },
+      { id: '3' }
+    ];
+  }
+};
+
+// 2. Fetch the data for each static path
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  return await track.get('posts.getPost', { id: ctx.params.id }, { signal });
+};
+
+export default function PostView() {
+  const query = getRouted(routed);
+  
+  return (
+    <article>
+      <h1>{query?.value?.title}</h1>
+      <p>{query?.value?.content}</p>
+    </article>
+  );
+}
+```
+
+During build:
+1. Auwla's Vite compiler scans `config.generatePaths()`.
+2. It generates URLs for each entry: `/posts/1`, `/posts/2`, and `/posts/3`.
+3. It executes the `routed` functions, resolves the data, runs the SSR renderer, and outputs static HTML files directly inside your `dist/` directory.
+
+
+========================================================================
+CATEGORY: FULLSTACK
+========================================================================
+
+
+------------------------------------------------------------------------
+DOCUMENT: Fullstack Setup (fullstack-setup.md)
+------------------------------------------------------------------------
+
+# Fullstack Setup
+
+Auwla allows you to cleanly separate your backend setup from your bundler. By configuring a custom server entry file in `auwla.config.ts`, you can deploy your application on any platform by choosing the appropriate server adapter.
+
+---
+
+## Configuration (`auwla.config.ts`)
+
+To specify a custom server entry, define the `server.entry` path in your global configuration:
+
+```typescript
+import { defineConfig } from 'auwla/config';
+
+export default defineConfig({
+  target: 'ssr', // Target build mode: 'spa', 'ssr', or 'ssg'
+  server: {
+    entry: './src/server.ts' // Custom server entry path
+  }
+});
+```
+
+During development (`npm run dev`), Vite automatically intercepts requests and routes them through this server file as a middleware, ensuring development and production behave identically.
+
+---
+
+## Deploying with Server Adapters
+
+Auwla exposes server adapters for different runtime environments. You import these adapters inside your server entry file to wrap the Auwla routing and rendering handlers.
+
+### 1. Bun
+The Bun adapter handles RPC routing, SSR page rendering, and static asset serving natively:
+
+```typescript
+// src/server.ts
+import { createBunAdapter } from 'auwla/adapters/bun';
+
+const port = Number(process.env.PORT ?? 3000);
+
+export default {
+  port,
+  fetch: createBunAdapter() // Handles RPC requests, SSR, and assets
+};
+```
+
+### 2. Hono
+The Hono adapter integrates Auwla into Hono routers, allowing you to add custom routing and middlewares.
+
+```typescript
+// src/server.ts
+import { Hono } from 'hono';
+import { createHonoAdapter } from 'auwla/adapters/hono';
+import { serveStatic } from 'hono/bun'; // Swap for your platform's static middleware
+
+const app = new Hono();
+
+// Serve built assets first
+app.use('/assets/*', serveStatic({ root: './dist' }));
+
+// Delegate remaining paths to the Auwla handler
+app.use('*', createHonoAdapter());
+
+export default app;
+```
+
+### 3. WinterCG (Standard Fetch)
+The core fetch adapter is suitable for standard fetch environments (like Deno or Cloudflare Workers). It expects requests at the `/_auwla/rpc` path and returns standard response structures:
+
+```typescript
+// src/server.ts
+import { createFetchAdapter } from 'auwla/adapters/fetch';
+import manifest from 'auwla:server-manifest'; // Virtual server manifest
+
+const handle = createFetchAdapter({ manifest });
+
+export default {
+  fetch: handle
+};
+```
+
+---
+
+## Request Fallthrough
+
+When a request enters the adapter:
+1. If the request matches a compiled server RPC endpoint path, the adapter executes the remote function and returns the serialized JSON output.
+2. If the request is for a layout page under SSR target, the adapter pre-renders the HTML page and returns it.
+3. If no matching path is found, the adapter falls back to serving static assets, or returns a standard `404 Not Found` response.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Track Primitive (track-primitive.md)
+------------------------------------------------------------------------
+
+# Track Primitive
+
+Auwla provides the `track` primitive to observe the lifecycle of asynchronous operations (such as HTTP requests, file loaders, or timers) and update the DOM automatically when they resolve or fail.
+
+---
+
+## Basic Usage
+
+Import `track` from `'auwla/track'` and call it inside your component's setup phase to wrap a promise or an async function:
+
+```tsx
+import { track } from 'auwla/track';
+
+function UserProfile() {
+  // 1. Wrap the fetch promise during setup
+  const user = track(() => 
+    fetch('/api/user').then((res) => res.json())
+  );
+
+  // 2. Read the tracked handle reactively in your template
+  return (
+    <div>
+      {user.pending && <p>Loading user profile...</p>}
+      
+      {user.resolved && (
+        <div>
+          <h3>{user.value?.name}</h3>
+          <p>Email: {user.value?.email}</p>
+        </div>
+      )}
+      
+      {user.rejected && (
+        <p class="error">Failed to load: {String(user.reason)}</p>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Reactive Handle State
+
+The handle returned by the `track` primitive exposes the following reactive properties. When a component reads these properties during render, it automatically registers as a subscriber to the async lifecycle:
+
+* **`.pending`** (`boolean`): `true` if the promise is currently running.
+* **`.resolved`** (`boolean`): `true` if the promise completed successfully.
+* **`.rejected`** (`boolean`): `true` if the promise failed.
+* **`.value`** (`any`): The resolved value of the promise.
+* **`.reason`** (`any`): The error reason if the promise rejected.
+* **`.cancel()`** (`() => void`): Cancels the active async execution.
+
+---
+
+## Auto-Cancellation
+
+When wrapping an async function, `track` passes an `AbortSignal` to the function:
+
+```ts
+const query = track('search', (signal) => 
+  fetch(`/api/search?q=${term}`, { signal }).then(r => r.json())
+);
+```
+
+If you trigger the search track again before the previous request has completed, `track` will automatically trigger `.abort()` on the previous request's `AbortSignal` to prevent out-of-order execution and race conditions.
+
+---
+
+## Named Caching & Global Watchers
+
+When you call `track` with a string name argument as its first parameter, it registers the promise in a global registry:
+
+```ts
+// Starts once on mount and caches in the global registry
+const data = track('fetchUser', () => 
+  fetch('/api/user').then(res => res.json())
+);
+```
+
+### Checking Named Tracks Locally
+Instead of checking `.pending` directly on the returned handle object, you can import and call the `pending()` helper function passing the name of the track. This achieves the exact same result:
+
+```tsx
+import { track, pending, value } from 'auwla/track';
+
+function UserProfile() {
+  // Named track initialized in setup
+  track('fetchUser', () => fetch('/api/user').then(res => res.json()));
+
+  // Read status using global named checkers
+  const isLoading = pending('fetchUser');
+  const userData = value<{ name: string }>('fetchUser');
+
+  return (
+    <div>
+      {isLoading && <p>Loading user...</p>}
+      {userData && <h3>Welcome back, {userData.name}!</h3>}
+    </div>
+  );
+}
+```
+
+### Watching Named Tracks Globally
+Auwla exports global helper functions to inspect the status or value of **any named track** from any component in the application:
+* **`pending(name)`** (`boolean`): Returns true if the named track is active.
+* **`resolved(name)`** (`boolean`): Returns true if resolved.
+* **`rejected(name)`** (`boolean`): Returns true if failed.
+* **`value(name)`** (`any`): Returns the current cached value.
+
+Any component that calls these helper functions inside its template is automatically subscribed to that track's lifecycle. When the named track resolves or changes state, all watching components re-render automatically.
+
+#### Example: Global Loading Bar
+```tsx
+// src/components/GlobalSpinner.tsx
+import { pending } from 'auwla/track';
+
+export default function GlobalSpinner() {
+  // Subscribes to the status of the 'fetchUser' track.
+  // Re-renders and displays the spinner when 'fetchUser' is in-flight.
+  const isUserLoading = pending('fetchUser');
+
+  if (!isUserLoading) return null;
+  return <div class="spinner">Loading user database...</div>;
+}
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Server Functions (server-functions.md)
+------------------------------------------------------------------------
+
+# Server Functions
+
+Auwla allows you to write backend code directly alongside your frontend views. By co-locating `.server.ts` files with your page templates, you can call database queries or external APIs securely without writing REST endpoints or manual fetch requests.
+
+---
+
+## Co-Located Server Files
+
+Any `.tsx` page file inside your `src/pages` directory can have a co-located `.server.ts` file:
+
+```
+src/pages/
+  posts/
+    [id].tsx          ← Client-side page component
+    [id].server.ts    ← Co-located server functions
+```
+
+---
+
+## The Remote-Only Rule
+
+Server files (`*.server.ts`) compile into secure endpoints. To prevent accidental leaks of sensitive backend code or server credentials to the client, **server files must only export remote functions**. 
+
+You declare remote functions using the `remote` builder. Exporting any standard non-remote function in a `.server.ts` file will throw a compile-time error:
+
+```typescript
+// src/pages/posts/[id].server.ts
+import { remote } from 'auwla/server';
+import { db } from '../../db';
+
+// ✅ Valid: Exporting a remote function
+export const getPost = remote.get(async (ctx) => {
+  const { id } = ctx.params;
+  return await db.posts.findUnique({ where: { id } });
+});
+
+// ❌ COMPILE ERROR: Cannot export normal functions
+export function formatTitle(title: string) {
+  return title.toUpperCase();
+}
+```
+
+---
+
+## Declaring Remote Endpoints
+
+Auwla supports two types of remote actions:
+
+### 1. `remote.get`
+Used for read-only database fetches or API queries. These actions are idempotent and support browser-side caching:
+
+```ts
+export const getProfile = remote.get(async (ctx) => {
+  return await db.users.findUnique({ where: { id: ctx.userId } });
+});
+```
+
+### 2. `remote.post`
+Used for mutations, form submissions, or write operations (database updates, file deletions):
+
+```ts
+export const createComment = remote.post(async (ctx) => {
+  const body = await ctx.request.json();
+  return await db.comments.create({ data: body });
+});
+```
+
+---
+
+## Client Consumption: Direct Imports vs. String Keys
+
+Auwla provides three client-side primitives under the `track` namespace to consume remote server functions: `track.get`, `track.post`, and `track.form`. 
+
+For any of these primitives, you can reference the remote endpoint in two ways. Compare the direct import syntax with the string key syntax below:
+
+=<Tabs>
+  =<Tab title="Direct Import Reference">
+In this approach, you import the remote function reference directly from the co-located `.server.ts` file. This is best for page-specific actions where files are placed right next to each other.
+
+```tsx [src/pages/posts/[id].tsx]
+import { track } from 'auwla/track';
+import { getPost } from './[id].server'; // Import from server file
+
+function PostView() {
+  // Execute using direct reference
+  const query = track.get(getPost);
+
+  if (query.pending) return <p>Loading...</p>;
+  return <h1>{query.value?.title}</h1>;
+}
+```
+  =</Tab>
+
+  =<Tab title="String Key Identifier">
+In this approach, you reference the server function using a string path identifier matching the file path and function name (e.g. `'posts.getPost'`). **No client-side import of the server file is needed**. 
+
+This keeps code extremely clean, reduces import blocks, and is the recommended pattern for centralized backend code (e.g. `src/server/`) because the build tool guarantees full type safety against your generated manifest declarations.
+
+```tsx [src/pages/posts/[id].tsx]
+import { track } from 'auwla/track';
+
+function PostView() {
+  // Execute using type-safe string key (resolves automatically)
+  const query = track.get('posts.getPost');
+
+  if (query.pending) return <p>Loading...</p>;
+  return <h1>{query.value?.title}</h1>;
+}
+```
+  =</Tab>
+=</Tabs>
+
+---
+
+### 1. Remote Queries (`track.get`)
+
+Use `track.get` to execute and bind the results of a `remote.get` server function. While they can be called inside components, a common pattern is running them **inside the `routed` loader function** to block or defer route changes until the data resolves:
+
+=<Tabs>
+  =<Tab title="Direct Import">
+```tsx [src/pages/posts/[id].tsx]
+import { getRouted, type RouteContext } from 'auwla/router';
+import { track } from 'auwla/track';
+import { getPost } from './[id].server';
+
+// Fetch data in the router loader using imported function reference
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  return await track.get(getPost, { signal });
+};
+
+export default function PostView() {
+  const query = getRouted(routed);
+
+  if (query?.pending) return <p>Fetching post...</p>;
+  return (
+    <article>
+      <h1>{query?.value?.title}</h1>
+      <p>{query?.value?.content}</p>
+    </article>
+  );
+}
+```
+  =</Tab>
+
+  =<Tab title="String Key">
+```tsx [src/pages/posts/[id].tsx]
+import { getRouted, type RouteContext } from 'auwla/router';
+import { track } from 'auwla/track';
+
+// Fetch data in the router loader using string identifiers
+export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSignal) => {
+  return await track.get('posts.getPost', { signal });
+};
+
+export default function PostView() {
+  const query = getRouted(routed);
+
+  if (query?.pending) return <p>Fetching post...</p>;
+  return (
+    <article>
+      <h1>{query?.value?.title}</h1>
+      <p>{query?.value?.content}</p>
+    </article>
+  );
+}
+```
+  =</Tab>
+=</Tabs>
+
+---
+
+### 2. Remote Mutations (`track.post`)
+
+Use `track.post` to bind lazy mutation handles to `remote.post` server functions. Mutations do not execute automatically on mount; you trigger them by calling `.run(...args)` in event handlers:
+
+=<Tabs>
+  =<Tab title="Direct Import">
+```tsx [src/pages/posts/[id].tsx]
+import { track } from 'auwla/track';
+import { createComment } from './[id].server';
+
+export default function CommentBox() {
+  // Bind the lazy mutation using imported reference
+  const mutation = track.post(createComment);
+
+  const handleSubmit = async () => {
+    await mutation.run({ text: 'Excellent post!' });
+    alert('Comment added!');
+  };
+
+  return (
+    <div>
+      <button onClick={handleSubmit} disabled={mutation.pending}>
+        {mutation.pending ? 'Saving...' : 'Submit Comment'}
+      </button>
+    </div>
+  );
+}
+```
+  =</Tab>
+
+  =<Tab title="String Key">
+```tsx [src/pages/posts/[id].tsx]
+import { track } from 'auwla/track';
+
+export default function CommentBox() {
+  // Bind the lazy mutation using string identifier
+  const mutation = track.post('comments.createComment');
+
+  const handleSubmit = async () => {
+    await mutation.run({ text: 'Excellent post!' });
+    alert('Comment added!');
+  };
+
+  return (
+    <div>
+      <button onClick={handleSubmit} disabled={mutation.pending}>
+        {mutation.pending ? 'Saving...' : 'Submit Comment'}
+      </button>
+    </div>
+  );
+}
+```
+  =</Tab>
+=</Tabs>
+
+---
+
+### 3. Progressive Forms (`track.form`)
+
+Use `track.form` to bind form submission states, progressive enhancements, and validations to a server function.
+
+#### Form Handle API
+The returned form handle exposes powerful reactive states:
+* **`form.submit`**: Manual submit executor.
+* **`form.onSubmit(event)`**: standard DOM submit listener that calls `e.preventDefault()`, extracts input values using `FormData`, and submits them.
+* **`form.pending`**: `true` if submission is in-flight.
+* **`form.error`**: The error thrown during validation or execution. If a validation error is returned, it is an instance of `ValidationError` and exposes `form.error.issues` containing validation issues.
+* **`form.props`**: An object containing `{ action, method, onSubmit }`. Spreading this onto the form element (`<form {...form.props}>`) attaches these properties automatically, enabling progressive enhancement so that forms work even before client-side JS is loaded.
+
+#### Form Validation Example:
+Here is a complete example displaying validation schemas, error filtration, and spread operators:
+
+=<Tabs>
+  =<Tab title="Direct Import">
+```tsx [src/pages/contact.tsx]
+import { track } from 'auwla/track';
+import { ValidationError } from 'auwla/shared/validation-error';
+import { submitContactForm } from './contact.server';
+import { z } from 'zod';
+
+// Define the Zod validation schema directly
+const contactSchema = z.object({
+  email: z.string().email({ message: "Invalid email address" }),
+  message: z.string().min(10, { message: "Message must be at least 10 characters" })
+});
+
+export default function ContactPage() {
+  // Initialize form handler with imported reference
+  const form = track.form(submitContactForm, {
+    schema: contactSchema,
+    onSuccess: (data) => {
+      alert('Message sent successfully!');
+    }
+  });
+
+  const getFieldError = (name: string) => {
+    if (form.error instanceof ValidationError) {
+      return form.error.issues.find(issue => issue.path?.includes(name))?.message;
+    }
+    return null;
+  };
+
+  return (
+    <form {...form.props}>
+      <div>
+        <label>Email:</label>
+        <input name="email" />
+        {getFieldError('email') && <span class="error">{getFieldError('email')}</span>}
+      </div>
+
+      <div>
+        <label>Message:</label>
+        <textarea name="message"></textarea>
+        {getFieldError('message') && <span class="error">{getFieldError('message')}</span>}
+      </div>
+
+      <button type="submit" disabled={form.pending}>
+        {form.pending ? 'Sending...' : 'Send Message'}
+      </button>
+    </form>
+  );
+}
+```
+  =</Tab>
+
+  =<Tab title="String Key">
+```tsx [src/pages/contact.tsx]
+import { track } from 'auwla/track';
+import { ValidationError } from 'auwla/shared/validation-error';
+import { z } from 'zod';
+
+// Define the Zod validation schema directly
+const contactSchema = z.object({
+  email: z.string().email({ message: "Invalid email address" }),
+  message: z.string().min(10, { message: "Message must be at least 10 characters" })
+});
+
+export default function ContactPage() {
+  // Initialize form handler with string key
+  const form = track.form('contacts.submitForm', {
+    schema: contactSchema,
+    onSuccess: (data) => {
+      alert('Message sent successfully!');
+    }
+  });
+
+  const getFieldError = (name: string) => {
+    if (form.error instanceof ValidationError) {
+      return form.error.issues.find(issue => issue.path?.includes(name))?.message;
+    }
+    return null;
+  };
+
+  return (
+    <form {...form.props}>
+      <div>
+        <label>Email:</label>
+        <input name="email" />
+        {getFieldError('email') && <span class="error">{getFieldError('email')}</span>}
+      </div>
+
+      <div>
+        <label>Message:</label>
+        <textarea name="message"></textarea>
+        {getFieldError('message') && <span class="error">{getFieldError('message')}</span>}
+      </div>
+
+      <button type="submit" disabled={form.pending}>
+        {form.pending ? 'Sending...' : 'Send Message'}
+      </button>
+    </form>
+  );
+}
+```
+  =</Tab>
+=</Tabs>
+
+
+------------------------------------------------------------------------
+DOCUMENT: Query Caching (query-caching.md)
+------------------------------------------------------------------------
+
+# Query Caching
+
+Auwla includes a built-in Stale-While-Revalidate (SWR) query caching engine. By default, query cache entries are bound to route paths to avoid leaking memory, but you can configure custom scopes for global sharing and resource reusability.
+
+---
+
+## Default Route-Scoped Caching
+
+By default, when you fetch data using `track.get()`, the cache entry is tied to the **active route path**:
+
+```typescript
+// Defaults to scoping to: `routePath::posts.getPost`
+const query = track.get('posts.getPost');
+```
+
+If a user executes this query on `/posts/1` and then navigates to `/posts/2`, Auwla will trigger a fresh server fetch request. 
+
+While route-scoping is ideal for page-specific data (preventing stale details from rendering when moving between entities), it is inefficient for data that needs to persist across routes or be shared across child pages.
+
+---
+
+## Stale-While-Revalidate (SWR) Caching
+
+When a cached query is triggered, Auwla optimizes the user experience using SWR:
+1. **Instant UI Render**: If the query is found in the cache, Auwla returns it immediately, skipping any loading state.
+2. **Background Sync**: Auwla automatically fires a background request to fetch fresh data from the server.
+3. **Reactive Patching**: The UI is updated seamlessly only if the server returns a different payload.
+
+---
+
+## Scoping Cache Globally (`global: true`)
+
+For configurations, active user details, or theme settings that must be accessed everywhere, set `global: true`. This registers the query as an app-wide singleton:
+
+=<Tabs>
+  =<Tab title="Direct Import">
+```tsx [src/pages/dashboard.tsx]
+import { track } from 'auwla/track';
+import { getProfile } from './dashboard.server';
+
+function UserBadge() {
+  // Scopes cache globally, persisting it across navigations
+  const user = track.get(getProfile, { global: true });
+
+  if (user.pending && !user.value) return <span>Loading...</span>;
+  return <span>Welcome, {user.value?.username}</span>;
+}
+```
+  =</Tab>
+
+  =<Tab title="String Key">
+```tsx [src/pages/dashboard.tsx]
+import { track } from 'auwla/track';
+
+function UserBadge() {
+  // Scopes cache globally, persisting it across navigations
+  const user = track.get('dashboard.getProfile', { global: true });
+
+  if (user.pending && !user.value) return <span>Loading...</span>;
+  return <span>Welcome, {user.value?.username}</span>;
+}
+```
+  =</Tab>
+=</Tabs>
+
+---
+
+## Scoping Cache by Resource ID (`id: string`)
+
+If multiple routes or nested child pages need to access the same database entity, scope the cache to a custom ID. This decouples the cache from the active route URL and links it directly to the resource identifier:
+
+=<Tabs>
+  =<Tab title="Direct Import">
+```tsx [src/pages/posts/[id].tsx]
+import { track } from 'auwla/track';
+import { getPost } from './[id].server';
+
+export default function PostDetail({ params }) {
+  // Scopes the query to this entity ID (e.g. 'post-123') across all routes
+  const post = track.get(getPost, {
+    id: `post-${params.id}`
+  });
+
+  if (post.pending && !post.value) return <p>Loading post...</p>;
+  return <h2>{post.value?.title}</h2>;
+}
+```
+  =</Tab>
+
+  =<Tab title="String Key">
+```tsx [src/pages/posts/[id].tsx]
+import { track } from 'auwla/track';
+
+export default function PostDetail({ params }) {
+  // Scopes the query to this entity ID (e.g. 'post-123') across all routes
+  const post = track.get('posts.getPost', {
+    id: `post-${params.id}`
+  });
+
+  if (post.pending && !post.value) return <p>Loading post...</p>;
+  return <h2>{post.value?.title}</h2>;
+}
+```
+  =</Tab>
+=</Tabs>
+
+---
+
+## Caching Options Reference
+
+You customize the cache query lifecycle by passing parameters inside the second options argument object of `track.get`:
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`id`** | `string` | `undefined` | Decouples the query cache from the route URL and scopes it to a custom entity ID (e.g., `'post-123'`). |
+| **`global`** | `boolean` | `false` | Scopes the query cache globally as an app-wide singleton, ignoring parameters and route URLs. |
+| **`skipBackgroundSync`** | `boolean` | `false` | Serves the resolved value from the cache directly and prevents triggering the background sync request. |
+| **`signal`** | `AbortSignal` | `undefined` | An abort signal to cancel in-flight network requests. |
+
+### Configuration Example:
+```typescript
+const post = track.get('posts.getPost', {
+  id: `post-${params.id}`,
+  global: false,
+  skipBackgroundSync: true,
+  signal: abortController.signal
+});
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Middlewares (middlewares.md)
+------------------------------------------------------------------------
+
+# Middlewares
+
+Auwla includes a type-safe middleware pipeline to run interceptors (such as logging, database connection setup, authentication, or input validations) around your server functions.
+
+---
+
+## Defining Middlewares (`defineMiddleware`)
+
+Import `defineMiddleware` from `'auwla/server'` to create custom handlers. A middleware function receives the server `RouteContext` and a `next` callback returning a promise:
+
+```typescript
+// src/middlewares/auth.ts
+import { defineMiddleware, UnauthorizedError } from 'auwla/server';
+import { db } from '../db';
+
+export const auth = defineMiddleware(async (ctx, next) => {
+  const token = ctx.request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) {
+    throw new UnauthorizedError('Missing authentication token.');
+  }
+
+  const session = await db.sessions.findUnique({ where: { token } });
+  if (!session) {
+    throw new UnauthorizedError('Session has expired.');
+  }
+
+  // 1. Store the authenticated user in local context
+  ctx.locals.user = session.user;
+
+  // 2. Execute the next handler in the pipeline
+  return next();
+});
+```
+
+---
+
+## Type-Safe Locals (`ctx.locals`)
+
+The `ctx.locals` object is a shared container passed through the middleware pipeline. 
+
+When you populate fields on `ctx.locals` inside a middleware, the TypeScript compiler automatically propagates and infers these types inside subsequent middlewares and the final server function handler, removing the need for manual casting:
+
+```typescript
+// src/pages/dashboard.server.ts
+import { remote } from 'auwla/server';
+import { auth } from '../middlewares/auth';
+
+export const getStats = remote.get([auth], async (ctx) => {
+  // ✅ Fully typed: ctx.locals.user is automatically inferred as User type!
+  const user = ctx.locals.user;
+  return { userId: user.id, data: [] };
+});
+```
+
+---
+
+## Built-in Validation Middleware (`validate`)
+
+Auwla provides a built-in `validate(schema)` middleware helper imported from `'auwla/server'` to handle request payload validations easily.
+
+It accepts any standard validator schema (Zod, Valibot, etc.) and performs the following lifecycle automatically:
+1. Parses the incoming request body as JSON.
+2. Validates the parsed object against the provided schema.
+3. Stores the validated value directly inside **`ctx.locals.input`** with full type safety.
+4. If validation fails, it automatically throws a `ValidationError` which returns a `400 Bad Request` HTTP error status to the client.
+
+```typescript
+import { remote, validate } from 'auwla/server';
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  username: z.string().min(3),
+  password: z.string().min(6),
+});
+
+export const createUser = remote.post(
+  [validate(registerSchema)], 
+  async (ctx) => {
+    // ✅ Fully typed: ctx.locals.input is inferred as { username: string; password: string }
+    const { username, password } = ctx.locals.input;
+    return { success: true, username };
+  }
+);
+```
+
+---
+
+## Composing Middlewares (`composeMiddleware`)
+
+You can bundle multiple middlewares into a single reusable pipe using `composeMiddleware`. This is useful for combining common patterns (like authenticating a request and validating its body schema) while maintaining type-safe locals:
+
+```typescript
+import { composeMiddleware, validate } from 'auwla/server';
+import { auth } from './auth';
+import { z } from 'zod';
+
+const postSchema = z.object({ title: z.string() });
+
+// Compose auth and body schema validation into a single pipeline
+export const authAndValidate = composeMiddleware(
+  auth,
+  validate(postSchema)
+);
+
+// Consume the composed pipeline
+export const createPost = remote.post([authAndValidate], async (ctx) => {
+  const user = ctx.locals.user; // Typed from auth middleware
+  const input = ctx.locals.input; // Typed from validate middleware
+  // ...
+});
+```
+
+---
+
+## Registering Middlewares
+
+You can register middlewares at two levels:
+
+### 1. Route-Specific Middlewares
+Pass an array of middlewares as the first parameter to `remote.get` or `remote.post`:
+
+```typescript
+export const updateSettings = remote.post([auth, auditLogger], async (ctx) => {
+  // Runs auth first, then auditLogger, then this handler
+});
+```
+
+### 2. Global Adapter-Level Middlewares
+Register middlewares globally inside your server entry adapter (e.g. `src/server.ts`). These will execute around **every** remote server function in the application (useful for global request loggers, CORS setups, or database transaction rollbacks):
+
+```typescript
+// src/server.ts
+import { createFetchAdapter } from 'auwla/adapters/fetch';
+import { defineMiddleware } from 'auwla/server';
+import manifest from 'auwla:server-manifest';
+
+// A simple global request logger
+const globalLogger = defineMiddleware(async (ctx, next) => {
+  const start = Date.now();
+  try {
+    return await next();
+  } finally {
+    console.log(`[RPC] ${ctx.route.path} resolved in ${Date.now() - start}ms`);
+  }
+});
+
+export default {
+  fetch: createFetchAdapter({
+    manifest,
+    middlewares: [globalLogger] // Applied to every remote function call
+  })
+};
+```
+
+---
+
+## Platform Context Injection (`ctx.platform`)
+
+Adapters automatically forward platform-specific request contexts (like Hono contexts or Bun request details) into the server `ctx.platform` property:
+
+* **Hono**: `ctx.platform.hono` contains the full Hono Context (`c`).
+* **Bun**: `ctx.platform.bun` contains `{ request }`.
+* **Vite (Dev mode)**: `ctx.platform.vite` contains `{ server, req, res }`.
+
+You can access these platform properties inside your middlewares or remote functions to read session states or configure cookies:
+
+```typescript
+export const getGeoIP = remote.get(async (ctx) => {
+  // Access Hono context if deployed on Hono
+  const honoCtx = ctx.platform?.hono;
+  if (honoCtx) {
+    const ip = honoCtx.req.header('x-forwarded-for');
+    return { ip };
+  }
+  return { ip: 'unknown' };
+});
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Server Utilities (server-utils.md)
+------------------------------------------------------------------------
+
+# Server Utilities
+
+Auwla provides server-side helper functions, contextual getters, request parsers, and semantic error classes under the `'auwla/server'` namespace to streamline backend development, prevent parameter drilling, and manage errors cleanly.
+
+---
+
+## Context Retrieval Helpers (ALS)
+
+While remote functions receive a `ctx` argument directly, passing `ctx` down through multiple layers of database models, authorization checks, or business logic creates boilerplate. 
+
+Auwla uses Asynchronous Local Storage (ALS) to make request details accessible from anywhere in the current execution thread.
+
+### 1. `getContext`
+Retrieves the full active `ServerContext` of the active request thread:
+
+```typescript
+import { getContext, ForbiddenError } from 'auwla/server';
+
+export async function verifyUserPermission(action: string) {
+  // Access the context anywhere without parameter drilling
+  const ctx = getContext();
+  const user = ctx.locals.user;
+  
+  if (!user || !user.permissions?.includes(action)) {
+    throw new ForbiddenError(`User lacks permission to: ${action}`);
+  }
+}
+```
+
+### 2. `getParams`
+Retrieves path parameters for the current route. By passing the route path as an argument, Auwla automatically resolves and types the route segments:
+
+```typescript
+import { getParams } from 'auwla/server';
+
+export async function fetchCurrentPost() {
+  // Pass your route pattern for full type-safety and IDE autocompletion!
+  const params = getParams('/posts/:id');
+  const id = params.id; // Automatically inferred as string
+  
+  return await db.posts.findUnique({ where: { id } });
+}
+```
+
+---
+
+## Server Context API Reference (`ServerContext`)
+
+The `ServerContext` object contains properties representing the active request, middleware-passed locals, cookie control, and header overrides:
+
+*   **`ctx.request`** (`Request`): The standard WinterCG/Web Request representation of the incoming request.
+*   **`ctx.locals`** (`Record<string, any>`): A request-scoped container for storing values passed by middlewares (e.g. `ctx.locals.user`).
+*   **`ctx.headers`** (`Headers`): Standard Response headers. You can append or set headers here to be returned in the outgoing RPC response.
+*   **`ctx.cookies`**: An interface to manage client cookies:
+    *   `get(name: string): string | undefined` — Reads a cookie value.
+    *   `set(name: string, value: string, options?: CookieOptions): void` — Writes a cookie. Options include `httpOnly`, `secure`, `sameSite`, `path`, `maxAge`, and `expires`.
+    *   `delete(name: string, options?: CookieOptions): void` — Deletes a cookie.
+*   **`ctx.redirect(path: string): Response`**: Returns a redirect Response structure.
+    > [!IMPORTANT]
+    > **Throwing redirects:** The recommended and cleanest way to redirect the browser from inside a remote function or custom middleware is to **throw** the redirect Response:
+    > ```typescript
+    > throw ctx.redirect('/login');
+    > ```
+
+### Redirect and Cookie Usage Example:
+```typescript
+// src/pages/auth/logout.server.ts
+import { remote } from 'auwla/server';
+
+export const logout = remote.post(async (ctx) => {
+  // 1. Delete session cookie
+  ctx.cookies.delete('session_id', { path: '/' });
+
+  // 2. Redirect to landing page by throwing
+  throw ctx.redirect('/');
+});
+```
+
+---
+
+## Payload Parsing & Context Running
+
+### 1. `parseBody`
+Parses incoming requests dynamically. It checks the request headers and automatically parses the request body as JSON or `FormData` depending on the content type:
+
+```typescript
+import { parseBody } from 'auwla/server';
+
+export async function handleRawPayload(request: Request) {
+  // Returns parsed JSON object or FormData instance
+  const data = await parseBody(request);
+  return data;
+}
+```
+
+### 2. `runWithContext`
+Wraps synchronous or asynchronous executions inside a mock or custom `ServerContext`. This is extremely useful for writing server adapter wrappers, running test suites, or seeding databases offline:
+
+```typescript
+import { runWithContext, type ServerContext } from 'auwla/server';
+
+// Create a custom/mock server context
+const mockContext = {
+  request: new Request('http://localhost/api/test'),
+  params: { id: 'test-id' },
+  locals: { user: { id: 'admin', permissions: ['delete'] } },
+  headers: new Headers(),
+  cookies: { /* ... */ }
+} as unknown as ServerContext;
+
+// Run operations within the active ALS context
+await runWithContext(mockContext, async () => {
+  // Any nested helper calling getContext() or getParams() will receive mockContext!
+  const data = await fetchCurrentPost();
+});
+```
+
+---
+
+## Semantic HTTP Errors
+
+Auwla exports semantic error classes that map directly to standard HTTP status codes. When thrown inside your server functions or middlewares, they are caught by the adapter and returned to the client as clean RPC responses with the appropriate status codes.
+
+### Available Error Classes
+
+| Class | HTTP Status | Description |
+| :--- | :--- | :--- |
+| **`BadRequestError`** | `400` | Input errors or bad requests. |
+| **`UnauthorizedError`** | `401` | Missing or invalid authentication credentials. |
+| **`ForbiddenError`** | `403` | User authenticated but lacks permissions to execute. |
+| **`NotFoundError`** | `404` | Requested record or page does not exist. |
+| **`HttpError`** | *Custom* | Base class to throw arbitrary status codes (e.g. `new HttpError(418, "I'm a teapot")`). |
+
+### Example Usage:
+
+```typescript
+// src/pages/posts/[id].server.ts
+import { remote, NotFoundError, UnauthorizedError, ForbiddenError } from 'auwla/server';
+import { db } from '../../db';
+
+export const deletePost = remote.post(async (ctx) => {
+  const user = ctx.locals.user;
+  if (!user) {
+    throw new UnauthorizedError('Authentication is required to perform this action.');
+  }
+
+  const post = await db.posts.findUnique({ where: { id: ctx.params.id } });
+  if (!post) {
+    throw new NotFoundError(`Post with ID ${ctx.params.id} could not be found.`);
+  }
+
+  if (post.authorId !== user.id) {
+    throw new ForbiddenError('You can only delete your own posts.');
+  }
+
+  await db.posts.delete({ where: { id: ctx.params.id } });
+  return { success: true };
+});
+```
+
+
+------------------------------------------------------------------------
+DOCUMENT: Configuring Auwla (configuring-auwla.md)
+------------------------------------------------------------------------
+
+# Configuring Auwla
+
+Auwla allows you to manage framework behaviors, folder structures, compilation rules, and rendering targets through a centralized config file in your project root.
+
+To configure your project, create an `auwla.config.ts` file in your project root:
+
+```typescript
+// auwla.config.ts
+import { defineConfig } from 'auwla/config';
+
+export default defineConfig({
+  target: 'spa', // Global default rendering mode
+  directories: {
+    pages: 'src/pages',
+    server: 'src/server'
+  }
+});
+```
+
+To wire this into your builder, import the plugins in your Vite configuration:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { auwla } from 'auwla/vite';
+import { auwlaRouter } from 'auwla/vite-router';
+
+export default defineConfig({
+  plugins: [
+    auwla(), // Automatically detects and loads auwla.config.ts
+    auwlaRouter()
+  ]
+});
+```
+
+---
+
+## Default Configuration
+
+If no `auwla.config.ts` file exists or options are omitted, Auwla applies the following default configuration:
+
+```typescript
+{
+  target: 'spa',
+  directories: {
+    pages: 'src/pages',
+    server: 'src/server',
+    manifest: '.auwla'
+  },
+  router: {
+    lazy: false,
+    genFile: 'src/auwla.gen.ts',
+    extensions: ['.tsx', '.ts', '.jsx', '.js']
+  },
+  compiler: {
+    css: true
+  }
+}
+```
+
+---
+
+## Configuration Reference
+
+Below is the complete reference of all configuration properties, types, default values, and explanations:
+
+### Root Options
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`target`** | `'spa' \| 'ssr' \| 'ssg' \| 'islands' \| 'island'` | `'spa'` | The default rendering target for all pages. |
+| **`routeRules`** | `Record<RoutePattern, RouteRule>` | `{}` | Per-route pattern render overrides using glob matches (e.g. `'/docs/**': { renderMode: 'ssg' }`). Supports wildcards (`*`, `**`). |
+
+---
+
+### `directories` Options
+Manages folder structures scanned for routes and compilation assets.
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`pages`** | `string` | `'src/pages'` | Directory containing client-side page components. File paths inside this folder determine page routes. |
+| **`server`** | `string` | `'src/server'` | Directory containing global shared server-side functions and RPC endpoints. |
+| **`manifest`** | `string` | `'.auwla'` | Internal directory where generated client/server manifests and types are written during build. |
+
+---
+
+### `server` Options
+Controls how custom servers are registered.
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`entry`** | `string` | `undefined` | Absolute or relative path to a custom server entry file (e.g. `'src/server.ts'`). Used when bypassing Auwla's auto-generated server bootstrap scripts to configure your own Hono, Bun, or Express adapter. |
+
+> [!NOTE]
+> **Difference between `directories.server` and `server.entry`:**
+> *   **`directories.server`** is a folder scanned for RPC functions.
+> *   **`server.entry`** is a single file wrapper running the HTTP server wrapper.
+
+---
+
+### `router` Options
+Controls client-side navigation routing behaviors.
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`lazy`** | `boolean` | `false` | Enables client-side page file lazy loading and code-splitting via dynamic imports. If `false`, pages are bundled statically. |
+| **`genFile`** | `string` | `'src/auwla.gen.ts'` | Location where the TypeScript route type-declarations file is auto-written for type safety. |
+| **`extensions`** | `string[]` | `['.tsx', '.ts', '.jsx', '.js']` | File extensions scanned inside `directories.pages` to resolve page routes. |
+
+---
+
+### `compiler` Options
+Modifies compilation and bundling filters.
+
+| Property | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **`css`** | `boolean` | `true` | Toggle whether the Auwla compiler automatically bundles and injects compiled CSS styles. |
+| **`include`** | `RegExp` | `undefined` | Regular expression pattern specifying files to explicitly compile. |
+| **`exclude`** | `RegExp` | `undefined` | Regular expression pattern specifying files to exclude from compile passes. |
+| **`debugFlag`** | `boolean \| string` | `undefined` | Toggles rendering compiler debug logs and performance metrics during build. |
+
+---
+
+## Render Target Resolution Priority
+
+Auwla resolves rendering modes in the following priority order (highest to lowest):
+
+1.  **Page-Level Config** (`export const config = { renderMode: 'ssg' }`) inside the page file.
+2.  **Route Rules** (`routeRules: { '/docs/**': { renderMode: 'ssg' } }`) defined in `auwla.config.ts`.
+3.  **Global Target** (`target: 'ssr'`) defined in `auwla.config.ts`.
+4.  **Auwla Default** (`'spa'`).
+
+
+========================================================================
+CATEGORY: REFERENCE
+========================================================================
+
+
+------------------------------------------------------------------------
+DOCUMENT: API Reference (api-reference.md)
+------------------------------------------------------------------------
+
+# Runtime API Reference
+
+This page lists the public exports from `auwla` and its subpackages. Internal compiler-runtime helpers (prefixed with `__`) are used by generated code and can be ignored in normal apps.
+
+---
+
+## `auwla` — Core Runtime
+
+### App lifecycle
+
+| Export | Description |
+| :--- | :--- |
+| `createMemoApp(root, element)` | Mount an Auwla app into a DOM node. |
+| `component()` | Get a handle to the current component instance. Pass it to `commit(handle)` for scoped re-renders. |
+| `commit()` | Schedule a re-render of all mounted apps. |
+| `commit(handle)` | Schedule a re-render of only the given component subtree. |
+| `cleanup(fn)` | Register a function to run when the component unmounts. |
+| `emit(handle, name, payload?)` | Emit a custom event that bubbles up to ancestor `emit:name` listeners. |
+
+### JSX / DOM
+
+| Export | Description |
+| :--- | :--- |
+| `h(type, props, ...children)` | JSX factory. Used by the runtime when the compiler bails out. |
+| `Fragment` | JSX fragment marker. |
+| `createMemoElement(type, props, ...children)` | Lower-level element constructor. |
+
+### Reactive primitives
+
+| Export | Description |
+| :--- | :--- |
+| `reactive(initialValue)` | Create a reactive cell with `.get()` and `.set()`. Components that read `.get()` in their render closure auto-subscribe. |
+| `memo(factory)` | Create a memoized computation. |
+
+---
+
+## `auwla/events` — Event Modifiers
+
+| Export | Description |
+| :--- | :--- |
+| `event` | The default event chain builder. Start every modifier chain with this. |
+| `emit` | Also re-exported here for convenience. |
+| `DEFAULT_EVENT_DELAY_MS` | Default delay used by timing modifiers. |
+
+See the [Event Modifiers](./event-modifiers) guide for the full modifier list.
+
+---
+
+## `auwla/track` — Async Tracking
+
+| Export | Description |
+| :--- | :--- |
+| `track(name, promise)` | Track a promise by name. Returns a `TrackHandle`. |
+| `track(name, asyncFn)` | Track an async function. Auto-runs and provides an `AbortSignal`. |
+| `track.get(key, options?)` | Call a remote GET server function. |
+| `track.post(key, options?)` | Create a lazy POST command handle. Call `.run()` to execute. |
+| `track.form(key, options?)` | Bind a form to a POST remote. Returns a `FormHandle` with `.onSubmit`, `.props`, etc. |
+| `pending(name?)` | Check if a named track is pending. |
+| `resolved(name?)` / `rejected(name?)` | Check resolved/rejected state. |
+| `value(name?)` / `reason(name?)` | Read the resolved value or rejection reason. |
+| `cancel(name?)` | Cancel an in-flight track. |
+
+See the [Async & Data](./async-lifecycle) guide.
+
+---
+
+## `auwla/router` — Routing
+
+| Export | Description |
+| :--- | :--- |
+| `Router` | Route outlet component. |
+| `Link` | Anchor with client-side navigation. |
+| `Outlet` | Renders nested child routes. |
+| `defineRoutes(routes)` | Explicit route table builder. |
+| `group(path, options, routes)` | Group routes under a shared layout/guard. |
+| `composeRoutes(...routeArrays)` | Merge multiple route arrays. |
+| `navigate(path, params?, opts?)` | Programmatic navigation. |
+| `back()` / `forward()` | History navigation. |
+| `getParams()` | Read current route params. |
+| `getQuery()` | Read current query string. |
+| `getLocation()` | Read current path. |
+| `getRouteMeta()` | Read matched route metadata. |
+| `getRouted(fn?)` | Read the typed loader handle. |
+| `getLoaderHandle()` | Raw loader handle. |
+| `getRouteError()` | Structured error, only valid inside error components. |
+| `isActive(path)` / `isExactActive(path)` | Active route checks. |
+| `pathFor(path, params?)` | Build a path string. |
+| `afterEach(fn)` | Register a post-navigation hook. |
+| `invalidate(options)` | Clear route cache by tag or path. |
+| `prefetchRoute(path)` | Prefetch a route chunk. |
+| `registerPrefetches(map)` / `prefetchRoute(path)` | Prefetch control. |
+| `configureSuspense(options)` / `isSuspended()` / `enterSuspense()` / `exitSuspense()` | Suspend helpers. |
+
+See the [Router](./router) guide.
+
+---
+
+## `auwla/server` — RPC Server
+
+| Export | Description |
+| :--- | :--- |
+| `remote.get(middlewares?, handler)` | Define a GET remote function. |
+| `remote.post(middlewares?, handler)` | Define a POST remote function. |
+| `remote.put` / `remote.patch` / `remote.delete` | Other HTTP methods. |
+| `validate(schema)` | Standard Schema middleware. |
+| `defineMiddleware(fn)` | Create typed middleware. |
+| `getParams()` | Read route params inside a server function. |
+| `getContext()` | Access the current server context. |
+| `NotFoundError` / `UnauthorizedError` / `BadRequestError` | Common HTTP errors. |
+
+See the [Server Functions](./server-functions) guide.
+
+---
+
+## `auwla/adapters/*` — Server Adapters
+
+| Export | Description |
+| :--- | :--- |
+| `createFetchAdapter(options)` | Core WinterCG-compatible adapter. |
+| `createBunAdapter(options)` | Bun.serve adapter. |
+| `createHonoAdapter(options)` | Hono middleware adapter. |
+
+The Express adapter is intentionally deferred; use `createFetchAdapter` or `createHonoAdapter` for now.
+
+---
+
+## `auwla/css` — Styling
+
+| Export | Description |
+| :--- | :--- |
+| `css(styleObject)` | Resolve a style object for the `style` attribute. |
+| `merge(...styles)` / `extend(base, overrides)` / `define(style)` | Composition helpers. |
+| `when`, `match`, `mergeWhen` | Conditional helpers. |
+| `px`, `rem`, `pct`, `ms`, `deg`, etc. | Typed unit helpers. |
+| `color`, `gradient` | Color helpers. |
+| `border`, `shadow`, `transform`, `transition`, `ease`, `outline` | Composite values. |
+| `grid`, `flex` | Layout descriptors. |
+
+See the [CSS & Styling](./css) guide.
+
+---
+
+## `auwla/vite` — Build Plugin
+
+| Export | Description |
+| :--- | :--- |
+| `auwla(options?)` | Vite plugin. Options include `serverEntry`, `debugFlag`, and SSR flags. |
+
+---
+
+## `auwla/vite-router` — File-Based Router Plugin
+
+| Export | Description |
+| :--- | :--- |
+| `auwlaRouter(options?)` | Vite plugin. Options include `dir`, `genFile`, `lazy`, `extensions`. |

@@ -1,12 +1,14 @@
 # Loading Data
 
-Auwla integrates routing and async data fetching into a single unified step. You can define a page loader function that retrieves server data, and read that data reactively inside your component view.
+Auwla integrates routing and async data fetching into a single unified step. 
+
+Instead of triggering asynchronous queries inside your component view (which can cause layout flashing and redundant renders), you can export a page loader function that retrieves data before the route is mounted.
 
 ---
 
 ## The `routed` Loader Function
 
-Each page in your `src/pages` directory can export a `routed` asynchronous function. The router executes this function when the route is matched (before mounting the component) and handles dynamic parameters and abort signals automatically.
+Each page in your `src/pages` directory can export a `routed` asynchronous function. The router executes this function when the route is matched, injecting a context object and a cancellation `AbortSignal`.
 
 ```tsx
 // src/pages/posts/[id].tsx
@@ -19,11 +21,14 @@ export const routed = async (ctx: RouteContext<'/posts/:id'>, signal: AbortSigna
 };
 ```
 
+### Abort Signal (Auto-Cancellation)
+Auwla automatically passes an `AbortSignal` as the second argument to your `routed` function. If the user navigates away to a different route before the loader completes, the in-flight request is automatically aborted, saving bandwidth and preventing race conditions.
+
 ---
 
 ## Reading Loader Data (`getRouted`)
 
-To read the loader data inside your page component, import `getRouted` and pass your `routed` function reference to it:
+To read the loader data inside your component, import `getRouted` and pass your `routed` function reference to it:
 
 ```tsx
 // src/pages/posts/[id].tsx (continued)
@@ -31,9 +36,8 @@ export default function PostDetail() {
   // 2. Read the loaded data reactively
   const data = getRouted(routed);
 
-  // Handle loading and error states
+  // Handle loading states
   if (data?.pending) return <p>Loading post...</p>;
-  if (data?.rejected) return <p>Error: {String(data.reason)}</p>;
 
   // Render the resolved values
   return (
@@ -46,33 +50,71 @@ export default function PostDetail() {
 ```
 
 ### The Loader Handle API
-The object returned by `getRouted` exposes the following reactive properties:
+The object returned by `getRouted` is fully typed and exposes the following reactive properties:
 * **`.pending`** (`boolean`): `true` if the loader is currently fetching data.
 * **`.resolved`** (`boolean`): `true` if the loader completed successfully.
 * **`.rejected`** (`boolean`): `true` if the loader failed.
 * **`.value`** (`any`): The data returned from your `routed` function.
 * **`.reason`** (`any`): The error object if the loader rejected.
+* **`.cancel()`** (`() => void`): Aborts the active loader promise.
+* **`.refresh()`** (`() => void`): Re-runs the `routed` function to refetch data.
 
 ---
 
-## Blocking Navigation & Deferred Loading (Suspension)
+## Default Behavior: Instant Navigation
 
-By default, navigation is non-blocking: the URL updates immediately, the new route component mounts, and the `routed` function runs in the background.
+By default, data loading **does not block or defer navigation**. The URL changes and the new page component mounts immediately, running the `routed` function in the background.
 
-Auwla allows you to **block/defer navigation** until the `routed` promise resolves. This prevents displaying blank pages or loading states on the screen by keeping the previously matched route visible in the DOM during navigation.
+When doing instant navigation, you can handle the pending loading state in three ways:
 
-To enable suspension, pass the `suspend` prop to your `<Router>` component:
+### 1. Local Inline Loading (Page Level)
+Check the `pending` state directly inside the component body using `getRouted(routed)?.pending`:
+
+```tsx
+export default function Page() {
+  const loader = getRouted(routed);
+  if (loader?.pending) return <p>Loading content...</p>;
+  return <div>{loader?.value}</div>;
+}
+```
+
+### 2. Route-Level `pending` Component Export
+You can export a custom component named `pending` directly from your page file. When the route is matched and the data is loading, the router will automatically mount this placeholder component:
+
+```tsx
+// src/pages/dashboard.tsx
+export const routed = async (ctx: RouteContext, signal: AbortSignal) => {
+  return await fetch('/api/dashboard', { signal }).then(r => r.json());
+};
+
+// Export the pending placeholder component
+export function pending() {
+  return (
+    <div class="skeleton-wrapper">
+      <p>Loading Dashboard...</p>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const data = getRouted(routed);
+  return <div>{data?.value?.analytics}</div>;
+}
+```
+
+### 3. Global Pending Component
+Define a global fallback component on your `<Router>` to handle loading states for all routes:
 
 ```tsx
 // src/App.tsx
 import { Router } from 'auwla/router';
-import routes from 'auwla:routes';
+import { GlobalLoader } from './GlobalLoader';
 
 export default function App() {
   return (
     <Router 
       routes={routes} 
-      suspend={true} // Defer route changes until loaders resolve
+      pendingComponent={GlobalLoader} 
     />
   );
 }
@@ -80,14 +122,42 @@ export default function App() {
 
 ---
 
-## Styling the Suspended State
+## Deferring Navigation (Suspension)
 
-While a route loader is resolving in the background during suspension, the router adds a `.suspended` class and a `data-suspended` attribute to the `<html>` element. 
+If you want to defer the route transition and block the new page from mounting until its data resolves, enable **Suspension**. 
 
-You can write custom CSS rules to dim the page, disable interactions, or trigger transitions while loading is in progress:
+With suspension enabled, when a user clicks a link, the router **keeps the previous page visible in the DOM** while the loader runs in the background. 
+
+```tsx
+// src/App.tsx
+import { Router } from 'auwla/router';
+
+export default function App() {
+  return (
+    <Router 
+      routes={routes} 
+      suspend // Defer route changes until loaders resolve
+    />
+  );
+}
+```
+
+### Hard Refreshes during Suspension
+If the user performs a **hard refresh** (or visits a route directly for the first time), there is no "previous page" to show during suspension. To avoid showing a blank white screen:
+1. The router will fall back to rendering your exported page-level `pending` component (if present).
+2. If no page-level loader placeholder exists, it will render the global `pendingComponent` configured on the `<Router>`.
+
+---
+
+## Suspension Styling
+
+While a route loader is resolving in the background during suspension, the router adds CSS class names and attributes to the root `<html>` element to let you style the transition.
+
+### 1. Default Style Class (`.suspended`)
+By default, the router adds the class name `.suspended` and the attribute `data-suspended` to the `<html>` element. You can style them in your CSS:
 
 ```css
-/* Dim the entire page slightly during navigation transitions */
+/* Dim the page slightly and disable clicks during transitions */
 html.suspended {
   opacity: 0.6;
   pointer-events: none;
@@ -95,37 +165,40 @@ html.suspended {
 }
 ```
 
-### Layout-Specific Suspension
-You can also target specific portions of your app shell, like content areas or sidebars, rather than the entire document:
-
-```css
-html.suspended .main-content {
-  opacity: 0.5;
-  filter: blur(1px);
-}
-```
-
----
-
-## Custom Transition Skeletons
-
-If you want to render a skeleton placeholder instead of keeping the previous page visible, configure `pendingComponent` and `errorComponent` properties on your `<Router>`:
+### 2. Custom Styling Configurations
+If you want to use custom class names or attributes, pass a configuration object to the `suspend` prop:
 
 ```tsx
-// src/App.tsx
-import { Router } from 'auwla/router';
-import routes from 'auwla:routes';
-import { PendingSkeleton } from './components/PendingSkeleton';
-import { ErrorFallback } from './components/ErrorFallback';
+<Router 
+  routes={routes} 
+  suspend={{
+    className: "navigating",     // Custom class added to <html> during loading
+    attr: "data-navigating",     // Custom attribute added to <html> during loading
+    viewTransition: true         // Enables document.startViewTransition()
+  }}
+/>
+```
 
-export default function App() {
-  return (
-    <Router 
-      routes={routes} 
-      suspend={true}
-      pendingComponent={PendingSkeleton} // Renders during suspension
-      errorComponent={ErrorFallback}     // Renders if the loader fails
-    />
-  );
+You can then reference these custom classes in your stylesheets:
+
+```css
+/* Custom class styling */
+html.navigating {
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Add a loading indicator stripe at the top of the viewport */
+html.navigating::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ff3e00;
+  z-index: 9999;
+  animation: progress 1.5s infinite linear;
 }
 ```

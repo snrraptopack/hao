@@ -356,7 +356,7 @@ code {
 .code-block-wrapper pre,
 .doc-content pre,
 .tabs-content pre {
-  max-height: 400px !important;
+  max-height: 550px !important;
   overflow-y: auto !important;
 }
 
@@ -493,3 +493,25 @@ code {
 .doc-content tr:hover td {
   background-color: #f8fafc;
 }
+
+/* Mobile responsiveness overrides for code blocks and tab panels */
+@media (max-width: 768px) {
+  .doc-content pre {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    padding: 0.875rem !important;
+  }
+  .doc-content pre code {
+    font-size: 0.775rem !important;
+    line-height: 1.5 !important;
+  }
+  .tabs-content {
+    padding: 0.75rem !important;
+  }
+  .tabs-header {
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+

@@ -179,20 +179,19 @@ export function getRouteMeta<T extends Record<string, unknown> = Record<string, 
  * Accepts any ValidRoutePath. When routes are registered via the Register
  * interface, only known paths are accepted at compile time.
  */
-export function isActive(path: ValidRoutePath): boolean {
+export function isActive(path: string): boolean {
   const current = normalizePath(getCurrentPath().split('?')[0]!)
-  const target  = normalizePath(path as string)
+  const target  = normalizePath(path)
   return current === target || current.startsWith(target + '/')
 }
 
 /**
  * Returns true only when the current path is an exact match for `path`.
  *
- * Accepts any ValidRoutePath. When routes are registered via the Register
- * interface, only known paths are accepted at compile time.
+ * Accepts any path string.
  */
-export function isExactActive(path: ValidRoutePath): boolean {
-  return normalizePath(getCurrentPath().split('?')[0]!) === normalizePath(path as string)
+export function isExactActive(path: string): boolean {
+  return normalizePath(getCurrentPath().split('?')[0]!) === normalizePath(path)
 }
 
 // ---------------------------------------------------------------------------

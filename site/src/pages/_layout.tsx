@@ -2,7 +2,7 @@ import type { RouteComponent } from 'auwla/router'
 import { Link, isActive, isExactActive } from 'auwla/router'
 
 export default function RootLayout(Child: RouteComponent) {
-  const isDocs = isActive('/docs')
+  const isDocs = isActive('/docs' as any)
   const isPlayground = isExactActive('/playground')
 
   return () => (
@@ -53,6 +53,13 @@ export default function RootLayout(Child: RouteComponent) {
                 Playground
               </Link>
             </nav>
+
+            <a href="/llm.txt" target="_blank" rel="noopener" class="text-xs text-slate-500 hover:text-black font-medium border border-slate-200/80 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>llm.txt</span>
+            </a>
 
             <a href="https://github.com/snrraptopack/hao" target="_blank" rel="noopener" aria-label="GitHub Repository" class="hover:text-black transition py-5 flex items-center">
               <svg class="w-5 h-5 text-slate-500 hover:text-slate-900 transition" fill="currentColor" viewBox="0 0 24 24">

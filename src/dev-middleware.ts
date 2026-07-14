@@ -17,7 +17,7 @@ export async function createDevServerMiddleware(
       pathname.startsWith('/src/') ||
       pathname.startsWith('/node_modules/') ||
       /[?&](?:import|direct|raw|url|worker)(?:[=&]|$)/.test(requestUrl) ||
-      /\.(?:[cm]?[jt]sx?|css|scss|sass|less|styl|map|ico|png|jpe?g|svg|gif|webp|avif|woff2?|ttf|otf|wasm)$/.test(pathname)
+      /\.(?:[cm]?[jt]sx?|css|scss|sass|less|styl|map|ico|png|jpe?g|svg|gif|webp|avif|woff2?|ttf|otf|wasm|txt|json|pdf)$/.test(pathname)
     ) {
       return next()
     }

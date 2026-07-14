@@ -81,7 +81,7 @@ function EscapeHandler() {
   document.addEventListener('keydown', handler);
   cleanup(() => document.removeEventListener('keydown', handler));
 
-  return () => <div>Press Esc to close</div>;
+  return <div>Press Esc to close</div>;
 }
 ```
 

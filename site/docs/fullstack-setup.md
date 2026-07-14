@@ -1,104 +1,87 @@
 # Fullstack Setup
 
-Auwla provides a unified fullstack developer experience. By separating configuration from your bundler, you can easily define how your application renders, switch backends, and co-locate server-side logic directly with your client views.
-
----
-
-## The Server Layer & RPCs
-
-Auwla scans for `.server.ts` files in your project and automatically compiles any exported functions into secure, type-safe RPC (Remote Procedure Call) endpoints. On the client, you can import and call these functions like normal asynchronous JavaScript code.
-
-You can declare server files in two places:
-
-### 1. Co-Located Server Files (Route-Specific)
-Place a `.server.ts` file directly next to the `.tsx` page file that uses it.
-* **Example:** `src/pages/dashboard.tsx` and `src/pages/dashboard.server.ts`
-* **Why?** It scopes backend logic explicitly to the UI. The generated RPC endpoint name is automatically scoped to the page route. If you delete the page, its corresponding backend code is deleted automatically.
-
-### 2. Centralized Server Files (Shared Backend)
-Place server files in your global server folder (default: `src/server/`).
-* **Example:** `src/server/auth.server.ts` or `src/server/db.server.ts`
-* **Why?** For shared utilities, authentication middle-layers, or database singletons used across multiple routes.
+Auwla allows you to cleanly separate your backend setup from your bundler. By configuring a custom server entry file in `auwla.config.ts`, you can deploy your application on any platform by choosing the appropriate server adapter.
 
 ---
 
 ## Configuration (`auwla.config.ts`)
 
-Auwla allows you to manage build targets and server options globally in `auwla.config.ts`:
+To specify a custom server entry, define the `server.entry` path in your global configuration:
 
 ```typescript
 import { defineConfig } from 'auwla/config';
 
 export default defineConfig({
-  // 1. Compile Target: Can be 'spa', 'ssr', or 'ssg'
-  target: 'ssr', 
-  
-  // 2. Custom Directories configuration
-  directories: {
-    pages: 'src/pages',
-    server: 'src/server'
-  }
-});
-```
-
-Pass the global configuration into your `vite.config.ts` plugins to apply it:
-
-```typescript
-// vite.config.ts
-import { defineConfig } from 'vite';
-import { auwla } from 'auwla/vite';
-import { auwlaRouter } from 'auwla/vite-router';
-
-export default defineConfig({
-  plugins: [
-    auwla(), // Automatically detects and loads auwla.config.ts
-    auwlaRouter() 
-  ]
-});
-```
-
----
-
-## Target Render Modes
-
-Auwla supports three global compile targets:
-* **`spa` (Single Page App)**: Compilation targets client-side hydration and execution. Server logic is called via HTTP requests.
-* **`ssr` (Server-Side Rendering)**: Pages are rendered on the server for each request and hydrated dynamically on the client.
-* **`ssg` (Static Site Generation)**: Pages are pre-rendered to static HTML files at build time.
-
-### Global Route Rules
-You can mix rendering strategies inside a single application by defining matching patterns in `auwla.config.ts` under `routeRules`:
-
-```typescript
-export default defineConfig({
-  target: 'ssr', // Default fallback target
-
-  routeRules: {
-    // Compile all documentation pages statically at build time
-    '/docs/**': { renderMode: 'ssg' },
-    
-    // Serve the admin panel purely client-side
-    '/admin/**': { renderMode: 'spa' }
-  }
-});
-```
-
----
-
-## Custom Backends & Adapters
-
-By default, Auwla handles the server request-response lifecycle automatically. However, you can change the target environment easily.
-
-### The `server.entry` Option
-If you want to bypass the automatic request routing and write your own custom Node.js, Bun, Express, or Hono server, set the `server.entry` single file path:
-
-```typescript
-export default defineConfig({
-  target: 'ssr',
+  target: 'ssr', // Target build mode: 'spa', 'ssr', or 'ssg'
   server: {
-    entry: './src/server.ts' // Custom server file path
+    entry: './src/server.ts' // Custom server entry path
   }
 });
 ```
 
-Vite will inject this entry file as a middleware during `npm run dev` so development and production environments run identical backend configurations.
+During development (`npm run dev`), Vite automatically intercepts requests and routes them through this server file as a middleware, ensuring development and production behave identically.
+
+---
+
+## Deploying with Server Adapters
+
+Auwla exposes server adapters for different runtime environments. You import these adapters inside your server entry file to wrap the Auwla routing and rendering handlers.
+
+### 1. Bun
+The Bun adapter handles RPC routing, SSR page rendering, and static asset serving natively:
+
+```typescript
+// src/server.ts
+import { createBunAdapter } from 'auwla/adapters/bun';
+
+const port = Number(process.env.PORT ?? 3000);
+
+export default {
+  port,
+  fetch: createBunAdapter() // Handles RPC requests, SSR, and assets
+};
+```
+
+### 2. Hono
+The Hono adapter integrates Auwla into Hono routers, allowing you to add custom routing and middlewares.
+
+```typescript
+// src/server.ts
+import { Hono } from 'hono';
+import { createHonoAdapter } from 'auwla/adapters/hono';
+import { serveStatic } from 'hono/bun'; // Swap for your platform's static middleware
+
+const app = new Hono();
+
+// Serve built assets first
+app.use('/assets/*', serveStatic({ root: './dist' }));
+
+// Delegate remaining paths to the Auwla handler
+app.use('*', createHonoAdapter());
+
+export default app;
+```
+
+### 3. WinterCG (Standard Fetch)
+The core fetch adapter is suitable for standard fetch environments (like Deno or Cloudflare Workers). It expects requests at the `/_auwla/rpc` path and returns standard response structures:
+
+```typescript
+// src/server.ts
+import { createFetchAdapter } from 'auwla/adapters/fetch';
+import manifest from 'auwla:server-manifest'; // Virtual server manifest
+
+const handle = createFetchAdapter({ manifest });
+
+export default {
+  fetch: handle
+};
+```
+
+---
+
+## Request Fallthrough
+
+When a request enters the adapter:
+1. If the request matches a compiled server RPC endpoint path, the adapter executes the remote function and returns the serialized JSON output.
+2. If the request is for a layout page under SSR target, the adapter pre-renders the HTML page and returns it.
+3. If no matching path is found, the adapter falls back to serving static assets, or returns a standard `404 Not Found` response.

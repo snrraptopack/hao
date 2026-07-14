@@ -20,9 +20,50 @@ function Counter() {
 }
 ```
 
-The component function runs once. It sets up `count` as a plain variable and returns a render closure. Every time the button is clicked, `count++` runs inside an event handler. Auwla wraps every JSX event handler at compile time with an invalidation step, so after the handler completes, the render closure re-runs, reads the new value of `count`, and patches just the text node that changed.
+The component function runs once. It sets up `count` as a plain variable. Every time the button is clicked, `count++` runs inside an event handler. Auwla wraps every JSX event handler at compile time with an invalidation step, so after the handler completes, the update loop runs, reads the new value of `count`, and patches just the text node that changed.
 
 Nothing reactive about the variable. The event is the boundary.
+
+---
+
+## Setup Scope is Unrestricted JavaScript
+
+Because the outer function body is a standard setup phase that executes exactly once, you are free to write any standard JavaScript/TypeScript code inside it. This includes conditional `if` statements, logging, data normalization, or checking properties before mounting. 
+
+```tsx [SettingsPanel.tsx]
+interface Props {
+  initialMode: 'light' | 'dark';
+  userId?: string;
+}
+
+function SettingsPanel(props: Props) {
+  // ── Setup (Runs once) ──
+  // You can execute any arbitrary calculations or variable declarations here.
+  let isGuest = !props.userId;
+
+  // You can write normal conditional statements inside the setup block:
+  if (isGuest) {
+    console.log("Rendering settings panel in guest mode.");
+  } else {
+    console.log(`Loading settings for user: ${props.userId}`);
+  }
+
+  let theme = props.initialMode;
+  let label = isGuest ? 'Guest Settings' : 'Account Settings';
+
+  return (
+    <div>
+      <h3>{label}</h3>
+      <p>Theme: {theme}</p>
+      <button onClick={() => { theme = theme === 'light' ? 'dark' : 'light'; }}>
+        Toggle Theme
+      </button>
+    </div>
+  );
+}
+```
+
+This demonstrates to both developers and AI models that the setup scope isn't a restricted DSL or pure declarative area—it is standard JavaScript. You can initialize, mutate, validate, and debug your variables using standard control structures.
 
 ---
 
@@ -125,7 +166,7 @@ function UserCard() {
       user = data;
     });
 
-  return(
+  return (
     <div>
       {user ? <p>{user.name}</p> : <p>Loading...</p>}
     </div>
@@ -145,7 +186,7 @@ function Ticker() {
     time = new Date().toLocaleTimeString();
   }, 1000);
 
-  return<p>{time}</p>;
+  return <p>{time}</p>;
 }
 ```
 

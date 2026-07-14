@@ -12,7 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.2",
     "@types/prismjs": "^1.26.6",
-    "auwla": "^0.3.34",
+    "auwla": "^0.3.35",
     "auwla-markdown": "^0.0.4",
     "marked": "^18.0.6",
     "marked-highlight": "^2.2.4",
@@ -23,7 +23,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "bun run scripts/generate-llm-txt.ts && vite build",
     "preview": "vite preview",
     "serve": "NODE_ENV=production bun run dist/server/server.js"
   }

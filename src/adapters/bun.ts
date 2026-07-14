@@ -104,7 +104,25 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
     const rpcResponse = await handle(request, { bun: { request } })
     if (rpcResponse) return rpcResponse
 
-    // 2. SSR page rendering (only for HTML requests)
+    // 2. Static files (excluding root and index.html to allow SSR routing)
+    if (staticDir && typeof Bun !== 'undefined') {
+      const url = new URL(request.url)
+      const pathname = url.pathname
+      if (pathname !== '/' && pathname !== '/index.html') {
+        const file = Bun.file(`${staticDir}${pathname}`)
+        if (await file.exists()) {
+          const headers = new Headers()
+          if (pathname.startsWith('/assets/')) {
+            headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+          } else {
+            headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
+          }
+          return new Response(file as any, { headers })
+        }
+      }
+    }
+
+    // 3. SSR page rendering (only for HTML requests)
     const acceptsHtml = (request.headers.get('accept') ?? '').includes('text/html')
     if (acceptsHtml && staticDir) {
       if (!options.routes) {
@@ -130,23 +148,6 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
           console.error('[auwla] SSR render failed, falling back to SPA shell:', e)
           // SSR errors fall through to static/SPA fallback — never crash the server.
         }
-      }
-    }
-
-    // 3. Static files
-    if (staticDir && typeof Bun !== 'undefined') {
-      const url = new URL(request.url)
-      const pathname = url.pathname === '/' ? '/index.html' : url.pathname
-      const file = Bun.file(`${staticDir}${pathname}`)
-
-      if (await file.exists()) {
-        const headers = new Headers()
-        if (pathname.startsWith('/assets/')) {
-          headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-        } else {
-          headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
-        }
-        return new Response(file as any, { headers })
       }
 
       // 4. SPA fallback: serve index.html for unmatched page navigations.

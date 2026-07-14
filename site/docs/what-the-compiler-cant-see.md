@@ -136,3 +136,4 @@ function logoutUser() {
 ```
 
 You will rarely need the global `commit()` in regular component development, but it is extremely useful for high-level event bus handlers or global state libraries.
+
