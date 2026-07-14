@@ -497,9 +497,8 @@ code {
 /* Mobile responsiveness overrides for code blocks and tab panels */
 @media (max-width: 768px) {
   .doc-content pre {
-    white-space: pre-wrap !important;
-    word-wrap: break-word !important;
     padding: 0.875rem !important;
+    overflow-x: auto !important;
   }
   .doc-content pre code {
     font-size: 0.775rem !important;
