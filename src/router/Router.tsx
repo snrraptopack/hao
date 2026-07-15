@@ -269,6 +269,29 @@ function scrollToTop(): void {
   }
 }
 
+function resetFocus(): void {
+  try {
+    if (typeof document === "undefined") return;
+    const main = document.querySelector('main') || document.querySelector('h1') || document.getElementById('app');
+    if (main) {
+      const prevTabIndex = main.getAttribute('tabindex');
+      main.setAttribute('tabindex', '-1');
+      main.focus({ preventScroll: true });
+      
+      const onBlur = () => {
+        if (prevTabIndex === null) {
+          main.removeAttribute('tabindex');
+        } else {
+          main.setAttribute('tabindex', prevTabIndex);
+        }
+      };
+      main.addEventListener('blur', onBlur, { once: true });
+    }
+  } catch {
+    // Silently ignore focus errors in headless test environments.
+  }
+}
+
 export function Router(props: RouterProps = {}) {
   // Calling initNavigation() here is still needed — it registers the browser
   // event listeners the first time. It is idempotent, so re-renders are safe.
@@ -435,6 +458,9 @@ export function Router(props: RouterProps = {}) {
       }
 
       fireAfterEach(previousContext, nextContext)
+      if (!isSuspended) {
+        setTimeout(resetFocus, 0)
+      }
     }
 
     // Check if an active suspension has just resolved or rejected.
@@ -451,6 +477,7 @@ export function Router(props: RouterProps = {}) {
       // time, so this is the correct moment to reset the scroll position.
       if (!suspendWasPopNav) scrollToTop()
       suspendWasPopNav = false
+      setTimeout(resetFocus, 0)
       // Fall through to normal render with the now-resolved loader.
     }
 
@@ -480,6 +507,9 @@ export function Router(props: RouterProps = {}) {
     _currentContext = { path: currentPath, params, query } as RouteContext<any>
     setRpcRouteParams(params)
     _currentMeta = route.meta ?? null
+    if (typeof document !== 'undefined' && route.meta?.title) {
+      document.title = String(route.meta.title);
+    }
     _currentLoader = cachedLoader
     // Clear any stale error context from a previous error render on this route.
     _currentError = null

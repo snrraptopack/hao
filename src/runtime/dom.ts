@@ -19,7 +19,7 @@ import type {
 } from './types';
 import { isRenderClosure, isTemplateNode } from './types';
 import { createTemplateElement } from './template';
-import { createComponentClosure } from './component';
+import { createComponentClosure, cleanup } from './component';
 
 
 function createSsrNode<K extends keyof HTMLElementTagNameMap>(
@@ -395,6 +395,54 @@ export function setProps(
  * - During an active render, intrinsic tags produce a `TemplateNode`.
  * - Outside a render, intrinsic tags create a real DOM element immediately.
  */
+function AuwlaHeadComponent(props: { children?: MemoChild | MemoChild[] }) {
+  if (typeof document === 'undefined') {
+    return () => {
+      return {
+        __auwlaSsr: true,
+        tag: 'head',
+        props: {},
+        children: Array.isArray(props.children) ? props.children : [props.children],
+      } as unknown as Node;
+    };
+  }
+
+  const placeholder = document.createComment('auwla:head');
+  let hoistedNodes: Node[] = [];
+
+  cleanup(() => {
+    for (const node of hoistedNodes) {
+      if (node.parentNode) {
+        node.parentNode.removeChild(node);
+      }
+    }
+    hoistedNodes = [];
+  });
+
+  return () => {
+    const nextChildren = Array.isArray(props.children) ? props.children : [props.children];
+    const newNodes = nextChildren.flat(Infinity)
+      .filter(child => child !== null && child !== undefined && child !== false && child !== true)
+      .map(toNode);
+
+    // Remove old hoisted nodes
+    for (const node of hoistedNodes) {
+      if (node.parentNode) {
+        node.parentNode.removeChild(node);
+      }
+    }
+
+    // Append new nodes
+    hoistedNodes = [];
+    for (const node of newNodes) {
+      document.head.appendChild(node);
+      hoistedNodes.push(node);
+    }
+
+    return placeholder;
+  };
+}
+
 export function h<K extends keyof HTMLElementTagNameMap>(
   type: K,
   props?: MemoProps,
@@ -408,6 +456,9 @@ export function h<P extends Record<string, unknown>>(
 export function h(type: any, props?: MemoProps, ...children: MemoChild[]): MemoChild {
   if (type && typeof type === 'object' && typeof type.default === 'function') {
     type = type.default;
+  }
+  if (type === 'head') {
+    return createComponentClosure(AuwlaHeadComponent, props, children);
   }
   if (typeof type === 'function') {
     return createComponentClosure(type, props, children);

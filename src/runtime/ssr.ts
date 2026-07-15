@@ -243,6 +243,7 @@ type RouterStore = {
   currentLoader: TrackHandle | null;
   currentMeta: Record<string, unknown> | null;
   currentError: RouteError | null;
+  headTags?: string[];
 };
 
 const trackStorage = new AsyncLocalStorage<TrackStore>();
@@ -284,6 +285,13 @@ const routerStorage = new AsyncLocalStorage<RouterStore>();
   setCurrentError: (error: RouteError | null) => {
     const store = routerStorage.getStore()
     if (store) store.currentError = error
+  },
+  getHeadTags: () => routerStorage.getStore()?.headTags ?? null,
+  addHeadTag: (tagHtml: string) => {
+    const store = routerStorage.getStore()
+    if (store && store.headTags) {
+      store.headTags.push(tagHtml)
+    }
   },
 };
 
@@ -329,6 +337,7 @@ export async function renderToString(
   data: Record<string, unknown>;
   status?: number;
   redirect?: string;
+  headTags?: string[];
 }> {
   const pathname = new URL(url, 'http://localhost').pathname + new URL(url, 'http://localhost').search;
   setCurrentPath(pathname);
@@ -359,6 +368,8 @@ export async function renderToString(
   const previousRenderState = runtimeState.activeRenderState;
   const renderState = createRenderState();
 
+  const headTags: string[] = [];
+
   // Pass the dispatcher directly as part of the initial ALS store so it is
   // available the moment the run() callback executes. The ALS scope handles
   // cleanup automatically — no save/restore dance needed.
@@ -369,6 +380,7 @@ export async function renderToString(
       currentLoader: null,
       currentMeta: null,
       currentError: null,
+      headTags,
     }, async () => {
       const context: RouteContext<any> = {
         path: pathname,
@@ -438,7 +450,7 @@ export async function renderToString(
 
         html += scriptTag;
 
-        return { html, matched, data: trackData };
+        return { html, matched, data: trackData, headTags };
       } finally {
         setRpcRoutePath(prevPath);
         setRpcRouteParams(prevParams);

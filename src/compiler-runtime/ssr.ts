@@ -121,6 +121,15 @@ export function __ssrStyle(value: unknown): string {
 
 function ssrNodeToString(node: SsrNode): string {
   const tag = node.tag;
+  if (tag === 'head') {
+    const headChildren = node.children.map(ssrChildToString).join('');
+    const provider = (globalThis as any).__auwla_routerStoreProvider;
+    if (provider && typeof provider.addHeadTag === 'function') {
+      provider.addHeadTag(headChildren);
+    }
+    return '';
+  }
+
   const attrs = ssrPropsToString(node.props);
   let children = node.children.map(ssrChildToString).join('');
 

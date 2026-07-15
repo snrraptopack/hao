@@ -826,6 +826,44 @@ See [ROUTER.md](./ROUTER.md) for the full API (`group`, `Outlet`, guards, meta, 
 
 ---
 
+### Dynamic HTML `<head>` Management
+
+Auwla supports native, type-safe HTML `<head>` tag hoisting directly inside your JSX pages and components. There's no need for external libraries or custom wrappers—just use the standard HTML `<head>` tag and its children (`<title>`, `<meta>`, `<link>`, etc.) anywhere in your component tree:
+
+```tsx
+export default function BlogPost() {
+  return (
+    <div>
+      <head>
+        <title>Auwla - Isomorphic Head Management</title>
+        <meta name="description" content="Auwla handles head elements natively!" />
+        <link rel="canonical" href="https://auwla.dev/blog" />
+      </head>
+      
+      <main>
+        <h1>Dynamic Head Hoisting</h1>
+        <p>Auwla handles head elements on both the server and client automatically.</p>
+      </main>
+    </div>
+  );
+}
+```
+
+#### How It Works:
+* **Server-Side Rendering (SSR):** The SSR engine intercepts the `<head>` tags, extracts their HTML content, and cleanly injects them before the closing `</head>` tag of the main HTML shell.
+* **Client-Side Navigation (CSR):** On page mount, Auwla automatically hoists all children of the `<head>` element into the browser's real `document.head`.
+* **Automatic Cleanup:** When navigation occurs or the component unmounts, Auwla automatically cleans up the hoisted elements to prevent tag duplicates or stale metadata.
+
+---
+
+### Router Accessibility & Title Synchronization
+
+Auwla's client-side router includes built-in accessibility helpers to ensure a smooth transition experience for assistive technologies (such as screen readers):
+* **Automatic Focus Reset:** On route transitions, the router automatically shifts keyboard focus to the first `<main>` element, `<h1>` heading, or the application container. This prompts screen readers to announce the new page content immediately.
+* **Title Synchronization:** If a route is configured with `meta.title` in your routing configuration, the router automatically updates the browser tab title (`document.title`) on transitions.
+
+---
+
 ## Server functions
 
 Auwla gives you type-safe RPC without importing server files on the client.
