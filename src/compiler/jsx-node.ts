@@ -528,18 +528,25 @@ export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expr
     rowDeps = rowBlock.deps.map((dep) => applySubstitutions(dep, substitutions));
     forceUpdate = rowBlock.forceUpdate ?? false;
   } else {
-    // Fallback row block for custom components inside map loops
     const jsxCode = row.getText(ctx.source);
     const expandedJsxCode = applySubstitutions(ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode, substitutions);
     const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
     rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
 
+    const fallbackPreUpdate = [...paramLeadingStatements, ...leadingStatements];
+    const initStatements = fallbackPreUpdate.length > 0
+      ? fallbackPreUpdate.map(line => `            ${line}`).join('\n') + '\n'
+      : '';
+    const updateStatements = fallbackPreUpdate.length > 0
+      ? fallbackPreUpdate.map(line => `                ${line}`).join('\n') + '\n'
+      : '';
+
     rowBlockCode = `__createBlock(() => {
-            let node = toNode(${expandedJsxCode});
+${initStatements}            let node = toNode(${expandedJsxCode});
             return {
               node,
               update(${itemName}, ${indexName}) {
-                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
+${updateStatements}                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
               },
             };
           })`;
@@ -622,18 +629,25 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
     rowDeps = rowBlock.deps.map((dep) => applySubstitutions(dep, substitutions));
     forceUpdate = rowBlock.forceUpdate ?? false;
   } else {
-    // Fallback row block for custom components inside map loops
     const jsxCode = row.getText(ctx.source);
     const expandedJsxCode = applySubstitutions(ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode, substitutions);
     const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
     rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
 
+    const fallbackPreUpdate = [...paramLeadingStatements, ...leadingStatements];
+    const initStatements = fallbackPreUpdate.length > 0
+      ? fallbackPreUpdate.map(line => `            ${line}`).join('\n') + '\n'
+      : '';
+    const updateStatements = fallbackPreUpdate.length > 0
+      ? fallbackPreUpdate.map(line => `                ${line}`).join('\n') + '\n'
+      : '';
+
     rowBlockCode = `__createBlock(() => {
-            let node = toNode(${expandedJsxCode});
+${initStatements}            let node = toNode(${expandedJsxCode});
             return {
               node,
               update(${itemName}, ${indexName}) {
-                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
+${updateStatements}                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
               },
             };
           })`;
@@ -653,7 +667,7 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
     : `(${itemName}) => ${keyText}`;
 
   ctx.setup.push(`const ${mapVar} = __keyedMap(
-          ${items},
+          [],
           ${keyOf},
           (${itemName}, ${indexName}) => ${rowBlockCode},
           (block, ${itemName}, index) => block.update(${itemName}, index),

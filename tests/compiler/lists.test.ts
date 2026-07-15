@@ -404,5 +404,111 @@ describe('keyed list compilation', () => {
 
     expect(root.querySelectorAll('span')[0]!.textContent).toBe('red: 2');
   });
+
+  test('compiles maps with block body and custom variable declarations', async () => {
+    const source = `
+      function App() {
+        const items = [{ id: 1, label: 'A' }, { id: 2, label: 'B' }];
+        return () => (
+          <div>
+            {items.map((item) => {
+              const uppercase = item.label.toUpperCase() + '!';
+              return <span key={item.id}>{uppercase}</span>;
+            })}
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('const uppercase =');
+
+    const { App } = evaluateCompiled(compiled) as { App: () => unknown };
+    const root = document.createElement('div');
+    createMemoApp(root, h(App as any));
+
+    const spans = root.querySelectorAll('span');
+    expect(spans.length).toBe(2);
+    expect(spans[0]!.textContent).toBe('A!');
+    expect(spans[1]!.textContent).toBe('B!');
+  });
+
+  test('compiles maps with block body and fallback custom components', async () => {
+    const source = `
+      function MySpan(props) {
+        return () => <span>{props.text}</span>;
+      }
+      function App() {
+        const items = [{ id: 1, label: 'x' }];
+        return () => (
+          <div>
+            {items.map((item) => {
+              const text = item.label + 'ified';
+              return <MySpan key={item.id} text={text} />;
+            })}
+          </div>
+        );
+      }
+      exports.App = App;
+      exports.MySpan = MySpan;
+    `;
+
+    const compiled = compileAuwla(source);
+    // Since MySpan is uppercase but not inlinable (no references in compile time context), it falls back.
+    // Check that pre-update statements are present in the fallback row block.
+    expect(compiled).toContain('const text = item.label + \'ified\'');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; MySpan: any };
+    // Register custom component on evaluated context so it functions properly
+    const root = document.createElement('div');
+    createMemoApp(root, h(evaluated.App as any));
+
+    const spans = root.querySelectorAll('span');
+    expect(spans.length).toBe(1);
+    expect(spans[0]!.textContent).toBe('xified');
+  });
+
+  test('prevents hoisted map setup crash when array is undefined initially', async () => {
+    const source = `
+      function App() {
+        let detail = undefined;
+        exports.load = () => {
+          detail = { entries: [{ id: 1, text: 'hi' }] };
+        };
+        return () => (
+          <div>
+            {detail && (
+              <div>
+                {detail.entries.map((item) => (
+                  <span key={item.id}>{item.text}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    // Verifies that keyed map starts with [] (safe initialization) instead of detail.entries
+    expect(compiled).toContain('__keyedMap(\n          [],');
+
+    const evaluated = evaluateCompiled(compiled) as { App: () => unknown; load(): void };
+    const root = document.createElement('div');
+    const app = createMemoApp(root, h(evaluated.App as any));
+
+    // Initially detail is undefined, so conditional renders empty/nothing.
+    // Ensure setup did NOT crash on undefined detail.entries.
+    expect(root.querySelectorAll('span').length).toBe(0);
+
+    // Load data and trigger render
+    evaluated.load();
+    app.render();
+
+    expect(root.querySelectorAll('span').length).toBe(1);
+    expect(root.querySelectorAll('span')[0]!.textContent).toBe('hi');
+  });
 });
 

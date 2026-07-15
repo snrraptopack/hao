@@ -152,8 +152,9 @@ export function __keyedMap<TItem, TKey>(
     },
     update(nextItems) {
       const parent = anchor.parentNode ?? fragment;
+      const itemsArr = Array.isArray(nextItems) ? nextItems : [];
 
-      if (nextItems.length === 0) {
+      if (itemsArr.length === 0) {
         // Only delete the row range owned by this map. Calling replaceChildren()
         // on the parent can remove unrelated siblings around an embedded list.
         clearCompiledRows(rows, orderedRows, anchor, destroyableRows > 0);
@@ -163,8 +164,8 @@ export function __keyedMap<TItem, TKey>(
 
       // Check if there are any reused keys. If not, we can perform a highly optimized complete replace.
       let hasReused = false;
-      for (let i = 0; i < nextItems.length; i++) {
-        if (rows.has(keyOf(nextItems[i]!, i))) {
+      for (let i = 0; i < itemsArr.length; i++) {
+        if (rows.has(keyOf(itemsArr[i]!, i))) {
           hasReused = true;
           break;
         }
@@ -175,8 +176,8 @@ export function __keyedMap<TItem, TKey>(
         destroyableRows = 0;
 
         const batch = document.createDocumentFragment();
-        for (let index = 0; index < nextItems.length; index++) {
-          const item = nextItems[index]!;
+        for (let index = 0; index < itemsArr.length; index++) {
+          const item = itemsArr[index]!;
           const key = keyOf(item, index);
           const deps = depsOf ? depsOf(item, index) : null;
           const row: AuwlaRowBlock<TItem> = createRow(item, index);
@@ -199,11 +200,11 @@ export function __keyedMap<TItem, TKey>(
       let mismatchB = -1;
       let needsPlacement = false;
 
-      if (orderedRows.length > 0 && nextItems.length > orderedRows.length) {
+      if (orderedRows.length > 0 && itemsArr.length > orderedRows.length) {
         let canAppend = true;
 
         for (let index = 0; index < orderedRows.length; index++) {
-          const item = nextItems[index]!;
+          const item = itemsArr[index]!;
           const row = orderedRows[index]!;
           const sameItem = Object.is(row.__auwlaItem, item);
           const key = sameItem ? row.__auwlaKey : keyOf(item, index);
@@ -226,8 +227,8 @@ export function __keyedMap<TItem, TKey>(
         if (canAppend) {
           const batch = document.createDocumentFragment();
 
-          for (let index = orderedRows.length; index < nextItems.length; index++) {
-            const item = nextItems[index]!;
+          for (let index = orderedRows.length; index < itemsArr.length; index++) {
+            const item = itemsArr[index]!;
             const key = keyOf(item, index);
             const deps = depsOf ? depsOf(item, index) : null;
             const row: AuwlaRowBlock<TItem> = createRow(item, index);
@@ -249,9 +250,9 @@ export function __keyedMap<TItem, TKey>(
         }
       }
 
-      if (orderedRows.length === nextItems.length) {
-        for (let index = 0; index < nextItems.length; index++) {
-          const item = nextItems[index]!;
+      if (orderedRows.length === itemsArr.length) {
+        for (let index = 0; index < itemsArr.length; index++) {
+          const item = itemsArr[index]!;
           const row = orderedRows[index]!;
           const sameItem = Object.is(row.__auwlaItem, item);
           const key = sameItem ? row.__auwlaKey : keyOf(item, index);
@@ -286,11 +287,11 @@ export function __keyedMap<TItem, TKey>(
 
         if (
           mismatchB >= 0
-          && Object.is(orderedRows[mismatchA]!.__auwlaKey, keyOf(nextItems[mismatchB]!, mismatchB))
-          && Object.is(orderedRows[mismatchB]!.__auwlaKey, keyOf(nextItems[mismatchA]!, mismatchA))
+          && Object.is(orderedRows[mismatchA]!.__auwlaKey, keyOf(itemsArr[mismatchB]!, mismatchB))
+          && Object.is(orderedRows[mismatchB]!.__auwlaKey, keyOf(itemsArr[mismatchA]!, mismatchA))
         ) {
-          const leftItem = nextItems[mismatchA]!;
-          const rightItem = nextItems[mismatchB]!;
+          const leftItem = itemsArr[mismatchA]!;
+          const rightItem = itemsArr[mismatchB]!;
           const leftRow = orderedRows[mismatchA]!;
           const rightRow = orderedRows[mismatchB]!;
           const leftDeps = depsOf ? depsOf(leftItem, mismatchA) : null;
@@ -322,11 +323,11 @@ export function __keyedMap<TItem, TKey>(
       const nextRows = new Map<TKey, AuwlaRowBlock<TItem>>();
       // Snapshot the old ordered rows before we overwrite them.
       const oldOrderedRows = orderedRows.slice();
-      let orderChanged = oldOrderedRows.length !== nextItems.length;
+      let orderChanged = oldOrderedRows.length !== itemsArr.length;
       orderedRows.length = 0;
 
-      for (let index = 0; index < nextItems.length; index++) {
-        const item = nextItems[index]!;
+      for (let index = 0; index < itemsArr.length; index++) {
+        const item = itemsArr[index]!;
         const key = keyOf(item, index);
         const deps = depsOf ? depsOf(item, index) : null;
         let row = rows.get(key);
