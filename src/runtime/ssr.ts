@@ -7,6 +7,8 @@
 
 
 
+import { runWithHeadStore, getCollectedHeadTags } from '../head/provider';
+
 if (typeof globalThis.Node === 'undefined') {
   class MockNode {
     static ELEMENT_NODE = 1;
@@ -329,7 +331,7 @@ export async function renderToString(
   data: Record<string, unknown>;
   status?: number;
   redirect?: string;
-  headTags?: string[];
+  headTags: string[];
 }> {
   const pathname = new URL(url, 'http://localhost').pathname + new URL(url, 'http://localhost').search;
   setCurrentPath(pathname);
@@ -360,10 +362,10 @@ export async function renderToString(
   const previousRenderState = runtimeState.activeRenderState;
   const renderState = createRenderState();
 
-  // Pass the dispatcher directly as part of the initial ALS store so it is
-  // available the moment the run() callback executes. The ALS scope handles
-  // cleanup automatically — no save/restore dance needed.
-  return trackStorage.run({ registry: new Map(), componentTracks: new Map(), rpcDispatcher: dispatcher }, () => {
+  // Wrap the entire ALS chain in a head store scope so every <Head> rendered
+  // during this request appends to the same isolated tag list.
+  return runWithHeadStore(() =>
+  trackStorage.run({ registry: new Map(), componentTracks: new Map(), rpcDispatcher: dispatcher }, () => {
     return routerStorage.run({
       currentContext: null,
       pendingContext: null,
@@ -439,7 +441,7 @@ export async function renderToString(
 
         html += scriptTag;
 
-        return { html, matched, data: trackData };
+        return { html, matched, data: trackData, headTags: getCollectedHeadTags() };
       } finally {
         setRpcRoutePath(prevPath);
         setRpcRouteParams(prevParams);
@@ -452,5 +454,5 @@ export async function renderToString(
         __resetTrackRegistry();
       }
     });
-  });
+  }));
 }

@@ -37,7 +37,8 @@ export default defineConfig({
         'adapters/fetch': resolve(__dirname, 'src/adapters/fetch.ts'),
         'adapters/hono': resolve(__dirname, 'src/adapters/hono.ts'),
         'adapters/bun': resolve(__dirname, 'src/adapters/bun.ts'),
-        'adapters/express': resolve(__dirname, 'src/adapters/express.ts')
+        'adapters/express': resolve(__dirname, 'src/adapters/express.ts'),
+        'head/index': resolve(__dirname, 'src/head/index.ts'),
       },
       output: {
         entryFileNames: '[name].js',
@@ -87,6 +88,7 @@ export default defineConfig({
       { find: /^auwla\/events$/, replacement: resolve(__dirname, 'src/events/index.ts') },
       { find: 'auwla/track', replacement: resolve(__dirname, 'src/track/index.ts') },
       { find: 'auwla/router', replacement: resolve(__dirname, 'src/router/index.ts') },
+      { find: 'auwla/head', replacement: resolve(__dirname, 'src/head/index.ts') },
       { find: /^auwla$/, replacement: resolve(__dirname, 'src/index.ts') }
     ]
   },

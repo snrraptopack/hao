@@ -59,6 +59,10 @@
       "types": "./dist/router/index.d.ts",
       "import": "./dist/router/index.js"
     },
+    "./head": {
+      "types": "./dist/head/index.d.ts",
+      "import": "./dist/head/index.js"
+    },
     "./vite-router": {
       "types": "./dist/vite-router/index.d.ts",
       "import": "./dist/vite-router/index.js"
