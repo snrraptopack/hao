@@ -16,12 +16,5 @@ export const getDocHtml = remote.get(async () => {
   const rawMarkdown = readFileSync(filePath, 'utf-8');
   const { html } = await mdParser.parse(rawMarkdown);
 
-  // Extract title from slug or markdown header
-  let title = slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  const match = rawMarkdown.match(/^#\s+(.+)$/m);
-  if (match && match[1]) {
-    title = match[1].trim();
-  }
-
-  return { html, title };
+  return html;
 });

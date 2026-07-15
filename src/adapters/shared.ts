@@ -86,15 +86,9 @@ export async function ssrRender(
 
   // Mark the #app root with data-auwla-ssr so the client runtime knows SSR
   // content is present and can hydrate instead of wiping the DOM on mount.
-  let page = template
+  const page = template
     .replace('id="app"', 'id="app" data-auwla-ssr="true"')
     .replace('<!--app-html-->', result.html)
-
-  // Inject collected head tags (like title, metas, links, etc.)
-  if (result.headTags && result.headTags.length > 0) {
-    const headHtml = result.headTags.join('\n')
-    page = page.replace('</head>', `${headHtml}\n</head>`)
-  }
 
   return new Response(page, {
     headers: { 'content-type': 'text/html; charset=utf-8' },

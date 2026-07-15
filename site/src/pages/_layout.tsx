@@ -8,7 +8,7 @@ export default function RootLayout(Child: RouteComponent) {
   return () => (
     <div class="min-h-screen bg-white flex flex-col">
       {/* Top Navbar */}
-      <header class="sticky top-0 z-50 bg-white/80  shrink-0">
+      <div class="sticky top-0 z-50 bg-white/80  shrink-0">
         <div class="mx-auto max-w-[1400px] px-6 h-16 flex items-center justify-between">
           <Link href="/" class="flex items-center gap-2">
             <svg class="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
@@ -68,7 +68,7 @@ export default function RootLayout(Child: RouteComponent) {
             </a>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Dynamic page content */}
       <Child />

@@ -46,8 +46,7 @@ export const docCategories: NavCategory[] = [
       { label: "Router Utilities", href: "/docs/:slug", slug: "router-utils" },
       { label: "Error Component", href: "/docs/:slug", slug: "error-component" },
       { label: "Page Exports", href: "/docs/:slug", slug: "page-exports" },
-      { label: "Rendering Modes", href: "/docs/:slug", slug: "rendering-modes" },
-      { label: "Head Management", href: "/docs/:slug", slug: "head-management" }
+      { label: "Rendering Modes", href: "/docs/:slug", slug: "rendering-modes" }
     ]
   },
   {

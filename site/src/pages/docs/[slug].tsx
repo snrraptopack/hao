@@ -5,15 +5,13 @@ import { getDocHtml } from './[slug].server';
 
 type State = {
   html: string
-  title: string
 }
 
 export async function routed(ctx: RouteContext<any, State>, signal: AbortSignal) {
   let html = ctx.state.html
-  if (html) return { html, title: ctx.state.title }
+  if (html) return html
   const result = await track.get(getDocHtml, { signal });
-  ctx.state.html = result.html
-  ctx.state.title = result.title
+  ctx.state.html = result
   return result
 }
 
@@ -21,9 +19,7 @@ export async function routed(ctx: RouteContext<any, State>, signal: AbortSignal)
 
 export default function DocPage() {
   const loader = getRouted(routed);
-  const data = loader?.value;
-  const html = data?.html || '';
-  const title = data?.title || 'Documentation';
+  const html = loader?.value || '';
   let isCopied = false;
 
   const handleCopy = () => {
@@ -38,11 +34,6 @@ export default function DocPage() {
 
   return () => (
     <div class="relative w-full">
-      <head>
-        <title>Auwla - {title}</title>
-        <meta name="description" content={`Auwla documentation: ${title}`} />
-      </head>
-
       <div class="absolute right-0 top-0 flex items-center gap-2 z-10">
         <button
           onClick={handleCopy}

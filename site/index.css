@@ -44,6 +44,42 @@ html.suspended .doc-content {
   transition: opacity 0.25s ease;
 }
 
+/* Override the browser's default black-background flash that appears when
+   document.startViewTransition() runs without explicit animation rules.
+   Without these, the browser clears the viewport to black between snapshots. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.2s;
+  animation-timing-function: ease;
+}
+
+@keyframes vt-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: vt-fade-out 0.2s ease forwards;
+  }
+  ::view-transition-new(root) {
+    animation: vt-fade-in 0.2s ease forwards;
+  }
+}
+
+/* For users who prefer reduced motion — instant cut, no flash */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 /* 1. Setup the invisible bar at the top of the screen */
 body::before {
   content: "";
