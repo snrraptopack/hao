@@ -506,6 +506,44 @@ function findReplacements(
     return false;
   }
 
+  function getFunctionName(node: ts.Node): string | null {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      return node.name.text;
+    }
+    if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
+      return node.parent.name.text;
+    }
+    return null;
+  }
+
+  function isAsyncOrTimerCallback(node: ts.Node): boolean {
+    const isAsync = (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node))
+      ? node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false
+      : false;
+    if (isAsync) return true;
+
+    let parent = node.parent;
+    if (parent && ts.isParenthesizedExpression(parent)) {
+      parent = parent.parent;
+    }
+
+    if (parent && ts.isCallExpression(parent)) {
+      const expr = parent.expression;
+      if (ts.isIdentifier(expr)) {
+        const name = expr.text;
+        if (name === 'setTimeout' || name === 'setInterval' || name === 'queueMicrotask' || name === 'requestAnimationFrame') {
+          return true;
+        }
+      } else if (ts.isPropertyAccessExpression(expr)) {
+        const name = expr.name.text;
+        if (name === 'then' || name === 'catch' || name === 'finally') {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function extractSetupStatements(
     node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
   ): ts.Statement[] {
@@ -543,10 +581,11 @@ function findReplacements(
       // Wrap helper functions inside component setups that perform local mutations.
       // Skip functions that are used directly as JSX event handlers — the event
       // path already invalidates the component, so __commit would be redundant.
-      const isEventHandler =
-        ts.isFunctionDeclaration(node) && node.name && eventHandlerNames.has(node.name.text);
+      const funcName = getFunctionName(node);
+      const isEventHandler = funcName ? eventHandlerNames.has(funcName) : false;
+      const isTimerOrPromise = isAsyncOrTimerCallback(node);
       const isAsyncEventHandler = isEventHandler && isAsync;
-      const shouldWrap = !isEventHandler || isAsyncEventHandler;
+      const shouldWrap = isAsyncEventHandler || (!isEventHandler && isTimerOrPromise);
 
       if (activeSelfName && activeLocals && node.body && ts.isBlock(node.body) && shouldWrap) {
         if (mutatesLocals(node.body, activeLocals) && !hasCommitCall(node.body, activeSelfName)) {

@@ -86,7 +86,7 @@ describe('automatic commit wrappers', () => {
     expect(compiled).not.toContain('finally {\n    __commit(self);\n  }');
   });
 
-  it('automatically wraps nested callbacks inside helper functions', () => {
+  it('automatically wraps nested callbacks inside helper functions but skips synchronous parent helper', () => {
     const source = `
       function App() {
         const self = component();
@@ -107,8 +107,9 @@ describe('automatic commit wrappers', () => {
     const compiled = compileAuwla(source);
     const tryCount = (compiled.match(/try \{/g) || []).length;
     const commitCount = (compiled.match(/__commit\(self\)/g) || []).length;
-    expect(tryCount).toBe(2);
-    expect(commitCount).toBe(2);
+    // update is a synchronous helper, so only the setTimeout callback gets wrapped.
+    expect(tryCount).toBe(1);
+    expect(commitCount).toBe(1);
   });
 
   it('automatically wraps await expressions inside async helper functions', () => {
@@ -161,6 +162,65 @@ describe('automatic commit wrappers', () => {
         }
 
         return () => <button onClick={() => increment()}>{count}</button>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).not.toContain('__commit(self)');
+  });
+
+  it('does not wrap arrow-function event handlers used in JSX', () => {
+    const source = `
+      function App() {
+        const self = component();
+        let count = 0;
+
+        const handleIncrement = () => {
+          count++;
+        };
+
+        return () => <button onClick={handleIncrement}>{count}</button>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).not.toContain('__commit(self)');
+  });
+
+  it('does not wrap plain synchronous helper functions', () => {
+    const source = `
+      function App() {
+        const self = component();
+        let activityLogs = [];
+
+        const logActivity = (msg) => {
+          activityLogs = [msg, ...activityLogs];
+        };
+
+        return () => <div>{activityLogs.length}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).not.toContain('__commit(self)');
+  });
+
+  it('does not wrap plain synchronous custom callbacks/options', () => {
+    const source = `
+      function App() {
+        const self = component();
+        let wsStatus = 'DISCONNECTED';
+
+        const _ws = new WebSocket({
+          onStatusChange: (status) => {
+            wsStatus = status;
+          }
+        });
+
+        return () => <div>{wsStatus}</div>;
       }
       exports.App = App;
     `;

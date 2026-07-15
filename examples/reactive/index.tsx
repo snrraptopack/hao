@@ -1,4 +1,4 @@
-import { togglePlain, toggleReactive } from './store';
+import { togglePlain, toggleReactive ,store} from './store';
 import { Display, SiblingDisplay } from './display';
 
 export function ReactiveDemo() {
@@ -9,11 +9,11 @@ export function ReactiveDemo() {
     return (
       <div style={{ fontFamily: 'sans-serif', maxWidth: '600px', margin: '40px auto' }}>
         <h2>Reactive vs Plain Variable Demo</h2>
-        
+
         <p style={{ color: '#666' }}>
           Click the buttons to trigger updates directly:
         </p>
-        
+
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
             onClick={togglePlain}
@@ -44,11 +44,26 @@ export function ReactiveDemo() {
           >
             Toggle Reactive Theme
           </button>
+
+          <button
+            onClick={()=>store.toggleTheme()}
+            style={{
+              padding: '10px 20px',
+              fontSize: '16px',
+              backgroundColor: '#28a745',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Toggle Class Theme
+          </button>
         </div>
 
         <Display />
         <SiblingDisplay />
-        
+
         <div style={{ marginTop: '20px', fontSize: '14px', color: '#555' }}>
           <h5>What to observe:</h5>
           <ul>

@@ -1,4 +1,4 @@
-import { reactive } from 'auwla';
+import { reactive,commit } from 'auwla';
 
 export const reactiveTheme = reactive('light');
 export let plainTheme = 'light';
@@ -17,3 +17,18 @@ export function toggleReactive() {
   console.log('Plain Theme value in store:    ', plainTheme);
   console.log('Reactive Theme value in store: ', reactiveTheme.get());
 }
+
+class Store {
+  #theme = 'light'
+
+  get theme(){
+    return this.#theme
+  }
+
+  toggleTheme() {
+    this.#theme = this.#theme === "light" ? "dark" : "light"
+    commit()
+  }
+}
+
+export const store = new Store()

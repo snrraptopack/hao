@@ -1,4 +1,4 @@
-import { reactiveTheme, plainTheme } from './store';
+import { reactiveTheme, plainTheme,store } from './store';
 
 export function Display() {
   console.log('Display component setup run (only once)');
@@ -15,6 +15,7 @@ export function Display() {
         <h4>First Display Component</h4>
         <p>Reactive Theme: <span style={{ color: 'green', fontWeight: 'bold' }}>{reactiveTheme.get()}</span></p>
         <p>Plain Theme: <span style={{ color: 'red', fontWeight: 'bold' }}>{plainTheme}</span></p>
+        <p>Class Theme <span style={{ color: 'red', fontWeight: 'bold' }}>{store.theme}</span></p>
       </div>
     );
   };
@@ -36,6 +37,7 @@ export function SiblingDisplay() {
         <h4>Sibling Display Component (Isolated)</h4>
         <p>Reactive Theme: <span style={{ color: 'green', fontWeight: 'bold' }}>{reactiveTheme.get()}</span></p>
         <p>Plain Theme: <span style={{ color: 'red', fontWeight: 'bold' }}>{plainTheme}</span></p>
+         <p>Class Theme: <span style={{ color: 'red', fontWeight: 'bold' }}>{store.theme}</span></p>
       </div>
     );
   };
