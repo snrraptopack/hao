@@ -1,5 +1,6 @@
 import type { Plugin } from 'vite';
 import ts from 'typescript';
+import path from 'path';
 import { compileAuwla } from '../compiler';
 import type { AuwlaConfig } from '../config';
 import { getAuwlaConfig } from './config-loader';
@@ -151,6 +152,7 @@ function rewriteClientMount(code: string, file: string, mode: ClientMountRewrite
 
 export function auwla(options: AuwlaViteOptions = {}): Plugin {
   let viteConfig: any;
+  let resolvedPagesDir = '';
 
   return {
     name: 'auwla',
@@ -184,6 +186,9 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
       const root = config.root || process.cwd();
       const loadedOptions = await getAuwlaConfig(root, env);
       Object.assign(options, loadedOptions);
+
+      const pagesDir = options.directories?.pages || 'src/pages';
+      resolvedPagesDir = path.resolve(root, pagesDir);
 
       return {
         ssr: {
@@ -258,7 +263,8 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
             compiled = rewriteClientMount(compiled, file, 'islands');
           }
         }
-        compiled = compileAuwla(compiled, file, { ssr, islands });
+        const isPage = resolvedPagesDir ? path.resolve(file).startsWith(resolvedPagesDir) : false;
+        compiled = compileAuwla(compiled, file, { ssr, islands, isPage });
 
         if (compiled === code) {
           const marker = markerCode(false, debugFlag);

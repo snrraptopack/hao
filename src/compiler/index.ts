@@ -16,6 +16,8 @@ import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTrackin
 export type CompileOptions = {
   ssr?: boolean;
   islands?: boolean;
+  file?: string;
+  isPage?: boolean;
 };
 
 const EVENT_ATTR_PATTERN = /^on[A-Z]/;
@@ -922,7 +924,7 @@ export function compileAuwla(sourceText: string, fileName = 'input.tsx', options
   // Pass 2: Compile Auwla DOM blocks
   const source2 = ts.createSourceFile(fileName, textWithSites, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const eventHandlerNames = collectEventHandlerIdentifiers(source2);
-  const replacements = findReplacements(source2, skipCompile, eventHandlerNames, options);
+  const replacements = findReplacements(source2, skipCompile, eventHandlerNames, { ...options, file: fileName });
 
   if (replacements.length === 0 && siteReplacements.length === 0) return sourceText;
 

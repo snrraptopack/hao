@@ -337,7 +337,14 @@ export function compileTemplateRootBlock(
     // their `Child` parameter is a function reference that cannot be serialized
     // to JSON props. hydrateIslands would call Layout({}) which gives Child={}.
     // rendering `<Child />` as `createElement('[object Object]')` and crashing.
-    if (options?.islands && containingFunction && detectComponentReactivity(containingFunction, derivedCtx) && !isLayoutComponent(containingFunction)) {
+    const isPage = options?.isPage === true;
+    const isDefaultExport = containingFunction && (
+      ts.isExportAssignment(containingFunction) || 
+      (containingFunction.parent && ts.isExportAssignment(containingFunction.parent)) ||
+      (componentNameFromFunction(containingFunction) === 'default')
+    );
+
+    if (options?.islands && containingFunction && detectComponentReactivity(containingFunction, derivedCtx) && !isLayoutComponent(containingFunction) && !(isPage && isDefaultExport)) {
       const componentName = componentNameFromFunction(containingFunction) || 'default';
       const propsExpr = extractPropsExpression((containingFunction as any).parameters || []);
       // Empty shell — the client will mount fresh DOM inside this boundary.

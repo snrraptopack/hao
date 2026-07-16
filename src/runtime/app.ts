@@ -21,7 +21,6 @@ import { sameDeps } from '../shared/deps';
 import { createMemoElement, toNode } from './dom';
 import { runInstanceCleanups } from './component';
 import { patchRoot } from './patch';
-import { hydrateIslands } from './islands';
 import {
   clearComponentComputedGetters,
   clearComponentEffects,
@@ -134,7 +133,7 @@ export function createMemoApp<TModel>(
     root.hasAttribute('data-auwla-ssr') &&
     root.querySelector('[data-auwla-island]')
   ) {
-    hydrateIslands();
+    import('./islands').then(({ hydrateIslands }) => hydrateIslands());
   }
 
   const cache = new Map<string | number, MemoEntry>();
