@@ -1,3 +1,7 @@
+=<Header>
+title: Runtime API Reference
+=</Header>
+
 # Runtime API Reference
 
 This page lists the public exports from `auwla` and its subpackages. Internal compiler-runtime helpers (prefixed with `__`) are used by generated code and can be ignored in normal apps.

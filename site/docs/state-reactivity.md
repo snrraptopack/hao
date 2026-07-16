@@ -1,3 +1,7 @@
+=<Header>
+title: State & Reactivity
+=</Header>
+
 # State & Reactivity
 
 Before learning how Auwla approaches state, it helps to slow down and look at what the web already gives us, and ask honestly whether we have been working with it or around it.

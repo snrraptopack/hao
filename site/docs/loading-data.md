@@ -1,3 +1,7 @@
+=<Header>
+title: Loading Data
+=</Header>
+
 # Loading Data
 
 Auwla integrates routing and async data fetching into a single unified step. 

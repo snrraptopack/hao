@@ -1,3 +1,7 @@
+=<Header>
+title: What the Compiler Can't See
+=</Header>
+
 # What the Compiler Can't See
 
 Auwla is designed so that standard asynchronous mutations "just work" without wrappers or manual setup. However, because Auwla's reactivity relies on static compile-time analysis, there are boundaries where the compiler cannot trace changes.

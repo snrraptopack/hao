@@ -1,3 +1,7 @@
+=<Header>
+title: Middlewares
+=</Header>
+
 # Middlewares
 
 Auwla includes a type-safe middleware pipeline to run interceptors (such as logging, database connection setup, authentication, or input validations) around your server functions.

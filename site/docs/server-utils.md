@@ -1,3 +1,7 @@
+=<Header>
+title: Server Utilities
+=</Header>
+
 # Server Utilities
 
 Auwla provides server-side helper functions, contextual getters, request parsers, and semantic error classes under the `'auwla/server'` namespace to streamline backend development, prevent parameter drilling, and manage errors cleanly.

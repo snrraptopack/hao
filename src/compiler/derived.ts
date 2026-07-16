@@ -506,7 +506,7 @@ export function buildDerivedContext(
 
   // Rewrite references to derived getters: pendingTodos -> pendingTodos()
   function expand(expression: string): string {
-    const sourceFile = ts.createSourceFile('temp.ts', expression, ts.ScriptTarget.Latest, true);
+    const sourceFile = ts.createSourceFile('temp.tsx', expression, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const replacements: Array<{ start: number; end: number; text: string }> = [];
     const shadowedStack = [new Set<string>()];
 
@@ -557,6 +557,15 @@ export function buildDerivedContext(
             isPropName = true;
           }
           if (ts.isJsxAttribute(node.parent) && node.parent.name === node) {
+            isPropName = true;
+          }
+          if (ts.isJsxOpeningElement(node.parent) && node.parent.tagName === node) {
+            isPropName = true;
+          }
+          if (ts.isJsxClosingElement(node.parent) && node.parent.tagName === node) {
+            isPropName = true;
+          }
+          if (ts.isJsxSelfClosingElement(node.parent) && node.parent.tagName === node) {
             isPropName = true;
           }
 

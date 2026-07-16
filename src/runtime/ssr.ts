@@ -331,7 +331,7 @@ export async function renderToString(
   data: Record<string, unknown>;
   status?: number;
   redirect?: string;
-  headTags: string[];
+  headTags?: string[];
 }> {
   const pathname = new URL(url, 'http://localhost').pathname + new URL(url, 'http://localhost').search;
   setCurrentPath(pathname);

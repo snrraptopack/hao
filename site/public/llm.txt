@@ -1,6 +1,6 @@
 ========================================================================
 AUWLA FRAMEWORK DOCUMENTATION (LLM CONTEXT)
-Generated: 2026-07-14T14:35:26.207Z
+Generated: 2026-07-16T00:44:31.868Z
 ========================================================================
 
 
@@ -1051,6 +1051,123 @@ function logoutUser() {
 ```
 
 You will rarely need the global `commit()` in regular component development, but it is extremely useful for high-level event bus handlers or global state libraries.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Shared & Global State (shared-state.md)
+------------------------------------------------------------------------
+
+# Shared & Global State
+
+Sharing state across components is a common architectural pattern. However, because Auwla's reactivity system relies on compiler-driven tracking of local variables, you cannot share state by simply importing a raw variable from another file.
+
+---
+
+## The Plain Variable Import Pitfall
+
+If you declare a mutable variable inside an external JavaScript/TypeScript file and import it directly into your component templates:
+
+```typescript
+// ❌ WRONG: Auwla will not detect mutations to plain imported variables!
+// src/stores/theme.ts
+export let sharedTheme = 'light';
+
+export function toggleTheme() {
+  sharedTheme = sharedTheme === 'light' ? 'dark' : 'light';
+}
+```
+
+Because the compiler only scans and processes component TSX files, it cannot trace or wrap changes occurring inside plain external modules. Mutating `sharedTheme` directly will cause component displays to become stale and fail to re-render.
+
+To solve this and share state reliably, Auwla supports two distinct patterns:
+
+---
+
+## Approach 1: The Shared Class Store (Zero API approach)
+
+You can share state using standard JavaScript classes. Wrap your state inside properties, declare getters and setters, and export a single instance of the class. 
+
+**This approach requires no observables, no signals, no state wrappers, and no imports from Auwla:**
+
+```typescript
+// src/stores/theme.ts
+class ThemeStore {
+  private _theme = 'light';
+
+  get theme() {
+    return this._theme;
+  }
+
+  toggle() {
+    this._theme = this._theme === 'light' ? 'dark' : 'light';
+  }
+}
+
+// Export a single instance to share across the application
+export const themeStore = new ThemeStore();
+```
+
+Inside your components, simply import and read/write properties on the shared instance:
+
+```tsx
+// src/components/ThemeSwitcher.tsx
+import { themeStore } from '../stores/theme';
+
+export default function ThemeSwitcher() {
+  return (
+    <button onClick={() => themeStore.toggle()}>
+      Theme is: {themeStore.theme}
+    </button>
+  );
+}
+```
+
+### Why it works:
+Because Auwla compiles JSX event handlers with automatic invalidation boundaries, when the user clicks the button and mutates the class store via `themeStore.toggle()`, the component automatically re-renders to reflect the new getter value. There is no state management library boilerplate required!
+
+---
+
+## Approach 2: The `reactive` Helper (Granular Subscriptions)
+
+Auwla exports a `reactive` cell helper. While originally created for internal router path coordination, it is fully exposed for developers who require granular state tracking.
+
+A reactive cell manages subscriptions automatically based on who reads it:
+
+```typescript
+// src/stores/theme.ts
+import { reactive } from 'auwla';
+
+// 1. Initialize the reactive cell
+export const themeCell = reactive('light');
+
+export function toggleTheme() {
+  const next = themeCell.get() === 'light' ? 'dark' : 'light';
+  // 2. Set the new value, notifying only subscribed components
+  themeCell.set(next);
+}
+```
+
+To consume the state, import the cell and call `.get()` inside your component template:
+
+```tsx
+// src/components/Display.tsx
+import { themeCell, toggleTheme } from '../stores/theme';
+
+export default function Display() {
+  // Calling themeCell.get() registers this component as a subscriber.
+  // When themeCell.set() is called, ONLY components calling get() re-render.
+  return (
+    <div>
+      <p>Theme value: {themeCell.get()}</p>
+      <button onClick={toggleTheme}>Toggle Theme</button>
+    </div>
+  );
+}
+```
+
+### Why use this?
+*   **Targeted re-renders**: Updates are scoped exclusively to the specific components that currently read the reactive cell.
+*   **Implicit subscriptions**: Subscriptions are handled transparently at render-time, requiring no manual event hooks or cleanup.
 
 
 ------------------------------------------------------------------------
@@ -2712,6 +2829,56 @@ During build:
 1. Auwla's Vite compiler scans `config.generatePaths()`.
 2. It generates URLs for each entry: `/posts/1`, `/posts/2`, and `/posts/3`.
 3. It executes the `routed` functions, resolves the data, runs the SSR renderer, and outputs static HTML files directly inside your `dist/` directory.
+
+
+------------------------------------------------------------------------
+DOCUMENT: Head Management (head-management.md)
+------------------------------------------------------------------------
+
+# Head Management
+
+Auwla supports native, type-safe HTML `<head>` tag hoisting directly inside your JSX pages and components. There's no need for external libraries or custom wrappers—just use the standard HTML `<head>` tag and its children (`<title>`, `<meta>`, `<link>`, etc.) anywhere in your component tree.
+
+```tsx
+export default function BlogPost() {
+  return (
+    <div>
+      <head>
+        <title>Auwla - Isomorphic Head Management</title>
+        <meta name="description" content="Auwla handles head elements natively!" />
+        <link rel="canonical" href="https://auwla.dev/blog" />
+      </head>
+      
+      <main>
+        <h1>Dynamic Head Hoisting</h1>
+        <p>Auwla handles head elements on both the server and client automatically.</p>
+      </main>
+    </div>
+  );
+}
+```
+
+---
+
+## How It Works
+
+### Server-Side Rendering (SSR) & Static Site Generation (SSG)
+During SSR/SSG rendering, the engine intercepts any `<head>` tags encountered in the component tree, extracts their children, and merges them into the main HTML shell's `<head>` tag before serving the response. This ensures correct SEO metadata, title, and social share links are immediately visible to crawlers and search engine bots.
+
+### Client-Side Navigation (CSR)
+On the client, when a component containing a `<head>` tag mounts or is navigated to, Auwla automatically hoists all its child tags into the browser's real `document.head`. 
+
+### Automatic Cleanup
+When the component unmounts or you navigate to a different route, Auwla automatically cleans up the previous route's hoisted head tags. This prevents metadata leaks, duplicate tags, or stale page titles on transition.
+
+---
+
+## Router Accessibility & Title Synchronization
+
+Auwla's router integrates with head management to deliver accessibility features out-of-the-box:
+
+*   **Title Synchronization:** If a route is configured with a `meta.title` property in your routing definition, the router automatically updates the browser tab title (`document.title`) on transitions.
+*   **Automatic Focus Reset:** On route transitions, the router automatically shifts keyboard focus to the first `<main>` element, `<h1>` heading, or the application container. This prompts screen readers to announce the new page content immediately.
 
 
 ========================================================================

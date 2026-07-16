@@ -1,3 +1,7 @@
+=<Header>
+title: Page Exports
+=</Header>
+
 # Page Exports
 
 Auwla routes use named exports inside page files (`src/pages/**/*.tsx`) to declare loading boundaries, authorization rules, static configurations, metadata, and rendering behaviors.

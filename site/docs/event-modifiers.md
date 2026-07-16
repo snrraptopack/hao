@@ -1,3 +1,7 @@
+=<Header>
+title: Event Modifiers
+=</Header>
+
 # Event Modifiers
 
 Auwla features a powerful, chainable event builder API that keeps your JSX clean and declarative. 

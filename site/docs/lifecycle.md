@@ -1,3 +1,7 @@
+=<Header>
+title: Component Lifecycle
+=</Header>
+
 # Component Lifecycle
 
 An Auwla component has three moments: it **mounts** (setup runs once), it **re-renders** (the render closure runs again), and it **unmounts** (removed from the tree). Knowing what happens at each moment lets you manage timers, subscriptions, and global listeners without leaks.

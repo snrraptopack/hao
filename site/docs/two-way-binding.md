@@ -1,3 +1,7 @@
+=<Header>
+title: Two-Way Data Binding
+=</Header>
+
 # Two-Way Data Binding
 
 Auwla features a compile-time `bind={variable}` syntax that simplifies working with form inputs. 

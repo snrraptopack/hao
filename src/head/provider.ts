@@ -25,6 +25,7 @@ const headStorage = new AsyncLocalStorage<HeadStore>();
  * @internal — called by `src/runtime/ssr.ts`
  */
 export function runWithHeadStore<T>(fn: () => T): T {
+  (globalThis as any).__auwla_headProvider = { addHeadTag };
   return headStorage.run({ tags: [] }, fn);
 }
 
@@ -52,6 +53,6 @@ export function getCollectedHeadTags(): string[] {
 // Expose via globalThis so Head.tsx can call addHeadTag without importing
 // server-only code (AsyncLocalStorage) into the client bundle.
 // This block runs once when this module is first imported on the server.
-if (typeof document === 'undefined') {
+if (typeof document === 'undefined' || !document.head) {
   (globalThis as any).__auwla_headProvider = { addHeadTag };
 }

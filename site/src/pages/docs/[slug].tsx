@@ -1,17 +1,20 @@
 import { getRouted, type RouteContext } from 'auwla/router';
 import { track } from 'auwla/track';
 import { getDocHtml } from './[slug].server';
+import { Head } from 'auwla/head';
 
 
 type State = {
-  html: string
+  html: string,
+  title: string
 }
 
 export async function routed(ctx: RouteContext<any, State>, signal: AbortSignal) {
   let html = ctx.state.html
-  if (html) return html
+  if (html) return { html, title: ctx.state.title }
   const result = await track.get(getDocHtml, { signal });
-  ctx.state.html = result
+  ctx.state.html = result.html
+  ctx.state.title = result.title
   return result
 }
 
@@ -19,7 +22,9 @@ export async function routed(ctx: RouteContext<any, State>, signal: AbortSignal)
 
 export default function DocPage() {
   const loader = getRouted(routed);
-  const html = loader?.value || '';
+  const data = loader?.value;
+  const html = data?.html || '';
+  const title = data?.title || 'Documentation';
   let isCopied = false;
 
   const handleCopy = () => {
@@ -32,8 +37,13 @@ export default function DocPage() {
     }
   };
 
-  return () => (
+  return(
     <div class="relative w-full">
+      <Head>
+        <title>Auwla - {title}</title>
+        <meta name="description" content={`Auwla documentation: ${title}`} />
+      </Head>
+
       <div class="absolute right-0 top-0 flex items-center gap-2 z-10">
         <button
           onClick={handleCopy}

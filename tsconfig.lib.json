@@ -26,7 +26,9 @@
     "src/client/rpc.ts",
     "src/adapters/**/*.ts",
     "src/shared/**/*.ts",
-    "src/server-manifest.d.ts"
+    "src/server-manifest.d.ts",
+    "src/head/**/*.ts",
+    "src/head/**/*.tsx"
   ],
   "exclude": [
     "node_modules",

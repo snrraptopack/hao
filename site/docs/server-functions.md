@@ -1,3 +1,7 @@
+=<Header>
+title: Server Functions
+=</Header>
+
 # Server Functions
 
 Auwla allows you to write backend code directly alongside your frontend views. By co-locating `.server.ts` files with your page templates, you can call database queries or external APIs securely without writing REST endpoints or manual fetch requests.

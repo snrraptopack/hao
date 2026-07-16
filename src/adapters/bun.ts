@@ -151,7 +151,7 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
       }
 
       // 4. SPA fallback: serve index.html for unmatched page navigations.
-      if (acceptsHtml) {
+      if (acceptsHtml && typeof Bun !== 'undefined') {
         const indexFile = Bun.file(`${staticDir}/index.html`)
         if (await indexFile.exists()) {
           return new Response(indexFile as any, {

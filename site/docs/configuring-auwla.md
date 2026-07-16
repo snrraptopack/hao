@@ -1,3 +1,7 @@
+=<Header>
+title: Configuring Auwla
+=</Header>
+
 # Configuring Auwla
 
 Auwla allows you to manage framework behaviors, folder structures, compilation rules, and rendering targets through a centralized config file in your project root.

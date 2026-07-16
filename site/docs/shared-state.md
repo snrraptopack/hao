@@ -1,3 +1,7 @@
+=<Header>
+title: Shared & Global State
+=</Header>
+
 # Shared & Global State
 
 Sharing state across components is a common architectural pattern. However, because Auwla's reactivity system relies on compiler-driven tracking of local variables, you cannot share state by simply importing a raw variable from another file.

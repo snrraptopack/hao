@@ -332,4 +332,23 @@ describe('known compiler limitations', () => {
     expect(compiled).toContain('<Tag');
     expect(compiled).not.toContain('__auwlaSite');
   });
+
+  test('does not rewrite JSX tag names matching derived variable names', () => {
+    const source = `
+      function App() {
+        let name = 'Auwla';
+        const title = name + '!';
+        exports.update = () => { name = 'Auwla2'; };
+        return () => <title>Auwla - {title}</title>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    // It should rewrite the derived variable reference {title} -> {title()}
+    // But it should NOT rewrite the JSX tag <title> -> <title()>
+    expect(compiled).toContain('title()');
+    expect(compiled).not.toContain('<title()');
+    expect(compiled).not.toContain('</title()');
+  });
 });

@@ -1,7 +1,7 @@
 import { defineConfig } from 'auwla/config';
 
 export default defineConfig({
-  target: 'ssr',
+  target: 'island',
   server: {
     entry: './src/server.ts'
   },

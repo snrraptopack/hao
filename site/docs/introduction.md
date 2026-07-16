@@ -1,3 +1,7 @@
+=<Header>
+title: Introduction to Auwla
+=</Header>
+
 # Introduction to Auwla
 
 Auwla is a tiny, typed DOM runtime for JSX apps with event-driven rerendering and DOM reuse.

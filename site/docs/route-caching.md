@@ -1,3 +1,7 @@
+=<Header>
+title: Route Caching
+=</Header>
+
 # Route Caching
 
 Auwla includes a built-in route-level caching system. It enables developers to store data and components directly in the route context, avoiding unnecessary network requests when navigating back and forth between pages.

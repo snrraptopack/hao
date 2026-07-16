@@ -1,3 +1,7 @@
+=<Header>
+title: Router Utilities
+=</Header>
+
 # Router Utilities
 
 Auwla exports a set of functional utilities to read the active location, query path parameters, check active states, build URLs, and register global lifecycle hooks.

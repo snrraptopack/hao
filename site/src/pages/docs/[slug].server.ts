@@ -7,14 +7,15 @@ export const getDocHtml = remote.get(async () => {
   const { slug } = getParams()
 
   const filePath = join(process.cwd(), 'docs', `${slug}.md`);
-  console.log(filePath)
 
   if (!existsSync(filePath)) {
     throw new NotFoundError(`Documentation page "${slug}" not found.`);
   }
 
   const rawMarkdown = readFileSync(filePath, 'utf-8');
-  const { html } = await mdParser.parse(rawMarkdown);
+  const { html, meta} = await mdParser.parse(rawMarkdown);
 
-  return html;
+  const title = meta.title as string
+
+  return { html, title };
 });

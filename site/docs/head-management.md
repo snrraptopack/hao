@@ -1,3 +1,7 @@
+=<Header>
+title: Head Management
+=</Header>
+
 # Head Management
 
 Auwla supports native, type-safe HTML `<head>` tag hoisting directly inside your JSX pages and components. There's no need for external libraries or custom wrappers—just use the standard HTML `<head>` tag and its children (`<title>`, `<meta>`, `<link>`, etc.) anywhere in your component tree.

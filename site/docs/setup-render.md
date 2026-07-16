@@ -1,3 +1,7 @@
+=<Header>
+title: How Rendering Works
+=</Header>
+
 # How Rendering Works
 
 You now know that state in Auwla is just a plain closure variable. The next question is: **how does re-rendering actually happen?**

@@ -1,3 +1,7 @@
+=<Header>
+title: Query Caching
+=</Header>
+
 # Query Caching
 
 Auwla includes a built-in Stale-While-Revalidate (SWR) query caching engine. By default, query cache entries are bound to route paths to avoid leaking memory, but you can configure custom scopes for global sharing and resource reusability.

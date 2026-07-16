@@ -1,3 +1,7 @@
+=<Header>
+title: Quick Start
+=</Header>
+
 # Quick Start
 
 Let's build a simple interactive component with Auwla to see how components, local state, and event-driven updates work in practice.

@@ -1,3 +1,7 @@
+=<Header>
+title: Error Component
+=</Header>
+
 # Error Component
 
 Auwla includes built-in hooks and layout wrappers to capture errors during data loading and rendering gracefully, protecting your application from crashing.

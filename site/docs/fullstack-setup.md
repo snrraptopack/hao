@@ -1,3 +1,7 @@
+=<Header>
+title: Fullstack Setup
+=</Header>
+
 # Fullstack Setup
 
 Auwla allows you to cleanly separate your backend setup from your bundler. By configuring a custom server entry file in `auwla.config.ts`, you can deploy your application on any platform by choosing the appropriate server adapter.

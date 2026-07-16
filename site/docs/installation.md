@@ -1,3 +1,7 @@
+=<Header>
+title: Installation
+=</Header>
+
 # Installation
 
 Get up and running with Auwla by installing the package and setting up your bundler and compiler configurations.

@@ -29,7 +29,7 @@
  */
 
 import { cleanup } from '../runtime/component';
-import { toNode } from '../runtime/dom';
+import * as dom from '../runtime/dom';
 import { isSsrNode } from '../runtime/types';
 import type { MemoChild } from '../runtime/types';
 
@@ -50,6 +50,16 @@ const VOID_TAGS = new Set([
  * This intentionally covers only what makes semantic sense inside <head>
  * (title, meta, link, script, style, …).
  */
+function escapeHtml(value: unknown): string {
+  if (value == null || typeof value === 'boolean') return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function serializeToHtml(child: MemoChild): string {
   if (child == null || child === false || child === true) return '';
   if (typeof child === 'string') return child;
@@ -57,6 +67,17 @@ function serializeToHtml(child: MemoChild): string {
 
   if (Array.isArray(child)) {
     return (child as MemoChild[]).map(serializeToHtml).join('');
+  }
+
+  // Handle mock DOM text and comment nodes during SSR fallback
+  if (child && typeof child === 'object' && 'nodeType' in child) {
+    const node = child as any;
+    if (node.nodeType === 3) {
+      return escapeHtml(node.textContent);
+    }
+    if (node.nodeType === 8) {
+      return `<!--${escapeHtml(node.textContent)}-->`;
+    }
   }
 
   if (isSsrNode(child)) {
@@ -105,7 +126,7 @@ type HeadProps = {
  */
 export function Head(props: HeadProps): () => MemoChild {
   // ── SSR path ──────────────────────────────────────────────────────────────
-  if (typeof document === 'undefined') {
+  if (typeof document === 'undefined' || !document.head) {
     // Serialize children to an HTML string and hand them to the provider.
     // The provider stores them in an AsyncLocalStorage scope; the adapter
     // retrieves them after renderToString and injects them into <head>.
@@ -115,11 +136,14 @@ export function Head(props: HeadProps): () => MemoChild {
         ? [props.children]
         : [];
 
-    const html = childArray.map(serializeToHtml).join('');
-
     const provider = (globalThis as any).__auwla_headProvider;
     if (provider && typeof provider.addHeadTag === 'function') {
-      provider.addHeadTag(html);
+      for (const child of childArray) {
+        const html = serializeToHtml(child);
+        if (html) {
+          provider.addHeadTag(html);
+        }
+      }
     }
 
     // Return an inert render closure — nothing is rendered into the body.
@@ -133,13 +157,21 @@ export function Head(props: HeadProps): () => MemoChild {
   const placeholder = document.createComment('auwla:head');
 
   /** Nodes currently hoisted into document.head by this instance. */
-  let hoisted: Node[] = [];
+  let hoisted: (Node | { restore(): void })[] = [];
+
+  const cleanupHoisted = () => {
+    for (const item of hoisted) {
+      if ('restore' in item && typeof item.restore === 'function') {
+        item.restore();
+      } else {
+        (item as Node).parentNode?.removeChild(item as Node);
+      }
+    }
+    hoisted = [];
+  };
 
   // Remove all hoisted nodes when the component unmounts (e.g. route change).
-  cleanup(() => {
-    for (const node of hoisted) node.parentNode?.removeChild(node);
-    hoisted = [];
-  });
+  cleanup(cleanupHoisted);
 
   return () => {
     // Read props.children here, not from the setup scope closure.
@@ -152,24 +184,60 @@ export function Head(props: HeadProps): () => MemoChild {
         : [];
 
     // Remove previously hoisted nodes before appending the new set.
-    for (const node of hoisted) node.parentNode?.removeChild(node);
-    hoisted = [];
+    cleanupHoisted();
 
-    // toNode handles TemplateNodes, RenderClosures, DOM Nodes, and primitives.
+    const hoistNode = (n: Node) => {
+      // Deduplicate <title>: replace existing title content instead of appending
+      if (n.nodeName.toLowerCase() === 'title') {
+        const existing = document.head.querySelector('title');
+        if (existing) {
+          const oldTitle = existing.textContent;
+          existing.textContent = n.textContent;
+          hoisted.push({
+            restore() {
+              existing.textContent = oldTitle;
+            }
+          });
+          return;
+        }
+      }
+
+      // Deduplicate <meta name="description">: replace content of existing instead of appending
+      if (n.nodeName.toLowerCase() === 'meta' && (n as HTMLMetaElement).name === 'description') {
+        const existing = document.head.querySelector('meta[name="description"]');
+        if (existing) {
+          const oldContent = existing.getAttribute('content');
+          existing.setAttribute('content', (n as HTMLMetaElement).getAttribute('content') || '');
+          hoisted.push({
+            restore() {
+              if (oldContent !== null) {
+                existing.setAttribute('content', oldContent);
+              } else {
+                existing.removeAttribute('content');
+              }
+            }
+          });
+          return;
+        }
+      }
+
+      document.head.appendChild(n);
+      hoisted.push(n);
+    };
+
+    // dom.toNode handles TemplateNodes, RenderClosures, DOM Nodes, and primitives.
     const flat = (childArray as MemoChild[]).flat(Infinity) as MemoChild[];
     for (const child of flat) {
       if (child == null || child === false || child === true) continue;
-      const node = toNode(child);
+      const node = dom.toNode(child);
       // DocumentFragment — append its children individually so we can track them.
       if (node instanceof DocumentFragment) {
         const nodes = Array.from(node.childNodes);
         for (const n of nodes) {
-          document.head.appendChild(n);
-          hoisted.push(n);
+          hoistNode(n);
         }
       } else {
-        document.head.appendChild(node);
-        hoisted.push(node);
+        hoistNode(node);
       }
     }
 

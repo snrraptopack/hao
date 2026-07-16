@@ -132,4 +132,30 @@ describe('renderToString', () => {
     expect(result.redirect).toBe('/login');
     expect(result.html).toBe('');
   });
+
+  it('collects and returns head tags from <Head> component', async () => {
+    (globalThis as any).document = undefined;
+    const { Head } = await import('../../src/head/Head');
+
+    function PageWithHead() {
+      return () => (
+        <div>
+          <Head>
+            <title>Auwla - Test Title</title>
+            <meta name="description" content="Test description" />
+          </Head>
+          <h1>Content</h1>
+        </div>
+      );
+    }
+
+    const routes: Route[] = [{ path: '/', component: PageWithHead as any }];
+    const manifest: ServerManifest = {};
+
+    const result = await renderToString('http://localhost/', routes, { manifest });
+
+    expect(result.html).toContain('<h1>Content</h1>');
+    expect(result.headTags).toContain('<title>Auwla - Test Title</title>');
+    expect(result.headTags).toContain('<meta name="description" content="Test description">');
+  });
 })

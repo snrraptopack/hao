@@ -1,3 +1,7 @@
+=<Header>
+title: File-Based Router
+=</Header>
+
 # File-Based Router
 
 Auwla features a client-side router built directly on top of Vite and the runtime's reactivity. 

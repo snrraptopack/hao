@@ -1,3 +1,7 @@
+=<Header>
+title: Link Component
+=</Header>
+
 # Link Component
 
 Auwla provides the `<Link>` component to handle declarative, client-side routing.

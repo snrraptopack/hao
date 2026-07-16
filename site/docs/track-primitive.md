@@ -1,3 +1,7 @@
+=<Header>
+title: Track Primitive
+=</Header>
+
 # Track Primitive
 
 Auwla provides the `track` primitive to observe the lifecycle of asynchronous operations (such as HTTP requests, file loaders, or timers) and update the DOM automatically when they resolve or fail.

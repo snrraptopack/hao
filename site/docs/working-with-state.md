@@ -1,3 +1,7 @@
+=<Header>
+title: Working With State
+=</Header>
+
 # Working With State
 
 State in Auwla is plain JavaScript. There are no wrappers to import, no constructors to call, and no markers to apply. A variable declared in the component setup scope is state. If it changes, the next render will reflect the new value.

@@ -1,3 +1,7 @@
+=<Header>
+title: Rendering Modes
+=</Header>
+
 # Rendering Modes
 
 Auwla supports flexible rendering architectures, allowing you to configure rendering modes globally or override them on a per-page level.
