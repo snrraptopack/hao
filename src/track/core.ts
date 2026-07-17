@@ -65,6 +65,14 @@ type TrackState = {
   promise: Promise<unknown> | null;
   stale?: boolean;
   /**
+   * Per-key run token. Every new run (either overload) and every cancel()
+   * bumps this; settle callbacks capture the token at run start and only
+   * apply their transition when it is still current. This is what stops a
+   * stale promise-overload run — which has no AbortController — from
+   * overwriting a newer run's state.
+   */
+  token: number;
+  /**
    * The route path that was active when this global remote query was first
    * started. Background syncs reuse this path so route-scoped queries don't
    * break when the user navigates away.
@@ -130,6 +138,7 @@ export function getOrCreate(key: string): TrackState {
       reason: undefined,
       controller: null,
       promise: null,
+      token: 0,
     };
     reg.set(key, state);
   }
@@ -354,6 +363,28 @@ export function hasPendingLoaders(): boolean {
   return false;
 }
 
+/**
+ * Cancel the in-flight run for a track state, if any.
+ *
+ * Bumps the run token so settle callbacks from the cancelled run become
+ * no-ops — this is what makes cancellation work for the promise overload,
+ * which has no AbortController to abort (B9). The status only flips back to
+ * 'idle' when the track is actually in-flight; a resolved/rejected track is
+ * left untouched.
+ */
+function cancelTrackState(state: TrackState | undefined): void {
+  if (!state) return;
+  state.token++;
+  if (state.controller) {
+    state.controller.abort();
+    state.controller = null;
+  }
+  // Notify subscribers that the track is no longer in-flight.
+  if (state.statusCell.get() === 'pending') {
+    state.statusCell.set('idle');
+  }
+}
+
 export function createHandle<T = unknown>(key: string, promise: Promise<T>): TrackHandle<T> {
   // Attach a no-op catch so that if the caller only reads reactive state
   // (.rejected / .reason) without ever awaiting the handle, the runtime
@@ -393,13 +424,7 @@ export function createHandle<T = unknown>(key: string, promise: Promise<T>): Tra
       return getRegistry().get(key)?.reason;
     },
     cancel() {
-      const state = getRegistry().get(key);
-      if (state?.controller) {
-        state.controller.abort();
-        state.controller = null;
-        // Notify subscribers that the track is no longer in-flight.
-        state.statusCell.set('idle');
-      }
+      cancelTrackState(getRegistry().get(key));
     },
     then<TResult1 = T, TResult2 = never>(
       onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null,
@@ -436,6 +461,9 @@ function runAsyncTrack(
   }
   const controller = new AbortController();
   state.controller = controller;
+  // Bump the run token so settle callbacks from any previous run (including
+  // promise-overload runs, which have no controller) become no-ops.
+  const token = ++state.token;
   // Replace the cell with a fresh instance so stale subscribers from a
   // previous run (e.g. a PostList rendered during an earlier navigation) are
   // NOT notified by this 'pending' transition — they subscribed to the OLD
@@ -446,6 +474,13 @@ function runAsyncTrack(
 
   const promise = fn(controller.signal).then(
     (value) => {
+      // B8: when this (aborted) run settles late, a NEWER run may already own
+      // the state. Only clear the controller and apply the transition if this
+      // callback's own controller is still the installed one — otherwise we
+      // would wipe the new run's controller and break handle.cancel().
+      if (state.token !== token || state.controller !== controller) {
+        return value;
+      }
       state.controller = null;
       if (controller.signal.aborted) {
         return undefined;
@@ -454,6 +489,9 @@ function runAsyncTrack(
       return value;
     },
     (reason) => {
+      if (state.token !== token || state.controller !== controller) {
+        return undefined;
+      }
       state.controller = null;
       if (controller.signal.aborted) {
         return undefined;
@@ -511,12 +549,16 @@ export function trackImpl(
     // state entry, but initialize at 'pending' directly for consistency.
     const state = getOrCreate(key);
     state.statusCell = reactive<TrackStatus>('pending');
+    const token = ++state.token;
     const promise = nameOrPromise.then(
       (value) => {
+        // Skip the transition if this run was cancelled before settling.
+        if (state.token !== token) return value;
         applyTransition(key, 'resolved', value, undefined, options);
         return value;
       },
       (reason) => {
+        if (state.token !== token) return undefined;
         applyTransition(key, 'rejected', undefined, reason, options);
         return undefined;
       },
@@ -586,8 +628,14 @@ export function trackImpl(
     }
     // Fresh cell — cuts off any stale subscribers from the previous run.
     state.statusCell = reactive<TrackStatus>('pending');
+    // B9: bump the per-key run token. Settle callbacks below only apply their
+    // transition while this token is still current, so a stale promise that
+    // settles after a same-name re-track (or after cancel()) cannot overwrite
+    // the fresh run's state.
+    const token = ++state.token;
     const promise = (maybePromiseOrFn as Promise<unknown>).then(
       (value) => {
+        if (state.token !== token) return value;
         applyTransition(key, 'resolved', value, undefined, options);
         return value;
       },
@@ -595,6 +643,9 @@ export function trackImpl(
         // Mark the handle as rejected for reactive component use (.rejected / .reason).
         // Re-throw so that `await track.get()` in a routed loader propagates the
         // error naturally — the Router catches it and renders the errorComponent.
+        // A stale run still rejects its own returned promise; it just must not
+        // touch the newer run's state.
+        if (state.token !== token) throw reason;
         applyTransition(key, 'rejected', undefined, reason, options);
         throw reason;
       },
@@ -609,6 +660,12 @@ export function trackImpl(
 
   const stateKey = key;
   const existing = getRegistry().get(stateKey);
+  // Serve a resolved global entry without re-running ONLY when it was seeded
+  // by hydrateTrackState (SSR payload) — such entries have no routePath yet.
+  // Entries produced by a real run always carry a routePath (stamped below),
+  // so every fresh track() call with an asyncFn re-runs the loader (B13:
+  // previously the 2nd visit to a route silently served stale data and only
+  // the 3rd re-ran).
   if (
     isGlobal &&
     existing &&
@@ -619,6 +676,15 @@ export function trackImpl(
     existing.routePath = getCurrentRoutePath();
     subscribeSetupComponent(existing.statusCell);
     return createHandle(stateKey, existing.promise);
+  }
+
+  if (isGlobal) {
+    // Mark this entry as produced by a real run so the hydration fast-path
+    // above never mistakes it for an SSR-seeded entry on the next visit.
+    const runState = getOrCreate(key);
+    if (!runState.routePath) {
+      runState.routePath = getCurrentRoutePath();
+    }
   }
 
   const promise = runAsyncTrack(key, fn, options);
@@ -685,13 +751,7 @@ export function cancel(name?: string): void {
     return;
   }
   const key = makeKey(name);
-  const state = getRegistry().get(key);
-  if (state?.controller) {
-    state.controller.abort();
-    state.controller = null;
-    // Notify subscribers that the track is no longer in-flight.
-    state.statusCell.set('idle');
-  }
+  cancelTrackState(getRegistry().get(key));
 }
 
 // -----------------------------------------------------------------------------
