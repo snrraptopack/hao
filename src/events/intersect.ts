@@ -56,6 +56,19 @@ if (typeof EventTarget !== 'undefined') {
 
       const observerOptions = setupEvent.detail.options;
       setupIntersectionObserver(this, observerOptions);
+
+      // The runtime unbinds listeners via AbortSignal (runtime/dom.ts), which
+      // never calls removeEventListener — so observer teardown must hook the
+      // signal directly, otherwise observers keep watching detached elements
+      // (B18).
+      const signal = typeof options === 'object' && options ? options.signal : undefined;
+      if (signal) {
+        if (signal.aborted) {
+          teardownIntersectionObserver(this);
+        } else {
+          signal.addEventListener('abort', () => teardownIntersectionObserver(this), { once: true });
+        }
+      }
     }
     return originalAddEventListener.call(this, type, listener as any, options);
   };

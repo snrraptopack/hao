@@ -300,7 +300,21 @@ export function setProp(
 
       if ((value as any).__outside) {
         options.global = true;
+        // Window listeners outlive wholesale node removal (patch replace /
+        // remove never diffs props), so detach lazily on the next event once
+        // the element has left the document (B19). Elements that were never
+        // connected yet (app mounted into a detached root) keep the listener —
+        // they may still be attached later.
+        let wasConnected = element.isConnected;
         const outsideListener = (event: Event) => {
+          if (!element.isConnected) {
+            if (wasConnected) {
+              window.removeEventListener(eventName, outsideListener, options);
+              listeners.delete(key);
+            }
+            return;
+          }
+          wasConnected = true;
           const target = event.target as Node;
           if (target && !element.contains(target)) {
             listener(event);

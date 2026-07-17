@@ -6,6 +6,8 @@
 import { describe, expect, test, vi } from 'vitest';
 import { createMemoApp, commit, __computed, __effect } from 'auwla';
 import { runtimeState } from '../../src/runtime/state';
+import { setProp } from '../../src/runtime/dom';
+import { event } from '../../src/events';
 import { hydrateIslands, createIslandsApp } from '../../src/runtime/islands';
 
 const tick = () => new Promise<void>((resolve) => queueMicrotask(resolve));
@@ -202,6 +204,57 @@ describe('B20 — island hydration observer lifecycle', () => {
     } finally {
       el.remove();
       delete (globalThis as any).IntersectionObserver;
+    }
+  });
+});
+
+describe('B19 — __outside window listeners detach after wholesale removal', () => {
+  test('listener self-removes on the next event after the element is gone', () => {
+    const host = document.createElement('div');
+    const panel = document.createElement('div');
+    host.appendChild(panel);
+    document.body.appendChild(host);
+    try {
+      let fired = 0;
+      setProp(panel as any, 'onClick', event.outside.handler(() => { fired++; }), undefined, (h: any) => h);
+
+      // Outside click (on body) fires while connected.
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(fired).toBe(1);
+
+      // Wholesale removal — no prop diffing happens for removed nodes.
+      panel.remove();
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(fired).toBe(1);
+
+      // The memo-listener entry was dropped and the window listener detached.
+      expect((panel as any).__memoListeners?.size ?? 0).toBe(0);
+      // Sanity: further events cannot reach it (fired stays 1).
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(fired).toBe(1);
+    } finally {
+      host.remove();
+    }
+  });
+
+  test('listener survives while the element has never been connected', () => {
+    const panel = document.createElement('div'); // detached root pattern
+    let fired = 0;
+    setProp(panel as any, 'onClick', event.outside.handler(() => { fired++; }), undefined, (h: any) => h);
+
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(fired).toBe(0);
+    // Not removed — the app may still be attached later.
+    expect((panel as any).__memoListeners.size).toBe(1);
+
+    document.body.appendChild(panel);
+    try {
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(fired).toBe(1);
+    } finally {
+      panel.remove();
+      // Flush the lazy detach so no listener leaks into other tests.
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
   });
 });
