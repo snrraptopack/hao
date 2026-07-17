@@ -841,8 +841,20 @@ function hasCommitCall(body: ts.Node, selfName: string): boolean {
 }
 
 function applyReplacements(source: string, replacements: Array<{ start: number; end: number; text: string }>): string {
+  // Ranges derive from AST nodes of one source file, so two replacements are
+  // either disjoint or one strictly contains the other. A contained
+  // replacement can never survive: the container splices original-source text
+  // over it, and its earlier application shifts the container's coordinates
+  // (B16 — nested awaits used to produce corrupted duplicated text). Drop
+  // contained replacements explicitly; the container (outermost) wins.
+  // Zero-width insertions are contained only when strictly inside a range.
+  const effective = replacements.filter((r, i) =>
+    !replacements.some((c, j) =>
+      i !== j && c.start <= r.start && c.end >= r.end && (c.start < r.start || c.end > r.end)
+    )
+  );
   let output = source;
-  for (const replacement of replacements.sort((a, b) => b.start - a.start)) {
+  for (const replacement of effective.sort((a, b) => b.start - a.start)) {
     output = `${output.slice(0, replacement.start)}${replacement.text}${output.slice(replacement.end)}`;
   }
   return output;

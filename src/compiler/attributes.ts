@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { DynamicPatch, CompileContext, TemplateContext, PROPERTY_PROPS } from './types';
 import { findMutatedVariables, needsFullDirty } from './derived';
 import type { DerivedContext } from './derived';
-import { expressionText, stringLiteral, escapeHtml, isStaticExpression, childExpression } from './utils';
+import { expressionText, stringLiteral, escapeHtml, escapeSsrStatic, isStaticExpression, childExpression } from './utils';
 import { BOOLEAN_HTML_ATTRS } from '../shared/constants';
 
 /** Convert a camelCase CSS property name to kebab-case. */
@@ -250,7 +250,14 @@ function compileBind(
   value: string,
   attribute: ts.JsxAttributeLike,
   derivedCtx: DerivedContext | null,
-): number {
+): number | null {
+  if (derivedCtx) {
+    // Binding writes back to the target (`target = ...`). Derived variables
+    // expand to getter calls (`name()`), which cannot be assigned to — bail
+    // out so the whole closure falls back to the runtime path (B15).
+    const root = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(value);
+    if (root && derivedCtx.derived.has(root[0])) return null;
+  }
   let tagName = '';
   const openingNode = attribute.parent?.parent;
   if (openingNode && (ts.isJsxOpeningElement(openingNode) || ts.isJsxSelfClosingElement(openingNode))) {
@@ -338,7 +345,7 @@ export function compileAttribute(
     if (!expression) return true;
     const value = expressionText(ctx.source, expression);
 
-    ctx.textId = compileBind(
+    const nextTextId = compileBind(
       ctx.setup,
       ctx.patches,
       ctx.textId,
@@ -347,6 +354,8 @@ export function compileAttribute(
       attribute,
       ctx.derivedCtx ?? null
     );
+    if (nextTextId === null) return false;
+    ctx.textId = nextTextId;
     return true;
   }
 
@@ -525,7 +534,7 @@ export function compileTemplateAttribute(
       }
       return '';
     } else {
-      ctx.textId = compileBind(
+      const nextTextId = compileBind(
         ctx.elementSetup,
         ctx.patches,
         ctx.textId,
@@ -534,6 +543,8 @@ export function compileTemplateAttribute(
         attribute,
         ctx.derivedCtx ?? null
       );
+      if (nextTextId === null) return null;
+      ctx.textId = nextTextId;
       return '';
     }
   }
@@ -560,9 +571,12 @@ export function compileTemplateAttribute(
   if (!initializer) return ` ${name}`;
 
   if (ts.isStringLiteral(initializer)) {
+    // SSR splices the html into a backtick template literal — static values
+    // also need `\`, `` ` `` and `${` escaped (B14).
+    const escape = ctx.ssr ? escapeSsrStatic : escapeHtml;
     return name === 'class'
-      ? ` class="${escapeHtml(initializer.text)}"`
-      : ` ${name}="${escapeHtml(initializer.text)}"`;
+      ? ` class="${escape(initializer.text)}"`
+      : ` ${name}="${escape(initializer.text)}"`;
   }
 
   if (!ts.isJsxExpression(initializer)) return null;
@@ -575,7 +589,7 @@ export function compileTemplateAttribute(
   if (name === 'style') {
     if (ts.isObjectLiteralExpression(expression)) {
       const css = staticStyleToCss(ctx.source, expression);
-      if (css !== null) return ` style="${escapeHtml(css)}"`;
+      if (css !== null) return ` style="${ctx.ssr ? escapeSsrStatic(css) : escapeHtml(css)}"`;
     }
     if (ctx.ssr) {
       return ` style="\${__ssrStyle(${expandedValue})}"`;

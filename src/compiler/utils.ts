@@ -26,6 +26,31 @@ export function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Escape a string for embedding inside a generated JS template literal.
+ * SSR codegen splices the generated HTML into a backtick literal
+ * (`return \`${html}\`;`), so static user content must not contain raw
+ * backslashes, backticks, or `${` sequences.
+ *
+ * Only ever apply this to USER-DERIVED static content — the codegen's own
+ * `\${...}` holes must never pass through here.
+ */
+export function escapeTemplateLiteral(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
+}
+
+/**
+ * HTML-escape plus template-literal escape for static user content emitted
+ * into the SSR html string. escapeHtml runs first (its replacements contain
+ * none of the characters escapeTemplateLiteral touches).
+ */
+export function escapeSsrStatic(value: string): string {
+  return escapeTemplateLiteral(escapeHtml(value));
+}
+
 export function pathExpression(root: string, path: number[]): string {
   let expr = root;
   for (const index of path) {

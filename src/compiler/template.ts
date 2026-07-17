@@ -14,6 +14,7 @@ import {
   expressionText,
   stringLiteral,
   escapeHtml,
+  escapeSsrStatic,
   decodeJsxText,
   isWhitespaceJsxText,
   pathExpression,
@@ -48,7 +49,10 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
     if (ts.isJsxText(child)) {
       if (isWhitespaceJsxText(child)) continue;
       if (!ctx.ssr && hasDynamicText) return null;
-      html += escapeHtml(decodeJsxText(child.text));
+      // SSR splices the html into a backtick template literal, so static
+      // text also needs `\`, `` ` `` and `${` escaped (B14); the client path
+      // embeds via JSON.stringify and needs HTML escaping only.
+      html += ctx.ssr ? escapeSsrStatic(decodeJsxText(child.text)) : escapeHtml(decodeJsxText(child.text));
       if (!ctx.ssr) childIndex++;
       continue;
     }
