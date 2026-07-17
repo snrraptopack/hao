@@ -54,7 +54,10 @@ function canPatchTemplate(current: Node, next: unknown): boolean {
   if (isRenderClosure(next)) return canPatchTemplate(current, next());
 
   if (isTemplateNode(next)) {
-    return isElement(current) && current.tagName.toLowerCase() === next.tag && Object.is(getKey(current), next.key);
+    // HTML tagName is uppercase; SVG keeps mixed case (e.g. "clipPath").
+    // Accept either form so mixed-case SVG tags patch instead of replaceChild.
+    const tag = isElement(current) ? current.tagName : '';
+    return isElement(current) && (tag === next.tag || tag.toLowerCase() === next.tag) && Object.is(getKey(current), next.key);
   }
 
   if (next instanceof Node) return canPatch(current, next);

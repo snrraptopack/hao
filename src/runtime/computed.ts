@@ -52,19 +52,28 @@ export function computed<T>(fn: () => T, deps?: string[]): ComputedGetter<T> {
  * @internal
  */
 export function markComponentComputedDirty(ownerId: string | null | undefined): void {
-  if (!ownerId) return;
-  const getters = runtimeState.computedGetters.get(ownerId);
-  if (!getters) return;
-
   const pending = runtimeState.pendingDirtySources;
   const hasPending = pending.size > 0;
 
-  for (const getter of getters) {
-    const deps = (getter as any)._deps;
-    if (!deps || !hasPending || deps.some((d: string) => pending.has(d))) {
-      getter._dirty = true;
+  // state.ts declares its own wider getter shape ({ _dirty?: boolean }) —
+  // accept it structurally rather than importing across the two modules.
+  const markAll = (getters: Set<{ _dirty?: boolean; _deps?: string[] }> | undefined): void => {
+    if (!getters) return;
+    for (const getter of getters) {
+      const deps = (getter as any)._deps;
+      if (!deps || !hasPending || deps.some((d: string) => pending.has(d))) {
+        getter._dirty = true;
+      }
     }
+  };
+
+  // No owner means a full invalidation (plain commit()): every component
+  // re-renders, so every getter must recompute — not just one component's.
+  if (!ownerId) {
+    for (const getters of runtimeState.computedGetters.values()) markAll(getters);
+    return;
   }
+  markAll(runtimeState.computedGetters.get(ownerId));
 }
 
 /**

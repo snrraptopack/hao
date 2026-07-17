@@ -79,6 +79,23 @@ async function resolveRegisteredIslandComponent(name: string): Promise<any> {
 
 const hydrated = new WeakSet<HTMLElement>();
 
+/**
+ * The single active lazy-hydration observer and the elements it still watches.
+ * Module-level so `createIslandsApp().destroy()` (and repeated `render()`
+ * calls, which re-enter `hydrateIslands`) share one observer instead of
+ * leaking a new `IntersectionObserver` per call.
+ */
+let activeObserver: IntersectionObserver | null = null;
+const pendingIslands = new Set<HTMLElement>();
+
+/** Disconnect the observer once nothing is left to lazily hydrate. */
+function releaseObserverIfIdle(): void {
+  if (activeObserver && pendingIslands.size === 0) {
+    activeObserver.disconnect();
+    activeObserver = null;
+  }
+}
+
 export function hydrateIslands(getComponent: (name: string) => any | Promise<any> = resolveRegisteredIslandComponent): void {
   if (typeof window === 'undefined') return;
   const elements = document.querySelectorAll('[data-auwla-island]');
@@ -87,33 +104,38 @@ export function hydrateIslands(getComponent: (name: string) => any | Promise<any
   async function triggerHydration(el: HTMLElement) {
     if (hydrated.has(el)) return;
     hydrated.add(el);
-    const componentName = el.getAttribute('data-auwla-island');
-    const rawProps = el.getAttribute('data-props');
-    if (!componentName) return;
-
-    let props = {};
     try {
-      props = rawProps ? JSON.parse(rawProps) : {};
-    } catch (error) {
-      console.warn(`[Auwla] Failed to parse props for island "${componentName}".`, error);
+      const componentName = el.getAttribute('data-auwla-island');
+      const rawProps = el.getAttribute('data-props');
+      if (!componentName) return;
+
+      let props = {};
+      try {
+        props = rawProps ? JSON.parse(rawProps) : {};
+      } catch (error) {
+        console.warn(`[Auwla] Failed to parse props for island "${componentName}".`, error);
+      }
+
+      const Component = await getComponent(componentName);
+      if (!Component) {
+        console.warn(`[Auwla] Island component "${componentName}" not found.`);
+        return;
+      }
+
+      const { createMemoApp } = await import('auwla/runtime/app');
+
+      // Islands are server-rendered as an empty shell (no inner HTML), so we
+      // must NOT set `data-auwla-ssr` here. If we did, `createMemoApp` would
+      // detect SSR content and enter hydration mode — then the hydration cursor
+      // would fail to match comment markers that don't exist, causing it to
+      // append fresh DOM next to whatever content was in the shell, producing
+      // a double render. Clearing innerHTML first guarantees a clean fresh mount.
+      el.innerHTML = '';
+      createMemoApp(el, Component(props));
+    } finally {
+      pendingIslands.delete(el);
+      releaseObserverIfIdle();
     }
-
-    const Component = await getComponent(componentName);
-    if (!Component) {
-      console.warn(`[Auwla] Island component "${componentName}" not found.`);
-      return;
-    }
-
-    const { createMemoApp } = await import('auwla/runtime/app');
-
-    // Islands are server-rendered as an empty shell (no inner HTML), so we
-    // must NOT set `data-auwla-ssr` here. If we did, `createMemoApp` would
-    // detect SSR content and enter hydration mode — then the hydration cursor
-    // would fail to match comment markers that don't exist, causing it to
-    // append fresh DOM next to whatever content was in the shell, producing
-    // a double render. Clearing innerHTML first guarantees a clean fresh mount.
-    el.innerHTML = '';
-    createMemoApp(el, Component(props));
   }
 
   const useObserver = typeof IntersectionObserver !== 'undefined';
@@ -124,15 +146,17 @@ export function hydrateIslands(getComponent: (name: string) => any | Promise<any
     return;
   }
 
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        const el = entry.target as HTMLElement;
-        observer.unobserve(el);
-        void triggerHydration(el);
+  if (!activeObserver) {
+    activeObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          const el = entry.target as HTMLElement;
+          activeObserver!.unobserve(el);
+          void triggerHydration(el);
+        }
       }
-    }
-  }, { rootMargin: '200px' });
+    }, { rootMargin: '200px' });
+  }
 
   for (const el of Array.from(elements)) {
     const rect = el.getBoundingClientRect();
@@ -140,8 +164,9 @@ export function hydrateIslands(getComponent: (name: string) => any | Promise<any
 
     if (isAboveFold) {
       void triggerHydration(el as HTMLElement);
-    } else {
-      observer.observe(el);
+    } else if (!hydrated.has(el as HTMLElement)) {
+      pendingIslands.add(el as HTMLElement);
+      activeObserver.observe(el as HTMLElement);
     }
   }
 }
@@ -153,6 +178,12 @@ export function createIslandsApp(root: Element): { root: Element; render(): void
     render() {
       hydrateIslands();
     },
-    destroy() {},
+    destroy() {
+      if (activeObserver) {
+        activeObserver.disconnect();
+        activeObserver = null;
+      }
+      pendingIslands.clear();
+    },
   };
 }

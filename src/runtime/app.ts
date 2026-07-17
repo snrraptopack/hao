@@ -334,8 +334,11 @@ export function createMemoApp<TModel>(
         if (result !== undefined && result === BLOCKED_EVENT) return;
         if (result !== undefined && result === SILENT_EVENT) return;
         if (result && typeof (result as Promise<unknown>).then === 'function') {
+          // Defer invalidation until the promise settles (timing modifiers
+          // rely on this). The handler id is NOT restored here — the
+          // synchronous finally below already did that, and a deferred
+          // restore would clobber a newer handler's id (B5).
           void (result as Promise<unknown>).finally(() => {
-            runtimeState.activeHandlerComponentId = prevHandlerId;
             invalidate(ownerId);
           });
           return;
@@ -414,10 +417,22 @@ export function createMemoApp<TModel>(
         for (const fn of topLevelCleanups) fn();
       }
       cache.clear();
-      for (const [id] of allInstances) runtimeState.componentHosts.delete(id);
+      // Mirror the render-loop GC for every instance: hosts, dirty-source
+      // deps, computed getters, effects, and track state all live in global
+      // registries and must not outlive the app.
+      for (const [id] of allInstances) {
+        runtimeState.componentHosts.delete(id);
+        componentSourceDeps.delete(id);
+        clearComponentComputedGetters(id);
+        clearComponentEffects(id);
+        getTrackGlobals().cleanupComponentTracks?.(id);
+      }
       componentInstances.clear();
       memoBlocks.clear();
       runtimeState.mountedApps.delete(mountedApp);
+      if ((globalThis as any).__auwla_invalidate === invalidate) {
+        delete (globalThis as any).__auwla_invalidate;
+      }
       root.replaceChildren();
     },
   };

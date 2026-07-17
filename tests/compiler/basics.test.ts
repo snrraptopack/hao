@@ -782,11 +782,25 @@ describe('Auwla Islands Architecture', () => {
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
 
+    // Wait for the island mount to finish deterministically: a fixed number
+    // of macrotasks loses the race against the dynamic-import chain under
+    // full-suite load (the app first hydrates an inert SSR button; the island
+    // mount then replaces it with a live one — clicking in between is a no-op).
+    let button: HTMLButtonElement | null = null;
+    for (let i = 0; i < 200; i++) {
+      const candidate = root.querySelector('[data-auwla-island] button') as HTMLButtonElement | null;
+      if (candidate && (candidate as any).__memoListeners) {
+        button = candidate;
+        break;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    expect(button, 'island did not hydrate in time').not.toBeNull();
+
     expect(root.querySelector('.static-copy')?.textContent).toBe('Static SSR copy');
-    const button = root.querySelector('button')!;
-    button.click();
+    button!.click();
     await new Promise<void>((resolve) => queueMicrotask(resolve));
-    expect(button.textContent).toBe('Count: 3');
+    expect(button!.textContent).toBe('Count: 3');
 
     (globalThis as any).__auwla_islandModules = previous;
     document.body.removeChild(root);
