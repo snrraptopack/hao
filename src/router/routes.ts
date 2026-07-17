@@ -66,16 +66,44 @@ export function normalizePath(path: string): string {
 // Matching
 // ---------------------------------------------------------------------------
 
-function pathToRegex(path: string): { regex: RegExp; keys: string[] } {
+// Param names follow identifier rules, so ':id2' and ':user_id' are valid.
+const PARAM_RE = /^:([A-Za-z_$][A-Za-z0-9_$]*)$/
+// Splits a path into params/wildcards (captured, kept by split) and literal
+// text (everything else, regex-escaped below).
+const TOKEN_SPLIT_RE = /(:[A-Za-z_$][A-Za-z0-9_$]*|\*)/g
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+// Compiled regexes are memoized per route path — matchRoutes() calls this for
+// every route on every navigation.
+const regexCache = new Map<string, { regex: RegExp; keys: string[] }>()
+
+/** @internal Exposed for the prefetch registry's pattern matching. */
+export function pathToRegex(path: string): { regex: RegExp; keys: string[] } {
+  const cached = regexCache.get(path)
+  if (cached) return cached
+
   const keys: string[] = []
   const pattern = path
-    .replace(/\//g, "\\/")
-    .replace(/:([a-zA-Z]+)/g, (_, key) => {
-      keys.push(key)
-      return "([^/]+)"
+    .split(TOKEN_SPLIT_RE)
+    .map((part) => {
+      if (part === "*") return ".*"
+      const param = part.match(PARAM_RE)
+      if (param) {
+        keys.push(param[1]!)
+        return "([^/]+)"
+      }
+      // Static text is regex-escaped — a literal '.' in a route path must
+      // match only '.', not any character.
+      return escapeRegExp(part)
     })
-    .replace(/\*/g, ".*")
-  return { regex: new RegExp(`^${pattern}\\/?$`), keys }
+    .join("")
+
+  const compiled = { regex: new RegExp(`^${pattern}\\/?$`), keys }
+  regexCache.set(path, compiled)
+  return compiled
 }
 
 // Returns the first route that matches `pathname` and has a component.
@@ -186,7 +214,7 @@ export function pathFor<
   query?: Record<string, string | number | boolean>
 ): string {
   let url = pattern
-    .replace(/:([a-zA-Z]+)/g, (_, key) => {
+    .replace(/:([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, key) => {
       const value = (params as Record<string, string | number | boolean>)?.[key]
       return value !== undefined ? encodeURIComponent(String(value)) : `:${key}`
     })

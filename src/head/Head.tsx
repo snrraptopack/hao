@@ -60,9 +60,12 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
-function serializeToHtml(child: MemoChild): string {
+/** @internal Exported for regression tests; not part of the public API. */
+export function serializeToHtml(child: MemoChild): string {
   if (child == null || child === false || child === true) return '';
-  if (typeof child === 'string') return child;
+  // String children are escaped — they end up raw in the SSR <head> HTML,
+  // so unescaped user input (e.g. in <title>) would inject markup (XSS).
+  if (typeof child === 'string') return escapeHtml(child);
   if (typeof child === 'number') return String(child);
 
   if (Array.isArray(child)) {
@@ -89,7 +92,13 @@ function serializeToHtml(child: MemoChild): string {
       .map(([k, v]) => {
         if (v === true) return k;           // boolean attribute
         if (v === false || v == null) return '';
-        return `${k}="${String(v).replace(/"/g, '&quot;')}"`;
+        // Escape '&' first (so escape sequences are not double-escaped), then
+        // '"' (attribute delimiter) and '<' (tag injection).
+        const escaped = String(v)
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;');
+        return `${k}="${escaped}"`;
       })
       .filter(Boolean)
       .join(' ');

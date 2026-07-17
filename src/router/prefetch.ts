@@ -18,6 +18,8 @@
  *   registerPrefetches(__prefetch)
  */
 
+import { pathToRegex } from './routes'
+
 /** A map of route path → prefetch function, as exported by the virtual module. */
 export type PrefetchMap = Record<string, () => Promise<unknown>>
 
@@ -45,10 +47,30 @@ export function registerPrefetches(map: PrefetchMap): void {
  * have no registered prefetch — it is a no-op in that case. Also safe to
  * call multiple times; the underlying `__load` cache makes it idempotent.
  *
+ * The registry is keyed by route PATTERN ('/posts/:id') while Link passes the
+ * RESOLVED url ('/posts/3?q=x'), so on an exact miss the registered patterns
+ * are matched against the resolved path.
+ *
  * @param path - The route path to prefetch (e.g. '/posts/:id').
  */
 export function prefetchRoute(path: string): void {
-  const fn = _registry[path]
+  // Exact hit: static routes ('/about') and callers that already pass the
+  // route pattern ('/posts/:id').
+  let fn = _registry[path]
+
+  if (!fn) {
+    // Miss: `path` is a resolved url — find the registered pattern it matches.
+    const pathname = path.split('?')[0]!
+    for (const key of Object.keys(_registry)) {
+      // Static keys can only match exactly — already ruled out above.
+      if (!key.includes(':') && !key.includes('*')) continue
+      if (pathToRegex(key).regex.test(pathname)) {
+        fn = _registry[key]
+        break
+      }
+    }
+  }
+
   if (fn) {
     // Fire-and-forget. Errors are intentionally swallowed — a prefetch
     // failure should never crash the app; the user will see the real error

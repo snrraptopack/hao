@@ -296,6 +296,11 @@ export function Router(props: RouterProps = {}) {
   // Set by error context retry(); picked up on the next Router render to restart
   // the loader with the correct Router component ID (not the error component's).
   let shouldRetry = false
+  // Guard verdict cache. Guards are evaluated once per path change; re-renders
+  // of the same path (e.g. when the loader settles) reuse the cached verdict
+  // instead of re-running the guard. Keyed by path so navigating away and back
+  // always re-evaluates.
+  let guardCache: { path: string; result: unknown } | null = null
 
   const { routes, suspend, errorComponent: globalErrorComponent, pendingComponent: globalPendingComponent } = props
   const suspendEnabled = !!suspend
@@ -340,19 +345,46 @@ export function Router(props: RouterProps = {}) {
     const matched = routes ? matchRoutes(routes, currentPath) : matchRoute(currentPath)
 
     if (!matched) {
-      if (isSuspended) { exitSuspense(); isSuspended = false }
+      if (isSuspended) {
+        exitSuspense()
+        isSuspended = false
+        _pendingContext = null
+        prevCachedLoader = null
+        suspendWasPopNav = false
+      }
       previousRender = null
+      // Keep navigation bookkeeping in sync on a 404. Without updating
+      // cachedPath here, returning to a previously visited path would compare
+      // equal against the stale cachedPath and skip the whole path-change
+      // block — no loader restart, no afterEach, stale context.
+      if (cachedPath !== currentPath) {
+        cachedPath = currentPath
+        // A navigation cancels any pending retry from the previous route.
+        shouldRetry = false
+        guardCache = null
+        cachedLoader?.cancel()
+        cachedLoader = null
+        _currentContext = null
+        _currentLoader = null
+        _currentMeta = null
+        _currentError = null
+      }
       return <div>404 — page not found</div>
     }
 
     const { route, params, query } = matched
 
-    // Navigation guard
+    // Navigation guard — evaluated once per path change. Re-renders of the
+    // same path (e.g. when the loader settles) reuse the cached verdict
+    // instead of re-running the guard.
     const guard = route.beforeEnter || route.guard
     let guardPromise: Promise<any> | undefined = undefined
     if (guard) {
-      const context = { path: currentPath, params, query } as RouteContext<any>
-      const result = guard(context)
+      if (!guardCache || guardCache.path !== currentPath) {
+        const context = { path: currentPath, params, query } as RouteContext<any>
+        guardCache = { path: currentPath, result: guard(context) }
+      }
+      const result = guardCache.result
       if (result === false) {
         previousRender = null
         return <div>403 — access denied</div>
@@ -366,6 +398,10 @@ export function Router(props: RouterProps = {}) {
       if (result as any instanceof Promise) {
         guardPromise = result as unknown as Promise<any>
       }
+    } else {
+      // Routes without a guard clear the cache so a verdict cached on an
+      // earlier visit to this same path is never reused for a new navigation.
+      guardCache = null
     }
 
     const hasLoader = !!route.routed || !!guardPromise
