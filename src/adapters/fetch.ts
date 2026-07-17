@@ -10,7 +10,9 @@ import { HttpError } from '../server/errors'
 
 const DEFAULT_RPC_PATH = '/_auwla/rpc'
 
-import { defaultLoad, extractRouteParams, createContext, invokeRemote } from '../server/utils'
+import { defaultLoad, extractRouteParams, createContext, invokeRemote, getRegisteredServerManifest, importServerManifestVirtualModule } from '../server/utils'
+
+export { extractRouteParams }
 
 export interface FetchAdapterOptions {
   manifest?: ServerManifest
@@ -104,25 +106,38 @@ function errorResponse(error: unknown): Response {
 
   const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
   const isValidation = error instanceof ValidationError || (error instanceof Error && error.name === 'ValidationError')
-  const isHttpError = error instanceof HttpError || (error instanceof Error && typeof (error as any).status === 'number')
-  
-  const status = isValidation ? 400 : isHttpError ? (error as any).status : 500
+  // Only genuine HttpErrors expose their status/message/details to clients.
+  // Duck-typing any error with a numeric `.status` would leak internals, and
+  // `instanceof` alone breaks across duplicate module copies — hence the
+  // prototype-brand check (see server/errors.ts).
+  const isHttpError = error instanceof HttpError || (error instanceof Error && (error as any).__auwla_httpError === true)
 
-  const message = (isValidation || isHttpError || !isProd)
-    ? (error instanceof Error ? error.message : String(error))
-    : 'Internal Server Error'
+  const status = isValidation ? 400 : isHttpError ? (error as HttpError).status : 500
 
+  const expose = isValidation || isHttpError || !isProd
   const payload = {
-    message,
-    name: (isValidation || isHttpError || !isProd) ? (error instanceof Error ? error.name : 'Error') : 'Error',
+    message: expose
+      ? (error instanceof Error ? error.message : String(error))
+      : 'Internal Server Error',
+    name: expose && error instanceof Error ? error.name : 'Error',
     issues: isValidation ? (error as any).issues : undefined,
-    details: isHttpError ? (error as any).details : undefined,
+    details: isHttpError ? (error as HttpError).details : undefined,
   }
 
   return new Response(JSON.stringify(payload), {
     status,
     headers: { 'content-type': 'application/json' },
   })
+}
+
+/**
+ * A redirect target is only safe when it is a same-origin relative path:
+ * exactly one leading `/` (no protocol-relative `//host`), no backslashes
+ * (browsers normalize `\/` and `\\` to `/`, which would smuggle `//host`),
+ * and therefore no scheme. Anything else is an open-redirect vector.
+ */
+function isSafeRedirectPath(path: string): boolean {
+  return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\')
 }
 
 export function createFetchAdapter(options: FetchAdapterOptions = {}) {
@@ -138,11 +153,10 @@ export function createFetchAdapter(options: FetchAdapterOptions = {}) {
     const url = new URL(request.url)
     if (url.pathname !== rpcPath) return undefined
 
-    let manifest = options.manifest
+    let manifest = options.manifest ?? getRegisteredServerManifest()
     if (!manifest) {
-      try {
-        manifest = (await import('auwla:server-manifest')).default
-      } catch (err) {
+      manifest = await importServerManifestVirtualModule()
+      if (!manifest) {
         throw new Error('Auwla: Server manifest was not provided and virtual module auwla:server-manifest could not be loaded.')
       }
     }
@@ -185,9 +199,20 @@ export function createFetchAdapter(options: FetchAdapterOptions = {}) {
       return new Response(`Method not allowed: Endpoint expects ${entry.method}`, { status: 405 })
     }
 
-    const params = extractRouteParams(entry.routePattern, payload.routePath, entry.params)
-      ?? payload.routeParams
-      ?? {}
+    const extractedParams = extractRouteParams(entry.routePattern, payload.routePath, entry.params)
+    if (extractedParams === null) {
+      // The entry declares a parameterized route pattern and the supplied
+      // routePath does not match it. Reject instead of falling back to
+      // client-supplied routeParams, which would let callers forge ctx.params.
+      return errorResponse(new HttpError(400, `Route path does not match endpoint pattern: ${entry.routePattern}`))
+    }
+    // extractRouteParams only returns null for parameterized patterns. For
+    // entries without declared params (shared src/server functions use an
+    // empty routePattern) there is nothing to extract, so client-supplied
+    // params are the only source.
+    const params = entry.params.length > 0
+      ? extractedParams
+      : (payload.routeParams ?? extractedParams)
 
     let mod: Record<string, unknown>
     try {
@@ -214,6 +239,14 @@ export function createFetchAdapter(options: FetchAdapterOptions = {}) {
       if (result instanceof Response) {
         response = result
       } else if (!isFetch) {
+        // Non-fetch form POSTs redirect back to the page. payload.routePath is
+        // client-controlled (form field or query param), so only same-origin
+        // relative paths may be used as a redirect target — anything else is
+        // an open-redirect vector and is rejected with 400 (the stricter
+        // choice over silently falling back to the JSON response).
+        if (!isSafeRedirectPath(payload.routePath)) {
+          return errorResponse(new HttpError(400, 'Invalid redirect path'))
+        }
         response = new Response(null, {
           status: 303,
           headers: { location: payload.routePath },

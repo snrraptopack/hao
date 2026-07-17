@@ -7,7 +7,7 @@ describe('bun adapter', () => {
     'index.greet': {
       modulePath: 'mod:index',
       exportName: 'greet',
-      method: 'GET',
+      method: 'POST',
       routePattern: '/',
       params: [],
       paramsType: 'Record<string, never>',

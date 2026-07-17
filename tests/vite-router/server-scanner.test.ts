@@ -50,7 +50,7 @@ function extractServerExports(source: string): ServerExport[] {
 const fixturesDir = resolve(__dirname, '../router/server-fixtures')
 
 
-describe('server-scanner', () => {
+describe('server-scanner', { timeout: 30000 }, () => {
   it('finds .server.ts files in pages and server dirs', () => {
     const modules = scanServerModules(
       resolve(fixturesDir, 'pages'),

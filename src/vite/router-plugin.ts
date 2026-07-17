@@ -16,7 +16,7 @@ import {
   filePathToRouteName,
   filePathToServerRouteName,
 } from '../vite-router/server-scanner';
-import { buildServerManifest, writeServerManifest } from '../vite-router/manifest';
+import { buildServerManifest, writeServerManifest, generateServerManifestJs } from '../vite-router/manifest';
 import type { ServerManifest } from '../server/types';
 import { getAuwlaConfig } from './config-loader';
 
@@ -275,7 +275,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         if (!cachedManifestModule) {
           const serverModules = scanServerModules(resolvedPagesDir, resolvedServerDir);
           const manifest = buildServerManifest(serverModules);
-          cachedManifestModule = `export default ${JSON.stringify(manifest, null, 2)};`;
+          cachedManifestModule = generateServerManifestJs(manifest);
         }
         return cachedManifestModule;
       }

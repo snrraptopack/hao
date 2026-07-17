@@ -11,9 +11,19 @@ export class HttpError extends Error {
     this.name = 'HttpError'
     this.status = status
     this.details = details
-    
+
     // Restore prototype chain
     Object.setPrototypeOf(this, new.target.prototype)
+  }
+
+  /**
+   * Brand for identifying genuine HttpErrors across realms and duplicate
+   * module copies (where `instanceof` fails). A prototype getter cannot be
+   * forged with a plain object literal in a meaningful way and survives
+   * structured cloning boundaries better than a class identity check.
+   */
+  get __auwla_httpError(): true {
+    return true
   }
 }
 

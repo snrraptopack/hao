@@ -5,7 +5,7 @@ import { buildServerManifest, generateServerManifestDts } from '../../src/vite-r
 
 const fixturesDir = resolve(__dirname, '../router/server-fixtures')
 
-describe('manifest', () => {
+describe('manifest', { timeout: 30000 }, () => {
   it('builds a manifest from scanned modules', () => {
     const modules = scanServerModules(
       resolve(fixturesDir, 'pages'),

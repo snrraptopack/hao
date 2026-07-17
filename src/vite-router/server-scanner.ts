@@ -82,7 +82,7 @@ export function scanServerModules(
 
   const filePaths = collected.map((m) => m.filePath)
   const compilerOptions = loadCompilerOptions()
-  const program = ts.createProgram(filePaths, compilerOptions)
+  const program = getCachedProgram(filePaths, compilerOptions)
   const checker = program.getTypeChecker()
 
   const result: ServerModule[] = []
@@ -259,6 +259,38 @@ export function filePathToParams(relativePath: string): string[] {
   }
 
   return params
+}
+
+/**
+ * `ts.createProgram` over all server files dominates scan time (P1), so the
+ * program is cached across calls. The key includes every root file's path +
+ * mtime and the compiler options, so any edit (e.g. HMR) invalidates the
+ * cache and scan semantics are unchanged.
+ */
+let programCache: { key: string; program: ts.Program } | null = null
+
+function getCachedProgram(filePaths: string[], compilerOptions: ts.CompilerOptions): ts.Program {
+  const key =
+    JSON.stringify(compilerOptions) +
+    '|' +
+    filePaths
+      .map((f) => {
+        let mtime = 0
+        try {
+          mtime = statSync(f).mtimeMs
+        } catch {}
+        return `${f}:${mtime}`
+      })
+      .sort()
+      .join('|')
+
+  if (programCache && programCache.key === key) {
+    return programCache.program
+  }
+
+  const program = ts.createProgram(filePaths, compilerOptions)
+  programCache = { key, program }
+  return program
 }
 
 /**

@@ -34,8 +34,15 @@
 
 import { createFetchAdapter, type FetchAdapterOptions } from './fetch'
 import { ssrRender } from './shared'
+import { getRegisteredServerManifest, importServerManifestVirtualModule } from '../server/utils'
 import type { Route } from '../router/types'
 import type { SsrInvokeOptions } from '../server/ssr-invoke'
+
+/**
+ * Virtual-module specifier kept behind a variable (+ `@vite-ignore`) so vite
+ * import-analysis cannot statically resolve it outside the router plugin.
+ */
+const AUWLA_ROUTES_MODULE = 'auwla:routes'
 
 declare const Bun: {
   /**
@@ -127,17 +134,16 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
     if (acceptsHtml && staticDir) {
       if (!options.routes) {
         try {
-          options.routes = (await import('auwla:routes')).default
+          options.routes = (await import(/* @vite-ignore */ AUWLA_ROUTES_MODULE)).default
         } catch (err) {
           // It's ok if routes aren't available, we just fall back to SPA shell
         }
       }
       if (!options.manifest) {
-        try {
-          options.manifest = (await import('auwla:server-manifest')).default
-        } catch (err) {
-          // Fall back to SPA shell if no manifest
-        }
+        // Prefer the self-registered manifest (set by the generated
+        // auwla:server-manifest module); fall back to a guarded lazy import.
+        options.manifest = getRegisteredServerManifest() ?? await importServerManifestVirtualModule()
+        // Fall back to SPA shell if no manifest
       }
 
       if (options.routes && options.manifest) {
@@ -164,8 +170,12 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
     }
 
     // 5. 404
-    // In dev mode (if Bun is undefined), return undefined to let Vite handle it
-    if (typeof Bun === 'undefined') return undefined as any
+    // In dev mode (when Bun is undefined), fall through for HTML page
+    // requests so Vite's middleware can handle them; everything else is a
+    // genuine 404.
+    if (typeof Bun === 'undefined' && (request.headers.get('accept') ?? '').includes('text/html')) {
+      return undefined as any
+    }
 
     return new Response('Not found', { status: 404 })
   }

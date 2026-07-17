@@ -8,8 +8,15 @@
 
 import { createFetchAdapter, type FetchAdapterOptions } from './fetch'
 import { ssrRender } from './shared'
+import { getRegisteredServerManifest, importServerManifestVirtualModule } from '../server/utils'
 import type { Route } from '../router/types'
 import type { SsrInvokeOptions } from '../server/ssr-invoke'
+
+/**
+ * Virtual-module specifier kept behind a variable (+ `@vite-ignore`) so vite
+ * import-analysis cannot statically resolve it outside the router plugin.
+ */
+const AUWLA_ROUTES_MODULE = 'auwla:routes'
 
 export interface HonoAdapterOptions extends FetchAdapterOptions {
   /**
@@ -44,12 +51,14 @@ export interface HonoAdapterOptions extends FetchAdapterOptions {
 /** Minimal Hono context shape needed by the adapter. */
 export type HonoContext = {
   req: { raw: Request }
+  /** Some integrations expose `next` on the context instead of as an argument. */
+  next?: () => Promise<void>
 }
 
 /** Hono middleware signature, structurally compatible with Hono's own type. */
 export type HonoMiddlewareHandler = (
   c: HonoContext,
-  next: () => Promise<void>
+  next?: () => Promise<void>
 ) => Promise<void | Response>
 
 /**
@@ -80,14 +89,12 @@ export function createHonoAdapter(options: HonoAdapterOptions = {}): HonoMiddlew
       let routes = options.routes
       if (!routes) {
         try {
-          routes = (await import('auwla:routes')).default
+          routes = (await import(/* @vite-ignore */ AUWLA_ROUTES_MODULE)).default
         } catch (err) {}
       }
-      let manifest = options.manifest
+      let manifest = options.manifest ?? getRegisteredServerManifest()
       if (!manifest) {
-        try {
-          manifest = (await import('auwla:server-manifest')).default
-        } catch (err) {}
+        manifest = await importServerManifestVirtualModule()
       }
 
       if (routes && manifest) {
@@ -100,6 +107,7 @@ export function createHonoAdapter(options: HonoAdapterOptions = {}): HonoMiddlew
       }
     }
 
-    return next()
+    const runNext = next ?? c.next
+    return runNext?.()
   }
 }

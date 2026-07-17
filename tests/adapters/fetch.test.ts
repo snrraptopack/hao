@@ -119,14 +119,16 @@ describe('fetch adapter', () => {
     expect(response?.status).toBe(405)
   })
 
-  it('invokes a remote.get function via true GET method with param fallback', async () => {
+  it('rejects a mismatched routePath even when client routeParams are supplied', async () => {
+    // S1 regression: /dashboard does not match /posts/:id — the crafted
+    // client-side params must not be trusted.
     const handle = makeAdapter()
     const url = 'http://localhost/_auwla/rpc?key=posts.getPost&routePath=/dashboard&params=' +
       encodeURIComponent(JSON.stringify({ id: '99' }))
     const request = new Request(url, { method: 'GET' })
     const response = await handle(request)
-    expect(response?.status).toBe(200)
-    expect(await response!.text()).toContain('post-99')
+    expect(response?.status).toBe(400)
+    expect(await response!.text()).not.toContain('post-99')
   })
 
   it('invokes a plain async function', async () => {

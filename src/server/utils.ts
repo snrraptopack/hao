@@ -1,4 +1,4 @@
-import type { CookieOptions, ServerManifestEntry, ServerContext, RemoteFunction, Middleware } from './types'
+import type { CookieOptions, ServerManifest, ServerManifestEntry, ServerContext, RemoteFunction, Middleware } from './types'
 import { runMiddleware } from './pipeline'
 import { parseBody } from './validate'
 
@@ -98,6 +98,17 @@ export function buildMiddlewareRequest(
     return request
   }
 
+  // GET/HEAD requests cannot carry a body — `new Request(req, { body })`
+  // throws in undici. Args for GET remotes arrive via the query string and
+  // are passed to the handler as positional arguments; `ctx.parseBody()`
+  // falls back to the first arg (see createContext) so validate() middleware
+  // keeps working on GET endpoints.
+  // (RemoteMethod is only 'GET' | 'POST'; the HEAD check guards requests
+  // whose entry method is falsy and request.method is HEAD at runtime.)
+  if (method === 'GET' || (method as string) === 'HEAD') {
+    return request
+  }
+
   const first = args[0]
   if (first instanceof FormData) {
     const headers = new Headers(request.headers)
@@ -150,9 +161,43 @@ export function createContext(
       return new Response(null, { status: 302, headers: mergedHeaders })
     },
     parseBody() {
+      // GET/HEAD requests carry no body (see buildMiddlewareRequest); the
+      // first RPC arg doubles as the "body" so validate() middleware can
+      // still validate input on remote.get endpoints with args.
+      if ((req.method === 'GET' || req.method === 'HEAD') && args.length > 0) {
+        return Promise.resolve(args[0])
+      }
       return parseBody(req)
     },
     platform,
+  }
+}
+
+/**
+ * Resolve the server manifest without statically importing the virtual
+ * module. The generated `auwla:server-manifest` module (and the emitted
+ * `.auwla/server-manifest.js`) self-registers here — deliberate global state:
+ * it survives double module loading when the manifest and the adapter end up
+ * in separate bundles or module instances.
+ */
+export function getRegisteredServerManifest(): ServerManifest | undefined {
+  return (globalThis as any).__auwla_serverManifest
+}
+
+/**
+ * Last-resort lazy load of the `auwla:server-manifest` virtual module.
+ * The specifier is hidden behind a variable (+ `/* @vite-ignore *\/`) so vite
+ * import-analysis cannot statically resolve it — the virtual module only
+ * exists inside the router plugin. In plain node/test environments the
+ * import simply rejects and the caller falls back gracefully.
+ */
+export async function importServerManifestVirtualModule(): Promise<ServerManifest | undefined> {
+  const specifier = 'auwla:server-manifest'
+  try {
+    const mod = await import(/* @vite-ignore */ specifier)
+    return mod.default as ServerManifest
+  } catch {
+    return undefined
   }
 }
 
