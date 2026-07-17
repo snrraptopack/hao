@@ -92,53 +92,54 @@ point. They live in `src/shared/constants.ts` and `src/compiler/constants.ts`:
 ## Known-issue registry
 
 Severity: **B** bug (wrong behavior), **S** security, **P** performance,
-**M** modularity/maintainability. Test status: see "Failing tests" below.
+**M** modularity/maintainability. Status: ✅ fixed (with regression tests in
+`tests/<area>/issue-fixes.test.*`), ⏳ open.
 
 ### Security
 
-| # | Sev | Where | Issue |
+| # | Status | Where | Issue |
 |---|---|---|---|
-| S1 | S | `adapters/fetch.ts:188-190` | Client-supplied `routeParams` trusted when pattern match fails — should 400 |
-| S2 | S | `adapters/fetch.ts:216-220` | Open redirect: 303 to client-controlled `routePath` after form POST |
-| S3 | S | `head/Head.tsx:65,92` | SSR head XSS: string children unescaped, attrs only quote-escaped |
-| S4 | S | `adapters/fetch.ts:107-119` | Error duck-typing leaks `message`/`details` for any error with numeric `.status` |
-| S5 | S | `adapters/bun.ts:112` | Static file serving without path-containment check |
-| S6 | S | `vite-router/manifest.ts:24-33` | Absolute FS paths in `.auwla/server-manifest.*` |
+| S1 | ✅ | `adapters/fetch.ts:188-190` | Client-supplied `routeParams` trusted when pattern match fails → now 400 on mismatch; client params only accepted for pattern-less entries |
+| S2 | ✅ | `adapters/fetch.ts:216-220` | Open redirect: 303 to client-controlled `routePath` → now restricted to same-origin relative paths |
+| S3 | ✅ | `head/Head.tsx:65,92` | SSR head XSS → string children escaped, attrs escape `&`/`"`/`<` |
+| S4 | ✅ | `adapters/fetch.ts:107-119` | Error duck-typing leaked internals → only `HttpError`-branded errors expose status/message/details |
+| S5 | ⏳ | `adapters/bun.ts:112` | Static file serving without path-containment check |
+| S6 | ⏳ | `vite-router/manifest.ts:24-33` | Absolute FS paths in `.auwla/server-manifest.*` |
 
 ### Correctness
 
-| # | Sev | Where | Issue |
+| # | Status | Where | Issue |
 |---|---|---|---|
-| B1 | B | `vite/router-plugin.ts:268` vs `client/rpc.ts:68` | Generated client stubs call `rpcCall(key, args, {method})` — options land in `routePath`; direct calls of server functions are broken (only `track.get/post` path works) |
-| B2 | B | `runtime/ssr.ts:384` + `client/rpc.ts:29-30` | SSR race: route path/params are module-level, not ALS-backed — concurrent requests can read each other's params |
-| B3 | B | `server/utils.ts:87-111` | GET remote with args builds `new Request(..., {body})` → undici throws |
-| B4 | B | `runtime/patch.ts:57` vs `runtime/dom.ts:143` | Mixed-case SVG tags (`clipPath` etc.) never patch, always `replaceChild` |
-| B5 | B | `runtime/app.ts:337-345` | Async handler's deferred `finally` clobbers `activeHandlerComponentId` of a later handler |
-| B6 | B | `runtime/computed.ts:55` | Computed getters not dirtied on full `commit()` — stale values |
-| B7 | B | `runtime/app.ts:408-422` | `destroy()` leaks global computed/effects/source-deps entries |
-| B8 | B | `track/core.ts:449-450` | Aborted run's settle nulls the *new* run's controller — cancellation lost |
-| B9 | B | `track/core.ts:535-605` | Promise-overload `track()` ignores cancellation; stale settle overwrites fresh state |
-| B10 | B | `router/Link.tsx:142` vs `vite-router/codegen.ts:290` | `<Link prefetch>` keyed by resolved URL, map keyed by route pattern — prefetch no-ops on dynamic routes |
-| B11 | B | `router/Router.tsx:342-346` | 404 branch returns before `cachedPath` update — breaks subsequent navigation bookkeeping |
-| B12 | B | `router/Router.tsx:351-369` | Guards re-run on every Router re-render, not just path change |
-| B13 | B | `track/core.ts:611-622` | Loader stale-serve-once: 2nd visit serves cached data, 3rd re-runs |
-| B14 | B | `compiler/template.ts:357` | SSR codegen embeds HTML in backticks escaping only `&<>"` — backtick/`${` in static text breaks generated code |
-| B15 | B | `compiler/attributes.ts:284-305` | `bind={derived}` emits `name() = …` invalid JS, no diagnostic |
-| B16 | B | `compiler/index.ts:569-575` | Nested `await` wrap ranges overlap; inner wrap silently lost |
-| B17 | B | `router/routes.ts:71-78` | Param names limited to `[a-zA-Z]+`; static segments not regex-escaped |
-| B18 | B | `events/intersect.ts:10,63-68` | IntersectionObserver leaks: teardown only via patched `removeEventListener`, but runtime unbinds via AbortSignal |
-| B19 | B | `runtime/dom.ts:301-311` | `__outside` window listeners leak when node removed wholesale |
-| B20 | B | `runtime/islands.ts:127-135,156` | IntersectionObserver never disconnected; `createIslandsApp.destroy()` no-op |
+| B1 | ⏳ | `vite/router-plugin.ts:268` vs `client/rpc.ts:68` | Generated client stubs call `rpcCall(key, args, {method})` — options land in `routePath`; direct calls of server functions broken (only `track.get/post` path works) |
+| B2 | ⏳ | `runtime/ssr.ts:384` + `client/rpc.ts:29-30` | SSR race: route path/params are module-level, not ALS-backed — concurrent requests can read each other's params |
+| B3 | ✅ | `server/utils.ts:87-111` | GET remote with args crashed undici → no body for GET/HEAD; `parseBody()` falls back to first arg |
+| B4 | ✅ | `runtime/patch.ts:57` | Mixed-case SVG tags (`clipPath` etc.) always `replaceChild`'d → now patch in place |
+| B5 | ✅ | `runtime/app.ts:337-345` | Async handler's deferred `finally` clobbered `activeHandlerComponentId` → removed |
+| B6 | ✅ | `runtime/computed.ts:55` | Computed getters stale on full `commit()` → all getters dirtied when no owner |
+| B7 | ✅ | `runtime/app.ts:408-422` | `destroy()` leaked global computed/effects/source-deps → mirrors render-loop GC |
+| B8 | ✅ | `track/core.ts:449-450` | Aborted run nulled the *new* run's controller → identity check + run token |
+| B9 | ✅ | `track/core.ts:535-605` | Promise-overload `track()` ignored cancellation → per-key run tokens gate transitions |
+| B10 | ✅ | `router/Link.tsx:142` | `<Link prefetch>` keyed by resolved URL → `prefetchRoute` matches patterns against resolved paths |
+| B11 | ✅ | `router/Router.tsx:342-346` | 404 broke navigation bookkeeping → `cachedPath` updated, loader/context cleared |
+| B12 | ✅ | `router/Router.tsx:351-369` | Guards re-ran every render → verdict cached per path |
+| B13 | ✅ | `track/core.ts:611-622` | Loader stale-serve-once → fast-path only for SSR-seeded entries; real runs re-run |
+| B14 | ✅ | `compiler/template.ts:357` | SSR codegen didn't escape `` ` ``/`\`/`${` in static content → `escapeSsrStatic` |
+| B15 | ✅ | `compiler/attributes.ts:284-305` | `bind={derived}` emitted invalid `name() = …` → bails to runtime fallback |
+| B16 | ✅ | `compiler/index.ts:569-575` + `applyReplacements` | Overlapping replacements corrupted output (nested awaits duplicated text) → contained replacements dropped |
+| B17 | ✅ | `router/routes.ts:71-78` | Param names limited to letters, unescaped static segments → identifier rules + escaping + memoized regexes |
+| B18 | ⏳ | `events/intersect.ts:10,63-68` | IntersectionObserver leaks: teardown only via patched `removeEventListener`, but runtime unbinds via AbortSignal |
+| B19 | ⏳ | `runtime/dom.ts:301-311` | `__outside` window listeners leak when node removed wholesale |
+| B20 | ✅ | `runtime/islands.ts:127-135,156` | Observer never disconnected; `destroy()` no-op → shared observer, auto-disconnect on idle/destroy |
 
 ### Performance
 
-| # | Sev | Where | Issue |
+| # | Status | Where | Issue |
 |---|---|---|---|
-| P1 | P | `vite-router/server-scanner.ts:85` | `ts.createProgram` over all server files on every HMR — causes the 5s+ test timeouts |
-| P2 | P | `compiler/derived.ts:509` etc. | Fresh TS parser per patch/setup line (`expand`, `extractIdentifiers`, …), no caching |
-| P3 | P | `runtime/app.ts:223-236,271-281` | O(depth×n) orphan GC; O(sources×components) dirty-source propagation |
-| P4 | P | `track/core.ts:560`, `track/remote.ts:169,227` | `JSON.stringify` diffing for SWR — O(payload), key-order sensitive, throws on circular/BigInt |
-| P5 | P | `router/routes.ts:89-97` | Route regexes recompiled per match call |
+| P1 | ✅ | `vite-router/server-scanner.ts:85` | `ts.createProgram` per scan → cached program keyed by files+mtimes (fixes the 5s+ test timeouts) |
+| P2 | ⏳ | `compiler/derived.ts:509` etc. | Fresh TS parser per patch/setup line (`expand`, `extractIdentifiers`, …), no caching |
+| P3 | ⏳ | `runtime/app.ts:223-236,271-281` | O(depth×n) orphan GC; O(sources×components) dirty-source propagation |
+| P4 | ⏳ | `track/core.ts:560`, `track/remote.ts:169,227` | `JSON.stringify` diffing for SWR — O(payload), key-order sensitive, throws on circular/BigInt |
+| P5 | ✅ | `router/routes.ts:89-97` | Route regexes recompiled per match → memoized per path (fixed with B17) |
 
 ### Modularity / structural
 
@@ -157,17 +158,28 @@ Severity: **B** bug (wrong behavior), **S** security, **P** performance,
 | M11 | M | `adapters/express.ts` | Published but throws — implement or remove from exports |
 | M12 | M | `vite/` ↔ `vite-router/` | Inverted dependency (`vite-router/index.ts` re-exports the plugin from `vite/`) — pick one owner |
 
-### Failing tests (pre-existing baseline: 553 pass / 6 fail)
+### Failing tests — all fixed (suite is green)
 
-1. `tests/adapters/{bun,fetch,hono}.test.ts` — suites fail to load:
-   `src/adapters/bun.ts:137` dynamically imports the virtual module
-   `auwla:server-manifest`, which vite import-analysis cannot resolve outside
-   the router plugin. Adapters should not statically reference virtual modules
-   (inject via options, or guard with `import.meta`-level indirection).
-2. `tests/vite-router/server-scanner.test.ts` (5) + `manifest.test.ts` (2) —
-   5s timeouts, symptom of P1.
-3. `tests/compiler/basics.test.ts` › island hydration — "Count: 2" vs
-   expected "Count: 3": island click invalidation off by one (uninvestigated).
+Previously failing, now passing with regression coverage:
+
+1. `tests/adapters/{bun,fetch,hono}.test.ts` — adapters no longer statically
+   import virtual modules; the generated manifest self-registers on
+   `globalThis.__auwla_serverManifest` and adapters fall back to a
+   variable-specifier dynamic import. (Two stale tests also hardcoded POST
+   against GET endpoints — corrected.)
+2. `tests/vite-router/server-scanner.test.ts` + `manifest.test.ts` — ts.Program
+   cache (P1) + 30s describe timeouts.
+3. `tests/compiler/basics.test.ts` › island hydration — was a race between the
+   dynamic-import hydration chain and a fixed 5-macrotask wait; now waits
+   deterministically for the live (listener-bound) island button. Note the
+   framework-side smell it exposed: during app hydration the app briefly
+   renders the island's SSR content itself before the island mount replaces it
+   (double render) — real island SSR uses empty shells, so only tests with
+   pre-rendered island content hit this.
+
+New regression suites added this round: `tests/runtime/issue-fixes.test.tsx`,
+`tests/track/issue-fixes.test.ts`, `tests/router/issue-fixes.test.ts`,
+`tests/head/issue-fixes.test.ts`, `tests/compiler/issue-fixes.test.ts`.
 
 ## Modularity roadmap
 
@@ -187,8 +199,9 @@ Phase 2 — boundary fixes:
 3. Extract router accessors/store into `router/context.ts` (M4).
 4. Extract SSG + HTTP shims from `router-plugin.ts` (M6).
 
-Phase 3 — correctness sweeps (each is independently shippable):
-security S1–S6, then B1–B20 in severity order, adding a regression test per fix.
+Phase 3 — correctness sweeps (in progress): S1–S4, B3–B17, B20, P1, P5 fixed
+with regression tests. Remaining: S5, S6, B1 (broken direct-call RPC stubs),
+B2 (SSR route-params race), B18/B19 (listener leaks), P2–P4.
 
 Rules for new code: respect the layer table; cross-layer strings/globals go
 in `shared/constants.ts`; new feature = new module + a row in the map above;
