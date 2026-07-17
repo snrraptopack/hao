@@ -10,6 +10,7 @@
  */
 
 import ts from 'typescript';
+import { GLOBALS_WITH_HELPERS } from './constants';
 
 export type ConditionalAssignment = {
   start: number;
@@ -48,16 +49,7 @@ export type DerivedContext = {
   hasEffects?: boolean;
 };
 
-const GLOBAL_IDENTIFIERS = new Set([
-  'true', 'false', 'null', 'undefined', 'NaN', 'Infinity',
-  'console', 'window', 'document', 'Math', 'JSON', 'Date', 'String', 'Number',
-  'Array', 'Object', 'RegExp', 'Error', 'Promise', 'Set', 'Map',
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite',
-  '__event', '__componentBlock', '__createBlock', '__createBlockSimple', '__setText',
-  '__setElementText', '__setClass', '__setProperty', '__setAttribute',
-  '__setStyle', '__setChild', '__spreadProps', '__keyedMap', '__cloneTemplate',
-  '__computed',
-]);
+const GLOBAL_IDENTIFIERS = GLOBALS_WITH_HELPERS;
 
 function collectScopeDeclarations(node: ts.Node, scope: Set<string>) {
   if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {

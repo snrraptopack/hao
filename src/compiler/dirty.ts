@@ -2,14 +2,8 @@ import ts from 'typescript';
 import type { DerivedContext } from './derived';
 import { extractIdentifiers } from './derived';
 import type { DynamicPatch } from './types';
+import { GLOBAL_IDENTIFIERS } from './constants';
 import { expressionDependencies } from './utils';
-
-const GLOBAL_IDENTIFIERS = new Set([
-  'true', 'false', 'null', 'undefined', 'NaN', 'Infinity',
-  'console', 'window', 'document', 'Math', 'JSON', 'Date', 'String', 'Number',
-  'Array', 'Object', 'RegExp', 'Error', 'Promise', 'Set', 'Map',
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite',
-]);
 
 function singleQuoted(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;

@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { componentNameFromFunction, detectComponentReactivity, extractPropsExpression, isLayoutComponent, CompileOptions } from './index';
 
 import { TemplateContext, isSvgTag } from './types';
+import { ANCHOR_CHILD, ANCHOR_KEYED_MAP } from '../shared/constants';
 import { compileTemplateAttribute, jsxAttributeName } from './attributes';
 import type { DerivedContext } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
@@ -59,7 +60,7 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
         if (ctx.ssr) {
           let jsxCode = expressionText(ctx.source, expression);
           if (ctx.derivedCtx) jsxCode = ctx.derivedCtx.expand(jsxCode);
-          html += `<!--auwla:keyed-map-->\${__ssrNode(${jsxCode})}<!--/auwla:keyed-map-->`;
+          html += `<!--${ANCHOR_KEYED_MAP}-->\${__ssrNode(${jsxCode})}<!--/${ANCHOR_KEYED_MAP}-->`;
           continue;
         }
         return null;
@@ -69,7 +70,7 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
         if (ctx.ssr) {
           let jsxCode = expressionText(ctx.source, expression);
           if (ctx.derivedCtx) jsxCode = ctx.derivedCtx.expand(jsxCode);
-          html += `<!--auwla:child-->\${__ssrNode(${jsxCode})}<!--/auwla:child-->`;
+          html += `<!--${ANCHOR_CHILD}-->\${__ssrNode(${jsxCode})}<!--/${ANCHOR_CHILD}-->`;
           continue;
         }
         return null;
@@ -78,7 +79,7 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
       let value = expressionText(ctx.source, expression);
       if (ctx.ssr) {
         if (ctx.derivedCtx) value = ctx.derivedCtx.expand(value);
-        html += `<!--auwla:child-->\${__escapeHtml(${value})}<!--/auwla:child-->`;
+        html += `<!--${ANCHOR_CHILD}-->\${__escapeHtml(${value})}<!--/${ANCHOR_CHILD}-->`;
         continue;
       }
 
@@ -101,7 +102,7 @@ export function compileTemplateChildren(ctx: TemplateContext, children: readonly
         if (ctx.ssr) {
           let jsxCode = child.getText(ctx.source);
           if (ctx.derivedCtx) jsxCode = ctx.derivedCtx.expand(jsxCode);
-          html += `<!--auwla:child-->\${__ssrNode(${jsxCode})}<!--/auwla:child-->`;
+          html += `<!--${ANCHOR_CHILD}-->\${__ssrNode(${jsxCode})}<!--/${ANCHOR_CHILD}-->`;
           continue;
         }
         return null;
@@ -206,7 +207,7 @@ function singleDynamicTextChild(ctx: TemplateContext, node: ts.JsxElement, path:
   let value = expressionText(ctx.source, expression);
   if (ctx.ssr) {
     if (ctx.derivedCtx) value = ctx.derivedCtx.expand(value);
-    return `<!--auwla:child-->\${__escapeHtml(${value})}<!--/auwla:child-->`;
+    return `<!--${ANCHOR_CHILD}-->\${__escapeHtml(${value})}<!--/${ANCHOR_CHILD}-->`;
   }
 
   const elementVar = templateElementVar(ctx, path);

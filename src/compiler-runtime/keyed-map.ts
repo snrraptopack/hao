@@ -9,7 +9,7 @@
 import type { CompiledBlock } from './block';
 import { runtimeState } from '../runtime/state';
 import { removeNode } from './dom-setters';
-import { NO_INDEX } from '../shared/constants';
+import { ANCHOR_KEYED_MAP, NO_INDEX } from '../shared/constants';
 import { sameDeps } from '../shared/deps';
 import { longestIncreasingSubsequence } from '../shared/lis';
 
@@ -128,7 +128,7 @@ export function __keyedMap<TItem, TKey>(
   updateCreatedRows = true,
 ): CompiledBlock<[readonly TItem[]]> {
   const fragment = document.createDocumentFragment();
-  const anchor = document.createComment('auwla:keyed-map');
+  const anchor = document.createComment(ANCHOR_KEYED_MAP);
   const rows = new Map<TKey, AuwlaRowBlock<TItem>>();
   const orderedRows: AuwlaRowBlock<TItem>[] = [];
   let destroyableRows = 0;

@@ -8,6 +8,7 @@
 import type { SsrNode } from '../runtime/types';
 import { isSsrNode, isTemplateNode } from '../runtime/types';
 import { compiledStyleValue } from '../shared/style-helpers';
+import { ANCHOR_KEYED_MAP, BOOLEAN_HTML_ATTRS } from '../shared/constants';
 
 export class SsrSafeHtml {
   public readonly __isSsrSafeHtml = true;
@@ -59,16 +60,6 @@ function ssrChildToString(child: unknown): string {
   }
   return __escapeHtml(child);
 }
-
-const BOOLEAN_HTML_ATTRS = new Set([
-  'checked',
-  'disabled',
-  'hidden',
-  'multiple',
-  'readonly',
-  'required',
-  'selected',
-]);
 
 function ssrPropsToString(props: Record<string, unknown>): string {
   let attrs = '';
@@ -168,7 +159,7 @@ export function __ssrNode(node: unknown): string {
  * @internal
  */
 export function __ssrKeyedMap(html: string): string {
-  return `<!--auwla:keyed-map-->${html}<!--/auwla:keyed-map-->`;
+  return `<!--${ANCHOR_KEYED_MAP}-->${html}<!--/${ANCHOR_KEYED_MAP}-->`;
 }
 
 /** @internal */

@@ -10,6 +10,8 @@
  * compiled setup code "grab" real DOM refs without touching the DOM structure.
  */
 
+import { ANCHOR_CHILD, ANCHOR_KEYED_MAP } from '../shared/constants';
+
 const templateCache = new Map<string, HTMLElement>();
 
 /**
@@ -65,8 +67,8 @@ export function __hydrateComment(data: string): Comment {
     if (
       hydrationCursor !== null &&
       hydrationCursor.nodeType === Node.COMMENT_NODE &&
-      (hydrationCursor.textContent === 'auwla:child' ||
-        hydrationCursor.textContent === 'auwla:keyed-map')
+      (hydrationCursor.textContent === ANCHOR_CHILD ||
+        hydrationCursor.textContent === ANCHOR_KEYED_MAP)
     ) {
       const openNode = hydrationCursor as Comment;
       const expectedClose = '/' + openNode.textContent;

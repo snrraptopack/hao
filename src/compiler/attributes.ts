@@ -7,6 +7,7 @@ import { DynamicPatch, CompileContext, TemplateContext, PROPERTY_PROPS } from '.
 import { findMutatedVariables, needsFullDirty } from './derived';
 import type { DerivedContext } from './derived';
 import { expressionText, stringLiteral, escapeHtml, isStaticExpression, childExpression } from './utils';
+import { BOOLEAN_HTML_ATTRS } from '../shared/constants';
 
 /** Convert a camelCase CSS property name to kebab-case. */
 function camelToKebab(name: string): string {
@@ -450,16 +451,6 @@ export function compileAttribute(
   ctx.patches.push({ code: `${setter}(${elementVar}, ${stringLiteral(name)}, ${value});`, deps: [value] });
   return true;
 }
-
-const BOOLEAN_HTML_ATTRS = new Set([
-  'checked',
-  'disabled',
-  'hidden',
-  'multiple',
-  'readonly',
-  'required',
-  'selected',
-]);
 
 export function compileTemplateAttribute(
   ctx: TemplateContext,

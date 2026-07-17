@@ -77,7 +77,7 @@ export default defineConfig({
       { find: 'auwla/jsx-runtime', replacement: resolve(__dirname, 'src/jsx-runtime.ts') },
       { find: 'auwla/jsx-dev-runtime', replacement: resolve(__dirname, 'src/jsx-dev-runtime.ts') },
       { find: 'auwla/compiler', replacement: resolve(__dirname, 'src/compiler.ts') },
-      { find: 'auwla/vite', replacement: resolve(__dirname, 'src/vite.ts') },
+      { find: 'auwla/vite', replacement: resolve(__dirname, 'src/vite/index.ts') },
       { find: 'auwla/runtime/app', replacement: resolve(__dirname, 'src/runtime/app.ts') },
       { find: 'auwla/runtime/islands', replacement: resolve(__dirname, 'src/runtime/islands.ts') },
       { find: 'auwla/runtime/static', replacement: resolve(__dirname, 'src/runtime/static.ts') },

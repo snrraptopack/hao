@@ -5,6 +5,7 @@
  */
 
 import ts from 'typescript';
+import { GLOBAL_IDENTIFIERS } from './constants';
 
 /** Extract the raw text of an expression from the source file. */
 export function expressionText(source: ts.SourceFile, expression: ts.Expression): string {
@@ -61,13 +62,6 @@ export function decodeJsxText(value: string): string {
     }
   });
 }
-
-const GLOBAL_IDENTIFIERS = new Set([
-  'true', 'false', 'null', 'undefined', 'NaN', 'Infinity',
-  'console', 'window', 'document', 'Math', 'JSON', 'Date', 'String', 'Number',
-  'Array', 'Object', 'RegExp', 'Error', 'Promise', 'Set', 'Map',
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite',
-]);
 
 /**
  * Infer row dependencies from expressions that reference `itemName`.

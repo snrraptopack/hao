@@ -4,6 +4,7 @@
 
 import ts from 'typescript';
 import { CompileContext, CompileResult, isSvgTag } from './types';
+import { ANCHOR_CHILD, ANCHOR_KEYED_MAP } from '../shared/constants';
 import type { DerivedContext } from './derived';
 import { dirtySetupLine, renderUpdateBody, sourceTrackingLines, usesDirtyTracking } from './dirty';
 import { compileAttribute } from './attributes';
@@ -57,7 +58,7 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
 
     if (needsChildPatch(expression) || isPropsChildrenExpression(expression)) {
       const childVar = `child${ctx.textId++}`;
-      ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:child");`);
+      ctx.setup.push(`let ${childVar} = __hydrateComment("${ANCHOR_CHILD}");`);
       ctx.setup.push(`${parentVar}.append(${childVar});`);
       ctx.patches.push({ code: `${childVar} = __setChild(${parentVar}, ${childVar}, ${value});`, deps: [value] });
       return true;
@@ -80,7 +81,7 @@ export function compileJsxChild(ctx: CompileContext, child: ts.JsxChild, parentV
     // Component could not be inlined — fall back to runtime JSX for this child only.
     const childVar = `child${ctx.textId++}`;
     const jsxCode = child.getText(ctx.source);
-    ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:child");`);
+    ctx.setup.push(`let ${childVar} = __hydrateComment("${ANCHOR_CHILD}");`);
     ctx.setup.push(`${parentVar}.append(${childVar});`);
     ctx.patches.push({ code: `${childVar} = __setChild(${parentVar}, ${childVar}, ${jsxCode});`, deps: [] });
     return true;
@@ -310,7 +311,7 @@ function compileConditionalJsx(ctx: CompileContext, expression: ts.Expression, p
   // Allocate marker and active-branch tracker.
   const childVar = `child${ctx.textId++}`;
   const activeVar = `activeBranch${ctx.textId++}`;
-  ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:child");`);
+  ctx.setup.push(`let ${childVar} = __hydrateComment("${ANCHOR_CHILD}");`);
   ctx.setup.push(`${parentVar}.append(${childVar});`);
   ctx.setup.push(`let ${activeVar}: number | null = null;`);
 
@@ -566,7 +567,7 @@ ${updateStatements}                node = patchNode(node.parentNode!, node, ${ex
     : `(${itemName}) => ${keyText}`;
 
   ctx.setup.push(`let ${mapVar}: any = null;`);
-  ctx.setup.push(`let ${childVar} = __hydrateComment("auwla:keyed-map");`);
+  ctx.setup.push(`let ${childVar} = __hydrateComment("${ANCHOR_KEYED_MAP}");`);
   ctx.setup.push(`${parentVar}.append(${childVar});`);
   ctx.patches.push({
     code: `if (!${mapVar}) {

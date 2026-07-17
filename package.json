@@ -47,10 +47,6 @@
       "types": "./dist/events/hotkey.d.ts",
       "import": "./dist/events/hotkey.js"
     },
-    "./css": {
-      "types": "./dist/css/index.d.ts",
-      "import": "./dist/css/index.js"
-    },
     "./track": {
       "types": "./dist/track/index.d.ts",
       "import": "./dist/track/index.js"
