@@ -245,6 +245,9 @@ type RouterStore = {
   currentLoader: TrackHandle | null;
   currentMeta: Record<string, unknown> | null;
   currentError: RouteError | null;
+  /** Per-request RPC route context (B2) — read by client/rpc.ts via the provider below. */
+  rpcRoutePath: string | null;
+  rpcRouteParams: Record<string, string | string[]> | null;
 };
 
 const trackStorage = new AsyncLocalStorage<TrackStore>();
@@ -265,6 +268,21 @@ const routerStorage = new AsyncLocalStorage<RouterStore>();
     if (store) store.rpcDispatcher = null;
   },
 } satisfies import('./rpc-dispatcher').RpcDispatcherProvider;
+
+// Per-request RPC route-context provider — read by client/rpc.ts on every call
+// so concurrent SSR requests never see each other's route path/params (B2).
+(globalThis as any).__auwla_routeContextProvider = {
+  getPath: () => routerStorage.getStore()?.rpcRoutePath ?? null,
+  getParams: () => routerStorage.getStore()?.rpcRouteParams ?? null,
+  setPath: (path: string | null) => {
+    const store = routerStorage.getStore();
+    if (store) store.rpcRoutePath = path;
+  },
+  setParams: (params: Record<string, string | string[]> | null) => {
+    const store = routerStorage.getStore();
+    if (store) store.rpcRouteParams = params;
+  },
+};
 
 (globalThis as any).__auwla_routerStoreProvider = {
   getCurrentContext: () => routerStorage.getStore()?.currentContext ?? null,
@@ -372,6 +390,8 @@ export async function renderToString(
       currentLoader: null,
       currentMeta: null,
       currentError: null,
+      rpcRoutePath: null,
+      rpcRouteParams: null,
     }, async () => {
       const context: RouteContext<any> = {
         path: pathname,

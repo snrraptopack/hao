@@ -87,7 +87,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, options.router?.extensions);
       cachedVirtualModule = moduleCode;
       writeSafe(resolvedGenFile, typeCode);
-      generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir);
+      generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir, viteConfig.root);
     },
 
     async closeBundle() {
@@ -260,12 +260,15 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
 
         const exports = parseServerExports(cleanId);
 
-        let code = `import { rpcCall } from 'auwla/client';\n`;
+        let code = `import { rpcCall, getCurrentRoutePath } from 'auwla/client';\n`;
         for (const name of exports) {
           const key = `${routeName}.${name}`;
           const entry = manifest[key];
           const method = entry?.method ?? 'GET';
-          code += `export const ${name} = (...args) => rpcCall('${key}', args, { method: '${method}' });\n`;
+          // Signature: rpcCall(key, args, routePath, options). The route path
+          // must come from the live router context — page server functions
+          // declare a routePattern and the adapter validates it (B1).
+          code += `export const ${name} = (...args) => rpcCall('${key}', args, getCurrentRoutePath(), { method: '${method}' });\n`;
           code += `${name}.__auwla_key = '${key}';\n`;
         }
         return code;
@@ -274,7 +277,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       if (id === RESOLVED_MANIFEST_VIRTUAL_ID) {
         if (!cachedManifestModule) {
           const serverModules = scanServerModules(resolvedPagesDir, resolvedServerDir);
-          const manifest = buildServerManifest(serverModules);
+          const manifest = buildServerManifest(serverModules, viteConfig.root);
           cachedManifestModule = generateServerManifestJs(manifest);
         }
         return cachedManifestModule;
@@ -292,7 +295,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
         const { moduleCode, typeCode } = buildRoutes(resolvedPagesDir, isLazy, options.router?.extensions);
         cachedVirtualModule = moduleCode;
         writeSafe(resolvedGenFile, typeCode);
-        generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir);
+        generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir, viteConfig.root);
       }
 
       return cachedVirtualModule;
@@ -335,7 +338,7 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
       const moduleGraph = this.environment.moduleGraph;
 
       if (isSrv) {
-        generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir);
+        generateServerManifest(resolvedPagesDir, resolvedServerDir, resolvedManifestDir, viteConfig.root);
         return appendHotModules(
           ctx.modules,
           moduleGraph.getModuleById(RESOLVED_MANIFEST_VIRTUAL_ID),
@@ -377,7 +380,12 @@ export function auwlaRouter(options: AuwlaRouterOptions = {}): Plugin {
           const manifest: ServerManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
           const adapter = createFetchAdapter({
             manifest,
-            load: (modulePath: string) => server.ssrLoadModule(modulePath),
+            load: (modulePath: string) => {
+              // Manifest paths are root-relative (S6) — ssrLoadModule wants a
+              // leading '/' for root-relative ids (absolute paths pass through).
+              const isAbs = /^([a-zA-Z]:[\\/]|\/)/.test(modulePath);
+              return server.ssrLoadModule(isAbs ? modulePath : `/${modulePath}`);
+            },
           });
           const request = await nodeRequestToRequest(req);
           const response = await adapter(request, { vite: { server, req, res } })
@@ -402,9 +410,10 @@ function generateServerManifest(
   pagesDir: string,
   serverDir: string,
   manifestDir: string,
+  rootDir?: string,
 ): void {
   const serverModules = scanServerModules(pagesDir, serverDir);
-  const manifest = buildServerManifest(serverModules);
+  const manifest = buildServerManifest(serverModules, rootDir);
   writeServerManifest(manifestDir, manifest);
   cachedManifestModule = null;
 }

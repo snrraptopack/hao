@@ -8,21 +8,27 @@
  */
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, relative } from 'node:path'
 import type { ServerManifest } from '../server/types'
 import type { ServerModule } from './server-scanner'
 
 /**
  * Build the runtime manifest object from scanned server modules.
+ *
+ * When `rootDir` is given, module paths are stored ROOT-RELATIVE (posix
+ * separators) instead of absolute (S6): the manifest is written to disk and
+ * shipped to any environment that imports it, and absolute paths would leak
+ * the server's directory layout. Loaders resolve them back at load time
+ * (see `defaultLoad` in server/utils.ts).
  */
-export function buildServerManifest(modules: ServerModule[]): ServerManifest {
+export function buildServerManifest(modules: ServerModule[], rootDir?: string): ServerManifest {
   const manifest: ServerManifest = {}
 
   for (const mod of modules) {
     for (const exp of mod.exports) {
       const key = `${mod.routeName}.${exp.name}`
       manifest[key] = {
-        modulePath: mod.filePath,
+        modulePath: rootDir ? relative(rootDir, mod.filePath).replace(/\\/g, '/') : mod.filePath,
         exportName: exp.name,
         method: exp.method,
         routePattern: mod.routePattern,

@@ -1,17 +1,35 @@
 import type { CookieOptions, ServerManifest, ServerManifestEntry, ServerContext, RemoteFunction, Middleware } from './types'
 import { runMiddleware } from './pipeline'
 import { parseBody } from './validate'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 export function defaultLoad(modulePath: string): Promise<Record<string, unknown>> {
-  if ((globalThis as any).__auwla_vite_server) {
+  const viteServer = (globalThis as any).__auwla_vite_server
+  const isAbsolute = /^([a-zA-Z]:[\\/]|\/|file:)/.test(modulePath)
+  if (viteServer) {
+    if (!isAbsolute) {
+      // Root-relative manifest path (S6): resolve against the Vite root.
+      const root = String(viteServer.config?.root ?? '')
+        .replace(/\\/g, '/')
+        .replace(/^\//, '')
+        .replace(/\/$/, '')
+      return viteServer.ssrLoadModule(`/@fs/${root}/${modulePath}`)
+    }
     let viteUrl = modulePath.replace(/\\/g, '/')
     if (viteUrl.match(/^[a-zA-Z]:\//) || viteUrl.startsWith('/')) {
       viteUrl = `/@fs/${viteUrl.replace(/^\//, '')}`
     }
-    return (globalThis as any).__auwla_vite_server.ssrLoadModule(viteUrl)
+    return viteServer.ssrLoadModule(viteUrl)
   }
-  // In Node.js production, absolute Windows paths need file:/// prefix
-  if (typeof process !== 'undefined' && process.platform === 'win32' && modulePath.match(/^[a-zA-Z]:\\/)) {
+  if (!isAbsolute) {
+    // Root-relative manifest path in production: resolve against an explicit
+    // server root when set, else the process working directory.
+    const base = (globalThis as any).__auwla_serverRoot
+      ?? (typeof process !== 'undefined' ? process.cwd() : '')
+    modulePath = pathToFileURL(resolve(base, modulePath)).href
+  } else if (typeof process !== 'undefined' && process.platform === 'win32' && modulePath.match(/^[a-zA-Z]:\\/)) {
+    // In Node.js production, absolute Windows paths need file:/// prefix
     modulePath = `file:///${modulePath.replace(/\\/g, '/')}`
   }
   return import(/* @vite-ignore */ modulePath)

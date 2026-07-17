@@ -49,6 +49,21 @@ describe('manifest', { timeout: 30000 }, () => {
     })
   })
 
+  it('stores root-relative module paths when rootDir is given (S6)', () => {
+    const modules = scanServerModules(
+      resolve(fixturesDir, 'pages'),
+      resolve(fixturesDir, 'server'),
+    )
+    const manifest = buildServerManifest(modules, fixturesDir)
+
+    for (const entry of Object.values(manifest)) {
+      expect(entry.modulePath).not.toMatch(/^([a-zA-Z]:[\\/]|\/)/)
+      expect(entry.modulePath).not.toContain('\\')
+    }
+    expect(manifest['about.getAbout']!.modulePath).toBe('pages/about.server.ts')
+    expect(manifest['auth.getUser']!.modulePath).toBe('server/auth.server.ts')
+  })
+
   it('generates a TypeScript declaration file', () => {
     const modules = scanServerModules(
       resolve(fixturesDir, 'pages'),

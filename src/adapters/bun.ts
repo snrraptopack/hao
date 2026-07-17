@@ -37,12 +37,33 @@ import { ssrRender } from './shared'
 import { getRegisteredServerManifest, importServerManifestVirtualModule } from '../server/utils'
 import type { Route } from '../router/types'
 import type { SsrInvokeOptions } from '../server/ssr-invoke'
+import { resolve as resolvePath, sep } from 'node:path'
 
 /**
  * Virtual-module specifier kept behind a variable (+ `@vite-ignore`) so vite
  * import-analysis cannot statically resolve it outside the router plugin.
  */
 const AUWLA_ROUTES_MODULE = 'auwla:routes'
+
+/**
+ * Resolve a URL path against the static root, returning null when the result
+ * would escape the root (path traversal — S5). Encoded dot segments are
+ * decoded first so `%2e%2e` cannot smuggle `..` past the check, and NUL bytes
+ * are rejected outright.
+ */
+export function resolveStaticPath(staticDir: string, urlPath: string): string | null {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(urlPath)
+  } catch {
+    return null
+  }
+  if (decoded.includes('\0')) return null
+  const root = resolvePath(staticDir)
+  // Strip leading slashes so an absolute-looking URL path stays a join.
+  const candidate = resolvePath(root, decoded.replace(/^[/\\]+/, ''))
+  return candidate === root || candidate.startsWith(root + sep) ? candidate : null
+}
 
 declare const Bun: {
   /**
@@ -116,15 +137,20 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
       const url = new URL(request.url)
       const pathname = url.pathname
       if (pathname !== '/' && pathname !== '/index.html') {
-        const file = Bun.file(`${staticDir}${pathname}`)
-        if (await file.exists()) {
-          const headers = new Headers()
-          if (pathname.startsWith('/assets/')) {
-            headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-          } else {
-            headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
+        // Containment check (S5): reject paths that escape staticDir, e.g.
+        // `/../secret` or `/%2e%2e/%2e%2e/etc/passwd`.
+        const filePath = resolveStaticPath(staticDir, pathname)
+        if (filePath) {
+          const file = Bun.file(filePath)
+          if (await file.exists()) {
+            const headers = new Headers()
+            if (pathname.startsWith('/assets/')) {
+              headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+            } else {
+              headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
+            }
+            return new Response(file as any, { headers })
           }
-          return new Response(file as any, { headers })
         }
       }
     }
