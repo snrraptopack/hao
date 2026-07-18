@@ -485,110 +485,23 @@ ${syntheticPreUpdateLines ? `${syntheticPreUpdateLines}\n` : ''}${preUpdateLines
           })`,
   };
 }
+type KeyedMapParts = {
+  itemName: string;
+  indexName: string;
+  items: string;
+  keyOf: string;
+  deps: string;
+  rowBlockCode: string;
+};
 
-export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expression, parentVar: string): boolean {
-  while (ts.isParenthesizedExpression(expression)) {
-    expression = expression.expression;
-  }
-  if (!ts.isCallExpression(expression)) return false;
-  if (!ts.isPropertyAccessExpression(expression.expression)) return false;
-  if (expression.expression.name.text !== 'map') return false;
-  if (expression.arguments.length !== 1) return false;
-
-  const callback = expression.arguments[0]!;
-  if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) return false;
-  const paramInfo = normalizeMapItemParam(callback.parameters[0]);
-  if (!paramInfo) return false;
-  const { itemName, leadingStatements: paramLeadingStatements, substitutions } = paramInfo;
-  const indexParam = callback.parameters[1];
-  const indexName = indexParam && ts.isIdentifier(indexParam.name) ? indexParam.name.text : 'index';
-
-  const unwrapped = ts.isBlock(callback.body)
-    ? unwrapJsxReturnWithStatements(ctx.source, callback.body)
-    : { row: unwrapJsxExpression(callback.body), leadingStatements: [] as string[] };
-  if (!unwrapped || !unwrapped.row) return false;
-  const { row, leadingStatements } = unwrapped;
-
-  const key = keyAttribute(row);
-  const isUnkeyed = !key;
-  const rawKeyText = key ? expressionText(ctx.source, key) : indexName;
-  const keyText = applySubstitutions(rawKeyText, substitutions);
-  const items = expressionText(ctx.source, expression.expression.expression);
-  const rowBlock = compileTemplateRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items, paramLeadingStatements)
-    ?? compileRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, leadingStatements, items, paramLeadingStatements);
-
-  const mapVar = `map${ctx.mapId++}`;
-  const childVar = `child${ctx.textId++}`;
-
-  let rowBlockCode: string;
-  let rowDeps: string[];
-  let forceUpdate = false;
-
-  if (rowBlock) {
-    rowBlockCode = rowBlock.block;
-    rowDeps = rowBlock.deps.map((dep) => applySubstitutions(dep, substitutions));
-    forceUpdate = rowBlock.forceUpdate ?? false;
-  } else {
-    const jsxCode = row.getText(ctx.source);
-    const expandedJsxCode = applySubstitutions(ctx.derivedCtx ? ctx.derivedCtx.expand(jsxCode) : jsxCode, substitutions);
-    const allIdentifiers = rowDependencies([expandedJsxCode], itemName);
-    rowDeps = allIdentifiers.filter((dep) => dep !== keyText);
-
-    const fallbackPreUpdate = [...paramLeadingStatements, ...leadingStatements];
-    const initStatements = fallbackPreUpdate.length > 0
-      ? fallbackPreUpdate.map(line => `            ${line}`).join('\n') + '\n'
-      : '';
-    const updateStatements = fallbackPreUpdate.length > 0
-      ? fallbackPreUpdate.map(line => `                ${line}`).join('\n') + '\n'
-      : '';
-
-    rowBlockCode = `__createBlock(() => {
-${initStatements}            let node = toNode(${expandedJsxCode});
-            return {
-              node,
-              update(${itemName}, ${indexName}) {
-${updateStatements}                node = patchNode(node.parentNode!, node, ${expandedJsxCode});
-              },
-            };
-          })`;
-  }
-
-  const filteredRowDeps = rowDeps.filter((dep) => dep !== keyText);
-  const deps = forceUpdate
-    ? 'undefined'
-    : filteredRowDeps.length === 0
-      ? `(${itemName}) => null`
-      : filteredRowDeps.length === 1
-        ? `(${itemName}) => ${filteredRowDeps[0]!}`
-        : `(${itemName}) => [${filteredRowDeps.join(', ')}]`;
-
-  const keyOf = isUnkeyed
-    ? `(${itemName}, ${indexName}) => (typeof ${itemName} === 'object' && ${itemName} !== null ? ${itemName} : ${indexName})`
-    : `(${itemName}) => ${keyText}`;
-
-  ctx.setup.push(`let ${mapVar}: any = null;`);
-  ctx.setup.push(`let ${childVar} = __hydrateComment("${ANCHOR_KEYED_MAP}");`);
-  ctx.setup.push(`${parentVar}.append(${childVar});`);
-  ctx.patches.push({
-    code: `if (!${mapVar}) {
-            ${mapVar} = __keyedMap(
-              ${items},
-              ${keyOf},
-              (${itemName}, ${indexName}) => ${rowBlockCode},
-              (block, ${itemName}, index) => block.update(${itemName}, index),
-              ${deps},
-              false,
-            );
-            ${childVar} = __setChild(${parentVar}, ${childVar}, ${mapVar}.node);
-          } else {
-            ${mapVar}.update(${items});
-          }`,
-    deps: [items],
-  });
-  return true;
-}
-
-export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string | null {
+/**
+ * Shared analysis for the keyed-map compilers (M7): unwraps the `.map()`
+ * call, extracts item/index names and the row key, compiles the row block
+ * (template or direct, with the raw-JSX fallback), and computes the
+ * dependency/keyOf expressions. Returns null when the expression is not a
+ * compilable `.map()` call.
+ */
+function buildKeyedMapParts(ctx: CompileContext, expression: ts.Expression): KeyedMapParts | null {
   while (ts.isParenthesizedExpression(expression)) {
     expression = expression.expression;
   }
@@ -619,8 +532,6 @@ export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression):
   const rowBlock = compileTemplateRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, false, leadingStatements, items, paramLeadingStatements)
     ?? compileRowBlock(ctx.source, row, itemName, indexName, keyText, ctx.derivedCtx, leadingStatements, items, paramLeadingStatements);
 
-  const mapVar = `map${ctx.mapId++}`;
-
   let rowBlockCode: string;
   let rowDeps: string[];
   let forceUpdate = false;
@@ -667,6 +578,45 @@ ${updateStatements}                node = patchNode(node.parentNode!, node, ${ex
     ? `(${itemName}, ${indexName}) => (typeof ${itemName} === 'object' && ${itemName} !== null ? ${itemName} : ${indexName})`
     : `(${itemName}) => ${keyText}`;
 
+  return { itemName, indexName, items, keyOf, deps, rowBlockCode };
+}
+
+export function compileDeferredKeyedMap(ctx: CompileContext, expression: ts.Expression, parentVar: string): boolean {
+  const parts = buildKeyedMapParts(ctx, expression);
+  if (!parts) return false;
+  const { itemName, indexName, items, keyOf, deps, rowBlockCode } = parts;
+
+  const mapVar = `map${ctx.mapId++}`;
+  const childVar = `child${ctx.textId++}`;
+
+  ctx.setup.push(`let ${mapVar}: any = null;`);
+  ctx.setup.push(`let ${childVar} = __hydrateComment("${ANCHOR_KEYED_MAP}");`);
+  ctx.setup.push(`${parentVar}.append(${childVar});`);
+  ctx.patches.push({
+    code: `if (!${mapVar}) {
+            ${mapVar} = __keyedMap(
+              ${items},
+              ${keyOf},
+              (${itemName}, ${indexName}) => ${rowBlockCode},
+              (block, ${itemName}, index) => block.update(${itemName}, index),
+              ${deps},
+              false,
+            );
+            ${childVar} = __setChild(${parentVar}, ${childVar}, ${mapVar}.node);
+          } else {
+            ${mapVar}.update(${items});
+          }`,
+    deps: [items],
+  });
+  return true;
+}
+
+export function compileKeyedMap(ctx: CompileContext, expression: ts.Expression): string | null {
+  const parts = buildKeyedMapParts(ctx, expression);
+  if (!parts) return null;
+  const { itemName, indexName, items, keyOf, deps, rowBlockCode } = parts;
+
+  const mapVar = `map${ctx.mapId++}`;
   ctx.setup.push(`const ${mapVar} = __keyedMap(
           [],
           ${keyOf},
