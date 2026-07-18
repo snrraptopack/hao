@@ -51,3 +51,18 @@ describe('S3 — SSR head serialization escapes user input', () => {
     expect(html).toBe('<meta name="description" content="Tom &amp; Jerry">');
   });
 });
+
+describe('head SSR collection — TemplateNode children (site regression)', () => {
+  // @vitest-environment node is required so the SSR mock DOM path runs —
+  // that is where children arrive as TemplateNodes instead of SsrNodes.
+  test('serializeToHtml handles TemplateNode children', async () => {
+    const { serializeToHtml } = await import('../../src/head/Head');
+    const { h } = await import('../../src');
+
+    const templateChild = { __auwlaTemplate: true, ownerId: null, tag: 'title', props: {}, children: ['Hello'] };
+    expect(serializeToHtml(templateChild as any)).toBe('<title>Hello</title>');
+
+    const meta = { __auwlaTemplate: true, ownerId: null, tag: 'meta', props: { name: 'x', content: 'y' }, children: [] };
+    expect(serializeToHtml(meta as any)).toBe('<meta name="x" content="y">');
+  });
+});

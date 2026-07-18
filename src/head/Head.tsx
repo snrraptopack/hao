@@ -30,7 +30,7 @@
 
 import { cleanup } from '../runtime/component';
 import * as dom from '../runtime/dom';
-import { isSsrNode } from '../runtime/types';
+import { isSsrNode, isTemplateNode } from '../runtime/types';
 import type { MemoChild } from '../runtime/types';
 
 // ─── SSR helpers ─────────────────────────────────────────────────────────────
@@ -83,12 +83,17 @@ export function serializeToHtml(child: MemoChild): string {
     }
   }
 
-  if (isSsrNode(child)) {
+  // Elements arrive as SsrNode (compiled __ssrNode output) or TemplateNode
+  // (runtime template path under the SSR mock DOM) — both carry
+  // tag/props/children and serialize identically. TemplateNode children was
+  // previously unhandled, which silently dropped all <Head> content (no head
+  // tags ever reached the shell).
+  if (isSsrNode(child) || isTemplateNode(child)) {
     const { tag, props, children } = child;
 
     // Build attribute string — skip internal/React-ish prop names
     const attrs = Object.entries(props ?? {})
-      .filter(([k]) => k !== 'children' && k !== 'innerHTML' && k !== 'dangerouslySetInnerHTML')
+      .filter(([k]) => k !== 'children' && k !== 'innerHTML' && k !== 'dangerouslySetInnerHTML' && k !== 'key' && !k.startsWith('__'))
       .map(([k, v]) => {
         if (v === true) return k;           // boolean attribute
         if (v === false || v == null) return '';
@@ -201,10 +206,18 @@ export function Head(props: HeadProps): () => MemoChild {
         const existing = document.head.querySelector('title');
         if (existing) {
           const oldTitle = existing.textContent;
-          existing.textContent = n.textContent;
+          const newTitle = n.textContent;
+          existing.textContent = newTitle;
           hoisted.push({
             restore() {
-              existing.textContent = oldTitle;
+              // Stacked-restore guard: only revert when this instance still
+              // owns the current value. A newer Head may have replaced it —
+              // reverting then would clobber the newer page's title (e.g. on
+              // SPA navigation where the old page's Head unmounts after the
+              // new page's Head has already hoisted).
+              if (existing.textContent === newTitle) {
+                existing.textContent = oldTitle;
+              }
             }
           });
           return;
@@ -216,9 +229,12 @@ export function Head(props: HeadProps): () => MemoChild {
         const existing = document.head.querySelector('meta[name="description"]');
         if (existing) {
           const oldContent = existing.getAttribute('content');
-          existing.setAttribute('content', (n as HTMLMetaElement).getAttribute('content') || '');
+          const newContent = (n as HTMLMetaElement).getAttribute('content') || '';
+          existing.setAttribute('content', newContent);
           hoisted.push({
             restore() {
+              // Same stacked-restore guard as <title>.
+              if (existing.getAttribute('content') !== newContent) return;
               if (oldContent !== null) {
                 existing.setAttribute('content', oldContent);
               } else {
