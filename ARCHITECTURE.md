@@ -143,20 +143,20 @@ Severity: **B** bug (wrong behavior), **S** security, **P** performance,
 
 ### Modularity / structural
 
-| # | Sev | Where | Issue |
+| # | Status | Where | Issue |
 |---|---|---|---|
-| M1 | M | `runtime/app.ts` | Split events (`createEventListener`, throttle) and hydration/island bootstrap out |
-| M2 | M | `runtime/ssr.ts` | Split DOM mocks (`ssr-mocks.ts`); move `renderToString` to layer 4 |
-| M3 | M | `track/core.ts` | Split into registry / handle+lifecycle / hydration / query; move remote-only types to `remote.ts`; invert `core → client/rpc` dep |
-| M4 | M | `router/Router.tsx` | Extract accessors+store-provider (`context.ts`) and loader/suspense machine |
-| M5 | M | `compiler/index.ts` | Split: orchestrator / function-scope transforms / auto-commit / walker |
-| M6 | M | `vite/router-plugin.ts` | Extract SSG (lines 93-208), unify Node↔Fetch shims with `dev-middleware.ts`, share template splicing with `adapters/shared.ts`, dedupe the second export parser |
-| M7 | M | `compiler/jsx-node.ts` | Merge the two ~90-line keyed-map compilers |
-| M8 | M | `compiler/` | Assignment-operator token sets ×6 → one table (constants.ts started) |
-| M9 | M | `events/` | `EventChain` type always declares extension modifiers (`hotkey`, `touch`, …) though they only exist after side-effect imports → per-module `declare module` augmentation |
-| M10 | M | `runtime/` | Two `memo` APIs with different scoping/eviction; unify |
-| M11 | M | `adapters/express.ts` | Published but throws — implement or remove from exports |
-| M12 | M | `vite/` ↔ `vite-router/` | Inverted dependency (`vite-router/index.ts` re-exports the plugin from `vite/`) — pick one owner |
+| M1 | ⏳ | `runtime/app.ts` | Split events (`createEventListener`, throttle) and hydration/island bootstrap out |
+| M2 | ✅ | `runtime/ssr.ts` | DOM mocks extracted to `ssr-mocks.ts` (479→278 lines); `renderToString` move to layer 4 still open |
+| M3 | ✅ | `track/core.ts` | Split into `registry.ts` / `handle.ts` / `hydration.ts` / `query.ts`; `core.ts` is a 26-line barrel; remote-only types moved to `remote.ts` |
+| M4 | ⏳ | `router/Router.tsx` | Extract accessors+store-provider (`context.ts`) and loader/suspense machine |
+| M5 | ⏳ | `compiler/index.ts` | Split: orchestrator / function-scope transforms / auto-commit / walker |
+| M6 | ⏳ | `vite/router-plugin.ts` | Extract SSG (lines 93-208), unify Node↔Fetch shims with `dev-middleware.ts` (`adapters/node-http.ts` created as their home), share template splicing with `adapters/shared.ts`, dedupe the second export parser |
+| M7 | ⏳ | `compiler/jsx-node.ts` | Merge the two ~90-line keyed-map compilers |
+| M8 | ✅ | `compiler/` | Six assignment-operator token copies → `ASSIGNMENT_TOKENS`/`INC_DEC_TOKENS` in `compiler/constants.ts` |
+| M9 | ✅ | `events/` | `EventChain` is now an interface with the true core surface; extension modules augment it via `declare module` — types match runtime imports |
+| M10 | ⏳ | `runtime/` | Two `memo` APIs with different scoping/eviction; unify |
+| M11 | ✅ | `adapters/express.ts` | Implemented for real (`createFetchAdapter` + `adapters/node-http.ts` shims) with tests |
+| M12 | ⏳ | `vite/` ↔ `vite-router/` | Inverted dependency (`vite-router/index.ts` re-exports the plugin from `vite/`) — pick one owner |
 
 ### Failing tests — all fixed (suite is green)
 

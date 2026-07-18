@@ -2,23 +2,23 @@ import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname, basename, relative } from 'node:path';
 import type { EnvironmentModuleNode, Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import * as ts from 'typescript';
-import type { AuwlaRouterOptions } from '../vite-router/types';
-import { scanPagesAndLayouts, buildDirectoryTree, scanAllComponents } from '../vite-router/scanner';
+import type { AuwlaRouterOptions } from './types';
+import { scanPagesAndLayouts, buildDirectoryTree, scanAllComponents } from './scanner';
 import {
   generateVirtualModule,
   generateLazyVirtualModule,
   generateVirtualModuleWithLayouts,
   generateTypeFile,
-} from '../vite-router/codegen';
+} from './codegen';
 import {
   scanServerModules,
   SERVER_EXTENSIONS,
   filePathToRouteName,
   filePathToServerRouteName,
-} from '../vite-router/server-scanner';
-import { buildServerManifest, writeServerManifest, generateServerManifestJs } from '../vite-router/manifest';
+} from './server-scanner';
+import { buildServerManifest, writeServerManifest, generateServerManifestJs } from './manifest';
 import type { ServerManifest } from '../server/types';
-import { getAuwlaConfig } from './config-loader';
+import { getAuwlaConfig } from '../config/loader';
 
 const VIRTUAL_MODULE_ID = 'auwla:routes';
 const ISLANDS_VIRTUAL_MODULE_ID = 'auwla:islands';

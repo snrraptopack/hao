@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'vitest';
 import { resolve } from 'node:path';
-import { auwlaRouter } from '../../src/vite/router-plugin';
+import { auwlaRouter } from '../../src/vite-router/router-plugin';
 
 describe('B1 — generated client stubs call rpcCall with the correct argument order', () => {
   test('stub passes getCurrentRoutePath() as the third argument', () => {

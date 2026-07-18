@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { auwlaRouter } from '../../src/vite/router-plugin'
+import { auwlaRouter } from '../../src/vite-router/router-plugin'
 
 const tempDirs: string[] = []
 

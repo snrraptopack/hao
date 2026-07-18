@@ -3,7 +3,7 @@ import ts from 'typescript';
 import path from 'path';
 import { compileAuwla } from '../compiler';
 import type { AuwlaConfig } from '../config';
-import { getAuwlaConfig } from './config-loader';
+import { getAuwlaConfig } from '../config/loader';
 
 export type AuwlaViteOptions = AuwlaConfig;
 

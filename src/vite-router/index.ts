@@ -9,6 +9,6 @@
  * implementation details. Tests import them directly from their source files.
  */
 
-export { auwlaRouter } from '../vite/router-plugin'
+export { auwlaRouter } from './router-plugin'
 export type { AuwlaRouterOptions } from './types'
 
