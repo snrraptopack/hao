@@ -173,8 +173,14 @@ export function Router(props: RouterProps = {}) {
   // (layoutFn, inner) pair and cached forever, so their instances — and their
   // setup state (scroll position, open menus) — survive navigation between
   // routes that share a layout chain.
+  //
+  // IMPORTANT: the cell must only be set when the key actually changes. A
+  // fresh object set on EVERY render invalidates PageSlot, whose dirty path
+  // walks back up to the Router — an endless render/invalidate loop that
+  // freezes the page.
   // ---------------------------------------------------------------------------
   const pageSlotCell = reactive<{ component: RouteComponent | null; key: string }>({ component: null, key: '' })
+  let lastSlotKey = ''
 
   function PageSlot(): MemoChild {
     return () => {
@@ -504,7 +510,12 @@ export function Router(props: RouterProps = {}) {
     const RouteComp = route.component
     const loaderStatus = cachedLoader?.status ?? 'idle'
     const routeKey = `${encodeURIComponent(currentPath)}:${loaderStatus}`
-    pageSlotCell.set({ component: RouteComp, key: routeKey })
+    // Only notify the slot when the key actually changed — a fresh set on
+    // every render re-dirties PageSlot and loops back into the Router.
+    if (lastSlotKey !== routeKey) {
+      lastSlotKey = routeKey
+      pageSlotCell.set({ component: RouteComp, key: routeKey })
+    }
 
     const layouts = routeLayouts(route)
     const output = layouts ? h(composedLayout(layouts), {}) : h(PageSlot, {})
