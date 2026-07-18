@@ -229,3 +229,123 @@ describe('automatic commit wrappers', () => {
     expect(compiled).not.toContain('__commit(self)');
   });
 });
+
+describe('external emitter auto-commit (out-of-event callbacks)', () => {
+  it('wraps addEventListener callbacks that mutate state', () => {
+    const source = `
+      function App() {
+        let count = 0;
+
+        ws.addEventListener('message', (event) => {
+          count++;
+        });
+
+        return () => <div>{count}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('try {');
+    expect(compiled).toContain('count++;');
+    expect(compiled).toContain('} finally {\n    __commit(');
+  });
+
+  it('wraps EventEmitter-style .on callbacks that mutate state', () => {
+    const source = `
+      function App() {
+        let items = [];
+
+        emitter.on('change', (next) => {
+          items = next;
+        });
+
+        return () => <div>{items.length}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('try {');
+    expect(compiled).toContain('items = next;');
+    expect(compiled).toContain('} finally {\n    __commit(');
+  });
+
+  it('wraps store.subscribe callbacks that mutate state', () => {
+    const source = `
+      function App() {
+        let theme = 'dark';
+
+        store.subscribe(() => {
+          theme = store.getState().theme;
+        });
+
+        return () => <div>{theme}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('try {');
+    expect(compiled).toContain('theme = store.getState().theme;');
+    expect(compiled).toContain('} finally {\n    __commit(');
+  });
+
+  it('wraps property-assigned handlers (ws.onmessage = fn)', () => {
+    const source = `
+      function App() {
+        let messages = 0;
+
+        ws.onmessage = (event) => {
+          messages++;
+        };
+
+        return () => <div>{messages}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('try {');
+    expect(compiled).toContain('messages++;');
+    expect(compiled).toContain('} finally {\n    __commit(');
+  });
+
+  it('wraps observer-constructor callbacks (new MutationObserver)', () => {
+    const source = `
+      function App() {
+        let mutations = 0;
+
+        const observer = new MutationObserver(() => {
+          mutations++;
+        });
+
+        return () => <div>{mutations}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).toContain('try {');
+    expect(compiled).toContain('mutations++;');
+    expect(compiled).toContain('} finally {\n    __commit(');
+  });
+
+  it('does NOT wrap external callbacks that do not mutate state', () => {
+    const source = `
+      function App() {
+        let count = 0;
+
+        ws.addEventListener('message', (event) => {
+          console.log(event.data);
+        });
+
+        return () => <div>{count}</div>;
+      }
+      exports.App = App;
+    `;
+
+    const compiled = compileAuwla(source);
+    expect(compiled).not.toContain('} finally {\n    __commit(');
+  });
+});

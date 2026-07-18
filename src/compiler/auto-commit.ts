@@ -10,6 +10,33 @@
 import ts from 'typescript';
 import { ASSIGNMENT_TOKENS, INC_DEC_TOKENS } from './constants';
 
+/**
+ * Methods that register a callback for later (out-of-band) invocation:
+ * DOM/EventTarget listeners, EventEmitter-style `.on`/`.once`, and
+ * store/observable `.subscribe`/`.watch`. Callbacks passed to these that
+ * mutate setup locals need an auto-commit boundary — the runtime's event
+ * pipeline never sees them.
+ */
+export const CALLBACK_REGISTRATION_METHODS: ReadonlySet<string> = new Set([
+  'addEventListener',
+  'addListener',
+  'on',
+  'once',
+  'subscribe',
+  'watch',
+]);
+
+/**
+ * Observer constructors whose first argument is a callback
+ * (`new IntersectionObserver(cb)`, `new MutationObserver(cb)`, …).
+ */
+export const OBSERVER_CONSTRUCTORS: ReadonlySet<string> = new Set([
+  'IntersectionObserver',
+  'MutationObserver',
+  'ResizeObserver',
+  'PerformanceObserver',
+]);
+
 /** Best-effort name for a function-like node (declaration or `const x = () => …`). */
 export function getFunctionName(node: ts.Node): string | null {
   if (ts.isFunctionDeclaration(node) && node.name) {
@@ -21,7 +48,9 @@ export function getFunctionName(node: ts.Node): string | null {
   return null;
 }
 
-/** True for async functions and callbacks passed to timers or promise chains. */
+/** True for async functions, callbacks passed to timers/promise chains, and
+ * callbacks registered on external emitters (addEventListener, .on, .subscribe,
+ * observer constructors, `x.onFoo = fn` assignments). */
 export function isAsyncOrTimerCallback(node: ts.Node): boolean {
   const isAsync = (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node))
     ? node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false
@@ -31,6 +60,23 @@ export function isAsyncOrTimerCallback(node: ts.Node): boolean {
   let parent = node.parent;
   if (parent && ts.isParenthesizedExpression(parent)) {
     parent = parent.parent;
+  }
+
+  // `ws.onmessage = fn` — property-assigned event handler (DOM handler
+  // properties are all-lowercase: onmessage, onopen, ontimeupdate, …).
+  if (
+    parent &&
+    ts.isBinaryExpression(parent) &&
+    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    ts.isPropertyAccessExpression(parent.left) &&
+    /^on[a-z]/i.test(parent.left.name.text)
+  ) {
+    return true;
+  }
+
+  // `new IntersectionObserver(fn)` — callback passed to an observer constructor.
+  if (parent && ts.isNewExpression(parent) && ts.isIdentifier(parent.expression)) {
+    if (OBSERVER_CONSTRUCTORS.has(parent.expression.text)) return true;
   }
 
   if (parent && ts.isCallExpression(parent)) {
@@ -43,6 +89,11 @@ export function isAsyncOrTimerCallback(node: ts.Node): boolean {
     } else if (ts.isPropertyAccessExpression(expr)) {
       const name = expr.name.text;
       if (name === 'then' || name === 'catch' || name === 'finally') {
+        return true;
+      }
+      // `ws.addEventListener('message', fn)`, `emitter.on('x', fn)`,
+      // `store.subscribe(fn)` — external emitter registrations.
+      if (CALLBACK_REGISTRATION_METHODS.has(name)) {
         return true;
       }
     }
