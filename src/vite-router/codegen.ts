@@ -456,9 +456,13 @@ export function generateVirtualModuleWithLayouts(
     lines.push(`    path: ${JSON.stringify(page.routePath)},`)
 
     if (alias) {
-      // Static page
-      const componentExpr = buildComponentExpr(`${alias}.default`, aliasChain)
-      lines.push(`    component: ${componentExpr},`)
+      // Static page. Layouts are emitted as metadata (not baked into the
+      // component) so layout instances survive navigation between
+      // same-layout routes — only the keyed page remounts.
+      lines.push(`    component: ${alias}.default,`)
+      if (aliasChain.length > 0) {
+        lines.push(`    layouts: [${aliasChain.map((a) => `${a}.default`).join(', ')}],`)
+      }
 
       if (ex.hasRouted)  lines.push(`    routed: ${alias}.routed,`)
       if (ex.hasPending) lines.push(`    pendingComponent: ${alias}.pending,`)
@@ -475,8 +479,10 @@ export function generateVirtualModuleWithLayouts(
       const key        = JSON.stringify(page.routePath)
       const importPath = JSON.stringify(page.filePath.replace(/\\/g, '/'))
       const cacheExpr  = `(props) => __mods.get(${key})?.default?.(props) ?? (() => null)`
-      const componentExpr = buildComponentExpr(cacheExpr, aliasChain)
-      lines.push(`    component: ${componentExpr},`)
+      lines.push(`    component: ${cacheExpr},`)
+      if (aliasChain.length > 0) {
+        lines.push(`    layouts: [${aliasChain.map((a) => `${a}.default`).join(', ')}],`)
+      }
 
       if (ex.hasRouted) {
         lines.push(`    routed: async (ctx, signal) => {`)
@@ -614,27 +620,6 @@ function getLayoutChain(page: PageFile, tree: DirectoryNode): LayoutFile[] {
   }
 
   return chain
-}
-
-/**
- * Builds a component expression string with the given layout chain applied.
- *
- * The base expression is wrapped from innermost to outermost:
- *   buildComponentExpr('page0.default', ['lay0', 'lay1'])
- *   → '() => lay0.default(() => lay1.default(page0.default))'
- *
- * With no layouts:
- *   buildComponentExpr('page0.default', []) → 'page0.default'
- */
-function buildComponentExpr(baseExpr: string, layerAliases: string[]): string {
-  if (layerAliases.length === 0) return baseExpr
-
-  // Wrap from innermost to outermost (reverse the chain)
-  let expr = baseExpr
-  for (let i = layerAliases.length - 1; i >= 0; i--) {
-    expr = `() => ${layerAliases[i]!}.default(${expr})`
-  }
-  return expr
 }
 
 /**

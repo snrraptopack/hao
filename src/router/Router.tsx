@@ -12,8 +12,11 @@ import { trackImpl as track } from "../track/core"
 import type { TrackHandle } from "../track/core"
 import { setRpcRoutePath, setRpcRouteParams } from "../client/rpc"
 import { component } from "../runtime/component"
+import { h } from "../runtime/dom"
+import { reactive } from "../runtime/reactive"
+import type { MemoChild } from "../runtime/types"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
-import { matchRoute, matchRoutes } from "./routes"
+import { matchRoute, matchRoutes, routeLayouts } from "./routes"
 import { getRouteState, tagRoute } from "./cache"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
@@ -23,6 +26,7 @@ import type {
   RouteContext,
   MatchedRoute,
   RouteComponent,
+  LayoutComponent,
 } from "./types"
 
 import {
@@ -159,6 +163,45 @@ export function Router(props: RouterProps = {}) {
   // instead of re-running the guard. Keyed by path so navigating away and back
   // always re-evaluates.
   let guardCache: { path: string; result: unknown } | null = null
+
+  // ---------------------------------------------------------------------------
+  // Layout composition (persistent layout instances across navigations).
+  //
+  // PageSlot is a stable component whose page is fed by a reactive cell:
+  // navigating sets the cell, PageSlot re-renders, and only the page instance
+  // (keyed by routeKey) remounts. Layout wrappers are composed ONCE per
+  // (layoutFn, inner) pair and cached forever, so their instances — and their
+  // setup state (scroll position, open menus) — survive navigation between
+  // routes that share a layout chain.
+  // ---------------------------------------------------------------------------
+  const pageSlotCell = reactive<{ component: RouteComponent | null; key: string }>({ component: null, key: '' })
+
+  function PageSlot(): MemoChild {
+    return () => {
+      const { component, key } = pageSlotCell.get()
+      return component ? h(component, { key }) : null
+    }
+  }
+
+  const layoutWrapperCache = new WeakMap<LayoutComponent, WeakMap<RouteComponent, RouteComponent>>()
+  const wrapOne = (layoutFn: LayoutComponent, inner: RouteComponent): RouteComponent => {
+    let byInner = layoutWrapperCache.get(layoutFn)
+    if (!byInner) {
+      byInner = new WeakMap()
+      layoutWrapperCache.set(layoutFn, byInner)
+    }
+    let wrapper = byInner.get(inner)
+    if (!wrapper) {
+      wrapper = () => layoutFn(inner)
+      byInner.set(inner, wrapper)
+    }
+    return wrapper
+  }
+  const composedLayout = (layouts: readonly LayoutComponent[]): RouteComponent => {
+    let child: RouteComponent = PageSlot
+    for (let i = layouts.length - 1; i >= 0; i--) child = wrapOne(layouts[i]!, child)
+    return child
+  }
 
   const { routes, suspend, errorComponent: globalErrorComponent, pendingComponent: globalPendingComponent } = props
   const suspendEnabled = !!suspend
@@ -453,10 +496,18 @@ export function Router(props: RouterProps = {}) {
     // Without this, createComponentClosure would serve the stale cached
     // instance.value (the pending-state UI) because the RouteComp ID is not
     // in the dirty set — only the Router's ID is.
+    //
+    // Layouts wrap the keyed PageSlot from OUTSIDE with once-composed,
+    // cached wrappers: layout instances don't carry the route key, so their
+    // setup state (scroll position, open menus) survives navigation between
+    // routes that share a layout chain — only the page remounts.
     const RouteComp = route.component
     const loaderStatus = cachedLoader?.status ?? 'idle'
     const routeKey = `${encodeURIComponent(currentPath)}:${loaderStatus}`
-    const output = <RouteComp key={routeKey} />
+    pageSlotCell.set({ component: RouteComp, key: routeKey })
+
+    const layouts = routeLayouts(route)
+    const output = layouts ? h(composedLayout(layouts), {}) : h(PageSlot, {})
 
     // Cache this match and the exact render function so it can be kept visible
     // during a future suspension, even if the last normal render was a pending
@@ -464,7 +515,7 @@ export function Router(props: RouterProps = {}) {
     previousRender = {
       matched,
       loader: cachedLoader,
-      render: () => <RouteComp key={routeKey} />,
+      render: () => output,
     }
     return output
   }

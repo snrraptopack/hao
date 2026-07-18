@@ -1,5 +1,5 @@
 // routes.ts
-import type { Route, ResolvedRoute, MatchedRoute, GroupOptions, PathParams } from "./types"
+import type { Route, ResolvedRoute, MatchedRoute, GroupOptions, PathParams, LayoutComponent } from "./types"
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -162,10 +162,11 @@ export function group(base: string, options: GroupOptions, routes: Route[]): Rou
   return flat.map((route) => {
     const r: Route = { ...route }
 
-    // Apply layout wrapper around the component.
-    if (layout && r.component) {
-      const original = r.component
-      r.component = () => layout(original)
+    // Attach the layout as metadata (outermost-first) instead of baking it
+    // into the component: the Router applies layouts around the keyed page,
+    // so layout instances survive navigation between same-layout routes.
+    if (layout) {
+      r.layouts = [layout, ...(r.layouts ?? [])]
     }
 
     // Merge guard with existing beforeEnter/guard.
@@ -192,6 +193,16 @@ export function group(base: string, options: GroupOptions, routes: Route[]): Rou
  */
 export function composeRoutes(...lists: Route[][]): Route[] {
   return lists.flat()
+}
+
+/**
+ * Resolve the effective layout chain for a route: `layouts` (outermost
+ * first), falling back to the singular `layout` field.
+ */
+export function routeLayouts(route: Route): LayoutComponent[] | undefined {
+  if (route.layouts?.length) return route.layouts
+  if (route.layout) return [route.layout]
+  return undefined
 }
 
 // ---------------------------------------------------------------------------

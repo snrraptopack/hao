@@ -190,10 +190,10 @@ describe('generateVirtualModuleWithLayouts', () => {
     expect(code).toContain('import * as page')
   })
 
-  it('wraps the component with the layout', () => {
+  it('emits the layout chain as route metadata', () => {
     const code = generateVirtualModuleWithLayouts(twoPageTree())
-    // Single layout wrapping: () => lay0.default(pageN.default)
-    expect(code).toContain('lay0.default(')
+    // Layouts are metadata (applied by the Router around the keyed page).
+    expect(code).toContain('layouts: [lay0.default]')
   })
 
   it('does NOT wrap components when there is no layout', () => {
@@ -212,8 +212,8 @@ describe('generateVirtualModuleWithLayouts', () => {
     ]
     const tree = buildDirectoryTree(pages, layouts)
     const code = generateVirtualModuleWithLayouts(tree)
-    // Outer (lay0) wraps inner (lay1) wraps page
-    expect(code).toContain('lay0.default(() => lay1.default(')
+    // Outer (lay0) first, inner (lay1) second
+    expect(code).toContain('layouts: [lay0.default, lay1.default]')
   })
 
   it('root pages are wrapped only by the root layout', () => {
@@ -229,9 +229,9 @@ describe('generateVirtualModuleWithLayouts', () => {
     const code = generateVirtualModuleWithLayouts(tree)
 
     // The root page only gets lay0
-    expect(code).toContain('lay0.default(page')
+    expect(code).toContain('layouts: [lay0.default]')
     // The dashboard page gets both
-    expect(code).toContain('lay0.default(() => lay1.default(')
+    expect(code).toContain('layouts: [lay0.default, lay1.default]')
   })
 
   it('applies the layout guard to pages without their own guard', () => {
@@ -317,8 +317,8 @@ describe('generateVirtualModuleWithLayouts', () => {
       const layouts = [makeLayout('_layout.tsx')]
       const tree    = buildDirectoryTree([page], layouts)
       const code    = generateVirtualModuleWithLayouts(tree, true)
-      // Lazy component expression is wrapped with the root layout
-      expect(code).toContain('lay0.default(')
+      // Lazy pages also carry the layout chain as metadata
+      expect(code).toContain('layouts: [lay0.default]')
       expect(code).toContain('__mods.get(')
     })
 

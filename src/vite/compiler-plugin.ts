@@ -54,11 +54,10 @@ function rewriteClientMount(code: string, file: string, mode: ClientMountRewrite
     const specifier = statement.moduleSpecifier.text;
 
     if (specifier === 'auwla:routes') {
-      replacements.push({
-        start: statement.getFullStart(),
-        end: statement.getEnd(),
-        text: '',
-      });
+      // KEEP the routes import: the generated module performs registration
+      // side effects the islands runtime depends on (__auwla_islandModules
+      // registry, __prefetch map). Stripping it here left island roots with
+      // no component registry, so hydration silently did nothing.
       continue;
     }
 

@@ -234,6 +234,7 @@ export function createMemoApp<TModel>(
       // (e.g. row ids) grew without bound. ('root' is the root view's scope;
       // it is never an instance and must be kept.)
       for (const key of cache.keys()) {
+        if (typeof key !== 'string') continue;
         const sep = key.indexOf('/memo:');
         if (sep < 0) continue;
         const ownerId = key.slice(0, sep);

@@ -18,13 +18,13 @@ import { runtimeState } from './state';
 import { isRenderClosure, isSsrNode } from './types';
 import { __ssrNode } from '../compiler-runtime/ssr';
 import { setCurrentPath } from '../router/navigation';
-import { matchRoutes } from '../router/routes';
+import { matchRoutes, routeLayouts } from '../router/routes';
 import { __setCurrentContext, __setCurrentLoader, __setCurrentMeta } from '../router/Router';
 import { invokeRemoteServer } from '../server/ssr-invoke';
 import type { SsrInvokeOptions } from '../server/ssr-invoke';
 import { track, __extractTrackState, __resetTrackRegistry } from '../track/core';
 import { setRpcRoutePath, setRpcRouteParams } from '../client/rpc';
-import type { Route, RouteContext, MatchedRoute } from '../router/types';
+import type { Route, RouteContext, MatchedRoute, RouteComponent } from '../router/types';
 import type { ServerManifest } from '../server/types';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { TrackHandle } from 'auwla/track';
@@ -241,7 +241,21 @@ export async function renderToString(
         __setCurrentLoader(loaderHandle);
 
         const RouteComp = route.component;
-        const output = RouteComp();
+        // Apply the route's layout chain (outermost first) around the page,
+        // mirroring the client Router's wrapWithLayouts composition.
+        let output: unknown;
+        const layouts = routeLayouts(route);
+        if (layouts) {
+          let child: RouteComponent = () => RouteComp();
+          for (let i = layouts.length - 1; i >= 0; i--) {
+            const layoutFn = layouts[i]!;
+            const inner = child;
+            child = () => layoutFn(inner);
+          }
+          output = child();
+        } else {
+          output = RouteComp();
+        }
         const rendered = isRenderClosure(output) ? output() : output;
 
         let html: string;

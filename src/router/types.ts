@@ -150,6 +150,16 @@ export type Route = {
   // Layout wrapper applied around this route's component. Usually applied
   // automatically by group() so every route in a group shares the same shell.
   layout?: LayoutComponent
+  /**
+   * Layout chain (outermost first) wrapping this route's page.
+   *
+   * Layouts are applied AROUND the keyed page component, not baked into it:
+   * navigating between routes that share a layout keeps the layout instance
+   * (and its setup state — open menus, scroll position) alive, while only
+   * the page remounts. Emitted by the file-based router for `_layout.tsx`
+   * files and by group(); you rarely set it by hand.
+   */
+  layouts?: LayoutComponent[]
   children?: Route[]
 }
 

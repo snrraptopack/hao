@@ -13,6 +13,8 @@
 
 import { getCurrentPath } from "./navigation"
 import { normalizePath } from "./routes"
+import { getRegistry } from "../track/registry"
+import { createHandle } from "../track/handle"
 import type { TrackHandle } from "../track/core"
 import type {
   RouteContext,
@@ -142,8 +144,24 @@ export function getLocation(): string {
   return getCurrentPath()
 }
 
+/**
+ * Resolve the active loader handle: the Router's current loader first, then
+ * the track registry's `__loader:<path>` entry. The fallback is what makes
+ * routed data reachable in islands mode — no Router is mounted there, but
+ * SSR-seeded loader payloads hydrate into the track registry.
+ */
+function resolveLoaderHandle<T>(): TypedTrackHandle<T> | null {
+  const current = readCurrentLoader() as TypedTrackHandle<T> | null
+  if (current) return current
+
+  const key = `__global::__loader:${getCurrentPath()}`
+  const state = getRegistry().get(key)
+  if (!state) return null
+  return createHandle(key, state.promise ?? Promise.resolve(state.value)) as TypedTrackHandle<T>
+}
+
 export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
-  return readCurrentLoader() as TypedTrackHandle<T> | null
+  return resolveLoaderHandle<T>()
 }
 
 /**
@@ -180,7 +198,7 @@ export function getRouted<T = unknown>(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inference only
   _fn?: (ctx: RouteContext<any>, signal: AbortSignal) => Promise<T>,
 ): TypedTrackHandle<T> | null {
-  return readCurrentLoader() as TypedTrackHandle<T> | null
+  return resolveLoaderHandle<T>()
 }
 
 /**

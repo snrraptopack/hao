@@ -3,6 +3,8 @@ type IslandModuleEntry = {
   load?: () => Promise<Record<string, any>>;
 };
 
+import { hydrateTrackData } from './hydration';
+
 let manifestPromise: Promise<void> | null = null;
 
 async function loadIslandManifest(): Promise<void> {
@@ -131,6 +133,11 @@ export function hydrateIslands(getComponent: (name: string) => any | Promise<any
       // append fresh DOM next to whatever content was in the shell, producing
       // a double render. Clearing innerHTML first guarantees a clean fresh mount.
       el.innerHTML = '';
+      // Seed the SSR track payload BEFORE the component setup runs — setups
+      // that read routed data (getRouted/getLoaderHandle) need the hydrated
+      // registry in place, and `Component(props)` evaluates setup synchronously
+      // before createMemoApp would hydrate it (ordering bug).
+      hydrateTrackData();
       createMemoApp(el, Component(props));
     } finally {
       pendingIslands.delete(el);
