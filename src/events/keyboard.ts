@@ -158,3 +158,24 @@ Object.defineProperty(EventChainProto, 'key', {
   writable: true,
   configurable: true
 });
+
+// Type-level registration (M9): these chain members exist only once this
+// module is imported, so they are augmented onto EventChain here rather than
+// declared in types.ts.
+declare module './types' {
+  interface EventChain<TEvent = Event> {
+    readonly mod: EventChain<KeyboardEvent>;
+    readonly ctrl: EventChain<KeyboardEvent>;
+    readonly meta: EventChain<KeyboardEvent>;
+    readonly shift: EventChain<KeyboardEvent>;
+    readonly alt: EventChain<KeyboardEvent>;
+    readonly up: EventChain<KeyboardEvent>;
+    readonly down: EventChain<KeyboardEvent>;
+    readonly enter: EventChain<KeyboardEvent>;
+    readonly esc: EventChain<KeyboardEvent>;
+    readonly del: EventChain<KeyboardEvent>;
+    readonly tab: EventChain<KeyboardEvent>;
+    readonly space: EventChain<KeyboardEvent>;
+    readonly key: KeyEventChain;
+  }
+}

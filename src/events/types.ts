@@ -46,7 +46,16 @@ export type GlobalEventChain<TEvent = Event> = {
   handler(handler: (event: TEvent) => unknown): () => void;
 };
 
-export type EventChain<TEvent = Event> = {
+/**
+ * The core event-chain surface.
+ *
+ * Extension-modifier members (`key`, `hotkey`, `intersect`, `fit`, …) are
+ * NOT declared here: they only exist once the matching extension module is
+ * imported (`auwla/events/keyboard`, `/hotkey`, `/intersect`, `/touch`).
+ * Each extension module augments this interface so the types match what the
+ * runtime actually has — see the `declare module './types'` blocks there (M9).
+ */
+export interface EventChain<TEvent = Event> {
   /**
    * Continue the chain only when the condition is true.
    *
@@ -64,13 +73,6 @@ export type EventChain<TEvent = Event> = {
   readonly left: EventChain<TEvent>;
   readonly middle: EventChain<MouseEvent>;
   readonly right: EventChain<TEvent>;
-  readonly up: EventChain<KeyboardEvent>;
-  readonly down: EventChain<KeyboardEvent>;
-  readonly enter: EventChain<KeyboardEvent>;
-  readonly esc: EventChain<KeyboardEvent>;
-  readonly del: EventChain<KeyboardEvent>;
-  readonly tab: EventChain<KeyboardEvent>;
-  readonly space: EventChain<KeyboardEvent>;
   readonly target: TargetEventChain<TEvent>;
   readonly debounce: TimedEventChain<TEvent>;
   readonly throttle: TimedEventChain<TEvent>;
@@ -84,16 +86,6 @@ export type EventChain<TEvent = Event> = {
   closest(selector: string): EventChain<TEvent>;
 
   readonly touch: EventChain<CustomEvent<any>>;
-  fit(arg1?: any, arg2?: any, arg3?: any): EventChain<TEvent>;
-  sync(obj: any, xProp?: string, yProp?: string): EventChain<TEvent>;
-  moved(threshold: number | string, direction?: string): EventChain<TEvent>;
-
-  readonly mod: EventChain<KeyboardEvent>;
-  readonly ctrl: EventChain<KeyboardEvent>;
-  readonly meta: EventChain<KeyboardEvent>;
-  readonly shift: EventChain<KeyboardEvent>;
-  readonly alt: EventChain<KeyboardEvent>;
-  readonly key: KeyEventChain;
   readonly click: EventChain<MouseEvent>;
   readonly dblClick: EventChain<MouseEvent>;
   readonly mouseEnter: EventChain<MouseEvent>;
@@ -121,25 +113,7 @@ export type EventChain<TEvent = Event> = {
   readonly global: {
     handler(handler: (event: TEvent) => unknown): () => void;
   };
-  readonly in: EventChain<TEvent>;
-  readonly out: EventChain<TEvent>;
-
-  /**
-   * Configure an IntersectionObserver to observe element visibility.
-   * 
-   * @example
-   * // Trigger when more than 50% visible
-   * <div onIntersect={event.intersect(0.5).in.handler(handler)} />
-   * 
-   * // Trigger when leaving the viewport
-   * <div onIntersect={event.intersect.out.handler(handler)} />
-   * 
-   * // Trigger with custom root element and options
-   * <Box onIntersect={event.intersect({ root: appRef, threshold: 0.5 }).out.handler(handler)} />
-   */
-  intersect(optionsOrThreshold?: import('./intersect').IntersectOptions | number): EventChain<CustomEvent<IntersectionObserverEntry>>;
-  hotkey(keys: string | readonly string[]): GlobalEventChain<KeyboardEvent>;
   emit(handle: ComponentHandle, name: string, payload?: unknown): boolean;
   handler<TResult>(handler: (event: TEvent) => TResult): ((event: TEvent) => void) & EventChain<TEvent>;
 
-};
+}

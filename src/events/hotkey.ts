@@ -234,3 +234,11 @@ Object.defineProperty(EventChainProto, 'hotkey', {
   writable: true,
   configurable: true
 });
+
+// Type-level registration (M9): hotkey exists only once this module is
+// imported.
+declare module './types' {
+  interface EventChain<TEvent = Event> {
+    hotkey(keys: string | readonly string[]): GlobalEventChain<KeyboardEvent>;
+  }
+}

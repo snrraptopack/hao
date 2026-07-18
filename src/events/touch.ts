@@ -369,3 +369,13 @@ Object.defineProperty(EventChainProto, 'moved', {
   writable: true,
   configurable: true
 });
+
+// Type-level registration (M9): fit/sync/moved exist only once this module
+// is imported.
+declare module './types' {
+  interface EventChain<TEvent = Event> {
+    fit(arg1?: any, arg2?: any, arg3?: any): EventChain<TEvent>;
+    sync(obj: any, xProp?: string, yProp?: string): EventChain<TEvent>;
+    moved(threshold: number | string, direction?: string): EventChain<TEvent>;
+  }
+}

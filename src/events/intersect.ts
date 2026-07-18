@@ -177,3 +177,20 @@ Object.defineProperty(EventChainProto, 'out', {
   },
   configurable: true
 });
+
+// Type-level registration (M9): intersect/in/out exist only once this module
+// is imported.
+declare module './types' {
+  interface EventChain<TEvent = Event> {
+    /**
+     * Configure an IntersectionObserver to observe element visibility.
+     *
+     * @example
+     * // Trigger when more than 50% visible
+     * <div onIntersect={event.intersect(0.5).in.handler(handler)} />
+     */
+    intersect(optionsOrThreshold?: IntersectOptions | number): EventChain<CustomEvent<IntersectionObserverEntry>>;
+    readonly in: EventChain<TEvent>;
+    readonly out: EventChain<TEvent>;
+  }
+}
