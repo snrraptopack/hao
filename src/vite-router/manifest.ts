@@ -112,7 +112,7 @@ export function writeServerManifest(
   writeSafe(`${outDir}/server-manifest.d.ts`, generateServerManifestDts(manifest))
 }
 
-function writeSafe(filePath: string, content: string): void {
+export function writeSafe(filePath: string, content: string): void {
   const dir = dirname(filePath)
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })
