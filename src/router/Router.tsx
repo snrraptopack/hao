@@ -13,7 +13,7 @@ import type { TrackHandle } from "../track/core"
 import { setRpcRoutePath, setRpcRouteParams } from "../client/rpc"
 import { component } from "../runtime/component"
 import { initNavigation, getCurrentPath, navigate, isPopNavigation } from "./navigation"
-import { matchRoute, matchRoutes, normalizePath } from "./routes"
+import { matchRoute, matchRoutes } from "./routes"
 import { getRouteState, tagRoute } from "./cache"
 import { fireAfterEach } from "./hooks"
 import { enterSuspense, exitSuspense, configureSuspense } from "./suspend"
@@ -21,178 +21,36 @@ import type { SuspendConfig } from "./suspend"
 import type {
   Route,
   RouteContext,
-  RouteError,
-  TypedTrackHandle,
   MatchedRoute,
   RouteComponent,
-  ValidRoutePath,
-  PathParams
 } from "./types"
 
-// ---------------------------------------------------------------------------
-// Module-level route context
-//
-// Set during each Router render pass and read by child components via the
-// getParams / getQuery / getLoaderHandle / getRouteMeta accessors below.
-// Because Auwla renders depth-first and synchronously, the innermost Router
-// that writes these values wins for its subtree — exactly what nested routing
-// needs. They are module-level (not reactive cells) because child components
-// read them during setup, not during an active render pass.
-// ---------------------------------------------------------------------------
+import {
+  readCurrentContext,
+  writeCurrentContext,
+  readPendingContext,
+  writePendingContext,
+  writeCurrentLoader,
+  writeCurrentMeta,
+  writeCurrentError,
+} from "./context"
 
-interface RouterStoreProvider {
-  getCurrentContext(): RouteContext | null
-  setCurrentContext(ctx: RouteContext | null): void
-  getCurrentLoader(): TrackHandle | null
-  setCurrentLoader(loader: TrackHandle | null): void
-  getCurrentMeta(): Record<string, unknown> | null
-  setCurrentMeta(meta: Record<string, unknown> | null): void
-  getCurrentError(): RouteError | null
-  setCurrentError(error: RouteError | null): void
-}
-
-function getStoreProvider(): RouterStoreProvider | null {
-  return (globalThis as any).__auwla_routerStoreProvider ?? null
-}
-
-let _currentContext: RouteContext | null = null
-let _pendingContext: RouteContext | null = null
-let _currentLoader: TrackHandle | null = null
-let _currentMeta: Record<string, unknown> | null = null
-/**
- * Set before every error component render, cleared after every normal render.
- * Readable via getRouteError() inside any error component so the component
- * can surface the reason, source, and route context without receiving props.
- */
-let _currentError: RouteError | null = null
-
-/** @internal Server-side rendering hooks to seed route context. */
-export function __setCurrentContext(ctx: RouteContext | null): void {
-  const provider = getStoreProvider()
-  if (provider) provider.setCurrentContext(ctx)
-  else _currentContext = ctx
-}
-/** @internal Server-side rendering hooks to seed the active loader handle. */
-export function __setCurrentLoader(loader: TrackHandle | null): void {
-  const provider = getStoreProvider()
-  if (provider) provider.setCurrentLoader(loader)
-  else _currentLoader = loader
-}
-/** @internal Server-side rendering hooks to seed route meta. */
-export function __setCurrentMeta(meta: Record<string, unknown> | null): void {
-  const provider = getStoreProvider()
-  if (provider) provider.setCurrentMeta(meta)
-  else _currentMeta = meta
-}
-
-export function getParams<P extends ValidRoutePath>(_path?: P): PathParams<P> {
-  const provider = getStoreProvider()
-  const ctx = provider ? provider.getCurrentContext() : _currentContext
-  return (ctx?.params ?? {}) as PathParams<P>
-}
-
-export function getQuery(): Record<string, string> {
-  const provider = getStoreProvider()
-  const ctx = provider ? provider.getCurrentContext() : _currentContext
-  return ctx?.query ?? {}
-}
-
-export function getLocation(): string {
-  return getCurrentPath()
-}
-
-export function getLoaderHandle<T = unknown>(): TypedTrackHandle<T> | null {
-  const provider = getStoreProvider()
-  return (provider ? provider.getCurrentLoader() : _currentLoader) as TypedTrackHandle<T> | null
-}
-
-/**
- * Typed accessor for the active `routed` data handle.
- *
- * ── Typed call (recommended) ─────────────────────────────────────────────────
- * Pass the page's `routed` function. TypeScript infers the resolved data type
- * `T` from its return type — no manual generic is needed:
- *
- *   export const routed = async (ctx, signal) => ({
- *     post: await fetchPost(ctx.params.id, signal),
- *   })
- *
- *   function PostDetail() {
- *     const data = getRouted(routed)
- *     // data.value → { post: Post }  — fully inferred
- *     return () => <h1>{data?.value?.post.title}</h1>
- *   }
- *
- * ── Untyped call ─────────────────────────────────────────────────────────────
- * Omit the argument to get a handle typed as `unknown`. Useful in shared
- * utility code that doesn't know the specific route's data shape:
- *
- *   const data = getRouted()
- *   // data.value → unknown
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * The function argument, when provided, is used by TypeScript for type
- * inference only — it is never called at runtime.
- *
- * Returns null when no routed function is active on the current route.
- */
-export function getRouted<T = unknown>(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- inference only
-  _fn?: (ctx: RouteContext<any>, signal: AbortSignal) => Promise<T>,
-): TypedTrackHandle<T> | null {
-  const provider = getStoreProvider()
-  return (provider ? provider.getCurrentLoader() : _currentLoader) as TypedTrackHandle<T> | null
-}
-
-/**
- * Returns the current error context when an error component is rendering.
- * Returns null in any other context.
- *
- * Call this in the setup of an error component (route-level or global) to
- * read the structured error regardless of whether it came from a loader or
- * another source:
- *
- *   function MyError() {
- *     const err = getRouteError()
- *     return () => (
- *       <div>
- *         <h1>Something went wrong</h1>
- *         <p>{String(err?.reason)}</p>
- *       </div>
- *     )
- *   }
- */
-export function getRouteError(): RouteError | null {
-  const provider = getStoreProvider()
-  return provider ? provider.getCurrentError() : _currentError
-}
-
-export function getRouteMeta<T extends Record<string, unknown> = Record<string, unknown>>(): T {
-  const provider = getStoreProvider()
-  const meta = provider ? provider.getCurrentMeta() : _currentMeta
-  return (meta ?? {}) as T
-}
-
-/**
- * Returns true when the current path starts with `path` at a segment boundary.
- *
- * Accepts any ValidRoutePath. When routes are registered via the Register
- * interface, only known paths are accepted at compile time.
- */
-export function isActive(path: string): boolean {
-  const current = normalizePath(getCurrentPath().split('?')[0]!)
-  const target  = normalizePath(path)
-  return current === target || current.startsWith(target + '/')
-}
-
-/**
- * Returns true only when the current path is an exact match for `path`.
- *
- * Accepts any path string.
- */
-export function isExactActive(path: string): boolean {
-  return normalizePath(getCurrentPath().split('?')[0]!) === normalizePath(path)
-}
+// Re-exported so the public surface (router/index.ts barrel, runtime/ssr.ts
+// seeds, and 'auwla/router' consumers) is unchanged after the extraction (M4).
+export {
+  getParams,
+  getQuery,
+  getLocation,
+  getLoaderHandle,
+  getRouted,
+  getRouteError,
+  getRouteMeta,
+  isActive,
+  isExactActive,
+  __setCurrentContext,
+  __setCurrentLoader,
+  __setCurrentMeta,
+} from "./context"
 
 // ---------------------------------------------------------------------------
 // Router component
@@ -285,8 +143,8 @@ export function Router(props: RouterProps = {}) {
   let cachedLoader: TrackHandle | null = null
   let previousRender: PreviousRender | null = null
   let isSuspended = false
-  // The loader handle that was active before suspension started. Passed as
-  // _currentLoader while the old component is being shown so that any
+  // The loader handle that was active before suspension started. Written as
+  // the current loader while the old component is being shown so that any
   // getLoaderHandle() call during that render sees the correct data.
   let prevCachedLoader: TrackHandle | null = null
   // Whether the navigation that triggered suspension was a pop (back/forward).
@@ -348,7 +206,7 @@ export function Router(props: RouterProps = {}) {
       if (isSuspended) {
         exitSuspense()
         isSuspended = false
-        _pendingContext = null
+        writePendingContext(null)
         prevCachedLoader = null
         suspendWasPopNav = false
       }
@@ -364,10 +222,10 @@ export function Router(props: RouterProps = {}) {
         guardCache = null
         cachedLoader?.cancel()
         cachedLoader = null
-        _currentContext = null
-        _currentLoader = null
-        _currentMeta = null
-        _currentError = null
+        writeCurrentContext(null)
+        writeCurrentLoader(null)
+        writeCurrentMeta(null)
+        writeCurrentError(null)
       }
       return <div>404 — page not found</div>
     }
@@ -413,12 +271,12 @@ export function Router(props: RouterProps = {}) {
       shouldRetry = false
       if (hasLoader && cachedLoader?.rejected) {
         cachedLoader.cancel()
-        cachedLoader = startLoader(route, _currentContext ?? { path: currentPath, params, query, state: getRouteState(currentPath), tag: () => {} } as RouteContext<any>, guardPromise)
+        cachedLoader = startLoader(route, readCurrentContext() ?? { path: currentPath, params, query, state: getRouteState(currentPath), tag: () => {} } as RouteContext<any>, guardPromise)
       }
     }
 
     // Capture the previous context so afterEach receives a correct `from`.
-    const previousContext = _currentContext
+    const previousContext = readCurrentContext()
 
     // Path changed — run one-time navigation side effects.
     if (cachedPath !== currentPath) {
@@ -441,7 +299,7 @@ export function Router(props: RouterProps = {}) {
         // content actually appears.
         isSuspended = true
         enterSuspense()
-        _pendingContext = nextContext
+        writePendingContext(nextContext)
         // Capture whether this was a pop navigation so the deferred scroll can
         // make the same decision without racing against a future navigation.
         suspendWasPopNav = isPopNavigation()
@@ -454,15 +312,15 @@ export function Router(props: RouterProps = {}) {
           // Navigating away from a suspended state — clean up.
           exitSuspense()
           isSuspended = false
-          _pendingContext = null
+          writePendingContext(null)
           prevCachedLoader = null
           suspendWasPopNav = false
           cachedLoader?.cancel()
         }
         // Scroll to top now: the new content renders immediately in this branch.
         if (!isPopNavigation()) scrollToTop()
-        _currentContext = nextContext
-        _currentMeta = route.meta ?? null
+        writeCurrentContext(nextContext)
+        writeCurrentMeta(route.meta ?? null)
 
         if (hasLoader) {
           cachedLoader = startLoader(route, nextContext, guardPromise)
@@ -478,8 +336,8 @@ export function Router(props: RouterProps = {}) {
     if (isSuspended && cachedLoader && !cachedLoader.pending) {
       isSuspended = false
       exitSuspense()
-      _currentContext = _pendingContext!
-      _pendingContext = null
+      writeCurrentContext(readPendingContext()!)
+      writePendingContext(null)
       // Cancel the loader for the previous page — we are committing the new
       // route now, so any in-flight work for the old page is no longer needed.
       prevCachedLoader?.cancel()
@@ -495,12 +353,12 @@ export function Router(props: RouterProps = {}) {
     // sees content (dimmed via global CSS) while data loads.
     if (isSuspended) {
       // Expose the new pending loader for any route.pendingComponent that needs it.
-      _currentLoader = cachedLoader
+      writeCurrentLoader(cachedLoader)
 
       if (previousRender) {
         // Restore the previous (resolved/pending/error) loader BEFORE rendering
         // the old UI so that getLoaderHandle() inside it returns the correct data.
-        _currentLoader = previousRender.loader
+        writeCurrentLoader(previousRender.loader)
         return previousRender.render()
       }
 
@@ -514,12 +372,12 @@ export function Router(props: RouterProps = {}) {
     }
 
     // Normal render path — refresh accessors for the current match.
-    _currentContext = { path: currentPath, params, query } as RouteContext<any>
+    writeCurrentContext({ path: currentPath, params, query } as RouteContext<any>)
     setRpcRouteParams(params)
-    _currentMeta = route.meta ?? null
-    _currentLoader = cachedLoader
+    writeCurrentMeta(route.meta ?? null)
+    writeCurrentLoader(cachedLoader)
     // Clear any stale error context from a previous error render on this route.
-    _currentError = null
+    writeCurrentError(null)
 
     // Loader fallbacks — re-evaluated on every render so they react to loader
     // state transitions (pending → resolved / rejected) automatically.
@@ -558,14 +416,14 @@ export function Router(props: RouterProps = {}) {
       // component can read it without receiving props.
       const reason = cachedLoader!.reason
       const errorRoute = route
-      const errorContext = _currentContext
+      const errorContext = readCurrentContext()
       const retry = () => {
         if (!cachedLoader?.rejected) return
         shouldRetry = true
         routerHandle._invalidate(routerHandle._id)
       }
 
-      _currentError = {
+      writeCurrentError({
         reason,
         source: 'loader',
         context: errorContext!,
@@ -575,7 +433,7 @@ export function Router(props: RouterProps = {}) {
         route: errorRoute,
         loader: cachedLoader,
         retry,
-      }
+      })
       const ErrorComp = errorComp
       const errorKey = `${encodeURIComponent(currentPath)}:error`
       previousRender = {
