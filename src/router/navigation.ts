@@ -88,22 +88,26 @@ export function setCurrentPath(next: string): void {
 /**
  * Navigate to a path.
  *
+ * Structured form (recommended):
+ *
+ *   navigate('/posts/:id', { params: { id: '3' }, query: { tab: 'comments' } })
+ *   navigate('/login', { replace: true })
+ *
+ * Legacy positional form (still supported):
+ *
+ *   navigate('/posts/:id', { id: '3' })
+ *   navigate('/posts/:id', { id: '3' }, { replace: true })
+ *
  * When the `Register` interface has been augmented (via `declare module
- * 'auwla/router'`), TypeScript validates the path literal at compile time
- * and requires the correct `params` object for any dynamic segments:
+ * 'auwla/router'`), TypeScript validates the path literal at compile time and
+ * requires the correct `params` object for any dynamic segments. Without
+ * augmentation, any string is accepted (backward-compatible).
  *
- *   navigate('/')                              // ✅
- *   navigate('/posts/:id', { id: '3' })        // ✅ params required and typed
- *   navigate('/posts/:id', { wrong: '3' })     // ❌ wrong param key
- *   navigate('/posts/:id')                     // ❌ missing params
- *   navigate('/not-registered')                // ❌ unknown path
- *
- * Without augmentation, the function accepts any string (backward-compatible).
- *
- * When params are provided they are interpolated into the path via pathFor()
- * before the browser navigation is triggered — the raw pattern string (e.g.
- * '/posts/:id') is never pushed into history.
+ * Params are interpolated into the path via pathFor() before the browser
+ * navigation is triggered — the raw pattern string (e.g. '/posts/:id') is
+ * never pushed into history.
  */
+export function navigate<P extends ValidRoutePath>(path: P, options?: NavigateOptions<P>): void
 export function navigate<P extends ValidRoutePath>(
   path: P,
   ...args: string extends P
@@ -111,26 +115,31 @@ export function navigate<P extends ValidRoutePath>(
     : PathParams<P> extends Record<string, never>
       ? [options?: NavigateOptions]
       : [params: PathParams<P>, options?: NavigateOptions]
+): void
+export function navigate<P extends ValidRoutePath>(
+  path: P,
+  ...args: unknown[]
 ): void {
-  // -----------------------------------------------------------------------
-  // Runtime: determine whether the first optional arg is a params object
-  // or a NavigateOptions object.
-  //
-  // A params object has at least one key that is NOT 'replace'.
-  // NavigateOptions only ever has 'replace'.
-  // -----------------------------------------------------------------------
   let url: string = path
   let options: NavigateOptions | undefined
 
-  if (args.length > 0 && args[0] != null && typeof args[0] === 'object') {
-    const first = args[0] as Record<string, unknown>
-    const isParams = Object.keys(first).some((k) => k !== 'replace')
-    if (isParams) {
-      // Interpolate ':param' segments and encode each value.
-      url = pathFor(path, first as PathParams<P>)
-      options = args[1] as NavigateOptions | undefined
+  const first = args[0]
+  if (first != null && typeof first === 'object') {
+    // Structured options object: { params?, query?, replace? }.
+    if ('params' in (first as object) || 'query' in (first as object)) {
+      const opts = first as NavigateOptions<P>
+      url = pathFor(path, (opts.params ?? {}) as PathParams<P>, opts.query)
+      options = opts
     } else {
-      options = first as NavigateOptions
+      // Legacy positional: a params object has at least one key other than
+      // 'replace'; a bare NavigateOptions object only has 'replace'.
+      const isParams = Object.keys(first).some((k) => k !== 'replace')
+      if (isParams) {
+        url = pathFor(path, first as PathParams<P>)
+        options = args[1] as NavigateOptions | undefined
+      } else {
+        options = first as NavigateOptions
+      }
     }
   }
 

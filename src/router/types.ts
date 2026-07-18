@@ -163,12 +163,17 @@ export type Route = {
   children?: Route[]
 }
 
-// Options accepted by navigate().
-export type NavigateOptions = {
+// Options accepted by navigate(). Generic over the path pattern so `params`
+// is fully typed and required keys are enforced when the path has them.
+export type NavigateOptions<P extends string = string> = {
   // When true, the current history entry is replaced instead of a new one
   // being pushed. Use for redirects and form submissions that should not
   // add an entry to the back stack.
   replace?: boolean
+  // Path parameter values, interpolated into the pattern (typed from P).
+  params?: PathParams<P>
+  // Query string values, appended after interpolation.
+  query?: Record<string, string | number | boolean>
 }
 
 // A route that has been matched and fully resolved.

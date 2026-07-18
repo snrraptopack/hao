@@ -133,3 +133,48 @@ describe('navigate() params interpolation', () => {
     push.mockRestore()
   })
 })
+
+// ---------------------------------------------------------------------------
+// navigate() — structured options object
+// ---------------------------------------------------------------------------
+
+describe('navigate() structured options', () => {
+  it('interpolates params from { params }', async () => {
+    const navigate = await getNavigate()
+    navigate('/posts/:id' as any, { params: { id: '42' } })
+    expect(location.pathname + location.search).toBe('/posts/42')
+  })
+
+  it('appends query from { query }', async () => {
+    const navigate = await getNavigate()
+    navigate('/search' as any, { query: { q: 'auwla', page: 2 } })
+    expect(location.pathname + location.search).toBe('/search?q=auwla&page=2')
+  })
+
+  it('supports params + query + replace together', async () => {
+    const navigate = await getNavigate()
+    history.pushState(null, '', '/start')
+    navigate('/posts/:id' as any, { params: { id: '7' }, query: { tab: 'comments' }, replace: true })
+    expect(location.pathname + location.search).toBe('/posts/7?tab=comments')
+    // replace: no new history entry for /start
+    expect(history.state === null || history.state === undefined).toBe(true)
+  })
+
+  it('legacy positional params still work', async () => {
+    const navigate = await getNavigate()
+    navigate('/users/:name' as any, { name: 'ada' })
+    expect(location.pathname + location.search).toBe('/users/ada')
+  })
+
+  it('legacy positional params + options still work', async () => {
+    const navigate = await getNavigate()
+    navigate('/users/:name' as any, { name: 'ada' }, { replace: true })
+    expect(location.pathname + location.search).toBe('/users/ada')
+  })
+
+  it('encodes param values', async () => {
+    const navigate = await getNavigate()
+    navigate('/posts/:id' as any, { params: { id: 'a/b c' } })
+    expect(location.pathname).toBe('/posts/a%2Fb%20c')
+  })
+})
