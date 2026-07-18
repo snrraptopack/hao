@@ -176,6 +176,11 @@ export function auwla(options: AuwlaViteOptions = {}): Plugin {
 
     load(id) {
       if (id === '\0auwla:islands') {
+        // Only stub when the router plugin is absent — otherwise its load()
+        // must win and emit the real island registry (both plugins share this
+        // resolved id, and an early empty stub silently starves hydration).
+        const hasRouter = viteConfig?.plugins?.some((p: any) => p.name === 'auwla-router');
+        if (hasRouter) return null;
         return 'export default [];';
       }
       return null;

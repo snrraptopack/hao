@@ -203,11 +203,17 @@ export function Router(props: RouterProps = {}) {
     }
     return wrapper
   }
+  // Stable numeric id per unique composed wrapper (function source text is
+  // identical across chains, so the fn object alone can't key the remount).
+  let chainIdCounter = 0
+  const chainIds = new WeakMap<RouteComponent, number>()
   const composedLayout = (layouts: readonly LayoutComponent[]): RouteComponent => {
     let child: RouteComponent = PageSlot
     for (let i = layouts.length - 1; i >= 0; i--) child = wrapOne(layouts[i]!, child)
+    if (!chainIds.has(child)) chainIds.set(child, ++chainIdCounter)
     return child
   }
+  const chainIdOf = (composed: RouteComponent): number => chainIds.get(composed)!
 
   const { routes, suspend, errorComponent: globalErrorComponent, pendingComponent: globalPendingComponent } = props
   const suspendEnabled = !!suspend
@@ -518,7 +524,14 @@ export function Router(props: RouterProps = {}) {
     }
 
     const layouts = routeLayouts(route)
-    const output = layouts ? h(composedLayout(layouts), {}) : h(PageSlot, {})
+    // The composed wrapper's chain id is the key: identical chains resolve to
+    // the same cached wrapper (patch in place — layout state persists), while
+    // a chain change yields a different chain id and forces a clean remount.
+    // Without this, the patcher morphs one layout block into another
+    // (both render a <div> root) and __setChild hits stale child references.
+    const output = layouts
+      ? h(composedLayout(layouts), { key: `chain:${chainIdOf(composedLayout(layouts))}` })
+      : h(PageSlot, {})
 
     // Cache this match and the exact render function so it can be kept visible
     // during a future suspension, even if the last normal render was a pending

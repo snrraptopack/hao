@@ -327,18 +327,26 @@ shows `errorComponent` instead of the main component.
 ```ts
 import { navigate } from 'auwla/router'
 
+// Structured options form (recommended)
 navigate('/posts')
-navigate('/posts/3')
-navigate('/posts', { replace: true })   // replaces history entry
+navigate('/posts/:id', { params: { id: '3' } })
+navigate('/posts/:id', { params: { id: '3' }, query: { tab: 'comments' } })
+navigate('/login', { replace: true })          // replaces history entry
+
+// Legacy positional form (still supported)
+navigate('/posts/:id', { id: '3' })
+navigate('/posts/:id', { id: '3' }, { replace: true })
 ```
 
-With typed routes registered (see below), `navigate` validates the path and
-params at compile time:
+With typed routes registered (see below), `navigate` validates the path,
+`params`, and `query` at compile time — invalid paths and missing or mistyped
+params are compile errors:
 
 ```ts
-navigate('/posts/:id', { id: '3' })   // ✅
-navigate('/posts/:id')                 // ❌ missing params
-navigate('/unknown')                   // ❌ not a registered path
+navigate('/posts/:id', { params: { id: '3' } })  // ✅
+navigate('/posts/:id')                            // ❌ missing params
+navigate('/posts/:id', { params: { wrong: '3' } }) // ❌ wrong param key
+navigate('/unknown')                              // ❌ not a registered path
 ```
 
 ### `back()` / `forward()`
@@ -420,7 +428,7 @@ afterEach((from, to) => {
 
 ## Route groups
 
-Share a layout or guard across multiple routes without nesting the paths:
+Share a base path, layout, or guard across multiple routes:
 
 ```ts
 import { defineRoutes, group } from 'auwla/router'
@@ -429,15 +437,25 @@ const routes = defineRoutes([
   { path: '/', component: Home },
 
   ...group(
+    '/admin',
     { layout: DashboardLayout, guard: requireAuth },
     [
-      { path: '/dashboard',  component: Dashboard },
-      { path: '/settings',   component: Settings },
-      { path: '/profile',    component: Profile },
+      { path: '/',          component: Dashboard },   // /admin
+      { path: '/settings',  component: Settings },    // /admin/settings
+      { path: '/profile',   component: Profile },     // /admin/profile
     ]
   ),
 ])
 ```
+
+### Layouts are persistent
+
+A layout attached by `group()` (or by `_layout.tsx` files) wraps the page
+**without being keyed to it**: navigating between routes that share the same
+layout chain keeps the layout component instance alive — its setup state
+(scroll position, open menus, active section) survives — while only the page
+remounts. Layouts also re-render on navigation (to update active-link
+styling), but their DOM is patched in place, not replaced.
 
 ---
 
