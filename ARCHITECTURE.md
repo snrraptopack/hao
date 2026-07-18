@@ -103,15 +103,15 @@ Severity: **B** bug (wrong behavior), **S** security, **P** performance,
 | S2 | ✅ | `adapters/fetch.ts:216-220` | Open redirect: 303 to client-controlled `routePath` → now restricted to same-origin relative paths |
 | S3 | ✅ | `head/Head.tsx:65,92` | SSR head XSS → string children escaped, attrs escape `&`/`"`/`<` |
 | S4 | ✅ | `adapters/fetch.ts:107-119` | Error duck-typing leaked internals → only `HttpError`-branded errors expose status/message/details |
-| S5 | ⏳ | `adapters/bun.ts:112` | Static file serving without path-containment check |
-| S6 | ⏳ | `vite-router/manifest.ts:24-33` | Absolute FS paths in `.auwla/server-manifest.*` |
+| S5 | ✅ | `adapters/bun.ts:112` | Static file serving without path-containment check → `resolveStaticPath` (decode, NUL check, resolve+prefix containment) |
+| S6 | ✅ | `vite-router/manifest.ts:24-33` | Absolute FS paths in `.auwla/server-manifest.*` → root-relative posix paths, resolved at load time (Vite root in dev, `__auwla_serverRoot`/cwd in prod) |
 
 ### Correctness
 
 | # | Status | Where | Issue |
 |---|---|---|---|
-| B1 | ⏳ | `vite/router-plugin.ts:268` vs `client/rpc.ts:68` | Generated client stubs call `rpcCall(key, args, {method})` — options land in `routePath`; direct calls of server functions broken (only `track.get/post` path works) |
-| B2 | ⏳ | `runtime/ssr.ts:384` + `client/rpc.ts:29-30` | SSR race: route path/params are module-level, not ALS-backed — concurrent requests can read each other's params |
+| B1 | ✅ | `vite/router-plugin.ts:268` vs `client/rpc.ts:68` | Generated client stubs called `rpcCall(key, args, {method})` → now pass `getCurrentRoutePath()` as the route path; direct calls work |
+| B2 | ✅ | `runtime/ssr.ts:384` + `client/rpc.ts:29-30` | SSR race: route path/params module-level → ALS-backed `__auwla_routeContextProvider` per request; client unchanged |
 | B3 | ✅ | `server/utils.ts:87-111` | GET remote with args crashed undici → no body for GET/HEAD; `parseBody()` falls back to first arg |
 | B4 | ✅ | `runtime/patch.ts:57` | Mixed-case SVG tags (`clipPath` etc.) always `replaceChild`'d → now patch in place |
 | B5 | ✅ | `runtime/app.ts:337-345` | Async handler's deferred `finally` clobbered `activeHandlerComponentId` → removed |
@@ -127,8 +127,8 @@ Severity: **B** bug (wrong behavior), **S** security, **P** performance,
 | B15 | ✅ | `compiler/attributes.ts:284-305` | `bind={derived}` emitted invalid `name() = …` → bails to runtime fallback |
 | B16 | ✅ | `compiler/index.ts:569-575` + `applyReplacements` | Overlapping replacements corrupted output (nested awaits duplicated text) → contained replacements dropped |
 | B17 | ✅ | `router/routes.ts:71-78` | Param names limited to letters, unescaped static segments → identifier rules + escaping + memoized regexes |
-| B18 | ⏳ | `events/intersect.ts:10,63-68` | IntersectionObserver leaks: teardown only via patched `removeEventListener`, but runtime unbinds via AbortSignal |
-| B19 | ⏳ | `runtime/dom.ts:301-311` | `__outside` window listeners leak when node removed wholesale |
+| B18 | ✅ | `events/intersect.ts:10,63-68` | IntersectionObserver leaks → teardown now hooks the AbortSignal the runtime binds with |
+| B19 | ✅ | `runtime/dom.ts:301-311` | `__outside` window listeners leaked on wholesale removal → lazy self-detach on next event once disconnected |
 | B20 | ✅ | `runtime/islands.ts:127-135,156` | Observer never disconnected; `destroy()` no-op → shared observer, auto-disconnect on idle/destroy |
 
 ### Performance
@@ -136,9 +136,9 @@ Severity: **B** bug (wrong behavior), **S** security, **P** performance,
 | # | Status | Where | Issue |
 |---|---|---|---|
 | P1 | ✅ | `vite-router/server-scanner.ts:85` | `ts.createProgram` per scan → cached program keyed by files+mtimes (fixes the 5s+ test timeouts) |
-| P2 | ⏳ | `compiler/derived.ts:509` etc. | Fresh TS parser per patch/setup line (`expand`, `extractIdentifiers`, …), no caching |
-| P3 | ⏳ | `runtime/app.ts:223-236,271-281` | O(depth×n) orphan GC; O(sources×components) dirty-source propagation |
-| P4 | ⏳ | `track/core.ts:560`, `track/remote.ts:169,227` | `JSON.stringify` diffing for SWR — O(payload), key-order sensitive, throws on circular/BigInt |
+| P2 | ✅ | `compiler/derived.ts:509` etc. | Fresh TS parser per patch line → `compiler/parse-cache.ts` (512-entry FIFO) |
+| P3 | ✅ | `runtime/app.ts` | O(depth×n) orphan GC → single-pass chain-walk with memoized verdicts; O(sources×components) propagation → inverted source→components index |
+| P4 | ✅ | `track/core.ts:602`, `track/remote.ts:169,227` | `JSON.stringify` SWR diffing → `shared/deep-equal.ts` (key-order-insensitive, no throws) |
 | P5 | ✅ | `router/routes.ts:89-97` | Route regexes recompiled per match → memoized per path (fixed with B17) |
 
 ### Modularity / structural
@@ -199,9 +199,9 @@ Phase 2 — boundary fixes:
 3. Extract router accessors/store into `router/context.ts` (M4).
 4. Extract SSG + HTTP shims from `router-plugin.ts` (M6).
 
-Phase 3 — correctness sweeps (in progress): S1–S4, B3–B17, B20, P1, P5 fixed
-with regression tests. Remaining: S5, S6, B1 (broken direct-call RPC stubs),
-B2 (SSR route-params race), B18/B19 (listener leaks), P2–P4.
+Phase 3 — correctness sweeps (DONE): every S/B/P registry row is fixed with
+regression tests. Remaining registry work is the modularity roadmap
+(M1–M12, Phases 1–2 above).
 
 Rules for new code: respect the layer table; cross-layer strings/globals go
 in `shared/constants.ts`; new feature = new module + a row in the map above;
