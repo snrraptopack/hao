@@ -9,9 +9,11 @@ export type {
   TrackStatus,
   TrackOptions,
   TrackHandle,
+} from './core';
+export type {
   TrackRemoteOptions,
   CommandHandle,
-} from './core';
+} from './remote';
 
 export type { FormHandle, FormOptions } from './form';
 

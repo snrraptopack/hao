@@ -7,8 +7,7 @@ import type { RemoteFunction } from '../server/types';
 import {
   TrackStatus,
   TrackHandle,
-  CommandHandle,
-  TrackRemoteOptions,
+  TrackOptions,
   getRegistry,
   getOrCreate,
   makeKey,
@@ -17,6 +16,44 @@ import {
   applyTransition,
   trackImpl,
 } from './core';
+
+export type TrackRemoteOptions = TrackOptions & {
+  signal?: AbortSignal;
+  /** Override the route path used to extract server params. Defaults to the current browser URL. */
+  routePath?: string;
+  global?: boolean;
+  /**
+   * Custom cache identifier. When provided, the result is stored under `id:<id>` instead
+   * of the current route path. This lets different routes (e.g. `/posts/123` and
+   * `/posts/123/edit`) share the same cached entry without a global singleton.
+   * The entry persists across navigations (no component-unmount cleanup), but still
+   * runs a Stale-While-Revalidate background sync on re-access.
+   */
+  id?: string;
+};
+
+
+
+/**
+ * Lazy command handle returned by track.post().
+ *
+ * `.run()` triggers the RPC. `.result` exposes the underlying TrackHandle so
+ * post-mutation state can be rendered reactively.
+ */
+export type CommandHandle<TArgs extends unknown[] = unknown[], TReturn = unknown> = {
+  readonly status: TrackStatus;
+  readonly pending: boolean;
+  readonly resolved: boolean;
+  readonly rejected: boolean;
+  readonly value: TReturn | undefined;
+  readonly reason: unknown;
+  /** The TrackHandle from the last .run() call, or null before any run. */
+  readonly result: TrackHandle<TReturn> | null;
+  /** Trigger the mutation with either the declared args or a FormData body. */
+  run(...args: TArgs | [FormData]): Promise<TReturn>;
+  /** No-op for commands; present for API symmetry. */
+  refresh(): void;
+};
 
 type GetKeys = {
   [K in keyof ServerManifestTypes]: ServerManifestTypes[K] extends { method: 'GET' }
