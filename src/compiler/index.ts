@@ -8,6 +8,7 @@
 import ts from 'typescript';
 import { COMPILER_IMPORT, CompileContext } from './types';
 import { ASSIGNMENT_TOKENS } from './constants';
+import { getFunctionName, isAsyncOrTimerCallback, hasSideEffects, mutatesLocals, hasCommitCall } from './auto-commit';
 import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
 import { unwrapJsxReturn, unwrapJsxBody, unwrapJsxExpression, analyzeComponentSkips } from './utils';
@@ -402,42 +403,6 @@ export function extractPropsExpression(parameters: ts.NodeArray<ts.ParameterDecl
   return '{}';
 }
 
-function hasSideEffects(node: ts.Node): boolean {
-  let sideEffect = false;
-  function walk(n: ts.Node) {
-    if (sideEffect) return;
-    if (
-      ts.isCallExpression(n) ||
-      ts.isNewExpression(n) ||
-      ts.isReturnStatement(n) ||
-      ts.isThrowStatement(n) ||
-      ts.isDeleteExpression(n)
-    ) {
-      sideEffect = true;
-      return;
-    }
-    if (ts.isBinaryExpression(n)) {
-      const op = n.operatorToken.kind;
-      if (
-        ASSIGNMENT_TOKENS.has(op)
-      ) {
-        sideEffect = true;
-        return;
-      }
-    }
-    if (
-      (ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) &&
-      (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)
-    ) {
-      sideEffect = true;
-      return;
-    }
-    ts.forEachChild(n, walk);
-  }
-  walk(node);
-  return sideEffect;
-}
-
 function addReactiveEffectReplacements(
   source: ts.SourceFile,
   setupStatements: ts.Statement[],
@@ -489,44 +454,6 @@ function findReplacements(
   function isSkippedComponent(node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): boolean {
     if (ts.isFunctionDeclaration(node) && node.name && skipCompile.has(node.name.text)) {
       return true;
-    }
-    return false;
-  }
-
-  function getFunctionName(node: ts.Node): string | null {
-    if (ts.isFunctionDeclaration(node) && node.name) {
-      return node.name.text;
-    }
-    if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) {
-      return node.parent.name.text;
-    }
-    return null;
-  }
-
-  function isAsyncOrTimerCallback(node: ts.Node): boolean {
-    const isAsync = (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node))
-      ? node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false
-      : false;
-    if (isAsync) return true;
-
-    let parent = node.parent;
-    if (parent && ts.isParenthesizedExpression(parent)) {
-      parent = parent.parent;
-    }
-
-    if (parent && ts.isCallExpression(parent)) {
-      const expr = parent.expression;
-      if (ts.isIdentifier(expr)) {
-        const name = expr.text;
-        if (name === 'setTimeout' || name === 'setInterval' || name === 'queueMicrotask' || name === 'requestAnimationFrame') {
-          return true;
-        }
-      } else if (ts.isPropertyAccessExpression(expr)) {
-        const name = expr.name.text;
-        if (name === 'then' || name === 'catch' || name === 'finally') {
-          return true;
-        }
-      }
     }
     return false;
   }
@@ -729,83 +656,6 @@ function findComponentSelfName(statements: ts.Statement[]): string | null {
     }
   }
   return null;
-}
-
-function mutatesLocals(body: ts.Node, locals: Set<string>): boolean {
-  let mutates = false;
-  
-  const assignOps = ASSIGNMENT_TOKENS;
-
-  const shadowed = new Set<string>();
-
-  function walk(node: ts.Node) {
-    if (mutates) return;
-
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
-      shadowed.add(node.name.text);
-    }
-    if (ts.isParameter(node) && ts.isIdentifier(node.name)) {
-      shadowed.add(node.name.text);
-    }
-
-    if (ts.isBinaryExpression(node) && assignOps.has(node.operatorToken.kind)) {
-      let root: string | null = null;
-      if (ts.isIdentifier(node.left)) {
-        root = node.left.text;
-      } else if (ts.isPropertyAccessExpression(node.left) && ts.isIdentifier(node.left.expression)) {
-        root = node.left.expression.text;
-      }
-      if (root && locals.has(root) && !shadowed.has(root)) {
-        mutates = true;
-        return;
-      }
-    }
-
-    if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) {
-      if (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) {
-        let root: string | null = null;
-        if (ts.isIdentifier(node.operand)) {
-          root = node.operand.text;
-        } else if (ts.isPropertyAccessExpression(node.operand) && ts.isIdentifier(node.operand.expression)) {
-          root = node.operand.expression.text;
-        }
-        if (root && locals.has(root) && !shadowed.has(root)) {
-          mutates = true;
-          return;
-        }
-      }
-    }
-
-    ts.forEachChild(node, walk);
-  }
-
-  walk(body);
-  return mutates;
-}
-
-function hasCommitCall(body: ts.Node, selfName: string): boolean {
-  let hasCall = false;
-
-  function walk(node: ts.Node) {
-    if (hasCall) return;
-
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      (node.expression.text === 'commit' || node.expression.text === '__commit') &&
-      node.arguments.length > 0 &&
-      ts.isIdentifier(node.arguments[0]!) &&
-      node.arguments[0]!.text === selfName
-    ) {
-      hasCall = true;
-      return;
-    }
-
-    ts.forEachChild(node, walk);
-  }
-
-  walk(body);
-  return hasCall;
 }
 
 function applyReplacements(source: string, replacements: Array<{ start: number; end: number; text: string }>): string {
