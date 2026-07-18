@@ -1,6 +1,7 @@
 import { reactive } from '../runtime/reactive';
 import { rpcCall, getCurrentRoutePath, getCurrentRouteParams } from '../client/rpc';
 import { getRpcDispatcher } from '../runtime/rpc-dispatcher';
+import { deepEqual } from '../shared/deep-equal';
 import type { ServerManifestTypes } from 'auwla/server-manifest';
 import type { RemoteFunction } from '../server/types';
 import {
@@ -166,7 +167,7 @@ export function trackGet(
       const bgPromise = dispatchRpc(key, [], routePath, { ...options, method: 'GET' });
       bgPromise.then(
         (value) => {
-          if (JSON.stringify(existing.value) !== JSON.stringify(value)) {
+          if (!deepEqual(existing.value, value)) {
             applyTransition(stateKey, 'resolved', value, undefined, options);
           }
           existing.promise = Promise.resolve(value);
@@ -224,7 +225,7 @@ export function invalidateQueryCache(): void {
 
         newPromise.then(
           (value) => {
-            if (JSON.stringify(state.value) !== JSON.stringify(value)) {
+            if (!deepEqual(state.value, value)) {
               applyTransition(key, 'resolved', value);
             }
             state.promise = Promise.resolve(value);

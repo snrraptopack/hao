@@ -21,6 +21,7 @@
 import { runtimeState, currentComponentId } from '../runtime/state';
 import { reactive } from '../runtime/reactive';
 import type { ReactiveCell } from '../runtime/reactive';
+import { deepEqual } from '../shared/deep-equal';
 import { getCurrentRoutePath } from '../client/rpc';
 
 export type TrackStatus = 'idle' | 'pending' | 'resolved' | 'rejected';
@@ -599,7 +600,7 @@ export function trackImpl(
           newPromise.then(
             (value) => {
               // Only update and trigger re-render if the value changed
-              if (JSON.stringify(state.value) !== JSON.stringify(value)) {
+              if (!deepEqual(state.value, value)) {
                 applyTransition(key, 'resolved', value, undefined, options);
               }
               state.promise = Promise.resolve(value);
