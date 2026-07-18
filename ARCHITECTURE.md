@@ -145,18 +145,18 @@ Severity: **B** bug (wrong behavior), **S** security, **P** performance,
 
 | # | Status | Where | Issue |
 |---|---|---|---|
-| M1 | ⏳ | `runtime/app.ts` | Split events (`createEventListener`, throttle) and hydration/island bootstrap out |
+| M1 | ✅ | `runtime/app.ts` | Split into `event.ts` (listener wrapper, rAF throttle) + `hydration.ts` (SSR/island bootstrap); app.ts is lifecycle + render loop (474→405) |
 | M2 | ✅ | `runtime/ssr.ts` | DOM mocks extracted to `ssr-mocks.ts` (479→278 lines); `renderToString` move to layer 4 still open |
 | M3 | ✅ | `track/core.ts` | Split into `registry.ts` / `handle.ts` / `hydration.ts` / `query.ts`; `core.ts` is a 26-line barrel; remote-only types moved to `remote.ts` |
-| M4 | ⏳ | `router/Router.tsx` | Extract accessors+store-provider (`context.ts`) and loader/suspense machine |
-| M5 | ⏳ | `compiler/index.ts` | Split: orchestrator / function-scope transforms / auto-commit / walker |
-| M6 | ⏳ | `vite/router-plugin.ts` | Extract SSG (lines 93-208), unify Node↔Fetch shims with `dev-middleware.ts` (`adapters/node-http.ts` created as their home), share template splicing with `adapters/shared.ts`, dedupe the second export parser |
-| M7 | ⏳ | `compiler/jsx-node.ts` | Merge the two ~90-line keyed-map compilers |
+| M4 | ✅ | `router/Router.tsx` | Accessors + store-provider extracted to `router/context.ts` (613→470). The loader/suspense state machines stay in the component by design |
+| M5 | ✅ | `compiler/index.ts` | Auto-commit analysis extracted to `compiler/auto-commit.ts` (913→764). The walker split (needs closure-state refactor) remains future work |
+| M6 | ✅ | `vite-router/router-plugin.ts` | SSG extracted to `vite-router/ssg.ts` (569→442); `writeSafe` deduped into `manifest.ts`. Still open: unifying the dev-middleware shims and the second export parser |
+| M7 | ✅ | `compiler/jsx-node.ts` | Merged via `buildKeyedMapParts` (-50 lines); eager/deferred emission is all that differs |
 | M8 | ✅ | `compiler/` | Six assignment-operator token copies → `ASSIGNMENT_TOKENS`/`INC_DEC_TOKENS` in `compiler/constants.ts` |
 | M9 | ✅ | `events/` | `EventChain` is now an interface with the true core surface; extension modules augment it via `declare module` — types match runtime imports |
-| M10 | ⏳ | `runtime/` | Two `memo` APIs with different scoping/eviction; unify |
+| M10 | ✅ | `runtime/` | `ctx.memo` keys are now render-path-scoped (no cross-component collisions) and entries are pruned on GC (no unbounded growth). Left as design note: module `memo()` caches descriptors while `ctx.memo` caches DOM nodes — full unification is a future API decision |
 | M11 | ✅ | `adapters/express.ts` | Implemented for real (`createFetchAdapter` + `adapters/node-http.ts` shims) with tests |
-| M12 | ⏳ | `vite/` ↔ `vite-router/` | Inverted dependency (`vite-router/index.ts` re-exports the plugin from `vite/`) — pick one owner |
+| M12 | ✅ | `vite/` ↔ `vite-router/` | Router plugin moved to `vite-router/router-plugin.ts`; config loader moved to `config/loader.ts`; no inverted edges |
 
 ### Failing tests — all fixed (suite is green)
 

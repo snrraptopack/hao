@@ -229,6 +229,18 @@ export function createMemoApp<TModel>(
           memoBlocks.delete(id);
         }
       }
+      // Prune ctx.memo entries whose owner component is gone (M10) — the
+      // cache was previously only cleared on destroy(), so dynamic keys
+      // (e.g. row ids) grew without bound. ('root' is the root view's scope;
+      // it is never an instance and must be kept.)
+      for (const key of cache.keys()) {
+        const sep = key.indexOf('/memo:');
+        if (sep < 0) continue;
+        const ownerId = key.slice(0, sep);
+        if (ownerId !== 'root' && !componentInstances.has(ownerId)) {
+          cache.delete(key);
+        }
+      }
     } finally {
       runtimeState.activeEventWrapper = previousWrapper;
       runtimeState.activeRenderState = previousRenderState;
@@ -326,12 +338,19 @@ export function createMemoApp<TModel>(
       return createEventListener(handler);
     },
     memo(key, deps, render) {
-      const cached = cache.get(key);
+      // Scope the cache key by the rendering component's id path — the same
+      // namespacing the module-level memo() uses — so two components that
+      // happen to share a raw key don't collide (M10).
+      const state = runtimeState.activeRenderState;
+      const scopedKey = state
+        ? `${state.stack[state.stack.length - 1]}/memo:${String(key)}`
+        : String(key);
+      const cached = cache.get(scopedKey);
       if (cached && sameDeps(cached.deps, deps)) {
         return cached.node;
       }
       const node = toNode(render());
-      cache.set(key, { deps: [...deps], node });
+      cache.set(scopedKey, { deps: [...deps], node });
       return node;
     },
   };

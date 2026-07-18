@@ -4,7 +4,7 @@
  * Each test names the issue it covers — see ARCHITECTURE.md.
  */
 import { describe, expect, test, vi } from 'vitest';
-import { createMemoApp, commit, __computed, __effect } from 'auwla';
+import { createMemoApp, commit, h, __computed, __effect } from 'auwla';
 import { runtimeState } from '../../src/runtime/state';
 import { setProp } from '../../src/runtime/dom';
 import { event } from '../../src/events';
@@ -256,5 +256,59 @@ describe('B19 — __outside window listeners detach after wholesale removal', ()
       // Flush the lazy detach so no listener leaks into other tests.
       document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
+  });
+});
+
+describe('M10 — ctx.memo cache scoping and eviction', () => {
+  test('two components using the same raw key do not collide', () => {
+    const root = document.createElement('div');
+
+    const app = createMemoApp(root, {}, (ctx: any) => {
+      function A() {
+        return () => ctx.memo('k', [1], () => ctx.el('span', null, 'A'));
+      }
+      function B() {
+        return () => ctx.memo('k', [1], () => ctx.el('span', null, 'B'));
+      }
+      return ctx.el('div', null, h(A, {}), h(B, {}));
+    });
+
+    // With the raw-key cache, B hit A's cached node.
+    expect(root.textContent).toBe('AB');
+    app.destroy();
+  });
+
+  test('a remounted component re-renders its memo instead of reviving a stale node', async () => {
+    const root = document.createElement('div');
+    let show = true;
+    let renders = 0;
+
+    const app = createMemoApp(root, {}, (ctx: any) => {
+      function A() {
+        return () => ctx.memo('k', [1], () => {
+          renders++;
+          return ctx.el('span', null, 'A');
+        });
+      }
+      return ctx.el('div', null,
+        show ? h(A, {}) : null,
+        ctx.el('button', { id: 'hide', onClick: () => { show = false; } }, 'hide'),
+      );
+    });
+
+    expect(renders).toBe(1);
+
+    // Unmount A — its memo entry must be pruned by the GC pass.
+    (root.querySelector('#hide') as HTMLButtonElement).click();
+    await tick();
+    expect(root.textContent).not.toContain('A');
+
+    // Remount: without eviction the cache would revive the old detached node
+    // without calling render() again.
+    show = true;
+    app.render();
+    expect(root.textContent).toContain('A');
+    expect(renders).toBe(2);
+    app.destroy();
   });
 });
