@@ -40,10 +40,16 @@ import type { SsrInvokeOptions } from '../server/ssr-invoke'
 import { resolve as resolvePath, sep } from 'node:path'
 
 /**
- * Virtual-module specifier kept behind a variable (+ `@vite-ignore`) so vite
- * import-analysis cannot statically resolve it outside the router plugin.
+ * Log a warning once per process. Used for lazy-load failures that
+ * intentionally fall back to the SPA shell, so they stay visible without
+ * spamming every request.
  */
-const AUWLA_ROUTES_MODULE = 'auwla:routes'
+const warned = new Set<string>()
+function warnOnce(message: string, err?: unknown): void {
+  if (warned.has(message)) return
+  warned.add(message)
+  console.warn(message, err ?? '')
+}
 
 /**
  * Resolve a URL path against the static root, returning null when the result
@@ -160,16 +166,22 @@ export function createBunAdapter(options: BunAdapterOptions = {}) {
     if (acceptsHtml && staticDir) {
       if (!options.routes) {
         try {
-          options.routes = (await import(/* @vite-ignore */ AUWLA_ROUTES_MODULE)).default
+          // Literal specifier: resolved by the router plugin's resolveId in
+          // Vite dev/SSR and rewritten to a bundled chunk in production
+          // builds. A variable specifier would bypass both and silently fail.
+          options.routes = (await import('auwla:routes')).default
         } catch (err) {
           // It's ok if routes aren't available, we just fall back to SPA shell
+          warnOnce('[auwla] Failed to load auwla:routes for SSR (falling back to SPA shell):', err)
         }
       }
       if (!options.manifest) {
         // Prefer the self-registered manifest (set by the generated
         // auwla:server-manifest module); fall back to a guarded lazy import.
         options.manifest = getRegisteredServerManifest() ?? await importServerManifestVirtualModule()
-        // Fall back to SPA shell if no manifest
+        if (!options.manifest) {
+          warnOnce('[auwla] Failed to load auwla:server-manifest for SSR (falling back to SPA shell)')
+        }
       }
 
       if (options.routes && options.manifest) {

@@ -204,15 +204,15 @@ export function getRegisteredServerManifest(): ServerManifest | undefined {
 
 /**
  * Last-resort lazy load of the `auwla:server-manifest` virtual module.
- * The specifier is hidden behind a variable (+ `/* @vite-ignore *\/`) so vite
- * import-analysis cannot statically resolve it — the virtual module only
- * exists inside the router plugin. In plain node/test environments the
- * import simply rejects and the caller falls back gracefully.
+ * The literal specifier is resolved by the router plugin's resolveId inside
+ * Vite (dev/SSR runner and production builds, where it is rewritten to a
+ * bundled chunk); in plain node/test environments the import simply rejects
+ * and the caller falls back gracefully. A variable specifier would bypass
+ * plugin resolution entirely and silently break SSR.
  */
 export async function importServerManifestVirtualModule(): Promise<ServerManifest | undefined> {
-  const specifier = 'auwla:server-manifest'
   try {
-    const mod = await import(/* @vite-ignore */ specifier)
+    const mod = await import('auwla:server-manifest')
     return mod.default as ServerManifest
   } catch {
     return undefined

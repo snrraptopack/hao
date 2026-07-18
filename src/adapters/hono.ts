@@ -12,12 +12,6 @@ import { getRegisteredServerManifest, importServerManifestVirtualModule } from '
 import type { Route } from '../router/types'
 import type { SsrInvokeOptions } from '../server/ssr-invoke'
 
-/**
- * Virtual-module specifier kept behind a variable (+ `@vite-ignore`) so vite
- * import-analysis cannot statically resolve it outside the router plugin.
- */
-const AUWLA_ROUTES_MODULE = 'auwla:routes'
-
 export interface HonoAdapterOptions extends FetchAdapterOptions {
   /**
    * Directory to serve static files from (when running on server platforms).
@@ -89,8 +83,12 @@ export function createHonoAdapter(options: HonoAdapterOptions = {}): HonoMiddlew
       let routes = options.routes
       if (!routes) {
         try {
-          routes = (await import(/* @vite-ignore */ AUWLA_ROUTES_MODULE)).default
-        } catch (err) {}
+          // Literal specifier — see the bun adapter for why a variable
+          // specifier must not be used here.
+          routes = (await import('auwla:routes')).default
+        } catch (err) {
+          console.warn('[auwla] Failed to load auwla:routes for SSR:', err)
+        }
       }
       let manifest = options.manifest ?? getRegisteredServerManifest()
       if (!manifest) {

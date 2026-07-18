@@ -13,6 +13,8 @@ export default defineConfig({
       { find: 'auwla/runtime/islands', replacement: fileURLToPath(new URL('./src/runtime/islands.ts', import.meta.url)) },
       { find: 'auwla/runtime/static', replacement: fileURLToPath(new URL('./src/runtime/static.ts', import.meta.url)) },
       { find: 'auwla:islands', replacement: fileURLToPath(new URL('./tests/fixtures/empty-islands.ts', import.meta.url)) },
+      { find: 'auwla:routes', replacement: fileURLToPath(new URL('./tests/fixtures/auwla-routes.ts', import.meta.url)) },
+      { find: 'auwla:server-manifest', replacement: fileURLToPath(new URL('./tests/fixtures/auwla-server-manifest.ts', import.meta.url)) },
       { find: 'auwla/events', replacement: fileURLToPath(new URL('./src/events/index.ts', import.meta.url)) },
       { find: 'auwla/track', replacement: fileURLToPath(new URL('./src/track/index.ts', import.meta.url)) },
       { find: /^auwla$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
