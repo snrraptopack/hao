@@ -6,7 +6,16 @@
  * re-renders across mounted apps.
  */
 
-import { runtimeState, BLOCKED_EVENT, SILENT_EVENT } from './state';
+import { runtimeState } from './state';
+import { createEventListener as createAppEventListener } from './event';
+import {
+  bootstrapIslands,
+  clearExposedInvalidate,
+  exposeInvalidateForChunkWarmers,
+  getTrackGlobals,
+  hydrateTrackData,
+  shouldHydrate,
+} from './hydration';
 import type {
   ComponentHandle,
   ComponentInstance,
@@ -27,37 +36,7 @@ import {
   markComponentComputedDirty,
   runComponentEffects,
 } from './computed';
-const getTrackGlobals = (): {
-  hasPendingLoaders?: () => boolean;
-  hydrateTrackState?: (data: Record<string, unknown>) => void;
-  cleanupComponentTracks?: (id: string) => void;
-} => {
-  const g = globalThis as any;
-  return {
-    hasPendingLoaders: g.__auwla_hasPendingLoaders,
-    hydrateTrackState: g.__auwla_hydrateTrackState,
-    cleanupComponentTracks: g.__auwla_cleanupComponentTracks,
-  };
-};
 import { enterHydration, exitHydration } from '../compiler-runtime/template';
-
-/** Events that fire rapidly and should be throttled to one render per frame. */
-const HIGH_FREQUENCY_EVENTS = new Set([
-  'input',
-  'mousemove',
-  'scroll',
-  'touchmove',
-  'wheel',
-  'pointermove',
-]);
-
-/** Schedule a callback for the next animation frame, falling back to setTimeout in test environments. */
-function scheduleFrame(callback: () => void): number {
-  if (typeof requestAnimationFrame !== 'undefined') {
-    return requestAnimationFrame(callback);
-  }
-  return setTimeout(callback, 16) as unknown as number;
-}
 
 /**
  * Memoize a stable subtree inside a component.
@@ -123,18 +102,8 @@ export function createMemoApp<TModel>(
   modelOrApp: TModel | MemoChild | RenderClosure,
   view?: (ctx: MemoContext<TModel>) => MemoChild
 ): MemoApp<TModel> {
-  if (typeof window !== 'undefined' && (window as any).__AUWLA_DATA__) {
-    getTrackGlobals().hydrateTrackState?.((window as any).__AUWLA_DATA__);
-    delete (window as any).__AUWLA_DATA__;
-  }
-
-  if (
-    typeof document !== 'undefined' &&
-    root.hasAttribute('data-auwla-ssr') &&
-    root.querySelector('[data-auwla-island]')
-  ) {
-    import('./islands').then(({ hydrateIslands }) => hydrateIslands());
-  }
+  hydrateTrackData();
+  bootstrapIslands(root);
 
   const cache = new Map<string | number, MemoEntry>();
   const componentInstances = new Map<string, ComponentInstance>();
@@ -337,47 +306,15 @@ export function createMemoApp<TModel>(
   };
   const mountedApp: import('./types').MountedApp = { invalidate, flushSync };
 
+  const eventDeps = {
+    invalidate,
+    isScheduled: () => scheduled,
+    isDestroyed: () => destroyed,
+  };
   const createEventListener = (
     handler: (event: Event, model: TModel) => unknown,
     ownerId: string | null = runtimeState.activeSetupComponentId,
-  ): EventListener => {
-    let frameId: number | null = null;
-
-    const throttledInvalidate = () => {
-      if (frameId !== null || scheduled || destroyed) return;
-      frameId = scheduleFrame(() => {
-        frameId = null;
-        if (!destroyed) invalidate(ownerId);
-      });
-    };
-
-    return (evt) => {
-      const prevHandlerId = runtimeState.activeHandlerComponentId;
-      runtimeState.activeHandlerComponentId = ownerId;
-      try {
-        const result = handler(evt, model as TModel);
-        if (result !== undefined && result === BLOCKED_EVENT) return;
-        if (result !== undefined && result === SILENT_EVENT) return;
-        if (result && typeof (result as Promise<unknown>).then === 'function') {
-          // Defer invalidation until the promise settles (timing modifiers
-          // rely on this). The handler id is NOT restored here — the
-          // synchronous finally below already did that, and a deferred
-          // restore would clobber a newer handler's id (B5).
-          void (result as Promise<unknown>).finally(() => {
-            invalidate(ownerId);
-          });
-          return;
-        }
-      } finally {
-        runtimeState.activeHandlerComponentId = prevHandlerId;
-      }
-      if (HIGH_FREQUENCY_EVENTS.has(evt.type)) {
-        throttledInvalidate();
-      } else {
-        invalidate(ownerId);
-      }
-    };
-  };
+  ): EventListener => createAppEventListener(eventDeps, handler, model as TModel, ownerId);
 
   const ctx: MemoContext<TModel> = {
     model: model as TModel,
@@ -399,18 +336,13 @@ export function createMemoApp<TModel>(
     },
   };
 
-  // Detect server-rendered content: if the root has child nodes and carries
-  // the SSR marker attribute (set by the server adapter), hydrate instead of
-  // wiping the DOM. enterHydration seeds the cursor; exitHydration clears it
-  // after the first render so subsequent re-renders clone normally.
-  const isHydrating = root.hasAttribute('data-auwla-ssr') && root.hasChildNodes();
+  // enterHydration seeds the cursor; exitHydration clears it after the
+  // first render so subsequent re-renders clone normally.
+  const isHydrating = shouldHydrate(root);
   if (isHydrating) {
     skipFirstHydrationPatch = true;
     enterHydration(root);
-    // Expose this app's invalidate so that lazy-chunk warmers (triggered by
-    // hydrateTrackState when __AUWLA_DATA__ is present) can wake the render
-    // loop once the component module is loaded into __mods.
-    (globalThis as any).__auwla_invalidate = invalidate;
+    exposeInvalidateForChunkWarmers(invalidate);
     renderNow();
   } else {
     renderNow();
@@ -455,9 +387,7 @@ export function createMemoApp<TModel>(
       componentInstances.clear();
       memoBlocks.clear();
       runtimeState.mountedApps.delete(mountedApp);
-      if ((globalThis as any).__auwla_invalidate === invalidate) {
-        delete (globalThis as any).__auwla_invalidate;
-      }
+      clearExposedInvalidate(invalidate);
       root.replaceChildren();
     },
   };
