@@ -10,7 +10,7 @@
  */
 
 import ts from 'typescript';
-import { GLOBALS_WITH_HELPERS } from './constants';
+import { GLOBALS_WITH_HELPERS, ASSIGNMENT_TOKENS } from './constants';
 import { parseParenthesizedExpression, parseTsxSnippet } from './parse-cache';
 
 export type ConditionalAssignment = {
@@ -143,22 +143,7 @@ function looksPure(expression: string): boolean {
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
       if (
-        op === ts.SyntaxKind.EqualsToken ||
-        op === ts.SyntaxKind.PlusEqualsToken ||
-        op === ts.SyntaxKind.MinusEqualsToken ||
-        op === ts.SyntaxKind.AsteriskEqualsToken ||
-        op === ts.SyntaxKind.SlashEqualsToken ||
-        op === ts.SyntaxKind.PercentEqualsToken ||
-        op === ts.SyntaxKind.AmpersandEqualsToken ||
-        op === ts.SyntaxKind.BarEqualsToken ||
-        op === ts.SyntaxKind.CaretEqualsToken ||
-        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
-        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
-        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
-        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
-        op === ts.SyntaxKind.BarBarEqualsToken ||
-        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
-        op === ts.SyntaxKind.QuestionQuestionEqualsToken
+        ASSIGNMENT_TOKENS.has(op)
       ) {
         pure = false;
         return;
@@ -254,22 +239,7 @@ export function buildDerivedContext(
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
       const isAssignment =
-        op === ts.SyntaxKind.EqualsToken ||
-        op === ts.SyntaxKind.PlusEqualsToken ||
-        op === ts.SyntaxKind.MinusEqualsToken ||
-        op === ts.SyntaxKind.AsteriskEqualsToken ||
-        op === ts.SyntaxKind.SlashEqualsToken ||
-        op === ts.SyntaxKind.PercentEqualsToken ||
-        op === ts.SyntaxKind.AmpersandEqualsToken ||
-        op === ts.SyntaxKind.BarEqualsToken ||
-        op === ts.SyntaxKind.CaretEqualsToken ||
-        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
-        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
-        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
-        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
-        op === ts.SyntaxKind.BarBarEqualsToken ||
-        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
-        op === ts.SyntaxKind.QuestionQuestionEqualsToken;
+        ASSIGNMENT_TOKENS.has(op);
       if (isAssignment) {
         collectPatternIdentifiers(node.left, out);
         // Only recurse into the right side; the left side was handled as a pattern.
@@ -642,24 +612,7 @@ export function needsFullDirty(expression: ts.Expression): boolean {
 
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
-      const assignOps = new Set([
-        ts.SyntaxKind.EqualsToken,
-        ts.SyntaxKind.PlusEqualsToken,
-        ts.SyntaxKind.MinusEqualsToken,
-        ts.SyntaxKind.AsteriskEqualsToken,
-        ts.SyntaxKind.SlashEqualsToken,
-        ts.SyntaxKind.PercentEqualsToken,
-        ts.SyntaxKind.AmpersandEqualsToken,
-        ts.SyntaxKind.BarEqualsToken,
-        ts.SyntaxKind.CaretEqualsToken,
-        ts.SyntaxKind.LessThanLessThanEqualsToken,
-        ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
-        ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
-        ts.SyntaxKind.AsteriskAsteriskEqualsToken,
-        ts.SyntaxKind.BarBarEqualsToken,
-        ts.SyntaxKind.AmpersandAmpersandEqualsToken,
-        ts.SyntaxKind.QuestionQuestionEqualsToken,
-      ]);
+      const assignOps = ASSIGNMENT_TOKENS;
       if (assignOps.has(op) && !ts.isIdentifier(node.left)) {
         full = true;
         return;
@@ -701,24 +654,7 @@ export function findMutatedVariables(expression: ts.Expression): string[] | null
     // x = …, x += …, etc.
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
-      const assignOps = new Set([
-        ts.SyntaxKind.EqualsToken,
-        ts.SyntaxKind.PlusEqualsToken,
-        ts.SyntaxKind.MinusEqualsToken,
-        ts.SyntaxKind.AsteriskEqualsToken,
-        ts.SyntaxKind.SlashEqualsToken,
-        ts.SyntaxKind.PercentEqualsToken,
-        ts.SyntaxKind.AmpersandEqualsToken,
-        ts.SyntaxKind.BarEqualsToken,
-        ts.SyntaxKind.CaretEqualsToken,
-        ts.SyntaxKind.LessThanLessThanEqualsToken,
-        ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
-        ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
-        ts.SyntaxKind.AsteriskAsteriskEqualsToken,
-        ts.SyntaxKind.BarBarEqualsToken,
-        ts.SyntaxKind.AmpersandAmpersandEqualsToken,
-        ts.SyntaxKind.QuestionQuestionEqualsToken,
-      ]);
+      const assignOps = ASSIGNMENT_TOKENS;
       if (assignOps.has(op)) {
         if (ts.isIdentifier(node.left)) {
           mutated.add(node.left.text);

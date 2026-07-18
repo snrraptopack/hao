@@ -7,6 +7,7 @@
 
 import ts from 'typescript';
 import { COMPILER_IMPORT, CompileContext } from './types';
+import { ASSIGNMENT_TOKENS } from './constants';
 import { compileTemplateRootBlock } from './template';
 import { compileJsxNode } from './jsx-node';
 import { unwrapJsxReturn, unwrapJsxBody, unwrapJsxExpression, analyzeComponentSkips } from './utils';
@@ -240,8 +241,7 @@ export function detectComponentReactivity(node: ts.Node, derivedCtx: DerivedCont
     if (derivedCtx && derivedCtx.locals.size > 0) {
       if (ts.isBinaryExpression(n)) {
         const op = n.operatorToken.kind;
-        const isAssign = op === ts.SyntaxKind.EqualsToken ||
-          (op >= ts.SyntaxKind.FirstAssignment && op <= ts.SyntaxKind.LastAssignment);
+        const isAssign = ASSIGNMENT_TOKENS.has(op);
         if (isAssign && ts.isIdentifier(n.left) && derivedCtx.locals.has(n.left.text)) {
           isReactive = true;
           return;
@@ -419,22 +419,7 @@ function hasSideEffects(node: ts.Node): boolean {
     if (ts.isBinaryExpression(n)) {
       const op = n.operatorToken.kind;
       if (
-        op === ts.SyntaxKind.EqualsToken ||
-        op === ts.SyntaxKind.PlusEqualsToken ||
-        op === ts.SyntaxKind.MinusEqualsToken ||
-        op === ts.SyntaxKind.AsteriskEqualsToken ||
-        op === ts.SyntaxKind.SlashEqualsToken ||
-        op === ts.SyntaxKind.PercentEqualsToken ||
-        op === ts.SyntaxKind.AmpersandEqualsToken ||
-        op === ts.SyntaxKind.BarEqualsToken ||
-        op === ts.SyntaxKind.CaretEqualsToken ||
-        op === ts.SyntaxKind.LessThanLessThanEqualsToken ||
-        op === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
-        op === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
-        op === ts.SyntaxKind.AsteriskAsteriskEqualsToken ||
-        op === ts.SyntaxKind.BarBarEqualsToken ||
-        op === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
-        op === ts.SyntaxKind.QuestionQuestionEqualsToken
+        ASSIGNMENT_TOKENS.has(op)
       ) {
         sideEffect = true;
         return;
@@ -749,24 +734,7 @@ function findComponentSelfName(statements: ts.Statement[]): string | null {
 function mutatesLocals(body: ts.Node, locals: Set<string>): boolean {
   let mutates = false;
   
-  const assignOps = new Set([
-    ts.SyntaxKind.EqualsToken,
-    ts.SyntaxKind.PlusEqualsToken,
-    ts.SyntaxKind.MinusEqualsToken,
-    ts.SyntaxKind.AsteriskEqualsToken,
-    ts.SyntaxKind.SlashEqualsToken,
-    ts.SyntaxKind.PercentEqualsToken,
-    ts.SyntaxKind.AmpersandEqualsToken,
-    ts.SyntaxKind.BarEqualsToken,
-    ts.SyntaxKind.CaretEqualsToken,
-    ts.SyntaxKind.LessThanLessThanEqualsToken,
-    ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
-    ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
-    ts.SyntaxKind.AsteriskAsteriskEqualsToken,
-    ts.SyntaxKind.BarBarEqualsToken,
-    ts.SyntaxKind.AmpersandAmpersandEqualsToken,
-    ts.SyntaxKind.QuestionQuestionEqualsToken,
-  ]);
+  const assignOps = ASSIGNMENT_TOKENS;
 
   const shadowed = new Set<string>();
 
