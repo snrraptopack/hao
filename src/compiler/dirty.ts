@@ -3,6 +3,7 @@ import type { DerivedContext } from './derived';
 import { extractIdentifiers } from './derived';
 import type { DynamicPatch } from './types';
 import { GLOBAL_IDENTIFIERS } from './constants';
+import { parseParenthesizedExpression } from './parse-cache';
 import { expressionDependencies } from './utils';
 
 function singleQuoted(value: string): string {
@@ -10,7 +11,7 @@ function singleQuoted(value: string): string {
 }
 
 function externalSourceDeps(expression: string, derivedCtx: DerivedContext | null): string[] {
-  const sourceFile = ts.createSourceFile('temp.ts', `(${expression})`, ts.ScriptTarget.Latest, true);
+  const sourceFile = parseParenthesizedExpression(expression);
   const deps = new Set<string>();
 
   function walk(node: ts.Node) {

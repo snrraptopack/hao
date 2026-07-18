@@ -90,6 +90,13 @@ export type RenderState = {
   dirty: Set<string> | null;
   dirtySources: Set<string> | null;
   sourceDeps: Map<string, Set<string>>;
+  /**
+   * Inverted view of `sourceDeps` (source → component ids), maintained by
+   * `registerComponentSources` and the GC paths. Lets dirty-source
+   * propagation touch only the components that actually depend on a source
+   * instead of scanning every component per source (P3).
+   */
+  sourceComponents: Map<string, Set<string>>;
   invalidate: (ownerId?: string | null) => void;
 };
 

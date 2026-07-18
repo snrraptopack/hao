@@ -11,6 +11,7 @@
 
 import ts from 'typescript';
 import { GLOBALS_WITH_HELPERS } from './constants';
+import { parseParenthesizedExpression, parseTsxSnippet } from './parse-cache';
 
 export type ConditionalAssignment = {
   start: number;
@@ -63,7 +64,7 @@ function collectScopeDeclarations(node: ts.Node, scope: Set<string>) {
 
 /** Extract top-level identifiers from a code string using the AST. */
 export function extractIdentifiers(code: string): string[] {
-  const sourceFile = ts.createSourceFile('temp.ts', `(${code})`, ts.ScriptTarget.Latest, true);
+  const sourceFile = parseParenthesizedExpression(code);
   const ids: string[] = [];
   const seen = new Set<string>();
   const scopes: Set<string>[] = [new Set()];
@@ -132,7 +133,7 @@ export function extractIdentifiers(code: string): string[] {
 
 /** True if the expression is safe to wrap in a computed getter. */
 function looksPure(expression: string): boolean {
-  const sourceFile = ts.createSourceFile('temp.ts', `(${expression})`, ts.ScriptTarget.Latest, true);
+  const sourceFile = parseParenthesizedExpression(expression);
   let pure = true;
 
   function walk(node: ts.Node) {
@@ -498,7 +499,7 @@ export function buildDerivedContext(
 
   // Rewrite references to derived getters: pendingTodos -> pendingTodos()
   function expand(expression: string): string {
-    const sourceFile = ts.createSourceFile('temp.tsx', expression, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const sourceFile = parseTsxSnippet(expression);
     const replacements: Array<{ start: number; end: number; text: string }> = [];
     const shadowedStack = [new Set<string>()];
 

@@ -140,6 +140,7 @@ export function createMemoApp<TModel>(
   const componentInstances = new Map<string, ComponentInstance>();
   const memoBlocks = new Map<string, import('./types').MemoBlock>();
   const componentSourceDeps = new Map<string, Set<string>>();
+  const componentSourceComponents = new Map<string, Set<string>>();
   let dirtyComponents: Set<string> | null = null;
   let dirtySources: Set<string> | null = null;
   let scheduled = true;
@@ -181,6 +182,7 @@ export function createMemoApp<TModel>(
       dirty: dirtyComponents,
       dirtySources,
       sourceDeps: componentSourceDeps,
+      sourceComponents: componentSourceComponents,
       invalidate,
     };
     dirtyComponents = new Set();
@@ -209,36 +211,43 @@ export function createMemoApp<TModel>(
 
       patchRoot(root, output);
 
-      const toDelete: [string, import('./types').ComponentInstance][] = [];
-      const deletedIds = new Set<string>();
-      for (const [id, inst] of componentInstances.entries()) {
-        if (renderState.seen.has(id)) continue;
-        const sep = id.lastIndexOf('/');
-        const parentId = sep >= 0 ? id.slice(0, sep) : null;
-        if (!parentId || parentId === 'root' || renderState.rendered.has(parentId)) {
-          toDelete.push([id, inst]);
-          deletedIds.add(id);
-        }
-      }
-      let foundMore = true;
-      while (foundMore) {
-        foundMore = false;
-        for (const [id, inst] of componentInstances.entries()) {
-          if (renderState.seen.has(id) || deletedIds.has(id)) continue;
-          const sep = id.lastIndexOf('/');
-          const parentId = sep >= 0 ? id.slice(0, sep) : null;
-          if (parentId && deletedIds.has(parentId)) {
-            toDelete.push([id, inst]);
-            deletedIds.add(id);
-            foundMore = true;
+      // Single-pass orphan collection (P3): each instance's verdict is
+      // decided by walking up its ancestor chain once, memoizing per id —
+      // no repeated full-map rescans per tree depth.
+      const verdict = new Map<string, boolean>();
+      const shouldDelete = (id: string): boolean => {
+        const cached = verdict.get(id);
+        if (cached !== undefined) return cached;
+        const chain: string[] = [];
+        let current = id;
+        let result = false;
+        while (true) {
+          const hit = verdict.get(current);
+          if (hit !== undefined) { result = hit; break; }
+          chain.push(current);
+          if (renderState.seen.has(current)) { result = false; break; }
+          const sep = current.lastIndexOf('/');
+          const parentId = sep >= 0 ? current.slice(0, sep) : null;
+          if (!parentId || parentId === 'root' || renderState.rendered.has(parentId)) {
+            result = true;
+            break;
           }
+          if (!componentInstances.has(parentId)) { result = false; break; }
+          current = parentId;
         }
+        for (const cid of chain) verdict.set(cid, result);
+        return result;
+      };
+
+      const toDelete: [string, import('./types').ComponentInstance][] = [];
+      for (const [id, inst] of componentInstances.entries()) {
+        if (shouldDelete(id)) toDelete.push([id, inst]);
       }
       runInstanceCleanups(toDelete);
       for (const [id] of toDelete) {
         componentInstances.delete(id);
         runtimeState.componentHosts.delete(id);
-        componentSourceDeps.delete(id);
+        removeFromSourceIndex(id);
         clearComponentComputedGetters(id);
         clearComponentEffects(id);
         getTrackGlobals().cleanupComponentTracks?.(id);
@@ -268,14 +277,30 @@ export function createMemoApp<TModel>(
     }
   };
 
+  const removeFromSourceIndex = (id: string) => {
+    const deps = componentSourceDeps.get(id);
+    if (deps) {
+      for (const source of deps) {
+        const components = componentSourceComponents.get(source);
+        if (components) {
+          components.delete(id);
+          if (components.size === 0) componentSourceComponents.delete(source);
+        }
+      }
+    }
+    componentSourceDeps.delete(id);
+  };
+
   const consumePendingDirtySources = () => {
     if (dirtySources === null) return;
     for (const source of runtimeState.pendingDirtySources) {
       dirtySources.add(source);
       if (dirtyComponents === null) continue;
-      for (const [componentId, deps] of componentSourceDeps) {
-        if (deps.has(source)) markDirtyPath(componentId);
-      }
+      // Inverted index: touch only components that depend on this source
+      // instead of scanning every component (P3).
+      const dependents = componentSourceComponents.get(source);
+      if (!dependents) continue;
+      for (const componentId of dependents) markDirtyPath(componentId);
     }
     runtimeState.pendingDirtySources.clear();
   };
@@ -422,7 +447,7 @@ export function createMemoApp<TModel>(
       // registries and must not outlive the app.
       for (const [id] of allInstances) {
         runtimeState.componentHosts.delete(id);
-        componentSourceDeps.delete(id);
+        removeFromSourceIndex(id);
         clearComponentComputedGetters(id);
         clearComponentEffects(id);
         getTrackGlobals().cleanupComponentTracks?.(id);

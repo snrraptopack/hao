@@ -332,6 +332,7 @@ function createRenderState(): import('./types').RenderState {
     dirty: null,
     dirtySources: null,
     sourceDeps: new Map(),
+    sourceComponents: new Map(),
     invalidate: () => {},
   };
 }

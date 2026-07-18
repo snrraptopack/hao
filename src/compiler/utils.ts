@@ -6,6 +6,7 @@
 
 import ts from 'typescript';
 import { GLOBAL_IDENTIFIERS } from './constants';
+import { parseParenthesizedExpression } from './parse-cache';
 
 /** Extract the raw text of an expression from the source file. */
 export function expressionText(source: ts.SourceFile, expression: ts.Expression): string {
@@ -100,7 +101,7 @@ export function rowDependencies(expressions: string[], itemName: string): string
   const seen = new Set<string>();
 
   for (const expression of expressions) {
-    const sourceFile = ts.createSourceFile('temp.ts', `(${expression})`, ts.ScriptTarget.Latest, true);
+    const sourceFile = parseParenthesizedExpression(expression);
     let allAccessesAreItemProps = true;
     const propertyAccesses: string[] = [];
 

@@ -87,6 +87,12 @@ export function registerComponentSources(sources: readonly string[]): void {
   if (!state || !id || sources.length === 0) return;
 
   const deps = state.sourceDeps.get(id) ?? new Set<string>();
-  for (const source of sources) deps.add(source);
+  for (const source of sources) {
+    deps.add(source);
+    // Maintain the inverted source → components index alongside (P3).
+    const components = state.sourceComponents.get(source) ?? new Set<string>();
+    components.add(id);
+    state.sourceComponents.set(source, components);
+  }
   state.sourceDeps.set(id, deps);
 }
